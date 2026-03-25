@@ -61,7 +61,7 @@ impl CliLauncher {
         let binary_name = crate::agent_cli::CliLauncher::get_binary_name(agent);
 
         #[cfg(target_os = "windows")]
-        let launch_command = format!("{} \r", binary_name);
+        let launch_command = format!("{}\r\n", binary_name);
 
         #[cfg(not(target_os = "windows"))]
         let launch_command = format!("{} \n", binary_name);
