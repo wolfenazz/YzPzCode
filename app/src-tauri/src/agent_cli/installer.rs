@@ -2,7 +2,7 @@ use super::detector::{AgentCliDetector, CliStatus};
 use super::prerequisites::PrerequisitesChecker;
 use super::provider::{get_provider, Platform};
 use crate::types::AgentType;
-use std::process::Command;
+use crate::utils::process::ProcessRunner;
 use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -50,8 +50,7 @@ impl AgentCliInstaller {
         let provider = get_provider(agent);
         let required_prereqs = provider.get_prerequisites();
 
-        let prereq_statuses = PrerequisitesChecker::check_all();
-        for prereq in &prereq_statuses {
+        for prereq in PrerequisitesChecker::check_all() {
             if required_prereqs.contains(&prereq.prerequisite_type) {
                 if !prereq.installed {
                     return Err(format!(
@@ -87,9 +86,7 @@ impl AgentCliInstaller {
             ));
         }
 
-        let result = self.execute_install_command(&install_cmd);
-
-        match result {
+        match self.execute_install_command(&install_cmd) {
             Ok(output) => {
                 self.emit_progress(
                     &agent,
@@ -131,8 +128,7 @@ impl AgentCliInstaller {
     pub fn get_install_command(agent: AgentType) -> String {
         let provider = get_provider(agent);
         let platform = Platform::current();
-        let cmd = provider.get_install_command(platform);
-        cmd.join(" ")
+        provider.get_install_command(platform).join(" ")
     }
 
     fn execute_install_command(&self, cmd: &[String]) -> Result<String, String> {
@@ -141,11 +137,9 @@ impl AgentCliInstaller {
         }
 
         let program = &cmd[0];
-        let args = &cmd[1..];
+        let args: Vec<&str> = cmd[1..].iter().map(|s| s.as_str()).collect();
 
-        let output = Command::new(program)
-            .args(args)
-            .output()
+        let output = ProcessRunner::run_hidden(program, &args)
             .map_err(|e| format!("Failed to execute install command: {}", e))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();

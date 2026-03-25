@@ -10,7 +10,7 @@ export type AuthStatus = "Unknown" | "Checking" | "Authenticated" | "NotAuthenti
 
 export type PrerequisiteType = "NodeJs" | "Npm" | "Git" | "Bun" | "Pnpm";
 
-export type IdeType = "vsCode" | "visualStudio" | "cursor" | "zed" | "webStorm" | "intelliJ" | "sublimeText" | "windsurf" | "perplexity";
+export type IdeType = "vsCode" | "visualStudio" | "cursor" | "zed" | "webStorm" | "intelliJ" | "sublimeText" | "windsurf" | "perplexity" | "antigravity";
 
 export interface PrerequisiteStatus {
   name: string;

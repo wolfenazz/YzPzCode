@@ -12,12 +12,13 @@ import intelliJIcon from '../../assets/IntelliJ_IDEA_Logo.png';
 import sublimeIcon from '../../assets/sublime_logo.png';
 import windsurfIcon from '../../assets/windsufrLogo.jpg';
 import perplexityIcon from '../../assets/perplexityLogo.jpg';
+import antigravityIcon from '../../assets/antigravity.png';
 
 interface IdesSelectorProps {
   selectedPath: string;
 }
 
-const IDE_ORDER: IdeType[] = ['vsCode', 'visualStudio', 'cursor', 'zed', 'webStorm', 'intelliJ', 'sublimeText', 'windsurf', 'perplexity'];
+const IDE_ORDER: IdeType[] = ['vsCode', 'visualStudio', 'cursor', 'zed', 'webStorm', 'intelliJ', 'sublimeText', 'windsurf', 'perplexity', 'antigravity'];
 
 const IDE_ICONS: Record<IdeType, string> = {
   vsCode: vsCodeIcon,
@@ -29,6 +30,7 @@ const IDE_ICONS: Record<IdeType, string> = {
   sublimeText: sublimeIcon,
   windsurf: windsurfIcon,
   perplexity: perplexityIcon,
+  antigravity: antigravityIcon,
 };
 
 const IDE_DISPLAY_NAMES: Record<IdeType, string> = {
@@ -41,6 +43,7 @@ const IDE_DISPLAY_NAMES: Record<IdeType, string> = {
   sublimeText: 'Sublime',
   windsurf: 'Windsurf',
   perplexity: 'Perplexity',
+  antigravity: 'Antigravity',
 };
 
 export const IdesSelector: React.FC<IdesSelectorProps> = () => {

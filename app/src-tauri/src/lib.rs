@@ -4,14 +4,38 @@ mod commands;
 mod ide;
 mod terminal;
 mod types;
+mod utils;
 
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
 use ide::IdeDetector;
+use tauri::Listener;
 use terminal::TerminalManager;
+
+fn setup_panic_hooks() {
+    std::panic::set_hook(Box::new(|panic_info| {
+        let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
+            s.to_string()
+        } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Unknown panic occurred".to_string()
+        };
+
+        let location = panic_info.location().map(|loc| {
+            format!("{}:{}:{}", loc.file(), loc.line(), loc.column())
+        }).unwrap_or_else(|| "unknown location".to_string());
+
+        eprintln!("[PANIC] {} at {}", message, location);
+        eprintln!("[PANIC] Backtrace: {:?}", std::backtrace::Backtrace::capture());
+    }));
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    setup_panic_hooks();
+    utils::env::init_user_environment();
+    
     let terminal_manager = TerminalManager::new();
     let default_provider = agent_cli::get_provider(crate::types::AgentType::Claude);
     let agent_executor = AgentExecutor::new(default_provider);
@@ -34,6 +58,16 @@ pub fn run() {
             agent_executor.set_app_handle(app.handle().clone());
             cli_installer.set_app_handle(app.handle().clone());
             cli_launcher.set_app_handle(app.handle().clone());
+
+            {
+                let terminal_manager_clone = terminal_manager.clone();
+                
+                app.listen("tauri://close-requested", move |_event| {
+                    println!("Window close requested, cleaning up sessions...");
+                    let _ = terminal_manager_clone.kill_all_sessions();
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -68,6 +102,8 @@ pub fn run() {
             commands::detect_ide,
             commands::detect_all_ides_cmd,
             commands::launch_ide_cmd,
+            commands::send_feedback,
+            commands::get_os_version,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

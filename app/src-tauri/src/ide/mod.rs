@@ -118,5 +118,13 @@ pub fn get_ide_config(ide: IdeType) -> IdeConfig {
             macos_app_names: vec!["Perplexity.app".to_string()],
             linux_binary_names: vec!["perplexity".to_string()],
         },
+        IdeType::Antigravity => IdeConfig {
+            name: "Antigravity".to_string(),
+            binary_names: vec!["antigravity".to_string()],
+            windows_binary_names: vec!["Antigravity.exe".to_string()],
+            windows_search_paths: vec!["Antigravity".to_string()],
+            macos_app_names: vec!["Antigravity.app".to_string()],
+            linux_binary_names: vec!["antigravity".to_string()],
+        },
     }
 }

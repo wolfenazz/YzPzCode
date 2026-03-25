@@ -36,6 +36,7 @@ impl IdeDetector {
             IdeType::SublimeText,
             IdeType::Windsurf,
             IdeType::Perplexity,
+            IdeType::Antigravity,
         ];
 
         let mut results = HashMap::new();
@@ -224,10 +225,8 @@ impl IdeDetector {
                                 }
                             }
                         }
-                    } else if path.is_dir() {
-                        if search_dir(&path, binaries, depth + 1) {
-                            return true;
-                        }
+                    } else if path.is_dir() && search_dir(&path, binaries, depth + 1) {
+                        return true;
                     }
                 }
             }
@@ -286,11 +285,20 @@ impl IdeDetector {
             }
         }
 
+        if let Some(flatpak_path) = self.check_flatpak(&config.name) {
+            return (true, Some(flatpak_path));
+        }
+
+        if let Some(snap_path) = self.check_snap(&config.name) {
+            return (true, Some(snap_path));
+        }
+
         let home = std::env::var("HOME").unwrap_or_default();
         let desktop_files_paths = [
             "/usr/share/applications",
             "/usr/local/share/applications",
             &format!("{}/.local/share/applications", home),
+            "/var/lib/snapd/desktop/applications",
         ];
 
         for apps_path in &desktop_files_paths {
@@ -303,22 +311,102 @@ impl IdeDetector {
                 for entry in entries.flatten() {
                     let file_name = entry.file_name().to_string_lossy().to_lowercase();
 
-                    let name_lower = config.name.to_lowercase().replace(' ', "-");
-                    if file_name.contains(&name_lower) {
-                        return (
-                            true,
-                            Some(format!(
-                                "{}/{}",
-                                apps_path,
-                                entry.file_name().to_string_lossy()
-                            )),
-                        );
+                    let name_variations = self.get_name_variations(&config.name);
+                    for variation in &name_variations {
+                        if file_name.contains(variation) {
+                            return (
+                                true,
+                                Some(format!(
+                                    "{}/{}",
+                                    apps_path,
+                                    entry.file_name().to_string_lossy()
+                                )),
+                            );
+                        }
                     }
                 }
             }
         }
 
         (false, None)
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    fn check_flatpak(&self, name: &str) -> Option<String> {
+        let output = std::process::Command::new("flatpak")
+            .args(["list", "--app", "--columns=application,name"])
+            .output()
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let list = String::from_utf8_lossy(&output.stdout);
+        let name_lower = name.to_lowercase();
+
+        for line in list.lines() {
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 2 {
+                let app_name = parts[1].to_lowercase();
+                if app_name.contains(&name_lower) || name_lower.contains(&app_name) {
+                    return Some(format!("flatpak:{}", parts[0]));
+                }
+            }
+        }
+
+        None
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    fn check_snap(&self, name: &str) -> Option<String> {
+        let snap_names = self.get_snap_names(name);
+
+        for snap_name in &snap_names {
+            let snap_path = format!("/snap/bin/{}", snap_name);
+            if std::path::Path::new(&snap_path).exists() {
+                return Some(snap_path);
+            }
+        }
+
+        None
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    fn get_snap_names(&self, name: &str) -> Vec<String> {
+        let snap_map = [
+            ("Visual Studio Code", vec!["code", "vscode"]),
+            ("Cursor", vec!["cursor"]),
+            ("Zed", vec!["zed"]),
+            ("WebStorm", vec!["webstorm"]),
+            (
+                "IntelliJ IDEA",
+                vec!["intellij-idea-community", "intellij-idea-ultimate"],
+            ),
+            ("Sublime Text", vec!["sublime-text"]),
+            ("Windsurf", vec!["windsurf"]),
+        ];
+
+        let name_lower = name.to_lowercase();
+        for (ide_name, snaps) in snap_map {
+            if name_lower.contains(&ide_name.to_lowercase())
+                || ide_name.to_lowercase().contains(&name_lower)
+            {
+                return snaps.iter().map(|s| s.to_string()).collect();
+            }
+        }
+
+        vec![name.to_lowercase().replace(' ', "-")]
+    }
+
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    fn get_name_variations(&self, name: &str) -> Vec<String> {
+        let mut variations = Vec::new();
+        let lower = name.to_lowercase();
+        variations.push(lower.replace(' ', "-"));
+        variations.push(lower.replace(' ', "_"));
+        variations.push(lower.replace(' ', ""));
+        variations
     }
 }
 

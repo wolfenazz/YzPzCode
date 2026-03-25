@@ -159,8 +159,146 @@ fn launch_linux(config: &super::IdeConfig, directory: &str) -> Result<(), String
         }
     }
 
+    let flatpak_id = get_flatpak_id(&config.name);
+    if let Some(id) = flatpak_id {
+        let result = std::process::Command::new("flatpak")
+            .args(["run", &id, directory])
+            .spawn();
+        if result.is_ok() {
+            return Ok(());
+        }
+    }
+
+    let snap_name = get_snap_name(&config.name);
+    if let Some(name) = snap_name {
+        let result = std::process::Command::new("snap")
+            .args(["run", &name])
+            .spawn();
+        if result.is_ok() {
+            let _ = std::process::Command::new("snap")
+                .args(["run", &name, "--", directory])
+                .spawn();
+            return Ok(());
+        }
+    }
+
+    if let Some(desktop_file) = find_desktop_file(&config.name) {
+        if let Ok(content) = std::fs::read_to_string(&desktop_file) {
+            for line in content.lines() {
+                if line.starts_with("Exec=") {
+                    let exec_cmd = line.strip_prefix("Exec=").unwrap_or("");
+                    let exec_cmd = exec_cmd.replace("%F", directory);
+                    let exec_cmd = exec_cmd.replace("%f", directory);
+                    let exec_cmd = exec_cmd.replace("%U", directory);
+                    let exec_cmd = exec_cmd.replace("%u", directory);
+                    let exec_cmd = exec_cmd.replace("%k", "");
+                    let exec_cmd = exec_cmd.replace("%%", "%");
+
+                    let parts: Vec<&str> = exec_cmd.split_whitespace().collect();
+                    if !parts.is_empty() {
+                        let program = parts[0];
+                        let args: Vec<&str> = parts[1..]
+                            .iter()
+                            .filter(|s| !s.starts_with('%'))
+                            .copied()
+                            .collect();
+
+                        let result = std::process::Command::new(program).args(&args).spawn();
+                        if result.is_ok() {
+                            return Ok(());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Err(format!(
         "Failed to launch {}: executable not found",
         config.name
     ))
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn get_flatpak_id(name: &str) -> Option<String> {
+    let flatpak_ids = [
+        ("Visual Studio Code", "com.visualstudio.code"),
+        ("Cursor", "com.cursor.Cursor"),
+        ("Zed", "dev.zed.Zed"),
+        ("WebStorm", "com.jetbrains.WebStorm"),
+        ("IntelliJ IDEA", "com.jetbrains.IntelliJ-IDEA-Community"),
+        ("Sublime Text", "com.sublimetext.three"),
+    ];
+
+    for (ide_name, flatpak_id) in flatpak_ids {
+        if name.contains(ide_name) || ide_name.contains(name) {
+            return Some(flatpak_id.to_string());
+        }
+    }
+    None
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn get_snap_name(name: &str) -> Option<String> {
+    let snap_names = [
+        ("Visual Studio Code", "code"),
+        ("Cursor", "cursor"),
+        ("Zed", "zed"),
+        ("WebStorm", "webstorm"),
+        ("IntelliJ IDEA", "intellij-idea-community"),
+        ("Sublime Text", "sublime-text"),
+    ];
+
+    for (ide_name, snap_name) in snap_names {
+        if name.contains(ide_name) || ide_name.contains(name) {
+            return Some(snap_name.to_string());
+        }
+    }
+    None
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn find_desktop_file(name: &str) -> Option<String> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let desktop_paths = [
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        &format!("{}/.local/share/applications", home),
+        "/var/lib/snapd/desktop/applications",
+    ];
+
+    let name_variations = get_desktop_file_variations(name);
+
+    for apps_path in &desktop_paths {
+        let path = std::path::Path::new(apps_path);
+        if !path.exists() {
+            continue;
+        }
+
+        if let Ok(entries) = std::fs::read_dir(path) {
+            for entry in entries.flatten() {
+                let file_name = entry.file_name().to_string_lossy().to_lowercase();
+                for variation in &name_variations {
+                    if file_name.contains(variation) {
+                        return Some(entry.path().to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+fn get_desktop_file_variations(name: &str) -> Vec<String> {
+    let mut variations = Vec::new();
+    let lower = name.to_lowercase();
+    variations.push(lower.replace(' ', "-"));
+    variations.push(lower.replace(' ', "_"));
+    variations.push(lower.replace(' ', ""));
+    variations.push(lower.replace("visual studio code", "vscode"));
+    variations.push(lower.replace("intellij idea", "idea"));
+    variations.push(lower.replace("intellij", "idea"));
+    variations.push(lower.replace("visual studio", "vscode"));
+    variations
 }

@@ -99,6 +99,7 @@ export const useAppStore = create<AppState>()(
         sublimeText: null,
         windsurf: null,
         perplexity: null,
+        antigravity: null,
       },
 
       setView: (view) => set({ view }),

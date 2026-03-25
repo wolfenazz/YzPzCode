@@ -163,13 +163,22 @@ impl TerminalManager {
     pub fn kill_session(&self, session_id: &str) -> Result<()> {
         let mut sessions = self.sessions.lock().unwrap();
         if let Some(session) = sessions.get_mut(session_id) {
+            println!("Killing session: {}", session_id);
             session.kill();
+            println!("Session {} killed successfully", session_id);
+        } else {
+            println!(
+                "Session {} not found (may already be terminated)",
+                session_id
+            );
         }
         sessions.remove(session_id);
         Ok(())
     }
 
     pub fn kill_sessions_by_workspace(&self, workspace_id: &str) -> Result<()> {
+        println!("Killing all sessions for workspace: {}", workspace_id);
+
         let mut sessions = self.sessions.lock().unwrap();
         let sessions_to_remove: Vec<String> = sessions
             .iter()
@@ -177,23 +186,42 @@ impl TerminalManager {
             .map(|(id, _)| id.clone())
             .collect();
 
+        println!(
+            "Found {} sessions to kill for workspace {}",
+            sessions_to_remove.len(),
+            workspace_id
+        );
+
         for session_id in &sessions_to_remove {
             if let Some(session) = sessions.get_mut(session_id) {
-                session.kill();
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    session.kill();
+                })) {
+                    Ok(_) => println!("Session {} killed successfully", session_id),
+                    Err(e) => eprintln!("Panic while killing session {}: {:?}", session_id, e),
+                }
             }
             sessions.remove(session_id);
         }
 
+        println!("All sessions killed for workspace {}", workspace_id);
         Ok(())
     }
 
     #[allow(dead_code)]
     pub fn kill_all_sessions(&self) -> Result<()> {
+        println!("Killing all sessions");
         let mut sessions = self.sessions.lock().unwrap();
-        for session in sessions.values_mut() {
-            session.kill();
+        for (id, session) in sessions.iter_mut() {
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                session.kill();
+            })) {
+                Ok(_) => println!("Session {} killed", id),
+                Err(e) => eprintln!("Panic while killing session {}: {:?}", id, e),
+            }
         }
         sessions.clear();
+        println!("All sessions cleared");
         Ok(())
     }
 

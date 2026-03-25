@@ -1,5 +1,5 @@
+use crate::utils::process::ProcessRunner;
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -36,8 +36,8 @@ impl PrerequisitesChecker {
     }
 
     pub fn check_nodejs() -> PrerequisiteStatus {
-        let result = Self::run_command("node", &["--version"]);
         let minimum = "18.0.0";
+        let result = Self::run_command("node", &["--version"]);
 
         match result {
             Some(output) => {
@@ -59,27 +59,18 @@ impl PrerequisitesChecker {
                     ],
                 }
             }
-            None => PrerequisiteStatus {
-                name: "Node.js".to_string(),
-                prerequisite_type: PrerequisiteType::NodeJs,
-                installed: false,
-                version: None,
-                minimum_version: minimum.to_string(),
-                meets_minimum: false,
-                install_url: "https://nodejs.org".to_string(),
-                required_for: vec![
-                    "Claude Code".to_string(),
-                    "OpenCode".to_string(),
-                    "Codex CLI".to_string(),
-                    "Gemini CLI".to_string(),
-                ],
-            },
+            None => Self::not_installed(
+                "Node.js",
+                PrerequisiteType::NodeJs,
+                minimum,
+                "https://nodejs.org",
+            ),
         }
     }
 
     pub fn check_npm() -> PrerequisiteStatus {
-        let result = Self::run_command("npm", &["--version"]);
         let minimum = "8.0.0";
+        let result = Self::run_command("npm", &["--version"]);
 
         match result {
             Some(output) => {
@@ -101,27 +92,15 @@ impl PrerequisitesChecker {
                     ],
                 }
             }
-            None => PrerequisiteStatus {
-                name: "npm".to_string(),
-                prerequisite_type: PrerequisiteType::Npm,
-                installed: false,
-                version: None,
-                minimum_version: minimum.to_string(),
-                meets_minimum: false,
-                install_url: "https://nodejs.org".to_string(),
-                required_for: vec![
-                    "Claude Code".to_string(),
-                    "OpenCode".to_string(),
-                    "Codex CLI".to_string(),
-                    "Gemini CLI".to_string(),
-                ],
-            },
+            None => {
+                Self::not_installed("npm", PrerequisiteType::Npm, minimum, "https://nodejs.org")
+            }
         }
     }
 
     pub fn check_git() -> PrerequisiteStatus {
-        let result = Self::run_command("git", &["--version"]);
         let minimum = "2.0.0";
+        let result = Self::run_command("git", &["--version"]);
 
         match result {
             Some(output) => {
@@ -143,28 +122,37 @@ impl PrerequisitesChecker {
                     ],
                 }
             }
-            None => PrerequisiteStatus {
-                name: "Git".to_string(),
-                prerequisite_type: PrerequisiteType::Git,
-                installed: false,
-                version: None,
-                minimum_version: minimum.to_string(),
-                meets_minimum: false,
-                install_url: "https://git-scm.com".to_string(),
-                required_for: vec![
-                    "Claude Code".to_string(),
-                    "OpenCode".to_string(),
-                    "Codex CLI".to_string(),
-                    "Gemini CLI".to_string(),
-                ],
-            },
+            None => {
+                Self::not_installed("Git", PrerequisiteType::Git, minimum, "https://git-scm.com")
+            }
+        }
+    }
+
+    fn not_installed(
+        name: &str,
+        prereq_type: PrerequisiteType,
+        minimum: &str,
+        url: &str,
+    ) -> PrerequisiteStatus {
+        PrerequisiteStatus {
+            name: name.to_string(),
+            prerequisite_type: prereq_type,
+            installed: false,
+            version: None,
+            minimum_version: minimum.to_string(),
+            meets_minimum: false,
+            install_url: url.to_string(),
+            required_for: vec![
+                "Claude Code".to_string(),
+                "OpenCode".to_string(),
+                "Codex CLI".to_string(),
+                "Gemini CLI".to_string(),
+            ],
         }
     }
 
     fn run_command(cmd: &str, args: &[&str]) -> Option<String> {
-        Command::new(cmd)
-            .args(args)
-            .output()
+        ProcessRunner::run_hidden(cmd, args)
             .ok()
             .filter(|o| o.status.success())
             .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())

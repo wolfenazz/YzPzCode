@@ -13,6 +13,7 @@ export const useIde = () => {
     sublimeText: null,
     windsurf: null,
     perplexity: null,
+    antigravity: null,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

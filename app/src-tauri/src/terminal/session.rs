@@ -15,6 +15,7 @@ pub struct PtySession {
     pub pair: PtyPair,
     pub writer: Box<dyn Write + Send>,
     pub kill_flag: Arc<AtomicBool>,
+    pub child_pid: Option<u32>,
 }
 
 impl PtySession {
@@ -60,7 +61,88 @@ impl PtySession {
         };
 
         let mut cmd = CommandBuilder::new(&shell);
-        cmd.cwd(cwd);
+        cmd.cwd(cwd.clone());
+
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(path) = std::env::var("PATH") {
+                cmd.env("PATH", path);
+            }
+            if let Ok(appdata) = std::env::var("APPDATA") {
+                cmd.env("APPDATA", appdata);
+            }
+            if let Ok(local) = std::env::var("LOCALAPPDATA") {
+                cmd.env("LOCALAPPDATA", local);
+            }
+            if let Ok(home) = std::env::var("USERPROFILE") {
+                cmd.env("USERPROFILE", home.clone());
+                cmd.env("HOME", home);
+            }
+            if let Ok(comspec) = std::env::var("COMSPEC") {
+                cmd.env("COMSPEC", comspec);
+            }
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(path) = std::env::var("PATH") {
+                cmd.env("PATH", path);
+            }
+            if let Ok(home) = std::env::var("HOME") {
+                cmd.env("HOME", home);
+            }
+            if let Ok(user) = std::env::var("USER") {
+                cmd.env("USER", user);
+            }
+            if let Ok(shell) = std::env::var("SHELL") {
+                cmd.env("SHELL", shell);
+            }
+            if let Ok(tmpdir) = std::env::var("TMPDIR") {
+                cmd.env("TMPDIR", tmpdir);
+            }
+            if let Ok(term) = std::env::var("TERM") {
+                cmd.env("TERM", term);
+            } else {
+                cmd.env("TERM", "xterm-256color");
+            }
+            cmd.env("LANG", "en_US.UTF-8");
+            cmd.env("LC_ALL", "en_US.UTF-8");
+        }
+
+        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+        {
+            if let Ok(path) = std::env::var("PATH") {
+                cmd.env("PATH", path);
+            }
+            if let Ok(home) = std::env::var("HOME") {
+                cmd.env("HOME", home);
+            }
+            if let Ok(user) = std::env::var("USER") {
+                cmd.env("USER", user);
+            }
+            if let Ok(logname) = std::env::var("LOGNAME") {
+                cmd.env("LOGNAME", logname);
+            }
+            if let Ok(shell) = std::env::var("SHELL") {
+                cmd.env("SHELL", shell);
+            }
+            if let Ok(term) = std::env::var("TERM") {
+                cmd.env("TERM", term);
+            } else {
+                cmd.env("TERM", "xterm-256color");
+            }
+            if let Ok(display) = std::env::var("DISPLAY") {
+                cmd.env("DISPLAY", display);
+            }
+            if let Ok(xdg_session_type) = std::env::var("XDG_SESSION_TYPE") {
+                cmd.env("XDG_SESSION_TYPE", xdg_session_type);
+            }
+            if let Ok(xdg_current_desktop) = std::env::var("XDG_CURRENT_DESKTOP") {
+                cmd.env("XDG_CURRENT_DESKTOP", xdg_current_desktop);
+            }
+            cmd.env("LANG", "en_US.UTF-8");
+            cmd.env("LC_ALL", "en_US.UTF-8");
+        }
 
         // Add flags to hide the window for PowerShell
         if shell.to_lowercase().contains("powershell") || shell.to_lowercase().contains("pwsh") {
@@ -68,8 +150,9 @@ impl PtySession {
         }
 
         println!("Spawning command: {:?}", cmd);
-        let _child = pair.slave.spawn_command(cmd)?;
-        println!("Command spawned successfully");
+        let child = pair.slave.spawn_command(cmd)?;
+        let child_pid = child.process_id();
+        println!("Command spawned successfully with PID: {:?}", child_pid);
 
         let writer = pair.master.take_writer()?;
 
@@ -103,6 +186,7 @@ impl PtySession {
         });
 
         drop(output_tx);
+        drop(child);
 
         Ok((
             PtySession {
@@ -110,6 +194,7 @@ impl PtySession {
                 pair,
                 writer,
                 kill_flag,
+                child_pid,
             },
             output_rx,
         ))
@@ -133,8 +218,31 @@ impl PtySession {
 
     pub fn kill(&mut self) {
         self.kill_flag.store(true, Ordering::Relaxed);
+
         let _ = self.writer.write_all(&[3]);
         let _ = self.writer.flush();
+
+        if let Some(pid) = self.child_pid {
+            #[cfg(target_os = "windows")]
+            {
+                use std::process::Command;
+
+                let _ = Command::new("taskkill")
+                    .args(["/F", "/T", "/PID"])
+                    .arg(pid.to_string())
+                    .output();
+            }
+
+            #[cfg(not(target_os = "windows"))]
+            {
+                use std::process::Command;
+
+                let _ = Command::new("kill")
+                    .args(["-9"])
+                    .arg(pid.to_string())
+                    .output();
+            }
+        }
     }
 
     pub fn get_session(&self) -> &TerminalSession {

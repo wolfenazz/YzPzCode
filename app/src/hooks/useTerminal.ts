@@ -79,27 +79,32 @@ export const useTerminal = () => {
       setSessions(sessions.filter((s) => s.id !== sessionId));
     } catch (err) {
       console.error('Failed to kill session:', err);
-      throw err;
+      setSessions(sessions.filter((s) => s.id !== sessionId));
     }
   }, [sessions, setSessions]);
 
   const killAllSessions = useCallback(async () => {
     try {
       const currentSessions = sessions;
-      await Promise.all(currentSessions.map((s) => invoke('kill_session', { sessionId: s.id })));
+      await Promise.allSettled(
+        currentSessions.map((s) => invoke('kill_session', { sessionId: s.id }))
+      );
       setSessions([]);
     } catch (err) {
       console.error('Failed to kill all sessions:', err);
-      throw err;
+      setSessions([]);
     }
   }, [sessions, setSessions]);
 
   const killWorkspaceSessions = useCallback(async (workspaceId: string) => {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       await invoke('kill_workspace_sessions', { workspaceId });
+      clearTimeout(timeoutId);
     } catch (err) {
       console.error('Failed to kill workspace sessions:', err);
-      throw err;
     }
   }, []);
 

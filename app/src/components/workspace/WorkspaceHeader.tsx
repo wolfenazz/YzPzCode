@@ -1,6 +1,7 @@
 import React from 'react';
 import { WorkspaceConfig } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
+import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import logo from '../../assets/YzPzCodeLogo.png';
 
 interface WorkspaceHeaderProps {
@@ -85,21 +86,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
       <div className="flex-1 h-full" />
 
       <div className="flex items-center h-full gap-0 titlebar-nodrag">
-        <button
-          onClick={onThemeToggle}
-          className="flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover transition-colors text-theme-secondary hover:text-theme-main"
-          title="Switch Theme"
-        >
-          {theme === 'dark' ? (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          ) : (
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 18v1m9-9h1M3 9h1m12.728-4.272l-.707.707M6.343 17.657l-.707.707M16.95 16.95l.707.707M7.05 7.05l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-            </svg>
-          )}
-        </button>
+        <ThemeToggleButton theme={theme} onToggle={onThemeToggle} />
 
         <button
           onClick={onTerminate}

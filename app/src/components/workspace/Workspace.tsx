@@ -63,7 +63,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
   }, [currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, setSessionsForWorkspace, markWorkspaceOpened]);
 
   const handleBackToSetup = async () => {
-    await killAllSessions();
+    try {
+      await killAllSessions();
+    } catch (err) {
+      console.error('Error killing sessions:', err);
+    }
     clearCurrentWorkspace();
   };
 
@@ -72,7 +76,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
   };
 
   const handleWorkspaceClose = async (workspaceId: string) => {
-    await killWorkspaceSessions(workspaceId);
+    try {
+      await killWorkspaceSessions(workspaceId);
+    } catch (err) {
+      console.error('Error killing workspace sessions:', err);
+    }
     closeWorkspace(workspaceId);
     delete hasInitialized.current[workspaceId];
   };
@@ -83,7 +91,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
 
   const handleTerminate = async () => {
     if (currentWorkspace) {
-      await handleWorkspaceClose(currentWorkspace.id);
+      try {
+        await handleWorkspaceClose(currentWorkspace.id);
+      } catch (err) {
+        console.error('Error terminating workspace:', err);
+        closeWorkspace(currentWorkspace.id);
+        delete hasInitialized.current[currentWorkspace.id];
+      }
     }
   };
 

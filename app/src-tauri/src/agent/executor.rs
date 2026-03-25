@@ -10,6 +10,7 @@ use super::{
 };
 use crate::agent_cli::AgentCliProvider;
 use crate::terminal::TerminalManager;
+use crate::utils::process::ProcessRunner;
 
 #[derive(Clone)]
 pub struct AgentExecutor {
@@ -62,8 +63,7 @@ impl AgentExecutor {
     }
 
     pub fn get_task(&self, task_id: &str) -> Option<AgentTask> {
-        let tasks = self.tasks.lock().unwrap();
-        tasks.get(task_id).cloned()
+        self.tasks.lock().unwrap().get(task_id).cloned()
     }
 
     pub fn update_task_status(&self, task_id: &str, status: AgentTaskStatus) {
@@ -86,22 +86,19 @@ impl AgentExecutor {
     }
 
     pub fn set_generated_command(&self, task_id: &str, command: String) {
-        let mut tasks = self.tasks.lock().unwrap();
-        if let Some(task) = tasks.get_mut(task_id) {
+        if let Some(task) = self.tasks.lock().unwrap().get_mut(task_id) {
             task.generated_command = Some(command);
         }
     }
 
     pub fn set_error(&self, task_id: &str, error: String) {
-        let mut tasks = self.tasks.lock().unwrap();
-        if let Some(task) = tasks.get_mut(task_id) {
+        if let Some(task) = self.tasks.lock().unwrap().get_mut(task_id) {
             task.error = Some(error);
         }
     }
 
     pub fn increment_retry(&self, task_id: &str) -> u32 {
-        let mut tasks = self.tasks.lock().unwrap();
-        if let Some(task) = tasks.get_mut(task_id) {
+        if let Some(task) = self.tasks.lock().unwrap().get_mut(task_id) {
             task.retry_count += 1;
             return task.retry_count;
         }
@@ -111,10 +108,7 @@ impl AgentExecutor {
     pub fn cancel_task(&self, task_id: &str) -> bool {
         let mut tasks = self.tasks.lock().unwrap();
         if let Some(task) = tasks.get_mut(task_id) {
-            if matches!(
-                task.status,
-                AgentTaskStatus::Pending | AgentTaskStatus::Running
-            ) {
+            if matches!(task.status, AgentTaskStatus::Pending | AgentTaskStatus::Running) {
                 task.status = AgentTaskStatus::Cancelled;
                 task.completed_at = Some(
                     std::time::SystemTime::now()
@@ -150,10 +144,7 @@ impl AgentExecutor {
             match self.generate_command(&prompt).await {
                 Ok(command) => {
                     if command == "UNKNOWN" {
-                        self.set_error(
-                            &task_id,
-                            "Could not generate a command for this task".to_string(),
-                        );
+                        self.set_error(&task_id, "Could not generate a command for this task".to_string());
                         self.update_task_status(&task_id, AgentTaskStatus::Failed);
                         self.emit_task_update(&task_id);
                         return Err("Could not generate command".to_string());
@@ -174,10 +165,7 @@ impl AgentExecutor {
                 Err(e) => {
                     retry_count += 1;
                     if retry_count >= MAX_RETRIES {
-                        self.set_error(
-                            &task_id,
-                            format!("Failed after {} retries: {}", MAX_RETRIES, e),
-                        );
+                        self.set_error(&task_id, format!("Failed after {} retries: {}", MAX_RETRIES, e));
                         self.update_task_status(&task_id, AgentTaskStatus::Failed);
                         self.emit_task_update(&task_id);
                         return Err(e);
@@ -192,84 +180,20 @@ impl AgentExecutor {
     async fn generate_command(&self, prompt: &str) -> Result<String, String> {
         let binary_name = {
             let provider = self.provider.lock().unwrap();
-            let provider = provider.as_ref().ok_or("Provider not set")?;
-            provider.binary_name()
+            provider.as_ref().ok_or("Provider not set")?.binary_name()
         };
 
-        let binary_path = self.find_binary(binary_name)
+        let binary_path = ProcessRunner::find_binary_async(binary_name).await
             .ok_or(format!("CLI '{}' not found", binary_name))?;
 
-        self.run_cli(&binary_path, prompt)
+        let prompt = prompt.to_string();
+        tokio::task::spawn_blocking(move || Self::run_cli(&binary_path, &prompt))
+            .await
+            .map_err(|e| e.to_string())?
     }
 
-    fn find_binary(&self, binary: &str) -> Option<String> {
-        let binary_exts = if cfg!(target_os = "windows") {
-            vec!["", ".cmd", ".exe", ".bat", ".ps1"]
-        } else {
-            vec![""]
-        };
-
-        #[cfg(target_os = "windows")]
-        {
-            for ext in &binary_exts {
-                let full_name = format!("{}{}", binary, ext);
-                let output = std::process::Command::new("where")
-                    .arg(&full_name)
-                    .stdin(std::process::Stdio::null())
-                    .output();
-
-                if let Ok(o) = output {
-                    if o.status.success() {
-                        if let Some(path) = String::from_utf8_lossy(&o.stdout).lines().next() {
-                            let trimmed = path.trim().to_string();
-                            if !trimmed.is_empty() {
-                                return Some(trimmed);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        #[cfg(not(target_os = "windows"))]
-        {
-            if let Ok(o) = std::process::Command::new("which")
-                .arg(binary)
-                .stdin(std::process::Stdio::null())
-                .output()
-            {
-                if o.status.success() {
-                    let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                    if !path.is_empty() {
-                        return Some(path);
-                    }
-                }
-            }
-        }
-
-        None
-    }
-
-    fn run_cli(&self, binary_path: &str, prompt: &str) -> Result<String, String> {
-        #[cfg(target_os = "windows")]
-        let mut cmd = if binary_path.to_lowercase().ends_with(".cmd")
-            || binary_path.to_lowercase().ends_with(".bat")
-        {
-            let mut c = std::process::Command::new("cmd");
-            c.arg("/c").arg(binary_path);
-            c
-        } else {
-            std::process::Command::new(binary_path)
-        };
-
-        #[cfg(not(target_os = "windows"))]
-        let mut cmd = std::process::Command::new(binary_path);
-
-        let output = cmd
-            .arg(prompt)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
+    fn run_cli(binary_path: &str, prompt: &str) -> Result<String, String> {
+        let output = ProcessRunner::run_cmd_hidden(binary_path, &[prompt])
             .map_err(|e| format!("Failed to execute CLI: {}", e))?;
 
         if !output.status.success() {
@@ -277,8 +201,7 @@ impl AgentExecutor {
             return Err(format!("CLI execution failed: {}", stderr));
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        Ok(stdout.trim().to_string())
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     }
 
     fn emit_task_update(&self, task_id: &str) {
@@ -289,5 +212,3 @@ impl AgentExecutor {
         }
     }
 }
-
-

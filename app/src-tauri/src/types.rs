@@ -90,6 +90,7 @@ pub enum IdeType {
     SublimeText,
     Windsurf,
     Perplexity,
+    Antigravity,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
