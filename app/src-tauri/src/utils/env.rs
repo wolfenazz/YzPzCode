@@ -96,7 +96,7 @@ fn load_macos_user_env() -> anyhow::Result<()> {
                 format!("{}/go/bin", home),
             ];
 
-            let mut all_paths: Vec<String> = home_paths;
+            let mut all_paths: Vec<String> = home_paths.to_vec();
             all_paths.extend(default_paths.iter().map(|s| s.to_string()));
 
             let path_value = all_paths.join(":");
@@ -193,7 +193,7 @@ fn load_linux_user_env() -> anyhow::Result<()> {
                 format!("{}/go/bin", home),
             ];
 
-            let mut all_paths: Vec<String> = home_paths;
+            let mut all_paths: Vec<String> = home_paths.to_vec();
             all_paths.extend(default_paths.iter().map(|s| s.to_string()));
 
             let path_value = all_paths.join(":");
