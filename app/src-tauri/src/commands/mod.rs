@@ -451,12 +451,16 @@ pub async fn get_os_version() -> Result<OsVersionInfo, String> {
 
 #[cfg(target_os = "windows")]
 fn get_windows_version() -> String {
+    use std::os::windows::process::CommandExt;
     use std::process::Command;
-    
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
     let output = Command::new("cmd")
         .args(["/c", "ver"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output();
-    
+
     match output {
         Ok(o) if o.status.success() => {
             let ver_output = String::from_utf8_lossy(&o.stdout);

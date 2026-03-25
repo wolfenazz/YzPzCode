@@ -225,11 +225,15 @@ impl PtySession {
         if let Some(pid) = self.child_pid {
             #[cfg(target_os = "windows")]
             {
+                use std::os::windows::process::CommandExt;
                 use std::process::Command;
+
+                const CREATE_NO_WINDOW: u32 = 0x08000000;
 
                 let _ = Command::new("taskkill")
                     .args(["/F", "/T", "/PID"])
                     .arg(pid.to_string())
+                    .creation_flags(CREATE_NO_WINDOW)
                     .output();
             }
 
@@ -240,6 +244,9 @@ impl PtySession {
                 let _ = Command::new("kill")
                     .args(["-9"])
                     .arg(pid.to_string())
+                    .stdin(std::process::Stdio::null())
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
                     .output();
             }
         }

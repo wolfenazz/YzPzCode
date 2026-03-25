@@ -27,7 +27,12 @@ pub fn init_user_environment() {
 fn load_macos_user_env() -> anyhow::Result<()> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    let output = Command::new(&shell).args(&["-l", "-c", "env"]).output()?;
+    let output = Command::new(&shell)
+        .args(&["-l", "-c", "env"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()?;
 
     if output.status.success() {
         let env_output = String::from_utf8_lossy(&output.stdout);
@@ -118,7 +123,12 @@ fn load_macos_user_env() -> anyhow::Result<()> {
 fn load_linux_user_env() -> anyhow::Result<()> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
 
-    let output = Command::new(&shell).args(&["-l", "-c", "env"]).output()?;
+    let output = Command::new(&shell)
+        .args(&["-l", "-c", "env"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .output()?;
 
     if output.status.success() {
         let env_output = String::from_utf8_lossy(&output.stdout);
@@ -231,7 +241,14 @@ fn load_linux_user_env() -> anyhow::Result<()> {
 
 #[cfg(target_os = "windows")]
 fn load_windows_user_env() -> anyhow::Result<()> {
-    let output = Command::new("cmd").args(["/c", "echo %PATH%"]).output()?;
+    use std::os::windows::process::CommandExt;
+
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let output = Command::new("cmd")
+        .args(["/c", "echo %PATH%"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()?;
 
     if output.status.success() {
         let path_var = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -258,6 +275,7 @@ fn load_windows_user_env() -> anyhow::Result<()> {
         if std::env::var(var).is_err() {
             let output = Command::new("cmd")
                 .args(["/c", &format!("echo %{}%", var)])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output()?;
 
             if output.status.success() {
