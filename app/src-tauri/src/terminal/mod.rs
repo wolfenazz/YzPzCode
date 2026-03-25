@@ -187,6 +187,7 @@ impl TerminalManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn kill_all_sessions(&self) -> Result<()> {
         let mut sessions = self.sessions.lock().unwrap();
         for session in sessions.values_mut() {
