@@ -16,6 +16,8 @@
 
 **[Install Now](#-quick-start)** · **[See Screenshots](#-see-it-in-action)** · **[Read the Docs](docs/userguid.md)**
 
+**Readme in other languages:** [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [中文](README.zh.md) · [日本語](README.ja.md)
+
 ---
 
 </div>
