@@ -9,7 +9,9 @@ use crate::types::IdeType;
 pub struct IdeConfig {
     pub name: String,
     pub binary_names: Vec<String>,
+    #[allow(dead_code)]
     pub windows_binary_names: Vec<String>,
+    #[allow(dead_code)]
     pub windows_search_paths: Vec<String>,
     #[allow(dead_code)]
     pub macos_app_names: Vec<String>,

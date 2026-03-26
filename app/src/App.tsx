@@ -4,7 +4,7 @@ import { Workspace } from './components/workspace/Workspace';
 import { DocsScreen } from './components/docs/DocsScreen';
 import { UpdateNotification } from './components/common/UpdateNotification';
 import { useAppStore } from './stores/appStore';
-import { initWindowPlatform } from './utils/window';
+import { initWindowPlatform, getIsMac } from './utils/window';
 
 function App() {
   const { 
@@ -20,9 +20,13 @@ function App() {
     toggleTheme 
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
+  const [isMac, setIsMac] = useState(false);
 
   useEffect(() => {
-    initWindowPlatform().then(setIsWindows);
+    initWindowPlatform().then((win) => {
+      setIsWindows(win);
+      setIsMac(getIsMac());
+    });
 
     if (lastOpenedWorkspaceId && view === 'setup' && openWorkspaces.length === 0) {
       const lastWorkspace = workspaceList.find(w => w.id === lastOpenedWorkspaceId);
@@ -50,12 +54,14 @@ function App() {
       {view === 'setup' && (
         <SetupScreen 
           isWindows={isWindows} 
+          isMac={isMac}
           onDocsClick={handleDocsClick} 
         />
       )}
       {view === 'workspace' && (
         <Workspace 
           isWindows={isWindows} 
+          isMac={isMac}
           onDocsClick={handleDocsClick} 
         />
       )}

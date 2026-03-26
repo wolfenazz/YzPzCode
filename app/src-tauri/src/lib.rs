@@ -9,7 +9,7 @@ mod utils;
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
 use ide::IdeDetector;
-use tauri::Listener;
+use tauri::{Listener, Manager};
 use terminal::TerminalManager;
 
 fn setup_panic_hooks() {
@@ -60,6 +60,13 @@ pub fn run() {
             agent_executor.set_app_handle(app.handle().clone());
             cli_installer.set_app_handle(app.handle().clone());
             cli_launcher.set_app_handle(app.handle().clone());
+
+            #[cfg(target_os = "macos")]
+            {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.set_decorations(true);
+                }
+            }
 
             {
                 let terminal_manager_clone = terminal_manager.clone();

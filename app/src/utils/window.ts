@@ -1,15 +1,15 @@
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-/**
- * Detect platform correctly using userAgent.
- */
 let _isWindows: boolean | null = null;
+let _isMac: boolean | null = null;
 
 export const initWindowPlatform = async (): Promise<boolean> => {
     if (_isWindows !== null) return _isWindows;
 
-    _isWindows = navigator.userAgent.toLowerCase().includes('windows');
+    const ua = navigator.userAgent.toLowerCase();
+    _isWindows = ua.includes('windows');
+    _isMac = ua.includes('mac');
 
     if (_isWindows) {
         try {
@@ -22,6 +22,7 @@ export const initWindowPlatform = async (): Promise<boolean> => {
 };
 
 export const getIsWindows = (): boolean => _isWindows ?? false;
+export const getIsMac = (): boolean => _isMac ?? false;
 
 /**
  * Native window commands using Rust backend for maximum reliability.

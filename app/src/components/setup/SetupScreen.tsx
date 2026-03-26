@@ -138,10 +138,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
 
   return (
     <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
-      <header className={`
-        fixed top-0 left-0 right-0 z-50 flex items-center h-10 bg-theme-main border-b border-theme select-none transition-colors
-        ${isWindows ? 'titlebar-drag active:cursor-grabbing' : ''}
-      `}>
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center h-10 bg-theme-main border-b border-theme select-none transition-colors titlebar-nodrag">
         {/* Left: Logo */}
         <div className="flex items-center h-full titlebar-nodrag">
           <div className="flex items-center gap-2 px-3 h-full border-r border-theme bg-theme-card cursor-default">
