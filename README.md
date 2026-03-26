@@ -4,32 +4,31 @@
 
 # YzPzCode
 
-**Your AI Coding Squad, One Window Away.**
+### Your AI Coding Squad, One Window Away.
 
-Stop juggling 5 different terminals. YzPzCode brings Claude, Gemini, Codex, Opencode, and Cursor together in one clean interface.
+**Stop juggling 5 different terminals.** YzPzCode brings Claude, Gemini, Codex, Opencode, and Cursor together in one clean interface.
 
+[![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=social)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-blue?logo=tauri)](https://tauri.app)
 [![Frontend](https://img.shields.io/badge/Frontend-React%2019-61DAFB?logo=react)](https://react.dev)
 [![Backend](https://img.shields.io/badge/Backend-Rust-orange?logo=rust)](https://rust-lang.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-[Get Started](#-quick-start) · [Screenshots](#-screenshots) · [Docs](docs/userguid.md)
-
-</div>
+**[Install Now](#-quick-start)** · **[See Screenshots](#-see-it-in-action)** · **[Read the Docs](docs/userguid.md)**
 
 ---
 
-## The Problem
+</div>
 
-You're a developer. You use AI coding assistants. Great choice.
+## Wait, What's This?
 
-But here's the thing — each one lives in its own world. Claude here, Gemini there, Codex somewhere else. Before you know it, you've got 7 terminal windows open, your screen is chaos, and you're copy-pasting between them like it's 2010.
+Picture this: You're coding. You want Claude to explain some legacy code, Gemini to generate tests, and Codex to help with that tricky algorithm.
 
-**YzPzCode fixes this.**
+**The old way?** Three terminal windows. Three different CLIs. Alt-tabbing like a maniac. Copy-pasting between them. Losing your mind.
 
-One app. Multiple AI agents. Side-by-side terminals. Done.
+**The YzPzCode way?** One app. Grid layout. All your AI agents side-by-side, actually talking to each other (well, not yet — but you can compare their answers).
 
-## Screenshots
+## See It In Action
 
 <div align="center">
 
@@ -38,127 +37,167 @@ One app. Multiple AI agents. Side-by-side terminals. Done.
 <img src="docs/capture/Capture3.PNG" width="45%"/>
 <img src="docs/capture/Capture4.PNG" width="45%"/>
 
+*Yeah, it's that clean.*
+
 </div>
 
-## What You Get
+## Why You'll Love It
 
-| Feature | Why It Matters |
-|---------|----------------|
-| Multi-Agent Grid | Run Claude, Gemini, and Codex side-by-side. Compare outputs. Pick the best. |
-| One-Click Setup | Detects what's installed, guides you through what's missing |
-| Workspace Presets | Save your favorite agent combinations and layouts |
-| Real Terminals | Not a simulation — actual PTY sessions with full interactivity |
-| Cross-Platform | Windows, Mac, Linux. We don't discriminate. |
+| What You Get | Why It's Awesome |
+|--------------|------------------|
+| **Multi-Agent Grid** | Claude on the left, Gemini on the right. Compare outputs instantly. Pick the winner. |
+| **One-Click Setup** | Don't know what's installed? We'll figure it out and guide you through the rest. |
+| **Workspace Presets** | Save your favorite agent combos. 3x2 grid with Claude + Gemini? One click. |
+| **Real Terminals** | Not a simulation — these are actual PTY sessions with full interactivity. |
+| **Cross-Platform** | Windows, macOS, Linux. Your OS, your choice. |
+| **Lightweight** | Built with Tauri, not Electron. Your RAM will thank you. |
 
-## Supported Agents
+## The Agents
 
-We play nice with the major players:
+We support the heavy hitters:
 
-| Agent | Status | What It's Good At |
-|-------|--------|-------------------|
-| **Claude** (Anthropic) | Ready | Long-context reasoning, code explanation |
-| **Gemini** (Google) | Ready | Fast responses, multimodal |
-| **Codex** (OpenAI) | Ready | Code generation, completions |
-| **Opencode** | Ready | Open-source flexibility |
-| **Cursor** | Ready | IDE-style AI assistance |
+<div align="center">
+
+| Agent | CLI | Superpower |
+|-------|-----|------------|
+| **Claude** | `claude` | Deep reasoning, explains code like a patient senior dev |
+| **Gemini** | `gemini` | Fast, multimodal, Google's finest |
+| **Codex** | `codex` | Code generation that actually works |
+| **Opencode** | `opencode` | Open-source freedom |
+| **Cursor** | `cursor` | IDE-level AI assistance |
+
+</div>
 
 ## Quick Start
 
-Got Node.js and Rust? You're 90% there.
+**You'll need:** Node.js 18+ and Rust (latest stable)
 
 ```bash
+# 1. Clone it
 git clone https://github.com/wolfenazz/YzPzCode.git
 cd YzPzCode/app
+
+# 2. Install dependencies
 npm install
+
+# 3. Run it
 npm run tauri dev
 ```
 
-That's it. The app will guide you through detecting and installing any missing AI CLIs.
+Boom. The app will detect what AI CLIs you have installed and help you set up the rest.
+
+<details>
+<summary>Need more details?</summary>
 
 ### Prerequisites
 
-- **Node.js** 18+ — [Download here](https://nodejs.org)
+- **Node.js** (v18+) — [Download here](https://nodejs.org)
 - **Rust** (latest stable) — [Get it here](https://rust-lang.org)
-- **pnpm** or npm — Your choice
+- **pnpm** or npm — whichever you prefer
 
-## Building for Production
+### Build for Production
 
 ```bash
 npm run tauri build
 ```
 
-Outputs a native installer for your platform. No Electron bloat — Tauri keeps it lean.
+This spits out a native installer for your platform. Small, fast, no bloat.
 
-## Under the Hood
+</details>
 
-Built with tools we actually like using:
+## How It's Built
+
+We picked tools that don't suck:
 
 **Frontend**
-- React 19 + TypeScript (type-safe, modern)
-- Vite (fast builds)
-- Tailwind CSS v4 (utility-first styling)
-- Zustand (state management that stays out of your way)
+- React 19 + TypeScript
+- Vite (because waiting for builds is so 2020)
+- Tailwind CSS v4
+- Zustand (state management that actually makes sense)
 - xterm.js (terminal rendering)
 
 **Backend**
-- Tauri v2 (Rust-powered desktop)
+- Tauri v2 (Rust-powered, lightweight)
 - portable-pty (real pseudo-terminals)
 - Tokio (async that scales)
 
-## Project Layout
+## For the Curious
 
 ```
 app/
 ├── src-tauri/          # Rust backend
 │   └── src/
 │       ├── agent/      # Agent orchestration
-│       ├── agent_cli/  # CLI detection, installation, launching
+│       ├── agent_cli/  # CLI detection & installation
 │       ├── commands/   # Tauri IPC handlers
-│       └── terminal/   # PTY session management
+│       └── terminal/   # PTY management
 ├── src/                # React frontend
 │   ├── components/     # UI components
-│   ├── hooks/          # Custom React hooks
+│   ├── hooks/          # Custom hooks
 │   ├── stores/         # Zustand stores
 │   └── types/          # TypeScript definitions
 └── docs/               # Documentation
 ```
 
-## For Contributors
+## Contributing
 
-We welcome PRs. Here's how to stay sane while developing:
+We'd love your help! Here's how to not go crazy while developing:
 
 ```bash
 # Type checking
 npx tsc --noEmit        # Frontend
 cargo check             # Backend
 
-# Linting
-cargo clippy            # Rust linter
-cargo fmt               # Format Rust code
+# Linting & formatting
+cargo clippy            # Catch Rust issues
+cargo fmt               # Make it pretty
 
 # Testing
 cd src-tauri && cargo test
 ```
 
-Check [docs/plane.md](docs/plane.md) for the full plan.
+Found a bug? Have an idea? [Open an issue](https://github.com/wolfenazz/YzPzCode/issues) or [submit a PR](https://github.com/wolfenazz/YzPzCode/pulls).
+
+## What's Next?
+
+We're just getting started:
+
+- [ ] Compare mode — see agent outputs side-by-side
+- [ ] Shared context between agents
+- [ ] Custom agent configurations
+- [ ] More workspace templates
+- [ ] Themes (dark mode enthusiasts, we see you)
+
+Check out the [full roadmap](docs/plane.md).
 
 ## Recommended Setup
 
-- [VS Code](https://code.visualstudio.com) + [Tauri Extension](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
-- Or whatever IDE makes you happy. We're not picky.
+- [VS Code](https://code.visualstudio.com)
+- [Tauri Extension](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
+- [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+
+Or use whatever makes you productive. We're not here to judge.
 
 ## License
 
-MIT. Use it, fork it, improve it. Just give credit where it's due.
+MIT. Fork it, build on it, make it yours. Just remember where you got it.
 
 ---
 
 <div align="center">
 
-**Made with caffeine and late nights by Naseem, Noor & Khalid**
+### Like What You See?
+
+If YzPzCode saved you from terminal chaos, consider giving it a **star** — it helps others find it too!
+
+[![Star this repo](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=social)](https://github.com/wolfenazz/YzPzCode/stargazers)
+
+---
+
+**Built with caffeine and late nights by [Naseem](https://github.com/wolfenazz), Noor & Khalid**
 
 *For developers who'd rather code than manage terminals.*
 
-[Report a Bug](https://github.com/wolfenazz/YzPzCode/issues) · [Request a Feature](https://github.com/wolfenazz/YzPzCode/issues)
+[Report a Bug](https://github.com/wolfenazz/YzPzCode/issues) · [Request a Feature](https://github.com/wolfenazz/YzPzCode/issues) · [Contribute](https://github.com/wolfenazz/YzPzCode/pulls)
 
 </div>
