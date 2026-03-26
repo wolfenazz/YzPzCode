@@ -86,6 +86,33 @@ npm run tauri dev
 
 Boom. The app will detect what AI CLIs you have installed and help you set up the rest.
 
+### macOS Users
+
+**Install Rust first:**
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+Then restart your terminal before running `npm run tauri dev`.
+
+**Installing from .dmg?** Since the app isn't code-signed with an Apple Developer certificate, you'll see a security warning. Here's how to bypass it:
+
+**Option 1: Right-click open**
+1. Right-click (or Control-click) the app
+2. Select "Open" → Click "Open" in the dialog
+
+**Option 2: System Settings**
+1. Go to **System Settings → Privacy & Security**
+2. Click "Open Anyway" next to the security warning
+
+**Option 3: Terminal**
+```bash
+xattr -cr /Applications/YzPzCode.app
+```
+
+The app is safe — it's built from this open-source repository. The warning is just macOS protecting you from unsigned apps.
+
+> **Note:** We're working on getting the app properly code-signed with an Apple Developer certificate. This process takes a few weeks, but once complete, the security warning will no longer appear.
+
 <details>
 <summary>Need more details?</summary>
 
