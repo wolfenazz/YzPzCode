@@ -72,10 +72,17 @@ pub struct CreateSessionsRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-#[allow(dead_code)]
 pub struct TerminalOutput {
     pub session_id: String,
     pub data: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchExternalRequest {
+    pub workspace_path: String,
+    pub count: usize,
+    pub agent_allocation: std::collections::HashMap<AgentType, usize>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]

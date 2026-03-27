@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
-import { AgentType, AgentFleet } from '../types';
+import { AgentType, AgentFleet, AgentCliInfo } from '../types';
 
 const STORAGE_KEY = 'yzpzcode-agent-allocation';
 
@@ -119,6 +119,28 @@ export const useAgentAllocation = (totalSlots: number) => {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
+  const autoFillFromInstalled = useCallback((cliStatuses: Record<AgentType, AgentCliInfo | null>) => {
+    const newAllocation: Record<AgentType, number> = { ...DEFAULT_ALLOCATION };
+    const newEnabledAgents = new Set<AgentType>();
+    
+    const installedAgents = ALL_AGENTS.filter(
+      agent => cliStatuses[agent]?.status === 'Installed'
+    );
+    
+    let slotsUsed = 0;
+    for (const agent of installedAgents) {
+      if (slotsUsed < totalSlots) {
+        newAllocation[agent] = 1;
+        newEnabledAgents.add(agent);
+        slotsUsed++;
+      }
+    }
+    
+    setAllocation(newAllocation);
+    setEnabledAgents(newEnabledAgents);
+    persistAllocation(newAllocation);
+  }, [totalSlots]);
+
   return {
     allocation,
     enabledAgents,
@@ -131,5 +153,6 @@ export const useAgentAllocation = (totalSlots: number) => {
     toggleAgent,
     getAgentFleet,
     resetAllocation,
+    autoFillFromInstalled,
   };
 };

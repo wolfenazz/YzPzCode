@@ -14,24 +14,41 @@ export const UtilizationBar: React.FC<UtilizationBarProps> = ({
   className = '',
 }) => {
   const percentage = total > 0 ? (used / total) * 100 : 0;
+  const isFull = percentage >= 100;
+  const isWarning = percentage >= 80 && percentage < 100;
 
-  const getColorClass = () => {
-    if (percentage < 80) return 'bg-emerald-500';
-    if (percentage < 95) return 'bg-amber-500';
-    return 'bg-rose-500';
+  const getBarColor = () => {
+    if (isFull) return '#f43f5e';
+    if (isWarning) return '#f59e0b';
+    return '#10b981';
   };
+
+  const barColor = getBarColor();
+  const segmentCount = total;
+  const filledSegments = Math.min(used, total);
 
   return (
     <div className={`flex items-center gap-3 font-mono ${className}`}>
-      <div className="flex-1 h-3 bg-zinc-950 border border-zinc-800 rounded-none overflow-hidden flex">
-        <div
-          className={`h-full ${getColorClass()} transition-all duration-300 border-r border-zinc-950`}
-          style={{ width: `${Math.min(percentage, 100)}%` }}
-        />
+      <div className="flex-1 h-2 bg-zinc-900 overflow-hidden flex">
+        {Array.from({ length: segmentCount }, (_, i) => (
+          <div
+            key={i}
+            className={`h-full flex-1 transition-all duration-300 ${i < segmentCount - 1 ? 'border-r border-zinc-950' : ''}`}
+            style={{
+              backgroundColor: i < filledSegments ? barColor : 'transparent',
+              opacity: i < filledSegments ? 1 : 0,
+            }}
+          />
+        ))}
       </div>
+
       {showLabel && (
-        <span className="text-xs font-bold text-zinc-500 min-w-max uppercase tracking-widest">
-          {used}/{total} [MEM_ALLOC]
+        <span className="text-[10px] text-zinc-500 min-w-max uppercase tracking-[0.2em] tabular-nums">
+          {used}/{total}
+          <span className="mx-1.5 text-zinc-700">|</span>
+          <span className={`lowercase ${isFull ? 'text-rose-500' : isWarning ? 'text-amber-500' : 'text-emerald-500'}`}>
+            {isFull ? 'full' : isWarning ? 'high' : used === 0 ? 'empty' : 'ok'}
+          </span>
         </span>
       )}
     </div>

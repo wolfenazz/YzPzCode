@@ -3,6 +3,7 @@ import { DirectorySelector } from './DirectorySelector';
 import { LayoutSelector } from './LayoutSelector';
 import { AgentFleetConfig } from './AgentFleetConfig';
 import { IdesSelector } from './IdesSelector';
+import { HelpTooltip } from '../common/HelpTooltip';
 import { LayoutConfig, AgentFleet } from '../../types';
 
 interface WorkspaceConfigFormProps {
@@ -19,6 +20,7 @@ interface WorkspaceConfigFormProps {
   onCancel?: () => void;
   isValid: boolean;
   isLoading?: boolean;
+  isExternalMode?: boolean;
 }
 
 export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
@@ -35,6 +37,7 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
   onCancel,
   isValid,
   isLoading,
+  isExternalMode,
 }) => {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-8 p-8 bg-theme-card border border-theme rounded-sm shadow-2xl">
@@ -47,18 +50,23 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
         </p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-theme-secondary mb-2 font-mono uppercase tracking-widest">
-          Workspace Name
-        </label>
-        <input
-          type="text"
-          value={workspaceName}
-          onChange={(e) => onWorkspaceNameChange(e.target.value)}
-          placeholder="Enter workspace name..."
-          className="w-full px-4 py-3 bg-theme-main border border-theme rounded-sm text-theme-main placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600 focus:border-zinc-700 font-mono transition-colors active:bg-theme-hover"
-        />
-      </div>
+      {!isExternalMode && (
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <label className="block text-sm font-medium text-theme-secondary font-mono uppercase tracking-widest">
+              Workspace Name
+            </label>
+            <HelpTooltip text="A name to identify this workspace. Used as a tab label when switching between multiple workspaces." />
+          </div>
+          <input
+            type="text"
+            value={workspaceName}
+            onChange={(e) => onWorkspaceNameChange(e.target.value)}
+            placeholder="Enter workspace name..."
+            className="w-full px-4 py-3 bg-theme-main border border-theme rounded-sm text-theme-main placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600 focus:border-zinc-700 font-mono transition-colors active:bg-theme-hover"
+          />
+        </div>
+      )}
 
       <DirectorySelector
         selectedPath={selectedPath}

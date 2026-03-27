@@ -107,6 +107,7 @@ pub fn run() {
             commands::launch_ide_cmd,
             commands::send_feedback,
             commands::get_os_version,
+            commands::launch_external_terminals,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -21,6 +21,7 @@ export const useWorkspace = () => {
   const [selectedLayout, setSelectedLayout] = useState<LayoutConfig>({
     type: 'grid',
     sessions: 4,
+    openExternally: false,
   });
   const [agentFleet, setAgentFleet] = useState<AgentFleet>(DEFAULT_AGENT_FLEET);
 
@@ -69,7 +70,8 @@ export const useWorkspace = () => {
     ? Object.values(agentFleet.allocation).reduce((sum, count) => sum + count, 0) <= selectedLayout.sessions
     : true;
 
-  const isValid = selectedPath.length > 0 && workspaceName.length > 0 && isAllocationValid;
+  const isValid = selectedPath.length > 0 && isAllocationValid && 
+    (selectedLayout.openExternally || workspaceName.length > 0);
 
   return {
     selectedPath,

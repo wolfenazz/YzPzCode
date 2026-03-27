@@ -63,6 +63,7 @@ export interface LayoutConfig {
   sessions: number;
   rows?: number;
   cols?: number;
+  openExternally?: boolean;
 }
 
 export interface AgentFleet {

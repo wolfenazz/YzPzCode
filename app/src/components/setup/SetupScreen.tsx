@@ -23,6 +23,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     selectedPath,
     workspaceName,
     selectedLayout,
+    agentFleet,
     selectDirectory,
     setWorkspaceName,
     setSelectedLayout,
@@ -116,18 +117,37 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     if (isLaunching) return;
     setIsLaunching(true);
     try {
-      const workspace = await createWorkspace();
-      
-      const selectedInstalledIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed);
-      for (const ide of selectedInstalledIdes) {
-        try {
-          await invoke('launch_ide_cmd', { ide, directory: workspace.path });
-        } catch (err) {
-          console.error(`Failed to launch ${ide}:`, err);
+      if (selectedLayout.openExternally) {
+        await invoke('launch_external_terminals', {
+          request: {
+            workspacePath: selectedPath,
+            count: selectedLayout.sessions,
+            agentAllocation: agentFleet?.allocation || {},
+          },
+        });
+        
+        const selectedInstalledIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed);
+        for (const ide of selectedInstalledIdes) {
+          try {
+            await invoke('launch_ide_cmd', { ide, directory: selectedPath });
+          } catch (err) {
+            console.error(`Failed to launch ${ide}:`, err);
+          }
         }
+      } else {
+        const workspace = await createWorkspace();
+        
+        const selectedInstalledIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed);
+        for (const ide of selectedInstalledIdes) {
+          try {
+            await invoke('launch_ide_cmd', { ide, directory: workspace.path });
+          } catch (err) {
+            console.error(`Failed to launch ${ide}:`, err);
+          }
+        }
+        
+        setView('workspace');
       }
-      
-      setView('workspace');
     } catch (error) {
       console.error('Failed to create workspace:', error);
       alert('Failed to create workspace. Please try again.');
@@ -145,7 +165,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         {/* Left: Logo */}
         <div className="flex items-center h-full titlebar-nodrag">
           <div className="flex items-center gap-2 px-3 h-full border-r border-theme bg-theme-card cursor-default">
-            <img src={logo} alt="YzPzCode" className="h-6 w-auto" />
+            <img src={logo} alt="YzPzCode" className="h-6 w-auto transition-all duration-200 hover:scale-110 hover:drop-shadow-[0_2px_6px_rgba(0,0,0,0.5)]" />
           </div>
 
           <button
@@ -219,7 +239,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
       <main className="flex-1 flex flex-col p-6 pt-20 overflow-y-auto">
         <div className="w-full max-w-6xl mx-auto py-12 space-y-8">
           <div className="flex flex-col items-center justify-center mb-8">
-            <img src={logo} alt="YzPzCode" className="h-16 w-auto mb-4" />
+            <img src={logo} alt="YzPzCode" className="h-16 w-auto mb-4 transition-all duration-200 hover:scale-105 hover:drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]" />
             <p className="text-theme-secondary text-sm">Welcome to YzPzCode.. it's FREE for Ever !</p>
           </div>
 
@@ -259,6 +279,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
             onCreateWorkspace={handleCreateWorkspace}
             onCancel={handleCancel}
             isValid={isValid}
+            isExternalMode={selectedLayout.openExternally}
           />
 
           <CliToolsTable />

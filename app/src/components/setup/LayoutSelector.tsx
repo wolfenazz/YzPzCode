@@ -1,5 +1,6 @@
 import React from 'react';
 import { LayoutConfig } from '../../types';
+import { HelpTooltip } from '../common/HelpTooltip';
 
 interface LayoutSelectorProps {
   selectedLayout: LayoutConfig;
@@ -62,18 +63,28 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({
     );
   };
 
+  const handleToggleExternal = () => {
+    onSelectLayout({
+      ...selectedLayout,
+      openExternally: !selectedLayout.openExternally,
+    });
+  };
+
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-zinc-400 mb-2 font-mono">
-        Terminal Layout
-      </label>
+      <div className="flex items-center gap-2 mb-2">
+        <label className="block text-sm font-medium text-zinc-400 font-mono">
+          Terminal Layout
+        </label>
+        <HelpTooltip text="Choose how many terminal sessions to open. Each terminal runs independently and can be assigned a different AI agent." />
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         {LAYOUT_OPTIONS.map((option) => (
           <button
             key={option.sessions}
             type="button"
             onClick={() =>
-              onSelectLayout({ type: 'grid', sessions: option.sessions })
+              onSelectLayout({ type: 'grid', sessions: option.sessions, openExternally: selectedLayout.openExternally })
             }
             className={`p-4 rounded-sm border transition-all ${selectedLayout.sessions === option.sessions
                 ? 'border-zinc-400 bg-zinc-800/80 shadow-[0_0_10px_rgba(161,161,170,0.1)]'
@@ -88,6 +99,34 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({
             </p>
           </button>
         ))}
+      </div>
+      
+      <div className="mt-4 flex items-center gap-3 p-3 bg-zinc-900/50 border border-zinc-800 rounded-sm">
+        <button
+          type="button"
+          onClick={handleToggleExternal}
+          className={`relative w-5 h-5 flex items-center justify-center border rounded-sm transition-all cursor-pointer ${
+            selectedLayout.openExternally
+              ? 'border-emerald-500 bg-emerald-500/20'
+              : 'border-zinc-600 hover:border-zinc-500'
+          }`}
+        >
+          {selectedLayout.openExternally && (
+            <svg className="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+        </button>
+        <div className="flex flex-col">
+          <span className="text-sm font-mono text-zinc-300">Open Terminals Externally</span>
+          <span className="text-xs text-zinc-500">Launch terminals in separate windows instead of workspace</span>
+        </div>
+        <div className="ml-auto flex items-center gap-2">
+          <HelpTooltip text="Opens terminals as separate system windows outside the app. They will be automatically tiled on your screen in a grid layout matching your selection." />
+          <svg className="w-4 h-4 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </div>
       </div>
     </div>
   );

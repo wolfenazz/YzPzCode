@@ -1,4 +1,5 @@
 import React from 'react';
+import { HelpTooltip } from '../common/HelpTooltip';
 
 interface DirectorySelectorProps {
   selectedPath: string;
@@ -11,9 +12,12 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
 }) => {
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-zinc-400 mb-2 font-mono">
-        Workspace Directory
-      </label>
+      <div className="flex items-center gap-2 mb-2">
+        <label className="block text-sm font-medium text-zinc-400 font-mono">
+          Workspace Directory
+        </label>
+        <HelpTooltip text="The root folder for your project. All terminals will open with this as their working directory." />
+      </div>
       <div className="flex gap-2">
         <div className="flex-1 px-4 py-3 bg-zinc-900 border border-zinc-800 rounded-sm text-zinc-300 font-mono truncate">
           {selectedPath || '~/No/directory/selected'}

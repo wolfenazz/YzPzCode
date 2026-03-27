@@ -109,3 +109,92 @@ body {
 .animate-theme-ripple {
   animation: theme-ripple 0.4s ease-out forwards;
 }
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.animate-popover-in {
+  animation: popover-in 0.2s ease-out;
+}
+
+@keyframes cli-dot {
+  0%, 80%, 100% {
+    opacity: 0.2;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+.animate-cli-dot {
+  animation: cli-dot 0.8s ease-in-out infinite;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 1.5s linear infinite;
+}
+
+@keyframes cli-ring {
+  0% {
+    opacity: 0.6;
+    transform: rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(360deg);
+  }
+}
+
+.animate-cli-ring {
+  animation: cli-ring 1.2s linear infinite;
+}
+
+@keyframes bar-pulse {
+  0%, 100% {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(100%);
+  }
+}
+
+.animate-bar-pulse {
+  animation: bar-pulse 2s ease-in-out infinite;
+}
+
+.help-tip > div:last-child {
+  visibility: visible;
+  opacity: 0;
+  transform: translateX(-50%) translateY(4px);
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out, visibility 0s 0.15s;
+  pointer-events: none;
+}
+
+.help-tip > div:last-child[style*="top-full"] {
+  transform: translateX(-50%) translateY(-4px);
+}
+
+.help-tip.help-active > div:last-child {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+  transition: opacity 0.15s ease-out, transform 0.15s ease-out, visibility 0s 0s;
+}
