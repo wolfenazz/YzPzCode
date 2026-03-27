@@ -39,9 +39,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZDMDczRkZFRkU0RjMyQTAKUldTZ01rLysvajhIL0tscGp4OFFoMGt3bVV3eFluc2QxVzRqMUtIQzRUTHdhVkpNM3NORUQ1aEMK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENDQzQwNDQ0NkI0NDk2MTMKUldRVGxrUnJSQVRFek9ER0lpQlQ5UG1RVTdxaWNHQlQyNDFxMmdkNGpKTVFPOFE3b2NrWXlGcWwK",
       "endpoints": [
-        "https://github.com/wolfenazz/AgentsLand/releases/latest/download/{{target}}-{{arch}}.json"
+        "https://github.com/wolfenazz/YzPzCode/releases/latest/download/{{target}}-{{arch}}.json"
       ],
       "windows": {
         "installMode": "passive"

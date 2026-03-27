@@ -1,6 +1,6 @@
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 interface UpdateInfo {
   version: string;
@@ -14,14 +14,22 @@ export function useUpdater() {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [updateAvailable, setUpdateAvailable] = useState<UpdateInfo | null>(null);
+  const [upToDate, setUpToDate] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastCheckedRef = useRef<number>(0);
 
-  const checkForUpdates = useCallback(async () => {
+  const checkForUpdates = useCallback(async (force = false) => {
+    if (!force && Date.now() - lastCheckedRef.current < 30000) {
+      return null;
+    }
+
     setChecking(true);
     setError(null);
+    setUpToDate(false);
 
     try {
       const update = await check();
+      lastCheckedRef.current = Date.now();
 
       if (update) {
         setUpdateAvailable({
@@ -30,9 +38,11 @@ export function useUpdater() {
           date: update.date,
           body: update.body,
         });
+        setUpToDate(false);
         return update;
       }
 
+      setUpToDate(true);
       return null;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to check for updates');
@@ -99,6 +109,7 @@ export function useUpdater() {
     downloading,
     downloadProgress,
     updateAvailable,
+    upToDate,
     error,
     checkForUpdates,
     downloadAndInstall,

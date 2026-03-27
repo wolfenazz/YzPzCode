@@ -146,8 +146,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onCloseWindow,
 }) => {
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 flex items-center h-10 bg-theme-main border-b border-theme select-none transition-colors titlebar-nodrag">
-      <div className="flex items-center px-3 h-full border-r border-theme bg-theme-card cursor-default">
+    <header className="fixed top-0 left-0 right-0 z-50 flex items-center h-10 bg-theme-main border-b border-theme select-none transition-colors titlebar-drag">
+      <div className="flex items-center px-3 h-full border-r border-theme bg-theme-card cursor-default titlebar-nodrag">
         <img src={logo} alt="YzPzCode" className="h-6 w-auto" />
       </div>
 

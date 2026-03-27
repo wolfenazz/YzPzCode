@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceHeader } from './WorkspaceHeader';
+import { AppFooter } from '../common/AppFooter';
 import { useTerminal } from '../../hooks/useTerminal';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
@@ -166,6 +167,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
           </div>
         )}
       </main>
+
+      <AppFooter />
     </div>
   );
 };
