@@ -128,7 +128,12 @@ impl AgentCliInstaller {
     pub fn get_install_command(agent: AgentType) -> String {
         let provider = get_provider(agent);
         let platform = Platform::current();
-        provider.get_install_command(platform).join(" ")
+        let cmd = provider.get_install_command(platform);
+        if cmd.len() >= 3 && cmd[0] == "bash" && cmd[1] == "-c" {
+            cmd[2..].join(" ")
+        } else {
+            cmd.join(" ")
+        }
     }
 
     fn execute_install_command(&self, cmd: &[String]) -> Result<String, String> {

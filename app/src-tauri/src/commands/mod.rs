@@ -247,7 +247,12 @@ pub async fn open_install_terminal(agent: AgentType) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        let full_cmd = install_cmd.join(" ");
+        let full_cmd =
+            if install_cmd.len() >= 3 && install_cmd[0] == "bash" && install_cmd[1] == "-c" {
+                install_cmd[2..].join(" ")
+            } else {
+                install_cmd.join(" ")
+            };
         std::process::Command::new("osascript")
             .arg("-e")
             .arg(format!(
@@ -260,8 +265,12 @@ pub async fn open_install_terminal(agent: AgentType) -> Result<(), String> {
 
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
-        let full_cmd = install_cmd.join(" ");
-        // Try common terminal emulators
+        let full_cmd =
+            if install_cmd.len() >= 3 && install_cmd[0] == "bash" && install_cmd[1] == "-c" {
+                install_cmd[2..].join(" ")
+            } else {
+                install_cmd.join(" ")
+            };
         let _ = std::process::Command::new("x-terminal-emulator")
             .arg("-e")
             .arg(&full_cmd)
