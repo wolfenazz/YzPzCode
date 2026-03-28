@@ -213,9 +213,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         </div>
 
         {/* Middle: Workspace Tabs / Status Area */}
-        <div className="flex-1 flex items-center h-full titlebar-nodrag">
+        <div className="flex-1 flex items-center h-full">
           {openWorkspaces.length > 0 ? (
-            <div className="flex items-center h-full overflow-x-auto overflow-y-hidden border-r border-theme">
+            <div className="flex items-center h-full overflow-x-auto overflow-y-hidden border-r border-theme titlebar-nodrag">
               {openWorkspaces.map((workspace) => (
                 <WorkspaceTab
                   key={workspace.id}
@@ -231,7 +231,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               ))}
             </div>
           ) : (
-            <div className="hidden lg:flex items-center gap-6 px-6 text-[9px] font-mono tracking-[0.3em] text-zinc-600 uppercase">
+            <div className="hidden lg:flex items-center gap-6 px-6 text-[9px] font-mono tracking-[0.3em] text-zinc-600 uppercase titlebar-nodrag">
               <span className="animate-pulse">_initializing_session</span>
               <span className="text-zinc-800">|</span>
               <span className="hover:text-zinc-400 transition-colors cursor-default">pid::{(Math.random() * 9000 + 1000).toFixed(0)}</span>

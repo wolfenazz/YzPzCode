@@ -189,8 +189,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
       </div>
 
       {/* Middle: Tabs Area */}
-      <div className="flex-1 flex items-center h-full overflow-hidden titlebar-nodrag">
-        <div className="flex items-center h-full overflow-x-auto overflow-y-hidden scrollbar-none">
+      <div className="flex-1 flex items-center h-full overflow-hidden">
+        <div className="flex items-center h-full overflow-x-auto overflow-y-hidden scrollbar-none titlebar-nodrag">
           {workspaces.map((workspace) => (
             <WorkspaceTab
               key={workspace.id}

@@ -238,15 +238,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
         return false;
       }
 
-      if (isCtrl && event.key === 'v') {
-        navigator.clipboard.readText().then((text) => {
-          if (text) {
-            invoke('write_to_terminal', { sessionId: session.id, input: text }).catch(console.error);
-          }
-        }).catch(console.error);
-        return false;
-      }
-
       if (isCtrl && event.key === 'f') {
         setShowSearch(prev => !prev);
         return false;

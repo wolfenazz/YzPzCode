@@ -81,6 +81,8 @@ impl PtySession {
             if let Ok(comspec) = std::env::var("COMSPEC") {
                 cmd.env("COMSPEC", comspec);
             }
+            cmd.env("TERM", "xterm-256color");
+            cmd.env("COLORTERM", "truecolor");
         }
 
         #[cfg(target_os = "macos")]
@@ -201,8 +203,17 @@ impl PtySession {
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        self.writer.write_all(data)?;
-        self.writer.flush()?;
+        const CHUNK_SIZE: usize = 512;
+        if data.len() <= CHUNK_SIZE {
+            self.writer.write_all(data)?;
+            self.writer.flush()?;
+        } else {
+            for chunk in data.chunks(CHUNK_SIZE) {
+                self.writer.write_all(chunk)?;
+                self.writer.flush()?;
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        }
         Ok(())
     }
 

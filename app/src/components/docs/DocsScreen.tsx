@@ -278,7 +278,7 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
         </div>
 
         <div className="flex-1 h-full flex items-center justify-center px-4">
-          <div className="relative w-full max-w-md">
+          <div className="relative w-full max-w-md titlebar-nodrag">
             <div className={`flex items-center h-7 px-3 rounded-sm border transition-all duration-200 ${
               searchFocused 
                 ? 'border-blue-500 bg-theme-card shadow-lg shadow-blue-500/10' 
