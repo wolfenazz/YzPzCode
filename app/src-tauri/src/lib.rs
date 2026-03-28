@@ -10,6 +10,8 @@ mod utils;
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
 use ide::IdeDetector;
+#[cfg(target_os = "macos")]
+use tauri::Manager;
 use tauri::Listener;
 use terminal::TerminalManager;
 
