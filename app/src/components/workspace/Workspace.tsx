@@ -225,7 +225,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
         activeView={activeView}
       />
 
-      <main className="flex-1 overflow-hidden p-1.5 pt-11.5 bg-theme-main">
+      <main className="flex-1 overflow-hidden p-1.5 bg-theme-main">
         {currentWorkspace ? (
           <div className="h-full flex gap-1">
             {explorerOpen && (

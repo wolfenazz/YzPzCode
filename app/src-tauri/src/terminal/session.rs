@@ -65,9 +65,30 @@ impl PtySession {
 
         #[cfg(target_os = "windows")]
         {
-            if let Ok(path) = std::env::var("PATH") {
-                cmd.env("PATH", path);
+            let mut path = std::env::var("PATH").unwrap_or_default();
+
+            let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
+            let appdata = std::env::var("APPDATA").unwrap_or_default();
+            let userprofile = std::env::var("USERPROFILE").unwrap_or_default();
+
+            if !local_appdata.is_empty() {
+                let npm_path = format!("{}\\npm", local_appdata);
+                let windows_apps = format!("{}\\Microsoft\\WindowsApps", local_appdata);
+                path = format!("{};{};{}", path, npm_path, windows_apps);
             }
+
+            if !appdata.is_empty() {
+                let pip_path = format!("{}\\Python\\Scripts", appdata);
+                path = format!("{};{}", path, pip_path);
+            }
+
+            if !userprofile.is_empty() {
+                let cargo_path = format!("{}\\.cargo\\bin", userprofile);
+                path = format!("{};{}", path, cargo_path);
+            }
+
+            cmd.env("PATH", path);
+
             if let Ok(appdata) = std::env::var("APPDATA") {
                 cmd.env("APPDATA", appdata);
             }

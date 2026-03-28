@@ -188,7 +188,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
       <header 
         data-tauri-drag-region
-        className="fixed top-0 left-0 right-0 z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors titlebar-drag overflow-hidden"
+        className="relative z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors titlebar-drag overflow-hidden flex-shrink-0"
       >
         {/* Left: Branding & Core Actions */}
         <div className="flex items-center h-full titlebar-nodrag">
@@ -282,7 +282,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col p-6 pt-20 overflow-y-auto">
+      <main className="flex-1 flex flex-col p-6 overflow-y-auto">
         <div className="w-full max-w-6xl mx-auto py-12 space-y-8">
           <div className="flex flex-col items-center justify-center mb-8">
             <img src={logo} alt="YzPzCode" className="h-16 w-auto mb-4 transition-all duration-200 hover:scale-105 hover:drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]" />

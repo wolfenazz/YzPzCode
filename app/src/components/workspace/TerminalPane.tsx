@@ -234,8 +234,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
 
     xterm.attachCustomKeyEventHandler((event) => {
       const isCtrl = event.ctrlKey || event.metaKey;
+      const isKeydown = event.type === 'keydown';
 
-      if (isCtrl && event.key === 'c' && xterm.hasSelection()) {
+      if (isCtrl && event.key === 'c' && xterm.hasSelection() && isKeydown) {
         const selection = xterm.getSelection();
         if (selection) {
           navigator.clipboard.writeText(selection).catch(console.error);
@@ -243,28 +244,46 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
         return false;
       }
 
-      if (isCtrl && event.key === 'v' && event.type === 'keydown') {
-        navigator.clipboard.readText().then((text) => {
+      if (isCtrl && event.key === 'v' && isKeydown) {
+        navigator.clipboard.readText().then(async (text) => {
           if (!text) return;
-          invoke('write_to_terminal', {
-            sessionId: session.id,
-            input: `\x1b[200~${text}\x1b[201~`,
-          }).catch(console.error);
+          
+          const CHUNK_SIZE = 512;
+          const DELAY = 2;
+          
+          try {
+            // Start bracketed paste
+            await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
+            
+            // Chunked paste
+            for (let i = 0; i < text.length; i += CHUNK_SIZE) {
+              const chunk = text.slice(i, i + CHUNK_SIZE);
+              await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
+              if (i + CHUNK_SIZE < text.length) {
+                await new Promise(resolve => setTimeout(resolve, DELAY));
+              }
+            }
+            
+            // End bracketed paste
+            await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
+          } catch (error) {
+            console.error('Failed to paste to terminal:', error);
+          }
         }).catch(console.error);
         return false;
       }
 
-      if (isCtrl && event.key === 'f') {
+      if (isCtrl && event.key === 'f' && isKeydown) {
         setShowSearch(prev => !prev);
         return false;
       }
 
-      if (isCtrl && event.key === 'l') {
+      if (isCtrl && event.key === 'l' && isKeydown) {
         xterm.clear();
         return false;
       }
 
-      if (isCtrl && event.shiftKey && event.key === 'C') {
+      if (isCtrl && event.shiftKey && event.key === 'C' && isKeydown) {
         const selection = xterm.getSelection();
         if (selection) {
           navigator.clipboard.writeText(selection).catch(console.error);

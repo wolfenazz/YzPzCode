@@ -152,7 +152,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   return (
     <header 
       data-tauri-drag-region
-      className="fixed top-0 left-0 right-0 z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors titlebar-drag overflow-hidden"
+      className="relative z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors titlebar-drag overflow-hidden flex-shrink-0"
     >
       {/* Left: Branding & Core Navigation */}
       <div className="flex items-center h-full titlebar-nodrag">

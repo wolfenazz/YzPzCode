@@ -72,13 +72,6 @@ pub struct CreateSessionsRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TerminalOutput {
-    pub session_id: String,
-    pub data: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct LaunchExternalRequest {
     pub workspace_path: String,
     pub count: usize,
