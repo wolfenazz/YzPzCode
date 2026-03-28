@@ -8,6 +8,7 @@ mod types;
 mod utils;
 
 use agent::AgentExecutor;
+use tauri::Manager;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
 use ide::IdeDetector;
 use tauri::Listener;
