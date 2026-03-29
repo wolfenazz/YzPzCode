@@ -34,11 +34,11 @@
 
 ---
 
-## 🎯 The Problem
+## - The Problem
 
 <div align="center">
 
-| 😫 The Old Way | 😎 The YzPzCode Way |
+| [-] The Old Way | [+] The YzPzCode Way |
 |:--------------:|:-------------------:|
 | Three terminal windows | **One app** |
 | Three different CLIs | **All agents inside** |
@@ -50,7 +50,7 @@
 
 ---
 
-## 📸 See It In Action
+## - See It In Action
 
 <div align="center">
 
@@ -128,7 +128,7 @@
 
 ---
 
-## 🤖 AI Agent CLIs
+## - AI Agent CLIs
 
 <div align="center">
 
@@ -206,7 +206,7 @@
 
 ---
 
-## 🚀 Quick Start
+## - Quick Start
 
 > **You'll need:** Node.js 18+ and Rust (latest stable)
 
@@ -225,7 +225,7 @@ npm run tauri dev
 The app will detect what AI CLIs you have installed and help you set up the rest.
 
 <details>
-<summary><b>🍎 macOS Users</b></summary>
+<summary><b> macOS Users</b></summary>
 
 <br>
 
@@ -248,7 +248,7 @@ Then restart your terminal before running `npm run tauri dev`.
 </details>
 
 <details>
-<summary><b>📦 Build for Production</b></summary>
+<summary><b> Build for Production</b></summary>
 
 <br>
 
@@ -262,7 +262,7 @@ Generates a native installer for your platform. Small, fast, no bloat.
 
 ---
 
-## 🏗️ How It's Built
+## - How It's Built
 
 <div align="center">
 
@@ -334,7 +334,7 @@ graph TB
 
 ---
 
-## 📂 Project Structure
+## - Project Structure
 
 ```
 app/
@@ -364,7 +364,7 @@ app/
 
 ---
 
-## 🛠️ Contributing
+## - Contributing
 
 ```bash
 # Type checking
@@ -393,7 +393,7 @@ Check out the [full roadmap](docs/plane.md).
 
 ---
 
-## 📜 License
+## - License
 
 [![MIT License](https://img.shields.io/badge/MIT-License-22C55E?style=for-the-badge&logo=open-source-initiative)](LICENSE)
 
@@ -405,7 +405,7 @@ Fork it. Build on it. Make it yours.
 
 <div align="center">
 
-### ⭐ Like What You See?
+## - Like What You See?
 
 If YzPzCode saved you from terminal chaos, consider giving it a **star** — it helps others find it too!
 
