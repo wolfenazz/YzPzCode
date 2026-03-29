@@ -62,7 +62,7 @@ impl CliLauncher {
 
         #[cfg(target_os = "windows")]
         let launch_command = format!(
-            "@echo off && set \"PATH=%PATH%;%APPDATA%\\npm;%LOCALAPPDATA%\\npm;%NPM_CONFIG_PREFIX%\\bin;%USERPROFILE%\\.npm-global\\bin\" && {}\r\n",
+            "$env:PATH = \"$env:PATH;$env:APPDATA\\npm;$env:LOCALAPPDATA\\npm;$env:NPM_CONFIG_PREFIX\\bin;$env:USERPROFILE\\.npm-global\\bin\"; {} \r\n",
             binary_name
         );
 
