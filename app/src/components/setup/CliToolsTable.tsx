@@ -16,13 +16,13 @@ export const CliToolsTable: React.FC = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Installed':
-        return 'text-emerald-400';
+        return 'text-emerald-400/80';
       case 'NotInstalled':
         return 'text-zinc-500';
       case 'Checking':
-        return 'text-blue-400';
+        return 'text-zinc-400';
       case 'Error':
-        return 'text-rose-400';
+        return 'text-rose-400/80';
       default:
         return 'text-zinc-400';
     }
@@ -31,13 +31,13 @@ export const CliToolsTable: React.FC = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'Installed':
-        return '✓';
+        return '+';
       case 'NotInstalled':
-        return '✗';
+        return '-';
       case 'Checking':
-        return '⟳';
+        return '~';
       case 'Error':
-        return '⚠';
+        return '!';
       default:
         return status;
     }
@@ -45,15 +45,15 @@ export const CliToolsTable: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-theme-secondary font-mono text-xs animate-pulse">
-        <span>Detecting CLI tools...</span>
+      <div className="flex items-center gap-2 text-zinc-500 font-mono text-xs">
+        <span className="animate-pulse">Detecting CLI tools...</span>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-xs text-rose-400 font-mono">
+      <div className="text-xs text-rose-400/80 font-mono">
         Error: {error}
       </div>
     );
@@ -63,56 +63,55 @@ export const CliToolsTable: React.FC = () => {
     <div className="w-full">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-theme-secondary hover:text-theme-main font-mono text-xs transition-colors group"
+        className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 font-mono text-xs transition-colors duration-150 cursor-pointer group"
       >
         <svg 
-          className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-90' : ''}`} 
+          className={`w-3 h-3 transition-transform duration-150 ${isOpen ? 'rotate-90' : ''}`} 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
         </svg>
-        <span className="uppercase tracking-wider">CLI Tools</span>
-        <span className="text-zinc-600">[{installedCount}/{cliTools.length} installed]</span>
-        <span className="text-zinc-700 group-hover:text-zinc-500 ml-1">[expand]</span>
+        <span className="uppercase tracking-[0.1em]">CLI Tools</span>
+        <span className="text-zinc-700">[{installedCount}/{cliTools.length} installed]</span>
       </button>
 
       {isOpen && (
-        <div className="mt-3 overflow-hidden border border-theme rounded-sm gemini-aura-subtle gemini-depth">
+        <div className="mt-3 overflow-hidden border border-theme rounded-md bg-theme-card">
           <table className="w-full">
-            <thead className="bg-theme-card border-b border-theme">
+            <thead className="border-b border-theme">
               <tr>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-theme-secondary font-mono uppercase tracking-wider">
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-zinc-500 font-mono uppercase tracking-[0.1em]">
                   Name
                 </th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-theme-secondary font-mono uppercase tracking-wider">
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-zinc-500 font-mono uppercase tracking-[0.1em]">
                   Provider
                 </th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-theme-secondary font-mono uppercase tracking-wider">
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-zinc-500 font-mono uppercase tracking-[0.1em]">
                   Status
                 </th>
-                <th className="px-3 py-2 text-left text-[10px] font-medium text-theme-secondary font-mono uppercase tracking-wider">
+                <th className="px-3 py-2 text-left text-[10px] font-medium text-zinc-500 font-mono uppercase tracking-[0.1em]">
                   Version
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-theme bg-theme-main">
+            <tbody className="divide-y divide-zinc-800/50">
               {cliTools.map((tool) => (
                 <tr
                   key={tool.agent}
-                  className="hover:bg-theme-hover transition-colors"
+                  className="hover:bg-zinc-800/20 transition-colors duration-100"
                 >
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <div className="font-medium text-theme-main font-mono text-xs">
+                    <div className="font-medium text-zinc-300 font-mono text-xs">
                       {tool.displayName}
                     </div>
-                    <div className="text-[10px] text-theme-secondary font-mono">
+                    <div className="text-[10px] text-zinc-600 font-mono">
                       {tool.binaryName}
                     </div>
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap">
-                    <span className="text-[10px] text-theme-secondary font-mono">
+                    <span className="text-[10px] text-zinc-500 font-mono">
                       {tool.provider}
                     </span>
                   </td>
@@ -121,12 +120,12 @@ export const CliToolsTable: React.FC = () => {
                       {getStatusBadge(tool.status)} {tool.status === 'Installed' ? 'Installed' : tool.status === 'NotInstalled' ? 'Not Installed' : tool.status}
                     </span>
                     {tool.error && (
-                      <div className="text-[10px] text-rose-400 font-mono mt-0.5">
+                      <div className="text-[10px] text-rose-400/60 font-mono mt-0.5">
                         {tool.error}
                       </div>
                     )}
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-xs text-theme-secondary font-mono">
+                  <td className="px-3 py-2 whitespace-nowrap text-xs text-zinc-500 font-mono">
                     {tool.version || 'N/A'}
                   </td>
                 </tr>
@@ -135,7 +134,7 @@ export const CliToolsTable: React.FC = () => {
           </table>
 
           {cliTools.length === 0 && (
-            <div className="p-4 text-center text-theme-secondary font-mono text-xs">
+            <div className="p-4 text-center text-zinc-500 font-mono text-xs">
               No CLI tools detected
             </div>
           )}

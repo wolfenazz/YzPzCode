@@ -204,7 +204,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
   }
 
   return (
-    <div className="h-screen flex flex-col bg-zinc-950 font-mono overflow-hidden text-zinc-300">
+    <div className="h-screen flex flex-col bg-theme-main font-mono overflow-hidden text-theme-main">
       <WorkspaceHeader
         workspaces={openWorkspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -225,14 +225,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
         activeView={activeView}
       />
 
-      <main className="flex-1 overflow-hidden p-1 bg-zinc-950">
+      <main className="flex-1 overflow-hidden bg-theme-main">
         {currentWorkspace ? (
-          <div className="h-full flex gap-1 items-stretch">
+          <div className="h-full flex items-stretch">
             {explorerOpen && (
               <>
-                <div 
-                  style={{ width: `${sidebarWidth}px`, minWidth: '180px' }} 
-                  className="shrink-0 overflow-hidden rounded-xl border border-zinc-800/30 bg-zinc-900/10 shadow-2xl transition-all duration-300"
+                <div
+                  style={{ width: `${sidebarWidth}px`, minWidth: '180px' }}
+                  className="shrink-0 overflow-hidden border-r border-theme"
                 >
                   <FileExplorer
                     workspacePath={currentWorkspace.path}
@@ -241,12 +241,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
                   />
                 </div>
                 <div
-                  className="w-1.5 hover:w-2 cursor-col-resize hover:bg-blue-500/40 active:bg-blue-500 transition-all duration-300 shrink-0 rounded-full my-4"
+                  className="w-px hover:w-1 cursor-col-resize hover:bg-zinc-500 active:bg-zinc-400 transition-all duration-150 shrink-0"
                   onMouseDown={handleSidebarResizeStart}
                 />
               </>
             )}
-            <div className="flex-1 min-w-0 rounded-xl border border-zinc-800/30 bg-zinc-900/5 shadow-2xl overflow-hidden relative">
+            <div className="flex-1 min-w-0 overflow-hidden relative">
               {activeView === "terminal" ? (
                 <TerminalGrid sessions={sessions} isLoading={isLoading} theme={theme} />
               ) : (
@@ -255,22 +255,23 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
             </div>
           </div>
         ) : (
-          <div className="flex-1 h-full flex items-center justify-center text-zinc-500">
-            <div className="text-center space-y-6 max-w-sm p-12 rounded-3xl border border-zinc-800/30 bg-zinc-900/20 backdrop-blur-xl shadow-2xl">
-              <div className="w-20 h-20 mx-auto rounded-3xl bg-zinc-800/50 flex items-center justify-center border border-zinc-700/50 shadow-inner group cursor-default">
-                 <svg className="w-10 h-10 text-zinc-600 group-hover:text-blue-500 group-hover:scale-110 transition-all duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                 </svg>
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center space-y-6">
+              <div className="w-10 h-10 mx-auto border border-zinc-800 rounded flex items-center justify-center">
+                <svg className="w-5 h-5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
               </div>
-              <div className="space-y-2">
-                <div className="text-xs font-black uppercase tracking-[0.4em] text-zinc-400">Environment_Offline</div>
-                <p className="text-[10px] text-zinc-600 uppercase tracking-widest leading-relaxed">No active workspace detected. Initialize a new session to begin operations.</p>
+              <div className="space-y-1">
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">No active workspace</div>
+                <p className="text-[10px] text-zinc-700 font-mono">Initialize a new session to begin.</p>
               </div>
               <button
                 onClick={handleNewWorkspace}
-                className="w-full px-6 py-3 bg-blue-500 text-black hover:bg-blue-400 transition-all text-[11px] font-black uppercase tracking-[0.3em] cursor-pointer rounded-xl shadow-[0_10px_20px_-10px_rgba(59,130,246,0.5)] active:scale-95"
+                className="inline-flex items-center gap-2 px-4 py-2 text-zinc-400 hover:text-theme-main border border-zinc-800 hover:border-zinc-500 transition-all duration-200 text-[11px] font-mono uppercase tracking-[0.1em] cursor-pointer rounded group"
               >
-                [ Initialize_New_Session ]
+                <span className="w-1 h-1 rounded-full bg-zinc-600 group-hover:bg-zinc-300 transition-colors duration-200"></span>
+                Initialize
               </button>
             </div>
           </div>

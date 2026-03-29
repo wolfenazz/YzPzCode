@@ -186,34 +186,36 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
 
   return (
     <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
-      <header 
+      {/* ── TopBar ───────────────────────────────────────────────────────── */}
+      <header
         data-tauri-drag-region
-        className="relative z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors titlebar-drag overflow-hidden flex-shrink-0"
+        className="relative z-50 flex items-center h-11 bg-theme-card/60 backdrop-blur-md border-b border-theme select-none titlebar-drag overflow-hidden flex-shrink-0"
       >
         {/* Left: Branding & Core Actions */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center gap-3 px-4 h-full border-r border-theme bg-theme-card/30 hover:bg-theme-card/50 transition-colors group cursor-default">
-            <img src={logo} alt="YzPzCode" className="h-5 w-auto grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-300" />
-            <div className="flex flex-col -space-y-1">
-              <span className="text-[10px] font-mono font-bold tracking-tighter text-theme-main">YZPZ::CODE</span>
-              <span className="text-[8px] font-mono text-zinc-500 tracking-[0.2em] uppercase">terminal</span>
+          <div className="flex items-center gap-2.5 px-5 h-full border-r border-theme bg-theme-card/40 group cursor-default">
+            <img src={logo} alt="YzPzCode" className="h-5 w-auto opacity-80 group-hover:opacity-100 transition-opacity duration-200" />
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-semibold tracking-tight text-theme-main">YZPZ</span>
+              <span className="text-[9px] text-zinc-600">/</span>
+              <span className="text-[10px] font-mono text-zinc-400 tracking-wide">code</span>
             </div>
           </div>
 
           <button
             onClick={onDocsClick}
-            className="flex items-center gap-2 px-4 h-full border-r border-theme hover:bg-theme-hover transition-all text-zinc-500 hover:text-theme-main group"
+            className="flex items-center gap-1.5 px-4 h-full border-r border-theme hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-theme-main cursor-pointer"
             title="Documentation"
           >
-            <svg className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
             </svg>
-            <span className="text-[9px] font-mono tracking-widest hidden sm:inline uppercase">docs</span>
+            <span className="text-[9px] font-mono tracking-[0.15em] hidden sm:inline uppercase text-zinc-500">docs</span>
           </button>
         </div>
 
         {/* Middle: Workspace Tabs / Status Area */}
-        <div className="flex-1 flex items-center h-full">
+        <div className="flex-1 flex items-center h-full min-w-0">
           {openWorkspaces.length > 0 ? (
             <div className="flex items-center h-full overflow-x-auto overflow-y-hidden border-r border-theme titlebar-nodrag">
               {openWorkspaces.map((workspace) => (
@@ -231,50 +233,60 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               ))}
             </div>
           ) : (
-            <div className="hidden lg:flex items-center gap-6 px-6 text-[9px] font-mono tracking-[0.3em] text-zinc-600 uppercase titlebar-nodrag">
-              <span className="animate-pulse">_initializing_session</span>
-              <span className="text-zinc-800">|</span>
-              <span className="hover:text-zinc-400 transition-colors cursor-default">pid::{(Math.random() * 9000 + 1000).toFixed(0)}</span>
-              <span className="text-zinc-800">|</span>
-              <span className="hover:text-zinc-400 transition-colors cursor-default">node::master</span>
+            <div className="hidden lg:flex items-center gap-4 px-5 text-[9px] font-mono tracking-[0.2em] text-zinc-600 uppercase titlebar-nodrag">
+              <span>_init</span>
+              <span className="text-zinc-700">:</span>
+              <span>pid::{(Math.random() * 9000 + 1000).toFixed(0)}</span>
+              <span className="text-zinc-700">:</span>
+              <span>ready</span>
             </div>
           )}
         </div>
 
         {/* Right: Controls & Utilities */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="px-2 h-full flex items-center border-l border-theme">
+          <button
+            className="flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer group"
+            title="Settings"
+          >
+            <svg className="w-4 h-4 transition-transform duration-500 group-hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
+
+          <div className="flex items-center h-full border-l border-theme">
             <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
           </div>
 
           {/* Custom window controls — Windows only */}
           {isWindows && (
-            <div className="flex h-full border-l border-theme bg-theme-card/20">
+            <div className="flex h-full border-l border-theme">
               <button
                 onClick={minimizeWindow}
-                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors group"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
                 title="Minimize"
               >
-                <svg className="w-2.5 h-2.5 group-hover:scale-110 transition-transform" viewBox="0 0 12 12">
-                  <rect fill="currentColor" width="10" height="1.2" x="1" y="6" />
+                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
+                  <rect fill="currentColor" width="10" height="1" x="1" y="5.5" />
                 </svg>
               </button>
               <button
                 onClick={maximizeWindow}
-                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors group"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
                 title="Maximize"
               >
-                <svg className="w-2.5 h-2.5 group-hover:scale-110 transition-transform" viewBox="0 0 12 12">
-                  <rect fill="none" stroke="currentColor" width="8" height="8" x="2" y="2" strokeWidth="1.2" />
+                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
+                  <rect fill="none" stroke="currentColor" width="8" height="8" x="2" y="2" strokeWidth="1" />
                 </svg>
               </button>
               <button
                 onClick={closeWindow}
-                className="w-12 h-full flex items-center justify-center hover:bg-rose-600/90 text-zinc-500 hover:text-white transition-colors group"
+                className="w-[48px] h-full flex items-center justify-center hover:bg-[#c42b1c] text-zinc-500 hover:text-white transition-colors duration-150 cursor-pointer"
                 title="Close"
               >
-                <svg className="w-2.5 h-2.5 group-hover:rotate-90 transition-transform duration-300" viewBox="0 0 12 12">
-                  <path fill="none" stroke="currentColor" strokeWidth="1.5" d="M2,2 L10,10 M2,10 L10,2" />
+                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
+                  <path fill="none" stroke="currentColor" strokeWidth="1.2" d="M2.5,2.5 L9.5,9.5 M2.5,9.5 L9.5,2.5" />
                 </svg>
               </button>
             </div>
@@ -282,31 +294,32 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col p-6 overflow-y-auto">
-        <div className="w-full max-w-6xl mx-auto py-12 space-y-8">
-          <div className="flex flex-col items-center justify-center mb-8">
-            <img src={logo} alt="YzPzCode" className="h-16 w-auto mb-4 transition-all duration-200 hover:scale-105 hover:drop-shadow-[0_4px_12px_rgba(0,0,0,0.6)]" />
-            <p className="text-theme-secondary text-sm">Welcome to YzPzCode.. it's FREE for Ever !</p>
+      {/* ── Main Content ─────────────────────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="w-full max-w-5xl mx-auto px-6 py-8 space-y-5">
+          <div className="flex flex-col items-center pt-2 pb-1">
+            <img src={logo} alt="YzPzCode" className="h-12 w-auto mb-2 opacity-80" />
+            <p className="text-zinc-500 text-xs font-mono tracking-[0.15em] uppercase">Multi-terminal AI development environment</p>
           </div>
 
           {showWindows10Warning && !warningDismissed && (
-            <div className="flex items-center justify-between gap-4 px-4 py-3 bg-amber-500/10 border border-amber-500/30 rounded-lg mb-4">
+            <div className="flex items-center justify-between gap-4 px-4 py-3 bg-amber-500/[0.06] border border-amber-500/20 rounded-md mb-2">
               <div className="flex items-center gap-3">
-                <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                <svg className="w-4 h-4 text-amber-500/80 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
-                <div className="text-sm">
-                  <span className="text-amber-200 font-medium">Windows 10 detected.</span>
-                  <span className="text-amber-100/70 ml-1">For the best experience and full UI features, we recommend upgrading to Windows 11.</span>
+                <div className="text-xs font-mono">
+                  <span className="text-amber-400/80">Windows 10 detected.</span>
+                  <span className="text-zinc-500 ml-1">Upgrade to Windows 11 for the best experience.</span>
                 </div>
               </div>
               <button
                 onClick={() => setWarningDismissed(true)}
-                className="text-amber-400 hover:text-amber-200 transition-colors p-1"
+                className="text-zinc-500 hover:text-zinc-300 transition-colors duration-150 p-1 cursor-pointer"
                 title="Dismiss"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
@@ -332,34 +345,29 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         </div>
       </main>
 
-      <footer className="flex-shrink-0 h-10 border-t border-theme bg-theme-card/50 backdrop-blur-sm select-none">
-        <div className="h-full flex items-center justify-between px-4 font-mono text-[10px] tracking-wider uppercase">
+      <footer className="flex-shrink-0 h-10 border-t border-theme bg-theme-card/40 select-none">
+        <div className="h-full flex items-center justify-between px-5 font-mono text-[10px] tracking-wider uppercase">
           {/* Left: System Status */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-emerald-500/80">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            <div className="flex items-center gap-2 text-emerald-500/70">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500/80"></span>
               </span>
-              <span>[ system::ready ]</span>
+              <span>system::ready</span>
             </div>
-            <div className="hidden md:flex items-center gap-2 text-zinc-500">
-              <span className="text-zinc-700">|</span>
-              <span className="hover:text-theme-main transition-colors cursor-default">env::production</span>
-              <span className="text-zinc-700">|</span>
-              <span className="hover:text-theme-main transition-colors cursor-default">loc::global</span>
+            <div className="hidden md:flex items-center gap-3 text-zinc-600">
+              <span className="text-zinc-800">|</span>
+              <span>env::production</span>
+              <span className="text-zinc-800">|</span>
+              <span>loc::global</span>
             </div>
           </div>
 
           {/* Center: Branding & Authors */}
-          <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 text-zinc-400">
-            <span className="text-zinc-600">--</span>
+          <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 text-zinc-500">
+            <span className="text-zinc-700">--</span>
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span>Made with</span>
-              <svg className="w-3 h-3 text-rose-500/80 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-              <span>by</span>
+              <span>Built by</span>
               <div className="flex items-center gap-1">
                 {authors.map((author, index) => (
                   <React.Fragment key={author.name}>
@@ -368,14 +376,14 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
                         <>
                           <button
                             onClick={() => setOpenPopover(openPopover === author.name ? null : author.name)}
-                            className="text-theme-main hover:text-theme-main/80 transition-colors cursor-pointer"
+                            className="text-zinc-300 hover:text-theme-main transition-colors duration-150 cursor-pointer"
                           >
                             {author.name}
                           </button>
                           {openPopover === author.name && (
                             <div
                               ref={popoverRef}
-                              className="absolute bottom-full left-1/2 mb-3 px-3 py-2 bg-theme-card border border-theme rounded shadow-2xl flex flex-col gap-2 whitespace-nowrap z-50 animate-popover-in"
+                              className="absolute bottom-full left-1/2 mb-3 px-3 py-2 bg-theme-card border border-theme rounded-md shadow-lg flex flex-col gap-2 whitespace-nowrap z-50 animate-popover-in"
                             >
                               <div className="flex items-center gap-2">
                                 <img 
@@ -445,46 +453,46 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
                 ))}
               </div>
             </div>
-            <span className="text-zinc-600">--</span>
+            <span className="text-zinc-700">--</span>
           </div>
 
           {/* Right: Actions & Version */}
-          <div className="flex items-center gap-3">
-            <div className="flex items-center border border-theme rounded overflow-hidden">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center border border-theme rounded-sm overflow-hidden">
               {checking && (
-                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-zinc-800/50">
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800/30">
                   <svg className="w-3 h-3 text-zinc-500 animate-spin-slow" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  <span className="text-zinc-500">Checking...</span>
+                  <span className="text-zinc-500">checking</span>
                 </div>
               )}
 
               {!checking && upToDate && (
-                <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-500">
+                <div className="flex items-center gap-1 px-2 py-1 text-emerald-500/80">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>UP-TO-DATE</span>
+                  <span>up-to-date</span>
                 </div>
               )}
 
               {!checking && !downloading && updateAvailable && (
                 <button
                   onClick={downloadAndInstall}
-                  className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-colors"
+                  className="flex items-center gap-1.5 px-2 py-1 text-amber-500/80 hover:bg-amber-500/10 transition-colors duration-150 cursor-pointer"
                 >
-                  <span className="animate-pulse">●</span>
-                  <span>UPDATE V{updateAvailable.version}</span>
+                  <span>●</span>
+                  <span>update v{updateAvailable.version}</span>
                 </button>
               )}
 
               {downloading && (
-                <div className="flex items-center gap-2 px-2 py-0.5 bg-emerald-500/10 text-emerald-500">
+                <div className="flex items-center gap-2 px-2 py-1 text-emerald-500/80">
                   <div className="w-12 h-1 bg-zinc-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-emerald-500 transition-all duration-200"
+                      className="h-full bg-emerald-500/70 transition-all duration-200"
                       style={{ width: `${downloadProgress}%` }}
                     />
                   </div>
@@ -495,23 +503,23 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               {!checking && !downloading && !updateAvailable && !upToDate && (
                 <button
                   onClick={() => checkForUpdates(true)}
-                  className="px-2 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+                  className="px-2 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 transition-colors duration-150 cursor-pointer"
                 >
-                  [ CHECK_UPDATES ]
+                  check_updates
                 </button>
               )}
 
               <button
                 onClick={() => setIsFeedbackOpen(true)}
-                className="px-2 py-0.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/50 transition-colors"
+                className="px-2 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 transition-colors duration-150 border-l border-theme cursor-pointer"
               >
-                [ FEEDBACK ]
+                feedback
               </button>
             </div>
             
-            <div className="flex items-center gap-2 text-zinc-600">
-              <span>::</span>
-              <span className="text-zinc-500">v{appVersion || '---'}</span>
+            <div className="flex items-center gap-1.5 text-zinc-700">
+              <span>v</span>
+              <span className="text-zinc-500">{appVersion || '---'}</span>
             </div>
           </div>
         </div>

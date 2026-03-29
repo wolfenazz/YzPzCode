@@ -29,7 +29,7 @@ const AGENT_INFO: Record<AgentType, { label: string; color: string; logo: string
 };
 
 const ShellOnlyIcon = () => (
-  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <svg className="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
   </svg>
 );
@@ -112,7 +112,6 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     try {
       await openInstallTerminal(agent);
     } finally {
-      // Re-enable after a short delay
       setTimeout(() => {
         isLaunchingRef.current = false;
       }, 1000);
@@ -120,22 +119,23 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
   };
 
   return (
-    <div className="w-full space-y-4 font-mono">
-      <div className="flex items-center justify-between pointer-events-none mb-2">
-        <div className="flex items-center gap-2 pointer-events-auto">
-          <span className="text-zinc-600 text-sm">$</span>
-          <label className="block text-sm font-medium text-zinc-400">
-            fleet_allocation
+    <div className="space-y-4 font-mono">
+      {/* Section Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-600 text-xs">$</span>
+          <label className="block text-xs font-medium text-zinc-400 uppercase tracking-[0.15em]">
+            Fleet Allocation
           </label>
           <HelpTooltip text="Assign AI CLI agents to your terminal slots. Enable an agent, then set how many terminals should run it. Remaining slots open as plain shells." />
           {(isRefreshing || cliLoading) && (
-            <span className="flex items-center gap-1.5 text-[10px] text-zinc-500">
+            <span className="flex items-center gap-1 text-[10px] text-zinc-600">
               <span className="inline-flex gap-0.5">
-                <span className="w-1 h-1 bg-emerald-500 rounded-full animate-cli-dot" style={{ animationDelay: '0ms' }} />
-                <span className="w-1 h-1 bg-emerald-500 rounded-full animate-cli-dot" style={{ animationDelay: '150ms' }} />
-                <span className="w-1 h-1 bg-emerald-500 rounded-full animate-cli-dot" style={{ animationDelay: '300ms' }} />
+                <span className="w-1 h-1 bg-zinc-500 rounded-full animate-cli-dot" style={{ animationDelay: '0ms' }} />
+                <span className="w-1 h-1 bg-zinc-500 rounded-full animate-cli-dot" style={{ animationDelay: '150ms' }} />
+                <span className="w-1 h-1 bg-zinc-500 rounded-full animate-cli-dot" style={{ animationDelay: '300ms' }} />
               </span>
-              <span className="animate-pulse">scanning</span>
+              <span>scanning</span>
             </span>
           )}
         </div>
@@ -143,73 +143,77 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
           type="button"
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className={`pointer-events-auto relative p-1.5 rounded-sm border border-zinc-800 transition-all duration-300 cursor-pointer ${
+          className={`relative p-1.5 rounded border border-zinc-800 transition-colors duration-150 cursor-pointer ${
             isRefreshing
-              ? 'border-zinc-700 bg-zinc-900 text-emerald-400'
-              : 'hover:bg-zinc-800 hover:border-zinc-600 text-zinc-500 hover:text-zinc-200'
+              ? 'border-zinc-700 bg-zinc-900 text-zinc-400'
+              : 'hover:bg-zinc-800 hover:border-zinc-600 text-zinc-500 hover:text-zinc-300'
           }`}
           title="Refresh CLI detection"
         >
           <svg
-            className={`w-4 h-4 ${isRefreshing ? 'animate-spin-slow' : ''}`}
+            className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin-slow' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          {isRefreshing && (
-            <svg className="absolute inset-0 w-full h-full text-emerald-400 opacity-0 animate-cli-ring" fill="none" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1" strokeDasharray="4 4" />
-            </svg>
-          )}
         </button>
       </div>
+
+      {/* Utilization Bar */}
       <UtilizationBar used={allocatedSlots} total={totalSlots} />
+
       {isOverAllocated && (
-        <p className="text-sm text-rose-500 mt-2">
-          [ERR] Cannot allocate more slots than available
+        <p className="text-xs text-rose-400/80 mt-1">
+          Cannot allocate more slots than available
         </p>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Agent Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {Object.entries(AGENT_INFO).map(([agent, info]) => (
           <div
             key={agent}
-            className={`group p-4 rounded-sm border transition-all duration-300 ease-out ${enabledAgents.has(agent as AgentType)
-              ? 'border-zinc-400 bg-zinc-900 border-solid hover:border-zinc-300 hover:shadow-[0_8px_24px_rgba(0,0,0,0.4)] hover:-translate-y-0.5'
-              : 'border-zinc-800 bg-zinc-950 border-dashed opacity-60 hover:opacity-80 hover:border-zinc-700'
-              }`}
+            className={`group p-3.5 rounded-md border transition-colors duration-150 ${
+              enabledAgents.has(agent as AgentType)
+                ? 'border-zinc-500 bg-zinc-900/80 hover:border-zinc-400'
+                : 'border-zinc-800 bg-zinc-950 opacity-50 hover:opacity-70 hover:border-zinc-700'
+            }`}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className={`p-1.5 border border-zinc-800 rounded-sm transition-transform duration-300 group-hover:scale-110 ${agent === 'opencode' ? 'bg-white' : 'bg-zinc-950'}`}>
+            {/* Agent Header */}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-7 h-7 flex items-center justify-center border border-zinc-800 rounded overflow-hidden ${agent === 'opencode' ? 'bg-white' : 'bg-zinc-950'}`}>
                   <img
                     src={info.logo}
                     alt={info.label}
-                    className="w-6 h-6 object-contain transition-transform duration-200"
+                    className="w-5 h-5 object-contain"
                   />
                 </div>
-                <span className="font-bold text-zinc-200 uppercase tracking-widest text-sm transition-colors duration-200 group-hover:text-white">{info.label}</span>
+                <span className="font-medium text-zinc-300 uppercase tracking-[0.1em] text-xs">{info.label}</span>
               </div>
               <button
                 type="button"
                 onClick={() => toggleAgent(agent as AgentType)}
-                className={`relative inline-flex h-5 w-9 items-center rounded-none transition-all duration-300 border ${enabledAgents.has(agent as AgentType)
-                  ? 'bg-zinc-200 border-zinc-200 hover:bg-white'
-                  : 'bg-zinc-950 border-zinc-700 hover:border-zinc-500'
-                  }`}
+                className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors duration-200 cursor-pointer ${
+                  enabledAgents.has(agent as AgentType)
+                    ? 'bg-zinc-200'
+                    : 'bg-zinc-800 border border-zinc-700'
+                }`}
               >
                 <span
-                  className={`inline-block h-3 w-3 transform transition-all duration-300 ease-out ${enabledAgents.has(agent as AgentType)
-                    ? 'translate-x-[18px] bg-zinc-900'
-                    : 'translate-x-1 bg-zinc-600 group-hover:bg-zinc-500'
-                    }`}
+                  className={`inline-block h-2.5 w-2.5 rounded-full transform transition-transform duration-200 ${
+                    enabledAgents.has(agent as AgentType)
+                      ? 'translate-x-[14px] bg-zinc-900'
+                      : 'translate-x-[2px] bg-zinc-500'
+                  }`}
                 />
               </button>
             </div>
 
-            <div className="flex items-center justify-between mb-4 mt-2">
+            {/* Status Badge */}
+            <div className="mb-3">
               <AgentCliStatusBadge
                 cliInfo={cliStatuses[agent as AgentType]}
                 onInstall={() => handleInstall(agent as AgentType)}
@@ -217,19 +221,20 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
               />
             </div>
 
+            {/* Slot Counter */}
             {enabledAgents.has(agent as AgentType) && (
-              <div className="flex items-center justify-center gap-1 mt-4 pt-4 border-t border-zinc-800/50">
+              <div className="flex items-center justify-center gap-0.5 pt-3 border-t border-zinc-800/60">
                 <button
                   type="button"
                   onClick={() =>
                     updateAllocation(agent as AgentType, allocation[agent as AgentType] - 1)
                   }
                   disabled={allocation[agent as AgentType] <= 0}
-                  className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-800 hover:border-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed text-zinc-400 transition-all duration-200 active:scale-95"
+                  className="w-7 h-7 flex items-center justify-center bg-zinc-950 border border-zinc-800 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-400 transition-colors duration-150 cursor-pointer"
                 >
-                  -
+                  <span className="text-xs">-</span>
                 </button>
-                <span className="w-16 text-center font-bold text-zinc-100 bg-zinc-950 border-y border-zinc-800 h-8 flex items-center justify-center transition-colors duration-200 group-hover:border-zinc-700">
+                <span className="w-12 text-center font-semibold text-zinc-200 bg-zinc-950 border-y border-zinc-800 h-7 flex items-center justify-center text-xs">
                   {allocation[agent as AgentType]}
                 </span>
                 <button
@@ -238,41 +243,41 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
                     updateAllocation(agent as AgentType, allocation[agent as AgentType] + 1)
                   }
                   disabled={isOverAllocated}
-                  className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-800 hover:border-zinc-400 hover:bg-zinc-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed text-zinc-400 transition-all duration-200 active:scale-95"
+                  className="w-7 h-7 flex items-center justify-center bg-zinc-950 border border-zinc-800 hover:border-zinc-500 hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed text-zinc-400 transition-colors duration-150 cursor-pointer"
                 >
-                  +
+                  <span className="text-xs">+</span>
                 </button>
               </div>
             )}
           </div>
         ))}
 
+        {/* Shell Only Card */}
         <div
-          className={`group p-4 rounded-sm border transition-all duration-300 ease-out ${remainingSlots > 0
-            ? 'border-zinc-600 bg-zinc-900 border-dashed hover:border-zinc-500 hover:shadow-[0_8px_24px_rgba(0,0,0,0.3)] hover:-translate-y-0.5'
-            : 'border-zinc-800 bg-zinc-950 border-dotted opacity-50'
-            }`}
+          className={`group p-3.5 rounded-md border transition-colors duration-150 ${
+            remainingSlots > 0
+              ? 'border-zinc-700 bg-zinc-900/60 hover:border-zinc-600'
+              : 'border-zinc-800 bg-zinc-950 opacity-40'
+          }`}
         >
           <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="p-1.5 bg-zinc-950 border border-zinc-800 rounded-sm transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 flex items-center justify-center bg-zinc-950 border border-zinc-800 rounded">
                 <ShellOnlyIcon />
               </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-zinc-300 uppercase tracking-widest text-sm transition-colors duration-200 group-hover:text-white">/bin/sh</span>
-              </div>
+              <span className="font-medium text-zinc-400 uppercase tracking-[0.1em] text-xs">/bin/sh</span>
             </div>
           </div>
 
-          <div className="flex items-center justify-center mt-6 mb-4">
-            <div className="px-6 py-2 bg-zinc-950 border border-zinc-800 rounded-sm text-center min-w-[120px] transition-all duration-200 group-hover:border-zinc-700 group-hover:bg-zinc-900">
-              <span className="text-xl font-bold text-zinc-200 transition-colors duration-200 group-hover:text-white">{remainingSlots}</span>
-              <span className="text-xs text-zinc-500 ml-2 uppercase transition-colors duration-200 group-hover:text-zinc-400">slot{remainingSlots !== 1 ? 's' : ''}</span>
+          <div className="flex items-center justify-center py-3">
+            <div className="px-4 py-1.5 bg-zinc-950 border border-zinc-800 rounded text-center">
+              <span className="text-lg font-semibold text-zinc-300">{remainingSlots}</span>
+              <span className="text-[10px] text-zinc-600 ml-1.5 uppercase">slot{remainingSlots !== 1 ? 's' : ''}</span>
             </div>
           </div>
 
-          <p className="text-xs text-zinc-500 text-center mt-4 pt-4 border-t border-zinc-800/50 transition-colors duration-200 group-hover:text-zinc-400">
-            Unallocated slots -&gt; native shells
+          <p className="text-[10px] text-zinc-600 text-center mt-3 pt-3 border-t border-zinc-800/60">
+            Unallocated slots become native shells
           </p>
         </div>
       </div>
