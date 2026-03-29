@@ -438,7 +438,7 @@ If YzPzCode saved you from terminal chaos, consider giving it a **star** — it 
 <br><br>
 <b>Noor</b>
 <br>
-<sub>Contributor</sub>
+<sub>Dev & Contributor</sub>
 <br>
 <a href="https://github.com/Noor-Al-Khelaifi"><code>@Noor-Al-Khelaifi</code></a>
 </a>
