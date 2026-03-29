@@ -61,10 +61,22 @@ impl CliLauncher {
         let binary_name = crate::agent_cli::CliLauncher::get_binary_name(agent);
 
         #[cfg(target_os = "windows")]
-        let launch_command = format!("{}\r\n", binary_name);
+        let launch_command = format!(
+            "@echo off && set \"PATH=%PATH%;%APPDATA%\\npm;%LOCALAPPDATA%\\npm;%NPM_CONFIG_PREFIX%\\bin;%USERPROFILE%\\.npm-global\\bin\" && {}\r\n",
+            binary_name
+        );
 
-        #[cfg(not(target_os = "windows"))]
-        let launch_command = format!("{} \n", binary_name);
+        #[cfg(target_os = "macos")]
+        let launch_command = format!(
+            "export PATH=\"$PATH:$(npm config get --global prefix 2>/dev/null || echo '')/bin:$HOME/.npm-global/bin:/usr/local/bin:/opt/homebrew/bin\" && {} \n",
+            binary_name
+        );
+
+        #[cfg(target_os = "linux")]
+        let launch_command = format!(
+            "export PATH=\"$PATH:$(npm config get --global prefix 2>/dev/null || echo '')/bin:$HOME/.npm-global/bin:/usr/local/bin\" && {} \n",
+            binary_name
+        );
 
         let state = CliLaunchState {
             session_id: session_id.to_string(),

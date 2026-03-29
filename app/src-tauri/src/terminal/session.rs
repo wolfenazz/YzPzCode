@@ -93,11 +93,31 @@ impl PtySession {
                 path = format!("{};{};{}", path, pip_path, npm_global_path);
             }
 
+            if let Ok(prefix_output) = std::process::Command::new("npm")
+                .args(["config", "get", "--global", "prefix"])
+                .output()
+            {
+                if prefix_output.status.success() {
+                    let prefix = String::from_utf8_lossy(&prefix_output.stdout)
+                        .trim()
+                        .to_string();
+                    if !prefix.is_empty() {
+                        let npm_prefix_bin = format!("{}\\bin", prefix);
+                        let npm_prefix_node_modules = format!("{}\\node_modules\\.bin", prefix);
+                        path = format!("{};{};{}", path, npm_prefix_bin, npm_prefix_node_modules);
+                    }
+                }
+            }
+
             if !userprofile.is_empty() {
                 let cargo_path = format!("{}\\.cargo\\bin", userprofile);
                 let nvm_path = format!("{}\\.nvm", userprofile);
                 let nvm_current = format!("{}\\.nvm\\current", userprofile);
-                path = format!("{};{};{};{}", path, cargo_path, nvm_path, nvm_current);
+                let npm_global_path = format!("{}\\.npm-global\\bin", userprofile);
+                path = format!(
+                    "{};{};{};{};{}",
+                    path, cargo_path, nvm_path, nvm_current, npm_global_path
+                );
 
                 if let Ok(nvm_home) = std::env::var("NVM_HOME") {
                     if !nvm_home.is_empty() {
@@ -152,12 +172,46 @@ impl PtySession {
 
         #[cfg(target_os = "macos")]
         {
-            if let Ok(path) = std::env::var("PATH") {
-                cmd.env("PATH", path);
+            let mut path = std::env::var("PATH").unwrap_or_default();
+
+            if let Ok(prefix_output) = std::process::Command::new("npm")
+                .args(["config", "get", "--global", "prefix"])
+                .output()
+            {
+                if prefix_output.status.success() {
+                    let prefix = String::from_utf8_lossy(&prefix_output.stdout)
+                        .trim()
+                        .to_string();
+                    if !prefix.is_empty() {
+                        let npm_global_bin = format!("{}/bin", prefix);
+                        path = format!("{}:{}", npm_global_bin, path);
+                    }
+                }
             }
+
             if let Ok(home) = std::env::var("HOME") {
+                let npm_global = format!("{}/.npm-global/bin", home);
+                path = format!("{}:{}", npm_global, path);
+
+                if let Ok(nvm_dir) = std::fs::read_dir(format!("{}/.nvm/versions/node", home)) {
+                    for entry in nvm_dir.flatten() {
+                        if entry.path().is_dir() {
+                            let nvm_bin = format!("{}/bin", entry.path().display());
+                            path = format!("{}:{}", nvm_bin, path);
+                        }
+                    }
+                }
+
                 cmd.env("HOME", home);
             }
+
+            path = format!(
+                "{}:/usr/local/bin:/opt/homebrew/bin:/opt/homebrew/sbin",
+                path
+            );
+
+            cmd.env("PATH", path);
+
             if let Ok(user) = std::env::var("USER") {
                 cmd.env("USER", user);
             }
@@ -178,12 +232,46 @@ impl PtySession {
 
         #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
         {
-            if let Ok(path) = std::env::var("PATH") {
-                cmd.env("PATH", path);
+            let mut path = std::env::var("PATH").unwrap_or_default();
+
+            if let Ok(prefix_output) = std::process::Command::new("npm")
+                .args(["config", "get", "--global", "prefix"])
+                .output()
+            {
+                if prefix_output.status.success() {
+                    let prefix = String::from_utf8_lossy(&prefix_output.stdout)
+                        .trim()
+                        .to_string();
+                    if !prefix.is_empty() {
+                        let npm_global_bin = format!("{}/bin", prefix);
+                        path = format!("{}:{}", npm_global_bin, path);
+                    }
+                }
             }
+
             if let Ok(home) = std::env::var("HOME") {
+                let npm_global = format!("{}/.npm-global/bin", home);
+                path = format!("{}:{}", npm_global, path);
+
+                if let Ok(nvm_dir) = std::fs::read_dir(format!("{}/.nvm/versions/node", home)) {
+                    for entry in nvm_dir.flatten() {
+                        if entry.path().is_dir() {
+                            let nvm_bin = format!("{}/bin", entry.path().display());
+                            path = format!("{}:{}", nvm_bin, path);
+                        }
+                    }
+                }
+
+                let cargo_bin = format!("{}/.cargo/bin", home);
+                path = format!("{}:{}", cargo_bin, path);
+
                 cmd.env("HOME", home);
             }
+
+            path = format!("{}:/usr/local/bin:/usr/bin:/bin", path);
+
+            cmd.env("PATH", path);
+
             if let Ok(user) = std::env::var("USER") {
                 cmd.env("USER", user);
             }
