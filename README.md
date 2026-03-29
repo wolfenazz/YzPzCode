@@ -14,7 +14,7 @@
 [![Backend](https://img.shields.io/badge/Backend-Rust-orange?logo=rust)](https://rust-lang.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-**[Install Now](#-quick-start)** · **[See Screenshots](#-see-it-in-action)** · **[Read the Docs](docs/userguid.md)**
+**[Install Now](https://github.com/YzPzCode/releases)** · **[See Screenshots](#-see-it-in-action)** · **[Read the Docs](docs/userguid.md)**
 
 **Readme in other languages:** [العربية](README.ar.md) · [Español](README.es.md) · [Français](README.fr.md) · [中文](README.zh.md) · [日本語](README.ja.md)
 
