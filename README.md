@@ -348,16 +348,22 @@ If YzPzCode saved you from terminal chaos, consider giving it a **star** — it 
 
 **Built with caffeine and late nights by**
 
-<div>
+<table>
+<tr>
+<td align="center" width="130">
 <a href="https://github.com/wolfenazz">
-  <img src="https://github.com/wolfenazz.png" alt="Naseem" width="80" style="border-radius:50%; display:inline-block; margin:0 8px"/>
-  <br/>Naseem
-</a>
+<img src="https://github.com/wolfenazz.png" alt="Naseem" width="56" height="56" style="border-radius:50%"/>
+</a><br>
+<b><a href="https://github.com/wolfenazz">Naseem</a></b>
+</td>
+<td align="center" width="130">
 <a href="https://github.com/Noor-Al-Khelaifi">
-  <img src="https://github.com/Noor-Al-Khelaifi.png" alt="Noor" width="80" style="border-radius:50%; display:inline-block; margin:0 8px"/>
-  <br/>Noor
-</a>
-</div>
+<img src="https://github.com/Noor-Al-Khelaifi.png" alt="Noor" width="56" height="56" style="border-radius:50%"/>
+</a><br>
+<b><a href="https://github.com/Noor-Al-Khelaifi">Noor</a></b>
+</td>
+</tr>
+</table>
 
 *For developers who'd rather code than manage terminals.*
 
