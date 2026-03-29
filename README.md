@@ -342,7 +342,7 @@ If YzPzCode saved you from terminal chaos, consider giving it a **star** — it 
 
 ---
 
-**Built with caffeine and late nights by [Naseem](https://github.com/wolfenazz), Noor & Khalid**
+**Built with caffeine and late nights by [Naseem](https://github.com/wolfenazz), [Noor](https://github.com/Noor-Al-Khelaifi) & Khalid**
 
 *For developers who'd rather code than manage terminals.*
 

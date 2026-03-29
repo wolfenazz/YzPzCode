@@ -23,6 +23,7 @@ Instead, please:
 2. **Or DM us on Discord:**
    - Naseem: `@ws.`
    - Noor: `@sjc0`
+3- you can send **feedback** inside the app **directly* about the security issue you found .
 
 ### What to Include
 
