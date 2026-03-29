@@ -273,15 +273,25 @@ sequenceDiagram
 app/
 ├── src-tauri/          # Rust backend
 │   └── src/
-│       ├── agent/      # Ajan düzenleme
-│       ├── agent_cli/  # CLI algılama ve kurulum
-│       ├── commands/   # Tauri IPC işleyicileri
-│       └── terminal/   # PTY yönetimi
-├── src/                # React frontend
-│   ├── components/     # UI bileşenleri
-│   ├── hooks/          # Özel hook'lar
-│   ├── stores/         # Zustand depoları
-│   └── types/          # TypeScript tanımları
+│       ├── agent/           # Ajan yürütme ve düzenleme
+│       ├── agent_cli/       # CLI algılama, kurulum ve başlatma
+│       │   └── providers/   # Sağlayıcıya özel uygulamalar
+│       ├── commands/        # Tauri IPC işleyicileri
+│       ├── terminal/        # PTY oturum yönetimi
+│       ├── filesystem/      # Dosya işlemleri, git, izleyici
+│       ├── ide/             # IDE algılama ve başlatma
+│       └── utils/           # Yardımcı araçlar
+├── src/                     # React frontend
+│   ├── components/
+│   │   ├── setup/          # Kurulum ve yapılandırma ekranları
+│   │   ├── workspace/      # Terminal ızgarası ve oturumlar
+│   │   ├── explorer/       # Dosya gezgini ve git panelleri
+│   │   ├── editor/         # Çoklu sekme dosya düzenleyici
+│   │   ├── common/        # Paylaşılan bileşenler
+│   │   └── feedback/       # Geri bildirim modalı
+│   ├── hooks/              # Özel React hook'ları
+│   ├── stores/             # Zustand durum yönetimi
+│   └── types/              # TypeScript tanımları
 └── docs/               # Dokümantasyon
 ```
 

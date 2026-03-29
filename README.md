@@ -68,13 +68,13 @@ We support the heavy hitters:
 
 <div align="center">
 
-| Agent | CLI | Superpower |
-|-------|-----|------------|
-| **Claude** | `claude` | Deep reasoning, explains code like a patient senior dev |
-| **Gemini** | `gemini` | Fast, multimodal, Google's finest |
-| **Codex** | `codex` | Code generation that actually works |
-| **Opencode** | `opencode` | Open-source freedom |
-| **Cursor** | `cursor` | IDE-level AI assistance |
+| Logo | Agent | CLI | Superpower |
+|------|-------|-----|------------|
+| <img src="app/src/assets/claude.png" width="40"/> | **Claude** | `claude` | Deep reasoning, explains code like a patient senior dev |
+| <img src="app/src/assets/gemini-cli-logo.svg" width="40"/> | **Gemini** | `gemini` | Fast, multimodal, Google's finest |
+| <img src="app/src/assets/codex.png" width="40"/> | **Codex** | `codex` | Code generation that actually works |
+| <img src="app/src/assets/opencode.png" width="40"/> | **Opencode** | `opencode` | Open-source freedom |
+| <img src="app/src/assets/cursor-ai.png" width="40"/> | **Cursor** | `cursor` | IDE-level AI assistance |
 
 </div>
 
@@ -82,18 +82,22 @@ We support the heavy hitters:
 
 Launch your favorite IDE directly from YzPzCode:
 
-| IDE | Binary | Platform |
-|-----|--------|----------|
-| **VS Code** | `code` | All |
-| **Cursor** | `cursor` | All |
-| **Zed** | `zed` | All |
-| **Visual Studio** | `devenv` | Windows |
-| **WebStorm** | `webstorm` | All |
-| **IntelliJ** | `idea` | All |
-| **Sublime Text** | `subl` | All |
-| **Windsurf** | `windsurf` | All |
-| **Perplexity** | `perplexity` | All |
-| **Antigravity** | `antigravity` | All |
+<div align="center">
+
+| Logo | IDE | Binary | Platform |
+|------|-----|--------|----------|
+| <img src="app/src/assets/Visual_Studio_code.png" width="40"/> | **VS Code** | `code` | All |
+| <img src="app/src/assets/cursor-ai.png" width="40"/> | **Cursor** | `cursor` | All |
+| <img src="app/src/assets/zedlogo.png" width="40"/> | **Zed** | `zed` | All |
+| <img src="app/src/assets/visual-studio-logo.png" width="40"/> | **Visual Studio** | `devenv` | Windows |
+| <img src="app/src/assets/WebStormLOGO.png" width="40"/> | **WebStorm** | `webstorm` | All |
+| <img src="app/src/assets/IntelliJ_IDEA_Logo.png" width="40"/> | **IntelliJ** | `idea` | All |
+| <img src="app/src/assets/sublime_logo.png" width="40"/> | **Sublime Text** | `subl` | All |
+| <img src="app/src/assets/windsufrLogo.jpg" width="40"/> | **Windsurf** | `windsurf` | All |
+| <img src="app/src/assets/perplexityLogo.jpg" width="40"/> | **Perplexity** | `perplexity` | All |
+| <img src="app/src/assets/antigravity.png" width="40"/> | **Antigravity** | `antigravity` | All |
+
+</div>
 
 ## Quick Start
 
