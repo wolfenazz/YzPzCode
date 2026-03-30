@@ -53,6 +53,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
   const isDragging = useRef(false);
   const rafIdRef = useRef<number | null>(null);
 
+  const showEmpty = !currentWorkspace && openWorkspaces.length === 0;
+
   useEffect(() => {
     if (currentWorkspace && !hasInitialized.current[currentWorkspace.id]) {
       detectAllClis();
@@ -145,9 +147,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleExplorer, activeView, closeFileTab]);
 
-  const handleFileClick = useCallback((entry: FileEntry) => {
+  const handleFileClick = useCallback((entry: FileEntry, change?: string) => {
     if (!entry.isDir) {
-      openFile(entry);
+      openFile(entry, change);
     }
   }, [openFile]);
 
@@ -165,19 +167,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
   }, [switchWorkspace]);
 
   const handleWorkspaceClose = useCallback(async (workspaceId: string) => {
-    try {
-      await killWorkspaceSessions(workspaceId);
-    } catch (err) {
-      console.error('Error killing workspace sessions:', err);
-    }
     closeWorkspace(workspaceId);
     delete hasInitialized.current[workspaceId];
+    killWorkspaceSessions(workspaceId).catch((err) => {
+      console.error('Error killing workspace sessions:', err);
+    });
   }, [killWorkspaceSessions, closeWorkspace]);
 
   const handleNewWorkspace = useCallback(() => {
     setView('setup');
   }, [setView]);
 
+  const handleViewToggle = useCallback(() => {
+    setActiveView(activeView === "terminal" ? "editor" : "terminal");
+  }, [setActiveView, activeView]);
 
   const sessionsCountMap: Record<string, number> = {};
   Object.entries(sessionsByWorkspace).forEach(([workspaceId, sessions]) => {
@@ -187,8 +190,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
     sessionsCountMap[currentWorkspace.id] = sessions.length;
   }
 
-  if (!currentWorkspace && openWorkspaces.length === 0) {
-    return null;
+  if (showEmpty) {
+    return <div className="h-screen w-screen bg-theme-main" />;
   }
 
   if (error) {
@@ -226,7 +229,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
         onSidebarToggle={toggleExplorer}
-        onViewToggle={useCallback(() => setActiveView(activeView === "terminal" ? "editor" : "terminal"), [setActiveView, activeView])}
+        onViewToggle={handleViewToggle}
         activeView={activeView}
       />
 

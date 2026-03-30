@@ -1,6 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 import type { TreeApi } from 'react-arborist';
 import type { FileEntry } from '../types';
 
@@ -76,20 +75,6 @@ export function useFileTree(workspacePath: string | null) {
   useEffect(() => {
     loadRoot();
   }, [loadRoot]);
-
-  useEffect(() => {
-    if (!workspacePath) return;
-    let unlisten: (() => void) | null = null;
-    const setup = async () => {
-      unlisten = await listen('file-system-changed', () => {
-        loadRoot();
-      });
-    };
-    setup();
-    return () => {
-      if (unlisten) unlisten();
-    };
-  }, [workspacePath, loadRoot]);
 
   const handleToggle = useCallback(
     async (id: string) => {

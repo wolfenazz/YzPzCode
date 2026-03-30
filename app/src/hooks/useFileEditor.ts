@@ -19,8 +19,9 @@ export const useFileEditor = () => {
   const [isOpening, setIsOpening] = useState(false);
   const openFileTab = useAppStore((s) => s.openFileTab);
 
-  const openFile = useCallback(async (entry: FileEntry) => {
-    const { openFiles } = useAppStore.getState();
+  const openFile = useCallback(async (entry: FileEntry, change?: string) => {
+    const state = useAppStore.getState();
+    const openFiles = state.openFiles;
     const existing = openFiles.find((f) => f.path === entry.path);
     if (existing) {
       openFileTab(existing);
@@ -29,7 +30,38 @@ export const useFileEditor = () => {
 
     setIsOpening(true);
     try {
-      if (isLikelyBinary(entry)) {
+      if (change === 'deleted') {
+        const workspacePath = state.currentWorkspace?.path;
+        if (workspacePath) {
+          try {
+            const content = await invoke<string>('get_git_file_content', {
+              workspacePath,
+              filePath: entry.path,
+            });
+            const tab: FileTab = {
+              path: entry.path,
+              name: entry.name,
+              language: entry.extension?.toLowerCase() ?? 'plaintext',
+              content,
+              originalContent: content,
+              isDirty: false,
+              gitChange: 'deleted',
+            };
+            openFileTab(tab);
+          } catch {
+            const tab: FileTab = {
+              path: entry.path,
+              name: entry.name,
+              language: 'plaintext',
+              content: '',
+              originalContent: '',
+              isDirty: false,
+              gitChange: 'deleted',
+            };
+            openFileTab(tab);
+          }
+        }
+      } else if (isLikelyBinary(entry)) {
         const tab: FileTab = {
           path: entry.path,
           name: entry.name,
@@ -52,7 +84,7 @@ export const useFileEditor = () => {
         openFileTab(tab);
       }
     } catch (err) {
-      console.error('Failed to open file:', err);
+      console.error('Failed to open file:', entry.path, err);
     }
     setIsOpening(false);
   }, [openFileTab]);

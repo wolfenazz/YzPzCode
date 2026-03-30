@@ -98,11 +98,7 @@ export const useTerminal = () => {
 
   const killWorkspaceSessions = useCallback(async (workspaceId: string) => {
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
-      
       await invoke('kill_workspace_sessions', { workspaceId });
-      clearTimeout(timeoutId);
     } catch (err) {
       console.error('Failed to kill workspace sessions:', err);
     }

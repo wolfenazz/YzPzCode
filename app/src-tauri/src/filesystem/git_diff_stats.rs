@@ -17,10 +17,20 @@ pub fn get_git_diff_stats(workspace_path: &str) -> Result<Vec<GitDiffStat>, Stri
 
     let mut stats_map: HashMap<String, (u32, u32)> = HashMap::new();
 
-    collect_numstat(workspace_path, &["diff", "--numstat"], &mut stats_map)?;
     collect_numstat(
         workspace_path,
-        &["diff", "--cached", "--numstat"],
+        &["diff", "--no-prefix", "--no-renames", "--numstat"],
+        &mut stats_map,
+    )?;
+    collect_numstat(
+        workspace_path,
+        &[
+            "diff",
+            "--no-prefix",
+            "--no-renames",
+            "--cached",
+            "--numstat",
+        ],
         &mut stats_map,
     )?;
 
@@ -150,4 +160,30 @@ fn count_file_lines(path: &Path) -> u32 {
     std::fs::read_to_string(path)
         .map(|content| content.lines().count() as u32)
         .unwrap_or(0)
+}
+
+pub fn get_git_file_content(workspace_path: &str, file_path: &str) -> Result<String, String> {
+    let root = Path::new(workspace_path);
+    if !root.exists() {
+        return Err(format!("Path does not exist: {}", workspace_path));
+    }
+
+    let git_dir = root.join(".git");
+    if !git_dir.exists() {
+        return Err("Not a git repository".to_string());
+    }
+
+    let rel_path = if let Some(rel) = file_path.strip_prefix(workspace_path) {
+        rel.trim_start_matches('/').trim_start_matches('\\')
+    } else {
+        file_path
+    };
+
+    let stdout = run_git(&["show", &format!("HEAD:{}", rel_path)], root)?;
+
+    if stdout.is_empty() {
+        return Err(format!("File not found in git history: {}", rel_path));
+    }
+
+    Ok(stdout)
 }

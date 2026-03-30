@@ -1172,6 +1172,11 @@ pub async fn get_git_diff_stats(workspace_path: String) -> Result<Vec<GitDiffSta
 }
 
 #[tauri::command]
+pub async fn get_git_file_content(workspace_path: String, file_path: String) -> Result<String, String> {
+    filesystem::git_diff_stats::get_git_file_content(&workspace_path, &file_path)
+}
+
+#[tauri::command]
 pub async fn start_fs_watcher(app: tauri::AppHandle, workspace_path: String) -> Result<(), String> {
     filesystem::watcher::start_fs_watcher(app, workspace_path)
 }

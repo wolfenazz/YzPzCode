@@ -155,4 +155,5 @@ export interface FileTab {
   content: string;
   originalContent: string;
   isDirty: boolean;
+  gitChange?: 'added' | 'modified' | 'deleted' | 'untracked';
 }

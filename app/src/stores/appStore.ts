@@ -360,7 +360,7 @@ export const useAppStore = create<AppState>()(
 
       setActiveView: (view) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return { activeView: view };
           return {
             activeView: view,
@@ -373,7 +373,7 @@ export const useAppStore = create<AppState>()(
 
       openFileTab: (tab) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const existing = currentFiles.find((f) => f.path === tab.path);
@@ -382,6 +382,7 @@ export const useAppStore = create<AppState>()(
             openFiles: newFiles,
             activeFilePath: tab.path,
             activeView: "editor" as const,
+            activeWorkspaceId: state.activeWorkspaceId ?? wsId,
             filesByWorkspace: {
               ...state.filesByWorkspace,
               [wsId]: newFiles,
@@ -399,7 +400,7 @@ export const useAppStore = create<AppState>()(
 
       closeFileTab: (path) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const idx = currentFiles.findIndex((f) => f.path === path);
@@ -436,7 +437,7 @@ export const useAppStore = create<AppState>()(
 
       setActiveFile: (path) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return { activeFilePath: path };
           return {
             activeFilePath: path,
@@ -449,7 +450,7 @@ export const useAppStore = create<AppState>()(
 
       updateFileContent: (path, content) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const newFiles = currentFiles.map((f) =>
@@ -468,7 +469,7 @@ export const useAppStore = create<AppState>()(
 
       markFileSaved: (path) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const newFiles = currentFiles.map((f) =>
@@ -490,7 +491,7 @@ export const useAppStore = create<AppState>()(
 
       closeAllFiles: () =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return { openFiles: [], activeFilePath: null };
           return {
             openFiles: [],
@@ -513,7 +514,7 @@ export const useAppStore = create<AppState>()(
 
       closeOtherFiles: (exceptPath) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const newFiles = currentFiles.filter((f) => f.path === exceptPath);
@@ -533,7 +534,7 @@ export const useAppStore = create<AppState>()(
 
       closeFilesToRight: (path) =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const idx = currentFiles.findIndex((f) => f.path === path);
@@ -560,7 +561,7 @@ export const useAppStore = create<AppState>()(
 
       closeSavedFiles: () =>
         set((state) => {
-          const wsId = state.activeWorkspaceId;
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const newFiles = currentFiles.filter((f) => f.isDirty);

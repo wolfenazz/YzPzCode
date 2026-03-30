@@ -102,13 +102,16 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
   const [cliLaunched, setCliLaunched] = useState(false);
   const terminalReadyRef = useRef(false);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const launchAttemptsRef = useRef(0);
+  const launchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const theme = themeProp || 'dark';
   const isLight = theme === 'light';
 
   const { listenToTaskUpdates } = useAgent();
   const { cliStatuses, installCli, installProgress, detectCli } = useAgentCli();
-  const { launchCli, checkAuth, getAuthInstructions, getLaunchState, getLaunchStateSync, getAuthInfoSync } = useCliLauncher();
+  const { launchCli, stopCli, checkAuth, getAuthInstructions, getLaunchState, getLaunchStateSync, getAuthInfoSync } = useCliLauncher();
   const [installing, setInstalling] = useState(false);
 
   const cliInfo: AgentCliInfo | null = session.agent ? cliStatuses[session.agent] : null;
@@ -176,6 +179,31 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
     setSearchQuery('');
     setShowSearch(false);
   }, []);
+
+  const handleRefreshCli = useCallback(async () => {
+    if (!session.agent || isRefreshing) return;
+    setIsRefreshing(true);
+    launchAttemptsRef.current = 0;
+
+    try {
+      await stopCli(session.id);
+    } catch {
+      // Ignore stop errors
+    }
+
+    setCliLaunched(false);
+
+    setTimeout(async () => {
+      try {
+        await launchCli(session.id, session.agent!);
+        await checkAuth(session.agent!);
+        setCliLaunched(true);
+      } catch (e) {
+        console.error('Refresh CLI launch failed:', e);
+      }
+      setIsRefreshing(false);
+    }, 1000);
+  }, [session.id, session.agent, isRefreshing, stopCli, launchCli, checkAuth]);
 
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
@@ -338,6 +366,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
   useEffect(() => {
     setCliLaunched(false);
     terminalReadyRef.current = false;
+    launchAttemptsRef.current = 0;
+    if (launchTimeoutRef.current) {
+      clearTimeout(launchTimeoutRef.current);
+      launchTimeoutRef.current = null;
+    }
   }, [session.id]);
 
   useEffect(() => {
@@ -354,29 +387,55 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
       return;
     }
 
+    const doLaunch = async () => {
+      try {
+        await launchCli(session.id, session.agent!);
+        await checkAuth(session.agent!);
+        setCliLaunched(true);
+        launchAttemptsRef.current = 0;
+      } catch (e) {
+        console.error('CLI launch failed:', e);
+        launchAttemptsRef.current += 1;
+        if (launchAttemptsRef.current < 3) {
+          const delay = 3000 * launchAttemptsRef.current;
+          launchTimeoutRef.current = setTimeout(() => {
+            setCliLaunched(false);
+          }, delay);
+        }
+      }
+    };
+
     if (!terminalReadyRef.current) {
       const interval = setInterval(() => {
-        if (terminalReadyRef.current && !cliLaunched) {
+        if (terminalReadyRef.current) {
           clearInterval(interval);
-          setCliLaunched(true);
-          launchCli(session.id, session.agent!);
-          checkAuth(session.agent!);
+          doLaunch();
         }
       }, 200);
 
       const timeout = setTimeout(() => {
         clearInterval(interval);
-      }, 10000);
+        launchAttemptsRef.current += 1;
+        if (launchAttemptsRef.current < 3) {
+          const delay = 3000 * launchAttemptsRef.current;
+          launchTimeoutRef.current = setTimeout(() => {
+            setCliLaunched(false);
+          }, delay);
+        }
+      }, 12000);
 
       return () => {
         clearInterval(interval);
         clearTimeout(timeout);
+        if (launchTimeoutRef.current) clearTimeout(launchTimeoutRef.current);
       };
     }
 
-    setCliLaunched(true);
-    launchCli(session.id, session.agent!);
-    checkAuth(session.agent!);
+    doLaunch();
+
+    return () => {
+      if (launchTimeoutRef.current) clearTimeout(launchTimeoutRef.current);
+    };
   }, [session.id, session.agent, launchState, cliLaunched, launchCli, checkAuth]);
 
   useEffect(() => {
@@ -641,6 +700,22 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({ session, onResize, o
         </div>
 
         <div className="flex items-center shrink-0 gap-1 ml-2">
+          {session.agent && (
+            <button
+              onClick={handleRefreshCli}
+              disabled={isRefreshing}
+              className={`flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                isLight
+                  ? 'text-zinc-400 hover:text-blue-600 hover:bg-blue-100'
+                  : 'text-zinc-600 hover:text-blue-400 hover:bg-blue-900/30'
+              }`}
+              title="Restart CLI"
+            >
+              <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          )}
           {onClose && (
             <button
               onClick={onClose}

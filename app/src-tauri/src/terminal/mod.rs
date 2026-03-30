@@ -186,29 +186,23 @@ impl TerminalManager {
     pub fn kill_sessions_by_workspace(&self, workspace_id: &str) -> Result<()> {
         println!("Killing all sessions for workspace: {}", workspace_id);
 
-        let mut sessions = self.sessions.lock().unwrap();
-        let sessions_to_remove: Vec<String> = sessions
-            .iter()
-            .filter(|(_, pty_session)| pty_session.get_session().workspace_id == workspace_id)
-            .map(|(id, _)| id.clone())
-            .collect();
+        let session_ids: Vec<String> = {
+            let sessions = self.sessions.lock().unwrap();
+            sessions
+                .iter()
+                .filter(|(_, pty_session)| pty_session.get_session().workspace_id == workspace_id)
+                .map(|(id, _)| id.clone())
+                .collect()
+        };
 
         println!(
             "Found {} sessions to kill for workspace {}",
-            sessions_to_remove.len(),
+            session_ids.len(),
             workspace_id
         );
 
-        for session_id in &sessions_to_remove {
-            if let Some(session) = sessions.get_mut(session_id) {
-                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    session.kill();
-                })) {
-                    Ok(_) => println!("Session {} killed successfully", session_id),
-                    Err(e) => eprintln!("Panic while killing session {}: {:?}", session_id, e),
-                }
-            }
-            sessions.remove(session_id);
+        for session_id in &session_ids {
+            self.kill_session(session_id)?;
         }
 
         println!("All sessions killed for workspace {}", workspace_id);

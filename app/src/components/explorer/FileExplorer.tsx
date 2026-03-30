@@ -10,7 +10,7 @@ import { useAppStore } from '../../stores/appStore';
 interface FileExplorerProps {
   workspacePath: string;
   workspaceName: string;
-  onFileClick: (entry: FileEntry) => void;
+  onFileClick: (entry: FileEntry, change?: string) => void;
 }
 
 export const FileExplorer: React.FC<FileExplorerProps> = ({

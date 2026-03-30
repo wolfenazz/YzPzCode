@@ -8,7 +8,7 @@ interface GitChangesPanelProps {
   gitStatuses: GitFileStatus[];
   gitDiffStats: GitDiffStat[];
   workspacePath: string;
-  onFileClick: (entry: FileEntry) => void;
+  onFileClick: (entry: FileEntry, change?: string) => void;
 }
 
 interface ChangedFile {
@@ -39,11 +39,6 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
     const statsMap = new Map<string, GitDiffStat>();
     gitDiffStats.forEach((stat) => {
       statsMap.set(stat.path, stat);
-    });
-
-    const statusMap = new Map<string, GitFileStatus>();
-    gitStatuses.forEach((status) => {
-      statusMap.set(status.path, status);
     });
 
     const files: ChangedFile[] = [];
@@ -88,10 +83,12 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
     [changedFiles]
   );
 
-  const maxChanges = useMemo(
-    () => Math.max(...changedFiles.map((f) => f.linesAdded + f.linesDeleted), 1),
-    [changedFiles]
-  );
+  const hasAnyDiffLines = totalAdded > 0 || totalDeleted > 0;
+
+  const maxChanges = useMemo(() => {
+    const max = Math.max(...changedFiles.map((f) => f.linesAdded + f.linesDeleted), 0);
+    return max || 1;
+  }, [changedFiles]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -131,7 +128,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
       modifiedAt: Date.now(),
       extension: file.name.includes('.') ? file.name.split('.').pop() || null : null,
     };
-    onFileClick(entry);
+    onFileClick(entry, file.change);
   }, [onFileClick]);
 
   const getRelativePath = useCallback((fullPath: string) => {
@@ -140,6 +137,16 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
     }
     return fullPath.split(/[/\\]/).pop() || fullPath;
   }, [workspacePath]);
+
+  const getChangeLabel = useCallback((change: string) => {
+    switch (change) {
+      case 'added': return 'Added';
+      case 'deleted': return 'Deleted';
+      case 'modified': return 'Modified';
+      case 'untracked': return 'Untracked';
+      default: return change;
+    }
+  }, []);
 
   if (changedFiles.length === 0) {
     return null;
@@ -174,9 +181,26 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-950 border border-zinc-800/50 shadow-inner group-hover/git-header:border-blue-500/30 transition-all duration-500">
-            <span className="text-[9px] font-black text-emerald-500">+{totalAdded}</span>
-            <div className="h-2 w-[1px] bg-zinc-800" />
-            <span className="text-[9px] font-black text-rose-500">-{totalDeleted}</span>
+            {hasAnyDiffLines ? (
+              <>
+                {totalAdded > 0 && (
+                  <span className="text-[9px] font-black text-emerald-500">+{totalAdded}</span>
+                )}
+                {totalAdded > 0 && totalDeleted > 0 && (
+                  <div className="h-2 w-[1px] bg-zinc-800" />
+                )}
+                {totalDeleted > 0 && (
+                  <span className="text-[9px] font-black text-rose-500">-{totalDeleted}</span>
+                )}
+              </>
+            ) : (
+              <span className="text-[9px] font-black text-zinc-500">
+                {changedFiles.filter(f => f.change === 'modified').length > 0 && 'modified '}
+                {changedFiles.filter(f => f.change === 'added').length > 0 && 'added '}
+                {changedFiles.filter(f => f.change === 'deleted').length > 0 && 'deleted '}
+                {changedFiles.filter(f => f.change === 'untracked').length > 0 && 'new '}
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -198,8 +222,9 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
             <div className="h-full overflow-y-auto custom-scrollbar">
               <div className="py-2 space-y-0.5">
                 {changedFiles.map((file, idx) => {
-                  const addedPercent = (file.linesAdded / maxChanges) * 100;
-                  const deletedPercent = (file.linesDeleted / maxChanges) * 100;
+                  const hasChanges = file.linesAdded > 0 || file.linesDeleted > 0;
+                  const addedPercent = hasChanges ? (file.linesAdded / maxChanges) * 100 : 0;
+                  const deletedPercent = hasChanges ? (file.linesDeleted / maxChanges) * 100 : 0;
 
                   return (
                     <motion.div
@@ -224,9 +249,21 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                         <span className="text-[10px] font-black text-zinc-300 truncate tracking-tight group-hover/file:text-white transition-colors">
                           {file.name}
                         </span>
-                        <span className="text-[8px] text-zinc-600 truncate font-mono uppercase tracking-tighter opacity-60">
-                          {getRelativePath(file.path)}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[8px] text-zinc-600 truncate font-mono uppercase tracking-tighter opacity-60">
+                            {getRelativePath(file.path)}
+                          </span>
+                          {!hasChanges && (
+                            <span className={`text-[7px] font-bold uppercase tracking-wider ${
+                              file.change === 'deleted' ? 'text-rose-500/70' :
+                              file.change === 'added' ? 'text-emerald-500/70' :
+                              file.change === 'untracked' ? 'text-sky-500/70' :
+                              'text-amber-500/70'
+                            }`}>
+                              {getChangeLabel(file.change)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       
                       <div className="flex items-center gap-3">
@@ -237,17 +274,40 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                             {file.linesDeleted > 0 && (
                               <span className="text-rose-500 font-black">-{file.linesDeleted}</span>
                             )}
+                            {!hasChanges && file.change === 'deleted' && (
+                              <span className="text-rose-500/50 font-black text-[8px]">removed</span>
+                            )}
+                            {!hasChanges && file.change === 'added' && (
+                              <span className="text-emerald-500/50 font-black text-[8px]">new</span>
+                            )}
+                            {!hasChanges && file.change === 'untracked' && (
+                              <span className="text-sky-500/50 font-black text-[8px]">new</span>
+                            )}
                           </div>
                           
                           <div className="w-14 h-1.5 rounded-full overflow-hidden shrink-0 bg-zinc-900 border border-zinc-800/50 flex shadow-inner">
-                            <div
-                              className="h-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
-                              style={{ width: `${addedPercent}%` }}
-                            />
-                            <div
-                              className="h-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.3)]"
-                              style={{ width: `${deletedPercent}%` }}
-                            />
+                            {hasChanges ? (
+                              <>
+                                <div
+                                  className="h-full bg-emerald-500/80 shadow-[0_0_8px_rgba(16,185,129,0.3)]"
+                                  style={{ width: `${addedPercent}%` }}
+                                />
+                                <div
+                                  className="h-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.3)]"
+                                  style={{ width: `${deletedPercent}%` }}
+                                />
+                              </>
+                            ) : (
+                              <div
+                                className={`h-full ${
+                                  file.change === 'deleted' ? 'bg-rose-500/30' :
+                                  file.change === 'added' ? 'bg-emerald-500/30' :
+                                  file.change === 'untracked' ? 'bg-sky-500/30' :
+                                  'bg-amber-500/30'
+                                }`}
+                                style={{ width: '100%' }}
+                              />
+                            )}
                           </div>
                       </div>
                     </motion.div>
