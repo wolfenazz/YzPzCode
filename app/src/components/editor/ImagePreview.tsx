@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 
 interface ImagePreviewProps {
@@ -21,8 +21,18 @@ export const ImagePreview: React.FC<ImagePreviewProps> = ({ filePath, fileName, 
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const [src, setSrc] = useState<string | null>(() => imageCache.get(filePath) ?? null);
   const [error, setError] = useState(false);
+  const workspaceRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const lastSep = filePath.lastIndexOf('/');
+    const lastBack = filePath.lastIndexOf('\\');
+    const parentDir = lastSep > lastBack ? filePath.substring(0, lastSep) : lastBack > 0 ? filePath.substring(0, lastBack) : filePath;
+
+    if (workspaceRef.current && workspaceRef.current !== parentDir) {
+      imageCache.clear();
+    }
+    workspaceRef.current = parentDir;
+
     const cached = imageCache.get(filePath);
     if (cached) {
       setSrc(cached);

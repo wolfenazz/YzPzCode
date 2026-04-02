@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
-use std::process::Command;
 
+use super::run_git_hidden;
 use crate::types::GitDiffStat;
 
 pub fn get_git_diff_stats(workspace_path: &str) -> Result<Vec<GitDiffStat>, String> {
@@ -50,37 +50,13 @@ pub fn get_git_diff_stats(workspace_path: &str) -> Result<Vec<GitDiffStat>, Stri
     Ok(stats)
 }
 
-fn run_git(args: &[&str], cwd: &Path) -> Result<String, String> {
-    #[cfg(target_os = "windows")]
-    let output = {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        Command::new("git")
-            .args(args)
-            .current_dir(cwd)
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-    };
-
-    #[cfg(not(target_os = "windows"))]
-    let output = Command::new("git").args(args).current_dir(cwd).output();
-
-    let output = output.map_err(|e| format!("Failed to run git: {}", e))?;
-
-    if !output.status.success() {
-        return Ok(String::new());
-    }
-
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
-}
-
 fn collect_numstat(
     workspace_path: &str,
     args: &[&str],
     stats_map: &mut HashMap<String, (u32, u32)>,
 ) -> Result<(), String> {
     let root = Path::new(workspace_path);
-    let stdout = run_git(args, root)?;
+    let stdout = run_git_hidden(args, workspace_path).unwrap_or_default();
 
     for line in stdout.lines() {
         let line = line.trim();
@@ -119,11 +95,15 @@ fn parse_numstat_value(s: &str) -> u32 {
 }
 
 fn collect_untracked_line_counts(
-    _workspace_path: &str,
+    workspace_path: &str,
     root: &Path,
     stats_map: &mut HashMap<String, (u32, u32)>,
 ) -> Result<(), String> {
-    let stdout = run_git(&["status", "--porcelain=v1", "--no-renames"], root)?;
+    let stdout = run_git_hidden(
+        &["status", "--porcelain=v1", "--no-renames"],
+        workspace_path,
+    )
+    .unwrap_or_default();
 
     for line in stdout.lines() {
         let line = line.trim();
@@ -179,7 +159,7 @@ pub fn get_git_file_content(workspace_path: &str, file_path: &str) -> Result<Str
         file_path
     };
 
-    let stdout = run_git(&["show", &format!("HEAD:{}", rel_path)], root)?;
+    let stdout = run_git_hidden(&["show", &format!("HEAD:{}", rel_path)], workspace_path)?;
 
     if stdout.is_empty() {
         return Err(format!("File not found in git history: {}", rel_path));

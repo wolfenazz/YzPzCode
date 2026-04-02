@@ -1,6 +1,88 @@
+use std::path::PathBuf;
 use std::process::Command;
 
+fn get_env_cache_path() -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var("LOCALAPPDATA")
+            .or_else(|_| std::env::var("APPDATA"))
+            .unwrap_or_else(|_| "C:\\temp".to_string());
+        PathBuf::from(base).join("yzpzcode").join("env-cache")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let base = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
+        PathBuf::from(base)
+            .join(".cache")
+            .join("yzpzcode")
+            .join("env-cache")
+    }
+}
+
+fn load_env_from_cache() -> bool {
+    let cache_path = get_env_cache_path();
+    if !cache_path.exists() {
+        return false;
+    }
+    let max_age_secs = 86400;
+    if let Ok(metadata) = std::fs::metadata(&cache_path) {
+        if let Ok(modified) = metadata.modified() {
+            if let Ok(elapsed) = modified.elapsed() {
+                if elapsed.as_secs() > max_age_secs {
+                    return false;
+                }
+            }
+        }
+    }
+    let Ok(content) = std::fs::read_to_string(&cache_path) else {
+        return false;
+    };
+    let mut applied = 0;
+    for line in content.lines() {
+        if let Some((key, value)) = line.split_once('=') {
+            if key == "PATH" || std::env::var(key).is_err() {
+                std::env::set_var(key, value);
+                applied += 1;
+            }
+        }
+    }
+    applied > 0
+}
+
+fn save_env_to_cache(env_pairs: &[(String, String)]) {
+    let cache_path = get_env_cache_path();
+    if let Some(parent) = cache_path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let content: String = env_pairs
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let _ = std::fs::write(&cache_path, content);
+}
+
+#[allow(dead_code)]
+fn parse_env_output(env_output: &str, important_vars: &[&str]) -> Vec<(String, String)> {
+    let mut pairs = Vec::new();
+    for line in env_output.lines() {
+        if let Some((key, value)) = line.split_once('=') {
+            if important_vars.contains(&key) {
+                if std::env::var(key).is_err() || key == "PATH" {
+                    std::env::set_var(key, value);
+                }
+                pairs.push((key.to_string(), value.to_string()));
+            }
+        }
+    }
+    pairs
+}
+
 pub fn init_user_environment() {
+    if load_env_from_cache() {
+        return;
+    }
+
     #[cfg(target_os = "windows")]
     {
         if let Err(e) = load_windows_user_env() {
@@ -27,6 +109,40 @@ pub fn init_user_environment() {
 fn load_macos_user_env() -> anyhow::Result<()> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
+    let important_vars = [
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "TMPDIR",
+        "LANG",
+        "LC_ALL",
+        "TERM",
+        "EDITOR",
+        "VISUAL",
+        "NODE_PATH",
+        "NVM_DIR",
+        "NVM_INC",
+        "NVM_CD_FLAGS",
+        "NVM_BIN",
+        "FNM_DIR",
+        "FNM_MULTISHELL_PATH",
+        "FNM_CORE_DIR",
+        "RBENV_SHELL",
+        "PYENV_SHELL",
+        "GOPATH",
+        "GOBIN",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+        "BUN_INSTALL",
+        "JAVA_HOME",
+        "ANDROID_HOME",
+        "FLUTTER_ROOT",
+    ];
+
+    let mut env_pairs = Vec::new();
+
     let output = Command::new(&shell)
         .args(&["-l", "-c", "env"])
         .stdin(std::process::Stdio::null())
@@ -36,47 +152,7 @@ fn load_macos_user_env() -> anyhow::Result<()> {
 
     if output.status.success() {
         let env_output = String::from_utf8_lossy(&output.stdout);
-        for line in env_output.lines() {
-            if let Some((key, value)) = line.split_once('=') {
-                let important_vars = [
-                    "PATH",
-                    "HOME",
-                    "USER",
-                    "LOGNAME",
-                    "SHELL",
-                    "TMPDIR",
-                    "LANG",
-                    "LC_ALL",
-                    "TERM",
-                    "EDITOR",
-                    "VISUAL",
-                    "NODE_PATH",
-                    "NVM_DIR",
-                    "NVM_INC",
-                    "NVM_CD_FLAGS",
-                    "NVM_BIN",
-                    "FNM_DIR",
-                    "FNM_MULTISHELL_PATH",
-                    "FNM_CORE_DIR",
-                    "RBENV_SHELL",
-                    "PYENV_SHELL",
-                    "GOPATH",
-                    "GOBIN",
-                    "CARGO_HOME",
-                    "RUSTUP_HOME",
-                    "BUN_INSTALL",
-                    "JAVA_HOME",
-                    "ANDROID_HOME",
-                    "FLUTTER_ROOT",
-                ];
-
-                if important_vars.contains(&key) {
-                    if std::env::var(key).is_err() || key == "PATH" {
-                        let _ = std::env::set_var(key, value);
-                    }
-                }
-            }
-        }
+        env_pairs = parse_env_output(&env_output, &important_vars);
     }
 
     if std::env::var("PATH").is_err() {
@@ -100,20 +176,24 @@ fn load_macos_user_env() -> anyhow::Result<()> {
                 format!("{}/.bun/bin", home),
                 format!("{}/go/bin", home),
             ];
-
             let mut all_paths: Vec<String> = home_paths.to_vec();
             all_paths.extend(default_paths.iter().map(|s| s.to_string()));
-
             let path_value = all_paths.join(":");
             let _ = std::env::set_var("PATH", &path_value);
+            env_pairs.push(("PATH".to_string(), path_value));
         } else {
             let path_value = default_paths.join(":");
             let _ = std::env::set_var("PATH", &path_value);
+            env_pairs.push(("PATH".to_string(), path_value));
         }
     }
 
     if std::env::var("LANG").is_err() {
         let _ = std::env::set_var("LANG", "en_US.UTF-8");
+    }
+
+    if !env_pairs.is_empty() {
+        save_env_to_cache(&env_pairs);
     }
 
     Ok(())
@@ -122,6 +202,46 @@ fn load_macos_user_env() -> anyhow::Result<()> {
 #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
 fn load_linux_user_env() -> anyhow::Result<()> {
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+
+    let important_vars = [
+        "PATH",
+        "HOME",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "LANG",
+        "LC_ALL",
+        "TERM",
+        "EDITOR",
+        "VISUAL",
+        "DISPLAY",
+        "WAYLAND_DISPLAY",
+        "XDG_SESSION_TYPE",
+        "XDG_CURRENT_DESKTOP",
+        "XDG_DATA_HOME",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_RUNTIME_DIR",
+        "NODE_PATH",
+        "NVM_DIR",
+        "NVM_INC",
+        "NVM_CD_FLAGS",
+        "NVM_BIN",
+        "FNM_DIR",
+        "FNM_MULTISHELL_PATH",
+        "RBENV_SHELL",
+        "PYENV_SHELL",
+        "GOPATH",
+        "GOBIN",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+        "BUN_INSTALL",
+        "JAVA_HOME",
+        "ANDROID_HOME",
+        "FLUTTER_ROOT",
+    ];
+
+    let mut env_pairs = Vec::new();
 
     let output = Command::new(&shell)
         .args(&["-l", "-c", "env"])
@@ -132,53 +252,7 @@ fn load_linux_user_env() -> anyhow::Result<()> {
 
     if output.status.success() {
         let env_output = String::from_utf8_lossy(&output.stdout);
-        for line in env_output.lines() {
-            if let Some((key, value)) = line.split_once('=') {
-                let important_vars = [
-                    "PATH",
-                    "HOME",
-                    "USER",
-                    "LOGNAME",
-                    "SHELL",
-                    "LANG",
-                    "LC_ALL",
-                    "TERM",
-                    "EDITOR",
-                    "VISUAL",
-                    "DISPLAY",
-                    "WAYLAND_DISPLAY",
-                    "XDG_SESSION_TYPE",
-                    "XDG_CURRENT_DESKTOP",
-                    "XDG_DATA_HOME",
-                    "XDG_CONFIG_HOME",
-                    "XDG_CACHE_HOME",
-                    "XDG_RUNTIME_DIR",
-                    "NODE_PATH",
-                    "NVM_DIR",
-                    "NVM_INC",
-                    "NVM_CD_FLAGS",
-                    "NVM_BIN",
-                    "FNM_DIR",
-                    "FNM_MULTISHELL_PATH",
-                    "RBENV_SHELL",
-                    "PYENV_SHELL",
-                    "GOPATH",
-                    "GOBIN",
-                    "CARGO_HOME",
-                    "RUSTUP_HOME",
-                    "BUN_INSTALL",
-                    "JAVA_HOME",
-                    "ANDROID_HOME",
-                    "FLUTTER_ROOT",
-                ];
-
-                if important_vars.contains(&key) {
-                    if std::env::var(key).is_err() || key == "PATH" {
-                        let _ = std::env::set_var(key, value);
-                    }
-                }
-            }
-        }
+        env_pairs = parse_env_output(&env_output, &important_vars);
     }
 
     if std::env::var("PATH").is_err() {
@@ -202,15 +276,15 @@ fn load_linux_user_env() -> anyhow::Result<()> {
                 format!("{}/.bun/bin", home),
                 format!("{}/go/bin", home),
             ];
-
             let mut all_paths: Vec<String> = home_paths.to_vec();
             all_paths.extend(default_paths.iter().map(|s| s.to_string()));
-
             let path_value = all_paths.join(":");
             let _ = std::env::set_var("PATH", &path_value);
+            env_pairs.push(("PATH".to_string(), path_value));
         } else {
             let path_value = default_paths.join(":");
             let _ = std::env::set_var("PATH", &path_value);
+            env_pairs.push(("PATH".to_string(), path_value));
         }
     }
 
@@ -220,20 +294,30 @@ fn load_linux_user_env() -> anyhow::Result<()> {
 
     if std::env::var("XDG_DATA_HOME").is_err() {
         if let Ok(home) = std::env::var("HOME") {
-            let _ = std::env::set_var("XDG_DATA_HOME", &format!("{}/.local/share", home));
+            let val = format!("{}/.local/share", home);
+            let _ = std::env::set_var("XDG_DATA_HOME", &val);
+            env_pairs.push(("XDG_DATA_HOME".to_string(), val));
         }
     }
 
     if std::env::var("XDG_CONFIG_HOME").is_err() {
         if let Ok(home) = std::env::var("HOME") {
-            let _ = std::env::set_var("XDG_CONFIG_HOME", &format!("{}/.config", home));
+            let val = format!("{}/.config", home);
+            let _ = std::env::set_var("XDG_CONFIG_HOME", &val);
+            env_pairs.push(("XDG_CONFIG_HOME".to_string(), val));
         }
     }
 
     if std::env::var("XDG_CACHE_HOME").is_err() {
         if let Ok(home) = std::env::var("HOME") {
-            let _ = std::env::set_var("XDG_CACHE_HOME", &format!("{}/.cache", home));
+            let val = format!("{}/.cache", home);
+            let _ = std::env::set_var("XDG_CACHE_HOME", &val);
+            env_pairs.push(("XDG_CACHE_HOME".to_string(), val));
         }
+    }
+
+    if !env_pairs.is_empty() {
+        save_env_to_cache(&env_pairs);
     }
 
     Ok(())
@@ -244,6 +328,8 @@ fn load_windows_user_env() -> anyhow::Result<()> {
     use std::os::windows::process::CommandExt;
 
     const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+    let mut env_pairs = Vec::new();
 
     let output = Command::new("cmd")
         .args(["/c", "echo %PATH%"])
@@ -256,6 +342,7 @@ fn load_windows_user_env() -> anyhow::Result<()> {
             if let Ok(current_path) = std::env::var("PATH") {
                 if current_path.is_empty() || current_path.len() < path_var.len() / 2 {
                     std::env::set_var("PATH", &path_var);
+                    env_pairs.push(("PATH".to_string(), path_var));
                 }
             }
         }
@@ -282,6 +369,7 @@ fn load_windows_user_env() -> anyhow::Result<()> {
                 let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !value.is_empty() && value != format!("%{}%", var) {
                     std::env::set_var(var, &value);
+                    env_pairs.push((var.to_string(), value));
                 }
             }
         }
@@ -318,6 +406,11 @@ fn load_windows_user_env() -> anyhow::Result<()> {
 
         let path_value = combined_paths.join(";");
         std::env::set_var("PATH", &path_value);
+        env_pairs.push(("PATH".to_string(), path_value));
+    }
+
+    if !env_pairs.is_empty() {
+        save_env_to_cache(&env_pairs);
     }
 
     Ok(())

@@ -9,6 +9,7 @@ use std::thread;
 use uuid::Uuid;
 
 use crate::types::{get_default_shell, AgentType, SessionStatus, TerminalSession};
+use crate::utils::process::get_npm_global_prefix;
 
 pub struct PtySession {
     pub session: TerminalSession,
@@ -91,19 +92,11 @@ impl PtySession {
                 path = format!("{};{};{}", path, pip_path, npm_global_path);
             }
 
-            if let Ok(prefix_output) = std::process::Command::new("npm")
-                .args(["config", "get", "--global", "prefix"])
-                .output()
-            {
-                if prefix_output.status.success() {
-                    let prefix = String::from_utf8_lossy(&prefix_output.stdout)
-                        .trim()
-                        .to_string();
-                    if !prefix.is_empty() {
-                        let npm_prefix_bin = format!("{}\\bin", prefix);
-                        let npm_prefix_node_modules = format!("{}\\node_modules\\.bin", prefix);
-                        path = format!("{};{};{}", path, npm_prefix_bin, npm_prefix_node_modules);
-                    }
+            if let Some(prefix) = get_npm_global_prefix() {
+                if !prefix.is_empty() {
+                    let npm_prefix_bin = format!("{}\\bin", prefix);
+                    let npm_prefix_node_modules = format!("{}\\node_modules\\.bin", prefix);
+                    path = format!("{};{};{}", path, npm_prefix_bin, npm_prefix_node_modules);
                 }
             }
 
@@ -172,18 +165,10 @@ impl PtySession {
         {
             let mut path = std::env::var("PATH").unwrap_or_default();
 
-            if let Ok(prefix_output) = std::process::Command::new("npm")
-                .args(["config", "get", "--global", "prefix"])
-                .output()
-            {
-                if prefix_output.status.success() {
-                    let prefix = String::from_utf8_lossy(&prefix_output.stdout)
-                        .trim()
-                        .to_string();
-                    if !prefix.is_empty() {
-                        let npm_global_bin = format!("{}/bin", prefix);
-                        path = format!("{}:{}", npm_global_bin, path);
-                    }
+            if let Some(prefix) = get_npm_global_prefix() {
+                if !prefix.is_empty() {
+                    let npm_global_bin = format!("{}/bin", prefix);
+                    path = format!("{}:{}", npm_global_bin, path);
                 }
             }
 
@@ -232,18 +217,10 @@ impl PtySession {
         {
             let mut path = std::env::var("PATH").unwrap_or_default();
 
-            if let Ok(prefix_output) = std::process::Command::new("npm")
-                .args(["config", "get", "--global", "prefix"])
-                .output()
-            {
-                if prefix_output.status.success() {
-                    let prefix = String::from_utf8_lossy(&prefix_output.stdout)
-                        .trim()
-                        .to_string();
-                    if !prefix.is_empty() {
-                        let npm_global_bin = format!("{}/bin", prefix);
-                        path = format!("{}:{}", npm_global_bin, path);
-                    }
+            if let Some(prefix) = get_npm_global_prefix() {
+                if !prefix.is_empty() {
+                    let npm_global_bin = format!("{}/bin", prefix);
+                    path = format!("{}:{}", npm_global_bin, path);
                 }
             }
 
@@ -302,10 +279,8 @@ impl PtySession {
             cmd.arg("-NoLogo");
         }
 
-        println!("Spawning command: {:?}", cmd);
         let child = pair.slave.spawn_command(cmd)?;
         let child_pid = child.process_id();
-        println!("Command spawned successfully with PID: {:?}", child_pid);
 
         let writer = pair.master.take_writer()?;
 

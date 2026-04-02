@@ -6,6 +6,20 @@ use base64::Engine;
 use crate::filesystem::validation::validate_no_path_traversal;
 use crate::types::FileContent;
 
+const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+
+fn check_file_size(path: &Path) -> Result<(), String> {
+    let metadata =
+        fs::metadata(path).map_err(|e| format!("Failed to read file metadata: {}", e))?;
+    if metadata.len() > MAX_FILE_SIZE {
+        return Err(format!(
+            "File too large to open ({} bytes, maximum is 10 MB)",
+            metadata.len()
+        ));
+    }
+    Ok(())
+}
+
 pub fn read_file_content(file_path: &str) -> Result<FileContent, String> {
     validate_no_path_traversal(file_path).map_err(|e| e.to_string())?;
     let path = Path::new(file_path);
@@ -15,6 +29,8 @@ pub fn read_file_content(file_path: &str) -> Result<FileContent, String> {
     if path.is_dir() {
         return Err(format!("Path is a directory: {}", file_path));
     }
+
+    check_file_size(&path)?;
 
     let content = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {}", e))?;
     let language = detect_language(path).to_string();
@@ -100,6 +116,8 @@ pub fn read_file_as_base64(file_path: &str) -> Result<String, String> {
     if path.is_dir() {
         return Err(format!("Path is a directory: {}", file_path));
     }
+
+    check_file_size(&path)?;
 
     let bytes = fs::read(path).map_err(|e| format!("Failed to read file: {}", e))?;
     let mime_type = detect_mime_type(path);

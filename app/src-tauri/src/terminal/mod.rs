@@ -4,6 +4,7 @@ pub use session::PtySession;
 
 use anyhow::Result;
 use std::collections::HashMap;
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -13,6 +14,49 @@ use crate::types::{AgentType, TerminalSession};
 
 const EMIT_BATCH_INTERVAL_MS: u64 = 16;
 const MAX_BATCH_SIZE: usize = 32 * 1024;
+
+fn spawn_output_reader(app_clone: AppHandle, sid: String, output_rx: mpsc::Receiver<Vec<u8>>) {
+    thread::spawn(move || {
+        let mut buffer = Vec::with_capacity(MAX_BATCH_SIZE);
+        let mut last_emit = Instant::now();
+
+        loop {
+            match output_rx.recv_timeout(Duration::from_millis(EMIT_BATCH_INTERVAL_MS)) {
+                Ok(data) => {
+                    buffer.extend_from_slice(&data);
+
+                    if (buffer.len() >= MAX_BATCH_SIZE
+                        || last_emit.elapsed().as_millis() >= EMIT_BATCH_INTERVAL_MS as u128)
+                        && !buffer.is_empty()
+                    {
+                        if let Ok(output) = String::from_utf8(buffer.clone()) {
+                            let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
+                        }
+                        buffer.clear();
+                        last_emit = Instant::now();
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    if !buffer.is_empty() {
+                        if let Ok(output) = String::from_utf8(buffer.clone()) {
+                            let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
+                        }
+                        buffer.clear();
+                        last_emit = Instant::now();
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    if !buffer.is_empty() {
+                        if let Ok(output) = String::from_utf8(buffer.clone()) {
+                            let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    });
+}
 
 #[derive(Clone)]
 pub struct TerminalManager {
@@ -78,52 +122,7 @@ impl TerminalManager {
             let sid = session_id.clone();
 
             if let Some(app_handle) = app.as_ref() {
-                let app_clone = app_handle.clone();
-                thread::spawn(move || {
-                    let mut buffer = Vec::with_capacity(MAX_BATCH_SIZE);
-                    let mut last_emit = Instant::now();
-
-                    loop {
-                        match output_rx.recv_timeout(Duration::from_millis(EMIT_BATCH_INTERVAL_MS))
-                        {
-                            Ok(data) => {
-                                buffer.extend_from_slice(&data);
-
-                                if (buffer.len() >= MAX_BATCH_SIZE
-                                    || last_emit.elapsed().as_millis()
-                                        >= EMIT_BATCH_INTERVAL_MS as u128)
-                                    && !buffer.is_empty()
-                                {
-                                    if let Ok(output) = String::from_utf8(buffer.clone()) {
-                                        let _ = app_clone
-                                            .emit(&format!("terminal-output:{}", sid), &output);
-                                    }
-                                    buffer.clear();
-                                    last_emit = Instant::now();
-                                }
-                            }
-                            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                                if !buffer.is_empty() {
-                                    if let Ok(output) = String::from_utf8(buffer.clone()) {
-                                        let _ = app_clone
-                                            .emit(&format!("terminal-output:{}", sid), &output);
-                                    }
-                                    buffer.clear();
-                                    last_emit = Instant::now();
-                                }
-                            }
-                            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                                if !buffer.is_empty() {
-                                    if let Ok(output) = String::from_utf8(buffer.clone()) {
-                                        let _ = app_clone
-                                            .emit(&format!("terminal-output:{}", sid), &output);
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-                });
+                spawn_output_reader(app_handle.clone(), sid.clone(), output_rx);
             }
 
             let terminal_session = pty_session.get_session().clone();
@@ -220,51 +219,7 @@ impl TerminalManager {
         let sid = session_id.clone();
 
         if let Some(app_handle) = app.as_ref() {
-            let app_clone = app_handle.clone();
-            thread::spawn(move || {
-                let mut buffer = Vec::with_capacity(MAX_BATCH_SIZE);
-                let mut last_emit = Instant::now();
-
-                loop {
-                    match output_rx.recv_timeout(Duration::from_millis(EMIT_BATCH_INTERVAL_MS)) {
-                        Ok(data) => {
-                            buffer.extend_from_slice(&data);
-
-                            if (buffer.len() >= MAX_BATCH_SIZE
-                                || last_emit.elapsed().as_millis()
-                                    >= EMIT_BATCH_INTERVAL_MS as u128)
-                                && !buffer.is_empty()
-                            {
-                                if let Ok(output) = String::from_utf8(buffer.clone()) {
-                                    let _ = app_clone
-                                        .emit(&format!("terminal-output:{}", sid), &output);
-                                }
-                                buffer.clear();
-                                last_emit = Instant::now();
-                            }
-                        }
-                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
-                            if !buffer.is_empty() {
-                                if let Ok(output) = String::from_utf8(buffer.clone()) {
-                                    let _ = app_clone
-                                        .emit(&format!("terminal-output:{}", sid), &output);
-                                }
-                                buffer.clear();
-                                last_emit = Instant::now();
-                            }
-                        }
-                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                            if !buffer.is_empty() {
-                                if let Ok(output) = String::from_utf8(buffer.clone()) {
-                                    let _ = app_clone
-                                        .emit(&format!("terminal-output:{}", sid), &output);
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-            });
+            spawn_output_reader(app_handle.clone(), sid.clone(), output_rx);
         }
 
         let terminal_session = pty_session.get_session().clone();

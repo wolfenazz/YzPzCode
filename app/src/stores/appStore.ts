@@ -495,7 +495,7 @@ export const useAppStore = create<AppState>()(
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const newFiles = currentFiles.map((f) =>
             f.path === path
-              ? { ...f, content, isDirty: content !== f.originalContent }
+              ? { ...f, content, isDirty: f.originalContent !== content }
               : f
           );
           return {

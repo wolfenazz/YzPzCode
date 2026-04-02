@@ -6,18 +6,15 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType, TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo } from '../../types';
+import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo } from '../../types';
 import { useAgent } from '../../hooks/useAgent';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import '@xterm/xterm/css/xterm.css';
 
-import claudeLogo from '../../assets/claude.png';
-import codexLogo from '../../assets/codex.png';
-import geminiLogo from '../../assets/gemini-cli-logo.svg';
-import opencodeLogo from '../../assets/opencode.png';
-import cursorLogo from '../../assets/cursor-ai.png';
-import kiloLogo from '../../assets/kiloCode.gif';
+import { TerminalHeader } from './TerminalHeader';
+import { CliStatusBadge } from './CliStatusBadge';
+import { AuthModal } from './AuthModal';
 
 interface TerminalPaneProps {
   session: TerminalSession;
@@ -26,21 +23,6 @@ interface TerminalPaneProps {
   theme?: 'dark' | 'light';
   dragListeners?: Record<string, unknown>;
 }
-
-const AGENT_LOGOS: Record<AgentType, string> = {
-  claude: claudeLogo,
-  codex: codexLogo,
-  gemini: geminiLogo,
-  opencode: opencodeLogo,
-  cursor: cursorLogo,
-  kilo: kiloLogo,
-};
-
-const STATUS_COLORS = {
-  idle: 'bg-zinc-600',
-  running: 'bg-emerald-500',
-  error: 'bg-rose-500',
-};
 
 const DARK_TERMINAL_THEME = {
   background: '#09090b',
@@ -92,10 +74,10 @@ const LIGHT_TERMINAL_THEME = {
   brightWhite: '#ffffff',
 };
 
-export const TerminalPane: React.FC<TerminalPaneProps> = ({ 
-  session, 
-  onResize, 
-  onClose, 
+export const TerminalPane: React.FC<TerminalPaneProps> = ({
+  session,
+  onResize,
+  onClose,
   theme: themeProp,
   dragListeners,
 }) => {
@@ -505,244 +487,31 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setShowAuthModal(true);
   };
 
-  const getCliStatusBadge = () => {
-    if (!session.agent) return null;
-
-    if (!cliInfo || cliInfo.status === 'Checking') {
-      if (launchState) {
-        return (
-          <div className="flex items-center gap-1">
-            {getLaunchStatusBadge()}
-            {getAuthStatusBadge()}
-          </div>
-        );
-      }
-      return null;
-    }
-
-    if (launchState?.status === 'Running' || launchState?.status === 'Starting') {
-      return (
-        <div className="flex items-center gap-1">
-          {getLaunchStatusBadge()}
-          {getAuthStatusBadge()}
-        </div>
-      );
-    }
-
-    switch (cliInfo.status) {
-      case 'Installed':
-        return (
-          <div className="flex items-center gap-1">
-            {getLaunchStatusBadge()}
-            {getAuthStatusBadge()}
-          </div>
-        );
-      case 'NotInstalled':
-      case 'Error':
-        return (
-          <button
-            onClick={handleRetryInstall}
-            disabled={installing}
-            className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50 transition-colors cursor-pointer ${
-              isLight
-                ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                : 'bg-red-900/30 text-red-400 hover:bg-red-900/50'
-            }`}
-            title={cliInfo.error || 'CLI not installed'}
-          >
-            {installing ? (
-              <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            )}
-            {installing ? 'Installing...' : 'Install'}
-          </button>
-        );
-      default:
-        return null;
-    }
-  };
-
-  const getLaunchStatusBadge = () => {
-    const badgeBase = `text-[10px] px-1.5 py-0.5 rounded-sm font-mono tracking-widest uppercase`;
-
-    if (!launchState) {
-      return (
-        <span className={`${badgeBase} ${isLight ? 'bg-gray-600 border border-gray-500 text-gray-300' : 'bg-zinc-900 border border-zinc-700 text-zinc-400'}`}>
-          Ready
-        </span>
-      );
-    }
-
-    switch (launchState.status) {
-      case 'Starting':
-        return (
-          <span className={`${badgeBase} flex items-center gap-1 ${isLight ? 'bg-gray-600 border border-gray-500 text-gray-200' : 'bg-zinc-800 border border-zinc-700 text-zinc-300'}`}>
-            <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            Init
-          </span>
-        );
-      case 'Running':
-        return (
-          <span className={`${badgeBase} flex items-center gap-1 ${isLight ? 'bg-emerald-100 border border-emerald-300 text-emerald-700' : 'bg-emerald-950 border border-emerald-900 text-emerald-500'}`}>
-            <span className={`w-1.5 h-1.5 rounded-sm ${isLight ? 'bg-emerald-600' : 'bg-emerald-500'}`} />
-            Active
-          </span>
-        );
-      case 'Error':
-        return (
-          <span className={`${badgeBase} ${isLight ? 'bg-rose-100 border border-rose-300 text-rose-600' : 'bg-rose-950 opacity-80 border border-rose-900 text-rose-500'}`} title={launchState.error || 'Error'}>
-            Error
-          </span>
-        );
-      default:
-        return (
-          <span className={`${badgeBase} ${isLight ? 'bg-gray-600 border border-gray-500 text-gray-300' : 'bg-zinc-900 border border-zinc-700 text-zinc-400'}`}>
-            Ready
-          </span>
-        );
-    }
-  };
-
-  const getAuthStatusBadge = () => {
-    if (!authInfo) return null;
-
-    switch (authInfo.status) {
-      case 'Authenticated':
-        return (
-          <span className={`text-[10px] px-1.5 py-0.5 rounded-sm font-mono tracking-widest uppercase ${
-            isLight
-              ? 'bg-emerald-50 border border-emerald-200 text-emerald-600'
-              : 'bg-emerald-950/50 border border-emerald-900 text-emerald-500/80'
-          }`} title={authInfo.configPath || 'Authenticated'}>
-            Auth OK
-          </span>
-        );
-      case 'NotAuthenticated':
-        return (
-          <button
-            onClick={handleAuthenticate}
-            className={`text-[10px] px-1.5 py-0.5 rounded-sm font-mono tracking-widest uppercase transition-colors cursor-pointer ${
-              isLight
-                ? 'bg-amber-100 border border-amber-300 text-amber-700 hover:bg-amber-200'
-                : 'bg-amber-950 border border-amber-900 text-amber-500 hover:bg-amber-900 hover:text-amber-400'
-            }`}
-          >
-            !Login
-          </button>
-        );
-      default:
-        return null;
-    }
-  };
-
   return (
     <div className={`h-full flex flex-col overflow-hidden transition-all duration-300 font-mono ${
       isLight
         ? 'bg-zinc-900 border border-zinc-700 shadow-xl'
         : 'bg-zinc-950 border border-zinc-800/50 shadow-2xl'
     }`}>
-      <div 
-        className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing ${
-          isLight
-            ? 'bg-zinc-800/80 border-b border-zinc-700 backdrop-blur-md'
-            : 'bg-zinc-900/40 border-b border-zinc-800/50 backdrop-blur-md'
-        }`}
-        {...dragListeners}
-      >
-        <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-          <div className="relative flex h-2 w-2 shrink-0">
-             <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-40 ${
-               session.status === 'running' ? 'bg-emerald-400' : session.status === 'error' ? 'bg-rose-400' : 'bg-zinc-400'
-             }`}></span>
-             <span className={`relative inline-flex rounded-full h-2 w-2 ${STATUS_COLORS[session.status]}`}></span>
-          </div>
-          
-          <span className={`text-[10px] font-black tracking-[0.2em] uppercase shrink-0 ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`}>
-            TTY::{session.index + 1}
-          </span>
-
-          <div className="h-3 w-px bg-zinc-800/50 mx-1" />
-
-          {session.agent ? (
-            <div className="flex items-center gap-2 min-w-0">
-              <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md shrink-0 border transition-all duration-300 ${
-                isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700 group/agent'
-              }`}>
-                <img
-                  src={AGENT_LOGOS[session.agent]}
-                  alt={session.agent}
-                  className={`w-3 h-3 object-contain transition-transform group-hover/agent:scale-110 ${session.agent === 'opencode' || session.agent === 'cursor' || session.agent === 'codex'
-                      ? isLight
-                        ? 'invert brightness-[3.5] contrast-[1.5]'
-                        : 'invert brightness-[3.5] contrast-[1.5]'
-                      : isLight
-                        ? 'brightness-[2.2] contrast-[1.2]'
-                        : 'brightness-[2.2] contrast-[1.2]'
-                    }`}
-                />
-                <span className={`text-[9px] uppercase font-black tracking-widest truncate max-w-[80px] ${
-                  isLight ? 'text-zinc-300' : 'text-zinc-400'
-                }`}>{session.agent}</span>
-              </div>
-              <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
-                {getCliStatusBadge()}
-              </div>
-            </div>
-          ) : (
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md shrink-0 border ${
-              isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-950 border-zinc-800'
-            }`}>
-              <svg className={`w-3 h-3 ${isLight ? 'text-zinc-500' : 'text-zinc-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-zinc-500' : 'text-zinc-600'}`}>CORE::SHELL</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center shrink-0 gap-1 ml-2">
-          {session.agent && (
-            <button
-              onClick={handleRefreshCli}
-              disabled={isRefreshing}
-              className={`flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-                isLight
-                  ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700'
-                  : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50'
-              }`}
-              title="Restart CLI"
-            >
-              <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          )}
-          {onClose && (
-            <button
-              onClick={onClose}
-              className={`flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer ${
-                isLight
-                  ? 'text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30'
-                  : 'text-zinc-600 hover:text-rose-400 hover:bg-rose-950/30'
-              }`}
-              title="Terminate process"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
-      </div>
+      <TerminalHeader
+        session={session}
+        theme={theme}
+        onRefreshCli={handleRefreshCli}
+        isRefreshing={isRefreshing}
+        onClose={onClose}
+        cliStatusBadge={
+          <CliStatusBadge
+            cliInfo={cliInfo}
+            launchState={launchState}
+            authInfo={authInfo}
+            theme={theme}
+            onAuthenticate={handleAuthenticate}
+            onRetryInstall={handleRetryInstall}
+            installing={installing}
+          />
+        }
+        dragListeners={dragListeners}
+      />
 
       {showSearch && (
         <div className={`flex items-center gap-2 px-3 py-1.5 border-b ${
@@ -811,74 +580,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           theme={theme}
         />
       )}
-    </div>
-  );
-};
-
-interface AuthModalProps {
-  agent: AgentType;
-  onClose: () => void;
-  getAuthInstructions: (agent: AgentType) => Promise<string[]>;
-  theme: 'dark' | 'light';
-}
-
-const AuthModal: React.FC<AuthModalProps> = ({ agent, onClose, getAuthInstructions, theme }) => {
-  const [instructions, setInstructions] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const isLight = theme === 'light';
-
-  useEffect(() => {
-    getAuthInstructions(agent).then((instr) => {
-      setInstructions(instr);
-      setLoading(false);
-    });
-  }, [agent, getAuthInstructions]);
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-50 font-mono">
-      <div className={`border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl ${
-        isLight ? 'bg-gray-700 border-gray-500' : 'bg-zinc-950 border-zinc-800'
-      }`}>
-        <h3 className={`text-sm font-bold mb-4 tracking-widest uppercase border-b pb-2 ${
-          isLight ? 'text-zinc-800 border-zinc-300' : 'text-zinc-100 border-zinc-800'
-        }`}>
-          &gt; Auth: {agent}
-        </h3>
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <svg className={`w-6 h-6 animate-spin ${isLight ? 'text-gray-300' : 'text-zinc-600'}`} fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <p className={`text-xs uppercase tracking-widest ${isLight ? 'text-zinc-500' : 'text-zinc-500'}`}>Execute instructions:</p>
-            <ul className={`space-y-2 p-4 border rounded-sm ${
-              isLight ? 'bg-zinc-50 border-zinc-300' : 'bg-zinc-900/50 border-zinc-800'
-            }`}>
-              {instructions.map((instr, i) => (
-                <li key={i} className={`text-xs flex gap-2 ${isLight ? 'text-gray-200' : 'text-zinc-300'}`}>
-                  <span className={`select-none ${isLight ? 'text-gray-300' : 'text-zinc-600'}`}>{'$>'}</span>
-                  <span>{instr}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        <div className="mt-8 flex justify-end">
-          <button
-            onClick={onClose}
-            className={`px-6 py-2 border transition-colors uppercase tracking-widest text-xs rounded-sm cursor-pointer ${
-              isLight
-                ? 'bg-zinc-200 text-zinc-700 border-zinc-300 hover:bg-zinc-300 hover:text-zinc-900'
-                : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100'
-            }`}
-          >
-            [ Close ]
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

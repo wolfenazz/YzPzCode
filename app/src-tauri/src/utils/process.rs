@@ -1,10 +1,42 @@
 use std::process::{Command, Output, Stdio};
+use std::sync::LazyLock;
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+pub static NPM_GLOBAL_PREFIX: LazyLock<Option<String>> = LazyLock::new(|| {
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("npm")
+            .args(["config", "get", "--global", "prefix"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Command::new("npm")
+            .args(["config", "get", "--global", "prefix"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    }
+});
+
+pub fn get_npm_global_prefix() -> Option<String> {
+    NPM_GLOBAL_PREFIX.clone()
+}
 
 #[cfg(target_os = "windows")]
 fn is_shell_script(path: &str) -> bool {
@@ -141,9 +173,8 @@ impl ProcessRunner {
                     }
                 }
             }
-            Self::find_in_windows_paths(binary)
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(not(target_os = "windows"))]
         {
             if let Ok(o) = Self::run_hidden("which", &[binary]) {
                 if o.status.success() {
@@ -153,24 +184,47 @@ impl ProcessRunner {
                     }
                 }
             }
-            Self::find_in_macos_paths(binary)
         }
-        #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-        {
-            if let Ok(o) = Self::run_hidden("which", &[binary]) {
-                if o.status.success() {
-                    let path = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                    if !path.is_empty() {
-                        return Some(path);
-                    }
+        Self::find_in_platform_paths(binary)
+    }
+
+    fn get_npm_global_prefix() -> Option<String> {
+        get_npm_global_prefix()
+    }
+
+    fn search_dirs_for_binary(binary: &str, dirs: &[String], extensions: &[&str]) -> Option<String> {
+        for dir in dirs {
+            for ext in extensions {
+                let full = if ext.is_empty() {
+                    format!("{}/{}", dir, binary)
+                } else {
+                    #[cfg(target_os = "windows")]
+                    { format!(r"{}\{}{}", dir, binary, ext) }
+                    #[cfg(not(target_os = "windows"))]
+                    { format!("{}/{}{}", dir, binary, ext) }
+                };
+                if std::path::Path::new(&full).exists() {
+                    return Some(full);
                 }
             }
-            Self::find_in_linux_paths(binary)
         }
+        None
+    }
+
+    fn nvm_version_dirs(base: &str) -> Vec<String> {
+        let nvm_path = format!("{}/.nvm/versions/node", base);
+        std::fs::read_dir(&nvm_path)
+            .map(|dir| {
+                dir.flatten()
+                    .filter(|e| e.path().is_dir())
+                    .map(|e| format!("{}/bin", e.path().display()))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     #[cfg(target_os = "windows")]
-    fn find_in_windows_paths(binary: &str) -> Option<String> {
+    fn platform_search_dirs() -> Vec<String> {
         let mut paths = Vec::new();
 
         if let Ok(appdata) = std::env::var("APPDATA") {
@@ -189,14 +243,7 @@ impl ProcessRunner {
             paths.push(format!(r"{}\.local\bin", home));
             paths.push(format!(r"{}\bin", home));
             paths.push(format!(r"{}\.npm-global\bin", home));
-
-            if let Ok(nvm_dir) = std::fs::read_dir(format!(r"{}\.nvm\versions\node", home)) {
-                for entry in nvm_dir.flatten() {
-                    if entry.path().is_dir() {
-                        paths.push(format!(r"{}\bin", entry.path().display()));
-                    }
-                }
-            }
+            paths.extend(Self::nvm_version_dirs(&home));
 
             if let Ok(nvm_home) = std::env::var("NVM_HOME") {
                 if !nvm_home.is_empty() {
@@ -221,34 +268,17 @@ impl ProcessRunner {
             }
         }
 
-        let exts = ["", ".cmd", ".exe", ".bat"];
-        for dir in paths {
-            for ext in exts {
-                let full = format!(r"{}\{}{}", dir, binary, ext);
-                if std::path::Path::new(&full).exists() {
-                    return Some(full);
-                }
-            }
-        }
-        None
-    }
-
-    #[cfg(target_os = "windows")]
-    fn get_npm_global_prefix() -> Option<String> {
-        Self::run_hidden("npm", &["config", "get", "--global", "prefix"])
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        paths
     }
 
     #[cfg(target_os = "macos")]
-    fn find_in_macos_paths(binary: &str) -> Option<String> {
-        let mut paths = Vec::new();
-
-        paths.push("/usr/local/bin".to_string());
-        paths.push("/opt/homebrew/bin".to_string());
-        paths.push("/opt/homebrew/sbin".to_string());
-        paths.push("/usr/local/sbin".to_string());
+    fn platform_search_dirs() -> Vec<String> {
+        let mut paths = vec![
+            "/usr/local/bin".to_string(),
+            "/opt/homebrew/bin".to_string(),
+            "/opt/homebrew/sbin".to_string(),
+            "/usr/local/sbin".to_string(),
+        ];
 
         if let Some(prefix) = Self::get_npm_global_prefix() {
             paths.push(format!("{}/bin", prefix));
@@ -266,45 +296,24 @@ impl ProcessRunner {
             paths.push(format!("{}/.volta/bin", home));
             paths.push(format!("{}/.fnm/bin", home));
             paths.push(format!("{}/go/bin", home));
-
-            if let Ok(nvm_dir) = std::fs::read_dir(format!("{}/.nvm/versions/node", home)) {
-                for entry in nvm_dir.flatten() {
-                    if entry.path().is_dir() {
-                        paths.push(format!("{}/bin", entry.path().display().to_string()));
-                    }
-                }
-            }
+            paths.extend(Self::nvm_version_dirs(&home));
         }
 
-        for dir in paths {
-            let full = format!("{}/{}", dir, binary);
-            if std::path::Path::new(&full).exists() {
-                return Some(full);
-            }
-        }
-        None
-    }
-
-    #[cfg(target_os = "macos")]
-    fn get_npm_global_prefix() -> Option<String> {
-        Self::run_hidden("npm", &["config", "get", "--global", "prefix"])
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        paths
     }
 
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    fn find_in_linux_paths(binary: &str) -> Option<String> {
-        let mut paths = Vec::new();
-
-        paths.push("/usr/local/bin".to_string());
-        paths.push("/usr/bin".to_string());
-        paths.push("/bin".to_string());
-        paths.push("/usr/sbin".to_string());
-        paths.push("/sbin".to_string());
-        paths.push("/snap/bin".to_string());
-        paths.push("/usr/local/sbin".to_string());
-        paths.push("/opt/local/bin".to_string());
+    fn platform_search_dirs() -> Vec<String> {
+        let mut paths = vec![
+            "/usr/local/bin".to_string(),
+            "/usr/bin".to_string(),
+            "/bin".to_string(),
+            "/usr/sbin".to_string(),
+            "/sbin".to_string(),
+            "/snap/bin".to_string(),
+            "/usr/local/sbin".to_string(),
+            "/opt/local/bin".to_string(),
+        ];
 
         if let Some(prefix) = Self::get_npm_global_prefix() {
             paths.push(format!("{}/bin", prefix));
@@ -328,14 +337,7 @@ impl ProcessRunner {
             paths.push(format!("{}/go/bin", home));
             paths.push(format!("{}/.local/share/fnm/bin", home));
             paths.push(format!("{}/.sdkman/candidates/java/current/bin", home));
-
-            if let Ok(nvm_dir) = std::fs::read_dir(format!("{}/.nvm/versions/node", home)) {
-                for entry in nvm_dir.flatten() {
-                    if entry.path().is_dir() {
-                        paths.push(format!("{}/bin", entry.path().display().to_string()));
-                    }
-                }
-            }
+            paths.extend(Self::nvm_version_dirs(&home));
         }
 
         if let Ok(data_home) = std::env::var("XDG_DATA_HOME") {
@@ -346,21 +348,17 @@ impl ProcessRunner {
 
         paths.push("/var/lib/flatpak/exports/bin".to_string());
 
-        for dir in paths {
-            let full = format!("{}/{}", dir, binary);
-            if std::path::Path::new(&full).exists() {
-                return Some(full);
-            }
-        }
-        None
+        paths
     }
 
-    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
-    fn get_npm_global_prefix() -> Option<String> {
-        Self::run_hidden("npm", &["config", "get", "--global", "prefix"])
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+    #[cfg(target_os = "windows")]
+    fn find_in_platform_paths(binary: &str) -> Option<String> {
+        Self::search_dirs_for_binary(binary, &Self::platform_search_dirs(), &["", ".cmd", ".exe", ".bat"])
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    fn find_in_platform_paths(binary: &str) -> Option<String> {
+        Self::search_dirs_for_binary(binary, &Self::platform_search_dirs(), &[""])
     }
 
     pub async fn find_binary_async(binary: &str) -> Option<String> {

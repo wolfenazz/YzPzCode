@@ -1,10 +1,15 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 
 static FS_WATCHER: Mutex<Option<RecommendedWatcher>> = Mutex::new(None);
+use std::sync::LazyLock;
+
+static LAST_EMIT: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
+const DEBOUNCE_INTERVAL: Duration = Duration::from_millis(300);
 
 pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result<(), String> {
     let path = PathBuf::from(&workspace_path);
@@ -23,6 +28,14 @@ pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result
                 Ok(e) => e,
                 Err(_) => return,
             };
+
+            let now = Instant::now();
+            if let Ok(mut last) = LAST_EMIT.lock() {
+                if now.duration_since(*last) < DEBOUNCE_INTERVAL {
+                    return;
+                }
+                *last = now;
+            }
 
             let changed_paths: Vec<String> = event
                 .paths

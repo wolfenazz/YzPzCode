@@ -1,6 +1,6 @@
 use std::path::Path;
-use std::process::Command;
 
+use super::run_git_hidden;
 use crate::types::{GitFileChange, GitFileStatus};
 
 pub fn get_git_status(workspace_path: &str) -> Result<Vec<GitFileStatus>, String> {
@@ -14,30 +14,12 @@ pub fn get_git_status(workspace_path: &str) -> Result<Vec<GitFileStatus>, String
         return Ok(Vec::new());
     }
 
-    #[cfg(target_os = "windows")]
-    let output = {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        Command::new("git")
-            .args(["status", "--porcelain=v1", "--no-renames"])
-            .current_dir(root)
-            .creation_flags(CREATE_NO_WINDOW)
-            .output()
-    };
+    let stdout = run_git_hidden(
+        &["status", "--porcelain=v1", "--no-renames"],
+        workspace_path,
+    )
+    .unwrap_or_default();
 
-    #[cfg(not(target_os = "windows"))]
-    let output = Command::new("git")
-        .args(["status", "--porcelain=v1", "--no-renames"])
-        .current_dir(root)
-        .output();
-
-    let output = output.map_err(|e| format!("Failed to run git: {}", e))?;
-
-    if !output.status.success() {
-        return Ok(Vec::new());
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
     let mut statuses: Vec<GitFileStatus> = Vec::new();
 
     for line in stdout.lines() {

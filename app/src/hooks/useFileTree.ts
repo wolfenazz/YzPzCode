@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TreeApi } from 'react-arborist';
 import type { FileEntry } from '../types';
@@ -53,10 +53,61 @@ function updateNodeInTree(
   });
 }
 
+function updateNodeInTreeWithCallback(
+  data: TreeNodeData[],
+  nodeId: string,
+  updater: (node: TreeNodeData) => Partial<TreeNodeData>,
+): TreeNodeData[] {
+  return data.map((node) => {
+    if (node.id === nodeId) {
+      return { ...node, ...updater(node) };
+    }
+    if (node.children) {
+      return {
+        ...node,
+        children: updateNodeInTreeWithCallback(node.children, nodeId, updater),
+      };
+    }
+    return node;
+  });
+}
+
+function removeNodeFromTree(data: TreeNodeData[], nodeId: string): TreeNodeData[] {
+  return data
+    .filter((node) => node.id !== nodeId)
+    .map((node) => {
+      if (node.children) {
+        return { ...node, children: removeNodeFromTree(node.children, nodeId) };
+      }
+      return node;
+    });
+}
+
+function buildNodeMap(nodes: TreeNodeData[]): Map<string, TreeNodeData> {
+  const map = new Map<string, TreeNodeData>();
+  function walk(list: TreeNodeData[]) {
+    for (const node of list) {
+      map.set(node.id, node);
+      if (node.children) walk(node.children);
+    }
+  }
+  walk(nodes);
+  return map;
+}
+
+function findParentPath(nodeId: string): string | null {
+  const sep = nodeId.includes('\\') ? '\\' : '/';
+  const lastSep = nodeId.lastIndexOf(sep);
+  if (lastSep <= 0) return null;
+  return nodeId.substring(0, lastSep);
+}
+
 export function useFileTree(workspacePath: string | null) {
   const [treeData, setTreeData] = useState<TreeNodeData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const treeRef = useRef<TreeApi<TreeNodeData> | null>(null);
+
+  const nodeMap = useMemo(() => buildNodeMap(treeData), [treeData]);
 
   const loadRoot = useCallback(async () => {
     if (!workspacePath) return;
@@ -78,20 +129,7 @@ export function useFileTree(workspacePath: string | null) {
 
   const handleToggle = useCallback(
     async (id: string) => {
-      let found: TreeNodeData | null = null;
-
-      const findNode = (nodes: TreeNodeData[]): TreeNodeData | null => {
-        for (const n of nodes) {
-          if (n.id === id) return n;
-          if (n.children) {
-            const f = findNode(n.children);
-            if (f) return f;
-          }
-        }
-        return null;
-      };
-
-      found = findNode(treeData);
+      const found = nodeMap.get(id);
       if (!found || !found.isDir || found.loaded) return;
 
       try {
@@ -108,7 +146,7 @@ export function useFileTree(workspacePath: string | null) {
         console.error('Failed to load directory:', err);
       }
     },
-    [treeData]
+    [nodeMap]
   );
 
   const handleMove = useCallback(
@@ -150,30 +188,55 @@ export function useFileTree(workspacePath: string | null) {
     }: {
       id: string;
       name: string;
-      node: { data: TreeNodeData };
     }) => {
+      const oldNode = nodeMap.get(id);
+      if (!oldNode) {
+        loadRoot();
+        return;
+      }
       try {
         await invoke('rename_entry', { oldPath: id, newName: name });
-        loadRoot();
+        const parentPath = findParentPath(id);
+        const sep = id.includes('\\') ? '\\' : '/';
+        const newPath = parentPath ? parentPath + sep + name : name;
+        setTreeData((prev) =>
+          updateNodeInTree(prev, id, {
+            id: newPath,
+            name,
+            path: newPath,
+            extension: name.includes('.') ? name.split('.').pop() ?? null : null,
+          })
+        );
       } catch (err) {
         console.error('Failed to rename entry:', err);
+        loadRoot();
       }
     },
-    [loadRoot]
+    [loadRoot, nodeMap]
   );
 
   const handleDelete = useCallback(
     async ({ ids }: { ids: string[]; nodes: { data: TreeNodeData }[] }) => {
+      const deletedPaths = new Set<string>();
       for (const id of ids) {
         try {
           await invoke('delete_entry', { path: id });
+          deletedPaths.add(id);
         } catch (err) {
           console.error('Failed to delete entry:', err);
         }
       }
-      loadRoot();
+      if (deletedPaths.size > 0) {
+        setTreeData((prev) => {
+          let result = prev;
+          for (const id of deletedPaths) {
+            result = removeNodeFromTree(result, id);
+          }
+          return result;
+        });
+      }
     },
-    [loadRoot]
+    []
   );
 
   const createNewEntry = useCallback(
@@ -185,7 +248,8 @@ export function useFileTree(workspacePath: string | null) {
       const dir = parentPath || workspacePath;
       if (!dir) return;
 
-      const fullPath = `${dir}/${name}`;
+      const sep = dir.includes('\\') ? '\\' : '/';
+      const fullPath = `${dir}${sep}${name}`;
 
       try {
         if (type === 'file') {
@@ -193,7 +257,26 @@ export function useFileTree(workspacePath: string | null) {
         } else {
           await invoke('create_directory', { path: fullPath });
         }
-        await loadRoot();
+
+        const newNode: TreeNodeData = {
+          id: fullPath,
+          name,
+          path: fullPath,
+          extension: name.includes('.') ? name.split('.').pop() ?? null : null,
+          isDir: type === 'directory',
+          ...(type === 'directory' ? { children: [], loaded: false } : {}),
+        };
+
+        if (dir === workspacePath) {
+          setTreeData((prev) => [...prev, newNode]);
+        } else {
+          setTreeData((prev) =>
+            updateNodeInTreeWithCallback(prev, dir, (prevNode) => {
+              const children = prevNode.children ? [...prevNode.children, newNode] : [newNode];
+              return { children, loaded: true };
+            })
+          );
+        }
 
         setTimeout(() => {
           if (treeRef.current) {
@@ -205,31 +288,47 @@ export function useFileTree(workspacePath: string | null) {
         console.error(`Failed to create ${type}:`, err);
       }
     },
-    [workspacePath, loadRoot]
+    [workspacePath]
   );
 
   const deleteEntry = useCallback(
     async (path: string) => {
       try {
         await invoke('delete_entry', { path });
-        loadRoot();
+        setTreeData((prev) => removeNodeFromTree(prev, path));
       } catch (err) {
         console.error('Failed to delete entry:', err);
       }
     },
-    [loadRoot]
+    []
   );
 
   const renameEntry = useCallback(
     async (oldPath: string, newName: string) => {
+      const oldNode = nodeMap.get(oldPath);
+      if (!oldNode) {
+        loadRoot();
+        return;
+      }
       try {
         await invoke('rename_entry', { oldPath, newName });
-        loadRoot();
+        const parentPath = findParentPath(oldPath);
+        const sep = oldPath.includes('\\') ? '\\' : '/';
+        const newPath = parentPath ? parentPath + sep + newName : newName;
+        setTreeData((prev) =>
+          updateNodeInTree(prev, oldPath, {
+            id: newPath,
+            name: newName,
+            path: newPath,
+            extension: newName.includes('.') ? newName.split('.').pop() ?? null : null,
+          })
+        );
       } catch (err) {
         console.error('Failed to rename entry:', err);
+        loadRoot();
       }
     },
-    [loadRoot]
+    [loadRoot, nodeMap]
   );
 
   const revealInFileManager = useCallback(async (path: string) => {

@@ -258,7 +258,7 @@ Comprehensive plan for improving the workspace, startup page, editor, file explo
 - C6: ✅ Replaced deprecated navigator.userAgent with userAgentData fallback
 - C7: ✅ Replaced document.execCommand with direct input manipulation + dispatchEvent
 
-### Sprint 3 — Performance & Architecture [2 weeks]
+### Sprint 3 — Performance & Architecture [2 weeks] [done]
 
 - P1-P11: All performance optimizations
 - R1: Split `commands/mod.rs` into sub-modules

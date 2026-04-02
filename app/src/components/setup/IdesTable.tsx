@@ -2,49 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useIde } from '../../hooks/useIde';
 import { useAppStore } from '../../stores/appStore';
 import { IdeInfo, IdeType } from '../../types';
-
-import vsCodeIcon from '../../assets/Visual_Studio_code.png';
-import visualStudioIcon from '../../assets/visual-studio-logo.png';
-import cursorIcon from '../../assets/cursor-ai.png';
-import zedIcon from '../../assets/zedlogo.png';
-import webStormIcon from '../../assets/WebStormLOGO.png';
-import intelliJIcon from '../../assets/IntelliJ_IDEA_Logo.png';
-import sublimeIcon from '../../assets/sublime_logo.png';
-import windsurfIcon from '../../assets/windsufrLogo.jpg';
-import perplexityIcon from '../../assets/perplexityLogo.jpg';
-import antigravityIcon from '../../assets/antigravity.png';
+import { IDE_ORDER, IDE_ICONS, IDE_DISPLAY_NAMES } from './ideConstants';
 
 interface IdesTableProps {
   selectedPath: string;
 }
-
-const IDE_ORDER: IdeType[] = ['vsCode', 'visualStudio', 'cursor', 'zed', 'webStorm', 'intelliJ', 'sublimeText', 'windsurf', 'perplexity', 'antigravity'];
-
-const IDE_ICONS: Record<IdeType, string> = {
-  vsCode: vsCodeIcon,
-  visualStudio: visualStudioIcon,
-  cursor: cursorIcon,
-  zed: zedIcon,
-  webStorm: webStormIcon,
-  intelliJ: intelliJIcon,
-  sublimeText: sublimeIcon,
-  windsurf: windsurfIcon,
-  perplexity: perplexityIcon,
-  antigravity: antigravityIcon,
-};
-
-const IDE_DISPLAY_NAMES: Record<IdeType, string> = {
-  vsCode: 'VS Code',
-  visualStudio: 'Visual Studio',
-  cursor: 'Cursor',
-  zed: 'Zed',
-  webStorm: 'WebStorm',
-  intelliJ: 'IntelliJ',
-  sublimeText: 'Sublime',
-  windsurf: 'Windsurf',
-  perplexity: 'Perplexity',
-  antigravity: 'Antigravity',
-};
 
 export const IdesTable: React.FC<IdesTableProps> = ({ selectedPath }) => {
   const { ideStatuses, detectAllIdes, launchIde, loading } = useIde();

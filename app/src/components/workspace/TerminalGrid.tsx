@@ -269,52 +269,54 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
                 gap: '6px',
               }}
             >
-              {Array.from({ length: cellCount }).map((_, cellIndex) => {
-                const row = Math.floor(cellIndex / cols);
-                const col = cellIndex % cols;
-                const session = sorted[cellIndex] || null;
-
+              {sorted.map((session, idx) => {
+                const col = idx % cols;
+                const row = Math.floor(idx / cols);
                 return (
                   <div
-                    key={session ? session.id : `empty-${cellIndex}`}
+                    key={session.id}
                     className={`relative overflow-hidden rounded-xl border bg-theme-card shadow-xl border-theme`}
                     style={{ gridRow: row + 1, gridColumn: col + 1 }}
                   >
-                    {session ? (
-                      <SortableTerminalPane
-                        session={session}
-                        onClose={() => handleRemoveTerminal(session.id)}
-                        theme={theme}
-                      />
-                    ) : (
-                      <div
-                        className={`h-full flex items-center justify-center cursor-pointer transition-all duration-300 group/empty ${
-                          isLight
-                            ? 'bg-zinc-800/10 hover:bg-zinc-800/30'
-                            : 'bg-zinc-900/10 hover:bg-zinc-900/30'
-                        }`}
-                        onClick={() => setShowNewDialog(true)}
-                        title="Spawn Terminal"
-                      >
-                        <div className="flex flex-col items-center gap-4 transition-all duration-300 group-hover/empty:scale-110">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${
-                            isLight
-                              ? 'border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/40'
-                              : 'border-zinc-800 text-zinc-700 group-hover/empty:border-zinc-600 group-hover/empty:bg-zinc-800/20 group-hover/empty:text-zinc-400'
-                          }`}>
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </div>
-                          <span className={`text-[10px] uppercase font-black tracking-[0.3em] transition-colors duration-300 ${
-                            isLight ? 'text-zinc-500 group-hover/empty:text-zinc-300' : 'text-zinc-700 group-hover/empty:text-zinc-400'
-                          }`}>Spawn_TTY</span>
-                        </div>
-                      </div>
-                    )}
+                    <SortableTerminalPane
+                      session={session}
+                      onClose={() => handleRemoveTerminal(session.id)}
+                      theme={theme}
+                    />
                   </div>
                 );
               })}
+              {sorted.length < cellCount && (
+                <div
+                  className={`relative overflow-hidden rounded-xl border bg-theme-card shadow-xl border-theme`}
+                  style={{ gridRow: Math.floor(sorted.length / cols) + 1, gridColumn: (sorted.length % cols) + 1 }}
+                >
+                  <div
+                    className={`h-full flex items-center justify-center cursor-pointer transition-all duration-300 group/empty ${
+                      isLight
+                        ? 'bg-zinc-800/10 hover:bg-zinc-800/30'
+                        : 'bg-zinc-900/10 hover:bg-zinc-900/30'
+                    }`}
+                    onClick={() => setShowNewDialog(true)}
+                    title="Spawn Terminal"
+                  >
+                    <div className="flex flex-col items-center gap-4 transition-all duration-300 group-hover/empty:scale-110">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${
+                        isLight
+                          ? 'border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/40'
+                          : 'border-zinc-800 text-zinc-700 group-hover/empty:border-zinc-600 group-hover/empty:bg-zinc-800/20 group-hover/empty:text-zinc-400'
+                      }`}>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
+                      <span className={`text-[10px] uppercase font-black tracking-[0.3em] transition-colors duration-300 ${
+                        isLight ? 'text-zinc-500 group-hover/empty:text-zinc-300' : 'text-zinc-700 group-hover/empty:text-zinc-400'
+                      }`}>Spawn_TTY</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </SortableContext>
 

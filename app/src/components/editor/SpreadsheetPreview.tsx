@@ -37,31 +37,40 @@ const SpreadsheetPreviewInner: React.FC<SpreadsheetPreviewProps> = ({ filePath, 
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        const workbook = XLSX.read(bytes, { type: 'array' });
-        const sheetDataList: SheetData[] = workbook.SheetNames.map((name) => {
-          const ws = workbook.Sheets[name];
-          const jsonData: (string | number | boolean | null)[][] = XLSX.utils.sheet_to_json(ws, {
-            header: 1,
-            defval: null,
+        const parseWork = () => {
+          if (cancelled) return;
+          const workbook = XLSX.read(bytes, { type: 'array' });
+          const sheetDataList: SheetData[] = workbook.SheetNames.map((name) => {
+            const ws = workbook.Sheets[name];
+            const jsonData: (string | number | boolean | null)[][] = XLSX.utils.sheet_to_json(ws, {
+              header: 1,
+              defval: null,
+            });
+
+            const maxCols = jsonData.reduce((max, row) => Math.max(max, row.length), 0);
+            const headers = jsonData.length > 0 ? jsonData[0] : [];
+            const rows = jsonData.slice(1);
+
+            return {
+              name,
+              headers,
+              rows,
+              colCount: maxCols,
+              rowCount: rows.length,
+            };
           });
 
-          const maxCols = jsonData.reduce((max, row) => Math.max(max, row.length), 0);
-          const headers = jsonData.length > 0 ? jsonData[0] : [];
-          const rows = jsonData.slice(1);
+          if (!cancelled) {
+            setSheets(sheetDataList);
+            setActiveSheet(0);
+            setLoading(false);
+          }
+        };
 
-          return {
-            name,
-            headers,
-            rows,
-            colCount: maxCols,
-            rowCount: rows.length,
-          };
-        });
-
-        if (!cancelled) {
-          setSheets(sheetDataList);
-          setActiveSheet(0);
-          setLoading(false);
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+          requestIdleCallback(parseWork);
+        } else {
+          setTimeout(parseWork, 0);
         }
       })
       .catch(() => {
