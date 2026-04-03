@@ -10,6 +10,7 @@ import '@xterm/xterm/css/xterm.css';
 interface InlineTerminalProps {
   command: string;
   cwd: string;
+  autoRun: boolean;
   onClose: () => void;
 }
 
@@ -38,7 +39,7 @@ const TERMINAL_THEME = {
   brightWhite: '#e5e5e5',
 };
 
-export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, onClose }) => {
+export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, autoRun, onClose }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -173,12 +174,17 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, on
           }
         });
 
-        setTimeout(() => {
+        setTimeout(async () => {
           if (mounted && sessionIdRef.current) {
-            invoke('write_to_terminal', {
-              sessionId: sessionIdRef.current,
-              input: command + '\n',
-            }).catch(() => {});
+            try {
+              const payload = autoRun
+                ? '\x1b[200~' + command + '\x1b[201~\r'
+                : '\x1b[200~' + command + '\x1b[201~';
+              await invoke('write_to_terminal', {
+                sessionId: sessionIdRef.current,
+                input: payload,
+              });
+            } catch {}
           }
         }, 300);
 

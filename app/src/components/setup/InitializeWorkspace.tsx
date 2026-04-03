@@ -10,7 +10,7 @@ interface InitializeWorkspaceProps {
 const CommandBlock: React.FC<{
   command: string;
   visible: boolean;
-  onInitialize: () => void;
+  onInitialize: (autoRun: boolean) => void;
 }> = ({ command, visible, onInitialize }) => {
   const [copied, setCopied] = useState(false);
 
@@ -31,12 +31,22 @@ const CommandBlock: React.FC<{
       </div>
       <button
         type="button"
-        onClick={onInitialize}
+        onClick={() => onInitialize(true)}
         className="px-3 flex items-center bg-zinc-900 border-l border-zinc-800 text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer flex-shrink-0"
-        title="Initialize in terminal"
+        title="Run immediately"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 010 1.972l-11.54 6.347a1.125 1.125 0 01-1.667-.986V5.653z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={() => onInitialize(false)}
+        className="px-3 flex items-center bg-zinc-900 border-l border-zinc-800 text-zinc-500 hover:text-blue-400 hover:bg-zinc-800 transition-colors duration-150 cursor-pointer flex-shrink-0"
+        title="Paste command (edit before running)"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
         </svg>
       </button>
       <button
@@ -63,7 +73,7 @@ const TemplateCard: React.FC<{
   template: InitTemplate;
   isExpanded: boolean;
   onToggle: () => void;
-  onInitialize: () => void;
+  onInitialize: (autoRun: boolean) => void;
 }> = ({ template, isExpanded, onToggle, onInitialize }) => {
   return (
     <div
@@ -145,7 +155,7 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
   const [activeCategory, setActiveCategory] = useState<string>('react');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [initTerminal, setInitTerminal] = useState<{ id: string; command: string } | null>(null);
+  const [initTerminal, setInitTerminal] = useState<{ id: string; command: string; autoRun: boolean } | null>(null);
 
   const filteredTemplates = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -241,6 +251,7 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
         <InlineTerminal
           command={initTerminal.command}
           cwd={selectedPath}
+          autoRun={initTerminal.autoRun}
           onClose={() => setInitTerminal(null)}
         />
       ) : (
@@ -251,7 +262,7 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
               template={template}
               isExpanded={expandedId === template.id}
               onToggle={() => handleToggle(template.id)}
-              onInitialize={() => setInitTerminal({ id: template.id, command: template.command })}
+              onInitialize={(autoRun) => setInitTerminal({ id: template.id, command: template.command, autoRun })}
             />
           ))}
           {filteredTemplates.length === 0 && (
