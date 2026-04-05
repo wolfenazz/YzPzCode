@@ -20,7 +20,7 @@ const UI_DENSITIES = [
 ];
 
 const Divider = () => (
-  <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
+  <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
 );
 
 export const SettingsAppearance: React.FC = () => {
@@ -42,14 +42,14 @@ export const SettingsAppearance: React.FC = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em] mb-1">
+        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
           Appearance
         </h2>
         <p className="text-[10px] text-zinc-600 font-mono">Customize the look and feel of YzPzCode</p>
       </div>
 
       <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Theme
         </h3>
 
@@ -62,7 +62,7 @@ export const SettingsAppearance: React.FC = () => {
       </div>
 
       <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Accent Color
         </h3>
         <p className="text-[10px] text-zinc-600 font-mono">Select a primary accent for UI highlights</p>
@@ -74,7 +74,7 @@ export const SettingsAppearance: React.FC = () => {
               onClick={() => setAccentColor(color.value)}
               className={`group relative w-8 h-8 rounded-full transition-all duration-200 cursor-pointer ${
                 accentColor === color.value
-                  ? 'ring-2 ring-cyan-400/30 ring-offset-2 ring-offset-[#0a0a0f] scale-110'
+                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[#0a0a0f] scale-110'
                   : 'hover:scale-105'
               }`}
               title={color.name}
@@ -96,7 +96,7 @@ export const SettingsAppearance: React.FC = () => {
       </div>
 
       <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           UI Density
         </h3>
         <p className="text-[10px] text-zinc-600 font-mono">Adjust spacing and sizing across the interface</p>
@@ -108,7 +108,7 @@ export const SettingsAppearance: React.FC = () => {
               onClick={() => setUiDensity(density.value)}
               className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                 uiDensity === density.value
-                  ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                  ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
                   : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-[#1a1a2e]/60'
               }`}
             >
@@ -119,7 +119,7 @@ export const SettingsAppearance: React.FC = () => {
       </div>
 
       <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Preferences
         </h3>
 
@@ -144,7 +144,7 @@ export const SettingsAppearance: React.FC = () => {
                   onClick={() => setSetupViewMode(mode)}
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     setupViewMode === mode
-                      ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
                       : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-[#1a1a2e]/60'
                   }`}
                 >

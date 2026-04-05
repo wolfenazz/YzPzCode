@@ -27,13 +27,13 @@ export const SettingsIde: React.FC = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em] mb-1">IDE Integration</h2>
+        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">IDE Integration</h2>
         <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Configure external IDE launching and integration</p>
       </div>
 
       <div className="space-y-6">
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Installed IDEs</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Installed IDEs</h3>
 
           <div className="flex items-center gap-2 mb-4">
             <span className="text-[10px] text-zinc-500 font-mono">
@@ -45,7 +45,7 @@ export const SettingsIde: React.FC = () => {
             {ideList.map((ide) => (
               <div
                 key={ide.ide}
-                className="flex items-center justify-between px-4 py-3 bg-[#080810]/40 border border-[#1a1a2e]/30 rounded-lg hover:border-cyan-500/10 transition-all duration-200"
+                className="flex items-center justify-between px-4 py-3 bg-[#080810]/40 border border-[#1a1a2e]/30 rounded-lg hover:border-[var(--accent-border)] transition-all duration-200"
               >
                 <div className="flex items-center gap-3">
                   <img src={IDE_ICONS[ide.ide as IdeType]} alt={ide.name} className="w-5 h-5 object-contain" />
@@ -75,7 +75,7 @@ export const SettingsIde: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Default IDEs</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Default IDEs</h3>
           <p className="text-[10px] text-zinc-600 font-mono">Select which IDEs to launch automatically with new workspaces</p>
 
           <div className="grid grid-cols-2 gap-2">
@@ -85,7 +85,7 @@ export const SettingsIde: React.FC = () => {
                 onClick={() => handleToggleIde(ide.ide)}
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-mono transition-all duration-200 cursor-pointer text-left ${
                   selectedIdes.includes(ide.ide)
-                    ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                    ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
                     : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:border-zinc-700'
                 }`}
               >
@@ -101,7 +101,7 @@ export const SettingsIde: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Behavior</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Behavior</h3>
 
           <SettingsToggle
             enabled={launchIdeOnWorkspaceCreation}

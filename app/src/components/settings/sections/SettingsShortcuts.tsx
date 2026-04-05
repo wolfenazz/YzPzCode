@@ -35,9 +35,9 @@ export const SettingsShortcuts: React.FC = () => {
         {SHORTCUTS.map((group) => (
           <div key={group.category} className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
             <div className="flex items-center gap-2">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent to-cyan-500/10"></div>
-              <h3 className="text-[10px] font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">{group.category}</h3>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent to-cyan-500/10"></div>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--accent-border)]"></div>
+              <h3 className="text-[10px] font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">{group.category}</h3>
+              <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--accent-border)]"></div>
             </div>
             <div className="grid grid-cols-1 gap-2">
               {group.items.map((shortcut, i) => (
@@ -58,7 +58,7 @@ export const SettingsShortcuts: React.FC = () => {
                 </div>
               ))}
             </div>
-            <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent"></div>
+            <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent"></div>
           </div>
         ))}
       </div>

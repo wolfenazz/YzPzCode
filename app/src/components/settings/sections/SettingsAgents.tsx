@@ -33,7 +33,7 @@ export const SettingsAgents: React.FC = () => {
   return (
     <div className="space-y-8 font-mono">
       <div>
-        <h2 className="text-xs font-bold text-cyan-400/70 uppercase tracking-[0.2em] mb-1">
+        <h2 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
           AI Agents
         </h2>
         <p className="text-[10px] text-zinc-600 uppercase tracking-[0.15em]">
@@ -43,7 +43,7 @@ export const SettingsAgents: React.FC = () => {
 
       <div className="space-y-6">
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+          <h3 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Installed Agents
           </h3>
 
@@ -56,8 +56,8 @@ export const SettingsAgents: React.FC = () => {
                 className="h-full rounded-full transition-all duration-500"
                 style={{
                   width: `${cliTools.length > 0 ? (installedCount / cliTools.length) * 100 : 0}%`,
-                  background: 'linear-gradient(90deg, rgba(6,182,212,0.4), rgba(6,182,212,0.8))',
-                  boxShadow: '0 0 8px rgba(6,182,212,0.3)',
+                  background: 'linear-gradient(90deg, var(--accent-glow), var(--accent))',
+                  boxShadow: '0 0 8px var(--accent-glow)',
                 }}
               />
             </div>
@@ -67,7 +67,7 @@ export const SettingsAgents: React.FC = () => {
             {cliTools.map((tool) => (
               <div
                 key={tool.agent}
-                className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#0a0a0f]/40 border border-[#1a1a2e]/30 hover:border-cyan-500/10 hover:bg-[#0a0a0f]/80 transition-colors duration-200"
+                className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#0a0a0f]/40 border border-[#1a1a2e]/30 hover:border-[var(--accent-border)] hover:bg-[#0a0a0f]/80 transition-colors duration-200"
               >
                 <div className="flex items-center gap-3">
                   {AGENT_ICONS[tool.agent] && (
@@ -106,14 +106,14 @@ export const SettingsAgents: React.FC = () => {
           </div>
 
           {loading && (
-            <p className="text-[10px] text-cyan-500/60 font-mono animate-pulse">
+            <p className="text-[10px] text-[var(--accent)] opacity-60 font-mono animate-pulse">
               Detecting CLI tools...
             </p>
           )}
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+          <h3 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Authentication
           </h3>
 
@@ -123,7 +123,7 @@ export const SettingsAgents: React.FC = () => {
               return (
                 <div
                   key={tool.agent}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#0a0a0f]/40 border border-[#1a1a2e]/30 hover:border-cyan-500/10 hover:bg-[#0a0a0f]/80 transition-colors duration-200"
+                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#0a0a0f]/40 border border-[#1a1a2e]/30 hover:border-[var(--accent-border)] hover:bg-[#0a0a0f]/80 transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3">
                     {AGENT_ICONS[tool.agent] && (
@@ -153,7 +153,7 @@ export const SettingsAgents: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+          <h3 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Timeout
           </h3>
 

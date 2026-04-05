@@ -52,16 +52,19 @@ type StepId = typeof STEPS[number]['id'];
 
 const slideVariants = {
   enter: (direction: number) => ({
-    x: direction > 0 ? 40 : -40,
+    x: direction > 0 ? 60 : -60,
     opacity: 0,
+    filter: 'blur(4px)',
   }),
   center: {
     x: 0,
     opacity: 1,
+    filter: 'blur(0px)',
   },
   exit: (direction: number) => ({
-    x: direction > 0 ? -40 : 40,
+    x: direction > 0 ? -60 : 60,
     opacity: 0,
+    filter: 'blur(4px)',
   }),
 };
 
@@ -236,12 +239,12 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
         return (
           <div className="space-y-6">
             {isStepSkipped('layout') ? (
-              <div className="bg-cyan-500/[0.04] border border-cyan-500/15 rounded-lg p-5 space-y-3">
+              <div className="bg-[var(--accent-light)] border border-[var(--accent-border)] rounded-lg p-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-cyan-400/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-[var(--accent-text)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-xs font-mono text-cyan-400/70">Auto-configured by template</span>
+                  <span className="text-xs font-mono text-[var(--accent-text)]">Auto-configured by template</span>
                 </div>
                 <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-400">
                   <span>{selectedLayout.sessions} terminal slots</span>
@@ -262,12 +265,12 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
         return (
           <div className="space-y-6">
             {isStepSkipped('agents') ? (
-              <div className="bg-cyan-500/[0.04] border border-cyan-500/15 rounded-lg p-5 space-y-3">
+              <div className="bg-[var(--accent-light)] border border-[var(--accent-border)] rounded-lg p-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4 text-cyan-400/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-[var(--accent-text)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span className="text-xs font-mono text-cyan-400/70">Auto-configured by template</span>
+                  <span className="text-xs font-mono text-[var(--accent-text)]">Auto-configured by template</span>
                 </div>
                 <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-400">
                   <span>{selectedLayout.sessions} total slots allocated</span>
@@ -315,7 +318,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
 
       {/* Step Indicator */}
       <div className="px-8 py-3 border-b border-theme">
-        <div className="flex items-center">
+        <div className="flex items-center justify-center">
           {STEPS.map((step, idx) => {
             const isActive = step.id === currentStep;
             const isComplete = isStepComplete(step.id);
@@ -324,33 +327,55 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
             return (
               <React.Fragment key={step.id}>
                 {idx > 0 && (
-                  <span className="text-zinc-700 mx-1.5 select-none">{'>'}</span>
+                  <motion.span
+                    key={`sep-${step.id}`}
+                    className="text-zinc-700 mx-2 select-none font-mono text-[10px]"
+                    animate={{ opacity: 1 }}
+                  >
+                    {'/'}
+                  </motion.span>
                 )}
                 <button
                   onClick={() => goToStep(step.id)}
-                  className={`flex items-center gap-1.5 px-1.5 py-1 rounded transition-colors duration-100 cursor-pointer ${
-                    isActive
-                      ? 'text-zinc-200'
-                      : isComplete || isSkipped
-                        ? 'text-zinc-500 hover:text-zinc-400'
-                        : 'text-zinc-700 hover:text-zinc-500'
-                  }`}
+                  className="relative flex items-center gap-1 px-1 py-0.5 cursor-pointer group"
                 >
-                  <span className={`text-[10px] font-mono tracking-wide ${
-                    isActive ? 'text-zinc-200' : ''
-                  }`}>
+                  <motion.span
+                    className="text-[10px] font-mono tracking-wide"
+                    animate={{
+                      color: isActive
+                        ? '#e4e4e7'
+                        : isComplete || isSkipped
+                          ? '#52525b'
+                          : '#3f3f46',
+                    }}
+                    transition={{ duration: 0.2 }}
+                  >
                     {step.label.toLowerCase()}
-                  </span>
+                  </motion.span>
                   {isComplete && !isActive && !isSkipped && (
-                    <span className="text-emerald-600 text-[9px]">ok</span>
+                    <span className="text-emerald-600 text-[9px] font-mono">ok</span>
                   )}
                   {isSkipped && !isActive && (
-                    <span className="text-zinc-600 text-[9px]">auto</span>
+                    <span className="text-zinc-600 text-[9px] font-mono">auto</span>
+                  )}
+                  {isActive && (
+                    <motion.span
+                      className="absolute -bottom-0.5 left-0 right-0 h-px bg-zinc-400"
+                      layoutId="step-underline"
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
                   )}
                 </button>
               </React.Fragment>
             );
           })}
+          <span className="ml-2 inline-flex items-center">
+            <motion.span
+              className="inline-block w-[5px] h-[13px] bg-zinc-400"
+              animate={{ opacity: [1, 0] }}
+              transition={{ duration: 0.8, repeat: Infinity, repeatType: 'reverse', ease: 'linear' }}
+            />
+          </span>
         </div>
       </div>
 
@@ -364,7 +389,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
             initial="enter"
             animate="center"
             exit="exit"
-            transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+            transition={{ duration: 0.28, ease: [0.22, 0.61, 0.36, 1] }}
           >
             {renderStepContent()}
           </motion.div>

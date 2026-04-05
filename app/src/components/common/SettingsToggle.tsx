@@ -28,7 +28,7 @@ export const SettingsToggle: React.FC<SettingsToggleProps> = ({
       onClick={onToggle}
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 cursor-pointer ${
         enabled
-          ? 'bg-zinc-200'
+          ? 'bg-[var(--accent)]'
           : 'bg-zinc-800 border border-zinc-700'
       }`}
     >

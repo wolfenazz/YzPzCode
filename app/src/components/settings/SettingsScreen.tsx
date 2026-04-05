@@ -184,12 +184,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
       <header
         data-tauri-drag-region
-        className="relative z-50 flex items-center h-11 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-cyan-500/10 select-none titlebar-drag flex-shrink-0"
+        className="relative z-50 flex items-center h-11 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-[var(--accent-border)] select-none titlebar-drag flex-shrink-0"
       >
         <div className="flex items-center h-full titlebar-nodrag">
           <button
             onClick={onBack}
-            className="group/back flex items-center gap-1.5 px-4 h-full border-r border-white/[0.04] hover:bg-white/[0.03] transition-all duration-150 text-zinc-500 hover:text-cyan-400 cursor-pointer"
+            className="group/back flex items-center gap-1.5 px-4 h-full border-r border-white/[0.04] hover:bg-white/[0.03] transition-all duration-150 text-zinc-500 hover:text-[var(--accent)] cursor-pointer"
             title="Back (Esc)"
           >
             <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -205,7 +205,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               <span className="text-[10px] text-zinc-500">/</span>
               <span className="text-[10px] text-zinc-400">yzpz</span>
               <span className="text-[10px] text-zinc-600">/</span>
-              <span className="text-[10px] text-cyan-400/80">settings</span>
+              <span className="text-[10px] text-[var(--accent)]">settings</span>
             </div>
           </div>
         </div>
@@ -258,36 +258,36 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        <nav className="w-56 flex-shrink-0 bg-[#080810]/80 border-r border-cyan-500/5 overflow-y-auto custom-scrollbar">
-          <div className="py-3 px-2 space-y-[2px]">
-            {SECTIONS.map((section, index) => {
-              const isActive = activeSection === section.id;
-              const idx = String(index + 1).padStart(2, '0');
-              return (
-                <button
-                  key={section.id}
-                  onClick={() => setActiveSection(section.id)}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-[7px] rounded-[3px] text-[11px] font-mono transition-all duration-150 cursor-pointer relative ${
-                    isActive
-                      ? 'bg-cyan-500/[0.06] text-cyan-400'
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.02]'
-                  }`}
-                >
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-cyan-400 rounded-r-full" />
-                  )}
-                  <span className={`text-[9px] tabular-nums w-4 text-right ${isActive ? 'text-cyan-500/50' : 'text-zinc-700'}`}>
-                    {idx}
-                  </span>
-                  <span className={isActive ? 'text-cyan-300/80' : 'text-zinc-600'}>
-                    {section.icon}
-                  </span>
-                  <span className={`tracking-wide ${isActive ? 'text-cyan-300' : ''}`}>
-                    {section.label}
-                  </span>
-                </button>
-              );
-            })}
+        <nav className="w-48 flex-shrink-0 bg-[#080810]/60 border-r border-white/[0.03] overflow-y-auto custom-scrollbar">
+          <div className="py-4 px-3">
+            <div className="mb-4 px-2">
+              <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-[0.2em]">Configuration</p>
+            </div>
+            <div className="space-y-[1px]">
+              {SECTIONS.map((section) => {
+                const isActive = activeSection === section.id;
+                return (
+                  <button
+                    key={section.id}
+                    onClick={() => setActiveSection(section.id)}
+                    className={`w-full flex items-center gap-2.5 px-2.5 py-[6px] rounded-md text-[11px] font-mono transition-all duration-150 cursor-pointer group ${
+                      isActive
+                        ? 'bg-[var(--accent-light)] text-[var(--accent)]'
+                        : 'text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.02]'
+                    }`}
+                  >
+                    <span className={`transition-colors duration-150 ${
+                      isActive ? 'text-[var(--accent)]' : 'text-zinc-700 group-hover:text-zinc-500'
+                    }`}>
+                      {section.icon}
+                    </span>
+                    <span className={`tracking-wide ${isActive ? 'font-medium' : ''}`}>
+                      {section.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </nav>
 
@@ -295,7 +295,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <div className="max-w-3xl mx-auto">
             <div className="sticky top-0 z-10 bg-[#06060b]/80 backdrop-blur-md px-8 pt-6 pb-4 border-b border-white/[0.03]">
               <div className="flex items-center gap-2 font-mono">
-                <span className="text-cyan-500/40 text-[10px]">&gt;</span>
+                <span className="text-[var(--accent)]/40 text-[10px]">&gt;</span>
                 <span className="text-[10px] text-zinc-600">settings</span>
                 <span className="text-[10px] text-zinc-700">/</span>
                 <span className="text-[11px] text-zinc-300 tracking-wide">{activeLabel}</span>

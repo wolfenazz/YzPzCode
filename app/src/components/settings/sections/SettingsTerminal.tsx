@@ -19,7 +19,7 @@ const CURSOR_STYLES = [
 ];
 
 const Divider = () => (
-  <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/10 to-transparent" />
+  <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
 );
 
 export const SettingsTerminal: React.FC = () => {
@@ -49,7 +49,7 @@ export const SettingsTerminal: React.FC = () => {
   return (
     <div className="space-y-8 font-mono">
       <div>
-        <h2 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em] mb-1">
+        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
           Terminal
         </h2>
         <p className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
@@ -59,7 +59,7 @@ export const SettingsTerminal: React.FC = () => {
 
       <div className="space-y-4">
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Font
           </h3>
 
@@ -72,7 +72,7 @@ export const SettingsTerminal: React.FC = () => {
                   onClick={() => setTerminalFontFamily(font)}
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
                     terminalFontFamily === font
-                      ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
                       : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                   style={{ fontFamily: font }}
@@ -97,7 +97,7 @@ export const SettingsTerminal: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Cursor
           </h3>
 
@@ -110,7 +110,7 @@ export const SettingsTerminal: React.FC = () => {
                   onClick={() => setTerminalCursorStyle(style.value)}
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     terminalCursorStyle === style.value
-                      ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
                       : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                 >
@@ -131,7 +131,7 @@ export const SettingsTerminal: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Behavior
           </h3>
 

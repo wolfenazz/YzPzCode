@@ -47,13 +47,13 @@ export const SettingsUpdates: React.FC = () => {
   return (
     <div className="space-y-8 font-mono">
       <div>
-        <h2 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em] mb-1">Updates</h2>
+        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Updates</h2>
         <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">Manage application updates</p>
       </div>
 
       <div className="space-y-6">
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Current Version</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Current Version</h3>
 
           <div className="flex items-center justify-between">
             <div>
@@ -110,7 +110,7 @@ export const SettingsUpdates: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Preferences</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Preferences</h3>
 
           <div className="space-y-3">
             <SettingsToggle
@@ -130,7 +130,7 @@ export const SettingsUpdates: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Update Channel</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Update Channel</h3>
 
           <div className="flex items-center gap-2">
             {(['stable', 'beta', 'nightly'] as const).map((channel) => (
@@ -139,7 +139,7 @@ export const SettingsUpdates: React.FC = () => {
                 onClick={() => setUpdateChannel(channel)}
                 className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                   updateChannel === channel
-                    ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
+                    ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
                     : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-[#1a1a2e]'
                 }`}
               >

@@ -12,6 +12,17 @@ import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
+const ACCENT_COLOR_MAP: Record<string, string> = {
+  default: '#a1a1aa',
+  blue: '#3b82f6',
+  purple: '#8b5cf6',
+  green: '#10b981',
+  orange: '#f97316',
+  red: '#ef4444',
+  pink: '#ec4899',
+  cyan: '#06b6d4',
+};
+
 function App() {
   const { 
     view, 
@@ -25,6 +36,9 @@ function App() {
     toggleTheme,
     customCursor,
     saveWorkspaceState,
+    accentColor,
+    uiDensity,
+    animationsEnabled,
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
 
@@ -38,6 +52,40 @@ function App() {
       document.documentElement.classList.remove('has-custom-cursor');
     };
   }, [customCursor]);
+
+  useEffect(() => {
+    const hex = ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const root = document.documentElement;
+    root.style.setProperty('--accent', hex);
+    root.style.setProperty('--accent-light', `rgba(${r}, ${g}, ${b}, 0.15)`);
+    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.3)`);
+    root.style.setProperty('--accent-border', `rgba(${r}, ${g}, ${b}, 0.2)`);
+    root.style.setProperty('--accent-text', `rgba(${r}, ${g}, ${b}, 0.7)`);
+  }, [accentColor]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.remove('density-compact', 'density-comfortable', 'density-spacious');
+    root.classList.add(`density-${uiDensity}`);
+    return () => {
+      root.classList.remove('density-compact', 'density-comfortable', 'density-spacious');
+    };
+  }, [uiDensity]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (animationsEnabled) {
+      root.classList.remove('animations-disabled');
+    } else {
+      root.classList.add('animations-disabled');
+    }
+    return () => {
+      root.classList.remove('animations-disabled');
+    };
+  }, [animationsEnabled]);
 
   useEffect(() => {
     initWindowPlatform().then(setIsWindows).catch((err) => {

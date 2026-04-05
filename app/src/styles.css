@@ -8,6 +8,13 @@
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
 
+  /* Accent color system */
+  --accent: #a1a1aa;
+  --accent-light: rgba(161, 161, 170, 0.15);
+  --accent-glow: rgba(161, 161, 170, 0.3);
+  --accent-border: rgba(161, 161, 170, 0.2);
+  --accent-text: rgba(161, 161, 170, 0.7);
+
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
   line-height: 1.5;
   font-weight: 400;
@@ -60,6 +67,47 @@ body {
 
 .text-theme-secondary {
   color: var(--text-secondary);
+}
+
+/* ── Accent Color Utility Classes ────────────────────────────────────── */
+.text-accent { color: var(--accent); }
+.text-accent-light { color: var(--accent-light); }
+.bg-accent { background-color: var(--accent); }
+.bg-accent-light { background-color: var(--accent-light); }
+.border-accent { border-color: var(--accent); }
+.border-accent-light { border-color: var(--accent-border); }
+.ring-accent { --tw-ring-color: var(--accent); }
+
+/* ── UI Density ──────────────────────────────────────────────────────── */
+.density-compact .settings-section { padding: 0.75rem; }
+.density-compact .settings-section-gap { gap: 1rem; }
+.density-compact .settings-section-header { margin-bottom: 0.25rem; }
+
+.density-comfortable .settings-section { padding: 1.25rem; }
+.density-comfortable .settings-section-gap { gap: 1.5rem; }
+
+.density-spacious .settings-section { padding: 1.75rem; }
+.density-spacious .settings-section-gap { gap: 2rem; }
+.density-spacious .settings-section-header { margin-bottom: 0.75rem; }
+
+/* ── Animations Disabled ─────────────────────────────────────────────── */
+html.animations-disabled *,
+html.animations-disabled *::before,
+html.animations-disabled *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* ── Accent Slider ───────────────────────────────────────────────────── */
+.accent-slider::-webkit-slider-thumb {
+  background-color: var(--accent) !important;
+  box-shadow: 0 0 6px var(--accent-glow) !important;
+}
+.accent-slider::-moz-range-thumb {
+  background-color: var(--accent) !important;
+  box-shadow: 0 0 6px var(--accent-glow) !important;
 }
 
 /* ── Titlebar drag region (Tauri borderless) ─────────────────────────── */

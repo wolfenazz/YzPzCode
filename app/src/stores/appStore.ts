@@ -838,6 +838,7 @@ export const useAppStore = create<AppState>()(
           autoDownloadUpdates: state.autoDownloadUpdates,
           updateChannel: state.updateChannel,
           recentDirectories: state.recentDirectories,
+          setupViewMode: state.setupViewMode,
         };
 
         if (state.saveWorkspaceState) {

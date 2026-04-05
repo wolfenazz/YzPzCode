@@ -85,13 +85,13 @@ export const SettingsData: React.FC = () => {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em] mb-1">Data & Storage</h2>
+        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Data & Storage</h2>
         <p className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">Manage application data and storage</p>
       </div>
 
       <div className="space-y-6">
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Storage Usage</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Storage Usage</h3>
 
           <div className="grid grid-cols-3 gap-4">
             <div className="bg-[#080810]/50 border border-[#1a1a2e]/30 rounded-lg p-4">
@@ -110,7 +110,7 @@ export const SettingsData: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Import / Export</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Import / Export</h3>
 
           <div className="flex items-center gap-3">
             <button
@@ -129,7 +129,7 @@ export const SettingsData: React.FC = () => {
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Clear Data</h3>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Clear Data</h3>
 
           <div className="space-y-3">
             <div className="flex items-center justify-between">
