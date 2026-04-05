@@ -14,7 +14,7 @@ import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
 import { closeBrackets, closeBracketsKeymap, autocompletion } from '@codemirror/autocomplete';
 import { defaultKeymap, history, historyKeymap, indentWithTab, standardKeymap } from '@codemirror/commands';
-import { search, findNext, findPrevious, setSearchQuery, SearchQuery, highlightSelectionMatches } from '@codemirror/search';
+import { search, findNext, findPrevious, setSearchQuery, SearchQuery } from '@codemirror/search';
 import { showMinimap } from '@replit/codemirror-minimap';
 import { useAppStore } from '../../stores/appStore';
 import { EditorTabs } from './EditorTabs';
@@ -278,7 +278,6 @@ export const FileEditor: React.FC = () => {
         highlightActiveLine(),
         highlightActiveLineGutter(),
         drawSelection(),
-        highlightSelectionMatches(),
         bracketMatching(),
         closeBrackets(),
         autocompletion(),

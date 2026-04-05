@@ -157,7 +157,9 @@ export const WorkspaceTemplatePicker: React.FC<WorkspaceTemplatePickerProps> = (
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveName, setSaveName] = useState('');
 
-  const allTemplates = [...WORKSPACE_TEMPLATES, ...customTemplates];
+  const builtinCustom = WORKSPACE_TEMPLATES.find((t) => t.id === 'custom');
+  const builtinOthers = WORKSPACE_TEMPLATES.filter((t) => t.id !== 'custom');
+  const allTemplates = [...builtinOthers, ...customTemplates, ...(builtinCustom ? [builtinCustom] : [])];
 
   const handleSave = useCallback(() => {
     if (!saveName.trim()) return;

@@ -9,6 +9,9 @@ import {
   replaceAll,
 } from '@codemirror/search';
 
+const MAX_MATCH_COUNT = 10000;
+const SEARCH_DEBOUNCE_MS = 150;
+
 interface FindReplaceBarProps {
   view: EditorView | null;
   theme: 'dark' | 'light';
@@ -39,6 +42,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
   const [currentMatch, setCurrentMatch] = useState(0);
   const [showReplace, setShowReplace] = useState(showReplaceInitially);
   const [isValidRegex, setIsValidRegex] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
@@ -58,7 +62,10 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
     let count = 0;
     try {
       const cursor = query.getCursor(doc);
-      while (cursor.next()) count++;
+      while (cursor.next()) {
+        count++;
+        if (count >= MAX_MATCH_COUNT) break;
+      }
     } catch {
       return -1;
     }
@@ -78,38 +85,46 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
       setMatchCount(null);
       setCurrentMatch(0);
       setIsValidRegex(true);
+      setIsSearching(false);
       return;
     }
 
-    let query: SearchQuery;
-    try {
-      query = new SearchQuery({
-        search: searchTerm,
-        caseSensitive,
-        regexp: useRegex,
-        wholeWord,
-      });
-      new RegExp(searchTerm);
-      setIsValidRegex(true);
-    } catch {
-      applySearchQuery(new SearchQuery({ search: '' }));
-      setMatchCount(null);
-      setCurrentMatch(0);
-      setIsValidRegex(false);
-      return;
-    }
+    setIsSearching(true);
 
-    applySearchQuery(query);
+    const timer = setTimeout(() => {
+      let query: SearchQuery;
+      try {
+        query = new SearchQuery({
+          search: searchTerm,
+          caseSensitive,
+          regexp: useRegex,
+          wholeWord,
+        });
+        setIsValidRegex(true);
+      } catch {
+        applySearchQuery(new SearchQuery({ search: '' }));
+        setMatchCount(null);
+        setCurrentMatch(0);
+        setIsValidRegex(false);
+        setIsSearching(false);
+        return;
+      }
 
-    const count = countMatches(query, view.state.doc);
-    setMatchCount(count);
+      applySearchQuery(query);
 
-    if (count > 0) {
-      findNext(view);
-      setCurrentMatch(1);
-    } else {
-      setCurrentMatch(0);
-    }
+      const count = countMatches(query, view.state.doc);
+      setMatchCount(count);
+
+      if (count > 0) {
+        findNext(view);
+        setCurrentMatch(1);
+      } else {
+        setCurrentMatch(0);
+      }
+      setIsSearching(false);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
   }, [searchTerm, caseSensitive, wholeWord, useRegex, view, countMatches, applySearchQuery]);
 
   const handleFindNext = useCallback(() => {
@@ -259,11 +274,13 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
   const matchLabel = (() => {
     if (searchTerm === '') return null;
     if (!isValidRegex && useRegex) return <span className="text-red-400/80 text-[10px] font-mono">Invalid</span>;
+    if (isSearching) return <span className={`text-[10px] font-mono ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`}>...</span>;
     if (matchCount === null) return null;
     if (matchCount === 0) return <span className="text-red-400/70 text-[10px] font-mono">No results</span>;
+    const displayCount = matchCount >= MAX_MATCH_COUNT ? `${MAX_MATCH_COUNT.toLocaleString()}+` : matchCount;
     return (
       <span className={`text-[10px] font-mono tabular-nums ${isDark ? 'text-zinc-500' : 'text-zinc-400'}`}>
-        {currentMatch}<span className="opacity-40">/</span>{matchCount}
+        {currentMatch}<span className="opacity-40">/</span>{displayCount}
       </span>
     );
   })();

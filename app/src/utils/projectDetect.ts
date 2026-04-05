@@ -159,6 +159,17 @@ async function detectNodeProject(
   const fileNames = new Set([...names, ...entries.map((e) => e.name)]);
   let label = 'Node';
 
+  const isTauri =
+    entries.some((e) => e.name === 'src-tauri' && e.isDir);
+
+  if (isTauri) {
+    return {
+      devCmd: 'tauri' in scripts ? 'npm run tauri dev' : 'npx tauri dev',
+      buildCmd: 'tauri' in scripts ? 'npm run tauri build' : 'npx tauri build',
+      label: 'Tauri',
+    };
+  }
+
   if (deps['next'] || fileNames.has('next.config.js') || fileNames.has('next.config.mjs') || fileNames.has('next.config.ts')) {
     label = 'Next.js';
   } else if (deps['nuxt'] || fileNames.has('nuxt.config.ts') || fileNames.has('nuxt.config.js')) {
