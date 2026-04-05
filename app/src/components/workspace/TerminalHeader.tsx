@@ -1,6 +1,5 @@
 import React from 'react';
 import { AgentType, TerminalSession } from '../../types';
-import { QuickActions } from './QuickActions';
 
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
@@ -106,8 +105,6 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       </div>
 
       <div className="flex items-center shrink-0 gap-1 ml-2">
-        <QuickActions sessionId={session.id} cwd={session.cwd} theme={theme} />
-        <div className="h-3 w-px bg-zinc-800/50" />
         {session.agent && (
           <button
             onClick={onRefreshCli}
