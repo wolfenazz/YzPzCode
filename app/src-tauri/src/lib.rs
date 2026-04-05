@@ -148,6 +148,7 @@ pub fn run() {
             commands::git_stage_file,
             commands::git_unstage_file,
             commands::get_available_shells,
+            commands::import_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

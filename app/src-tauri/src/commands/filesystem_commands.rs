@@ -108,3 +108,12 @@ pub async fn git_stage_file(workspace_path: String, file_path: String) -> Result
 pub async fn git_unstage_file(workspace_path: String, file_path: String) -> Result<(), String> {
     filesystem::git_status::git_unstage_file(&workspace_path, &file_path)
 }
+
+#[tauri::command]
+pub async fn import_files(
+    source_paths: Vec<String>,
+    destination_dir: String,
+) -> Result<Vec<String>, String> {
+    filesystem::operations::import_entries(&source_paths, &destination_dir)
+        .map_err(|e| e.to_string())
+}

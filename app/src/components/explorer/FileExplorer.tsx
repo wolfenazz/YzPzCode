@@ -40,6 +40,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     deleteEntry,
     revealInFileManager,
     refreshRoot,
+    importExternalFiles,
   } = useFileTree(workspacePath);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,6 +50,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     y: number;
     node: TreeNodeData | null;
   } | null>(null);
+  const [externalDropTarget, setExternalDropTarget] = useState<string | null>(null);
+  const [isExternalDrag, setIsExternalDrag] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [treeSize, setTreeSize] = useState({ width: 300, height: 400 });
@@ -236,14 +239,85 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     [workspacePath, setGitStatuses, setGitDiffStats]
   );
 
+  const findExternalDropTarget = useCallback(
+    (e: React.DragEvent): string => {
+      const target = e.target as HTMLElement;
+      const row = target.closest('[data-file-path]') as HTMLElement | null;
+      if (row) {
+        const path = row.dataset.filePath!;
+        const isDir = row.dataset.isDir === 'true';
+        if (isDir) return path;
+        const sep = path.includes('\\') ? '\\' : '/';
+        const lastSep = path.lastIndexOf(sep);
+        if (lastSep > 0) return path.substring(0, lastSep);
+      }
+      return workspacePath;
+    },
+    [workspacePath]
+  );
+
+  const handleExternalDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'copy';
+      if (!isExternalDrag) setIsExternalDrag(true);
+      const targetPath = findExternalDropTarget(e);
+      setExternalDropTarget((prev) => (prev !== targetPath ? targetPath : prev));
+    },
+    [isExternalDrag, findExternalDropTarget]
+  );
+
+  const handleExternalDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      const relatedTarget = e.relatedTarget as HTMLElement | null;
+      if (relatedTarget && containerRef.current?.contains(relatedTarget)) return;
+      setIsExternalDrag(false);
+      setExternalDropTarget(null);
+    },
+    []
+  );
+
+  const handleExternalDrop = useCallback(
+    async (e: React.DragEvent) => {
+      if (!e.dataTransfer.types.includes('Files')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setIsExternalDrag(false);
+      setExternalDropTarget(null);
+
+      const targetDir = findExternalDropTarget(e);
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      const paths: string[] = [];
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i] as File & { path?: string };
+        if (file.path) {
+          paths.push(file.path);
+        } else if (file.name) {
+          paths.push(file.name);
+        }
+      }
+
+      if (paths.length > 0) {
+        await importExternalFiles(paths, targetDir);
+      }
+    },
+    [findExternalDropTarget, importExternalFiles]
+  );
+
   const explorerContextValue = useMemo(
     () => ({
       onFileClick,
       gitStatuses,
       activeFilePath,
       onContextMenu: handleContextMenu,
+      externalDropTarget,
     }),
-    [onFileClick, gitStatuses, activeFilePath, handleContextMenu]
+    [onFileClick, gitStatuses, activeFilePath, handleContextMenu, externalDropTarget]
   );
 
   return (
@@ -377,7 +451,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 relative bg-zinc-950/20" ref={containerRef}>
+      <div
+        className="flex-1 min-h-0 relative bg-zinc-950/20"
+        ref={containerRef}
+        onDragOver={handleExternalDragOver}
+        onDragLeave={handleExternalDragLeave}
+        onDrop={handleExternalDrop}
+      >
         {isLoading && treeData.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <svg
@@ -420,9 +500,26 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               onMove={handleMove}
               onRename={handleRename}
               onDelete={handleDelete}
-              disableDrop={({ parentNode }) =>
-                parentNode !== null && parentNode.isLeaf
-              }
+              disableDrop={({ parentNode, dragNodes }) => {
+                if (parentNode !== null && parentNode.isLeaf) return true;
+                for (const drag of dragNodes) {
+                  if (!drag) continue;
+                  if (drag.isInternal && parentNode) {
+                    if (drag.id === parentNode.id) return true;
+                    const dragPath = (drag.data as TreeNodeData | undefined)?.path;
+                    const parentPath = (parentNode.data as TreeNodeData | undefined)?.path;
+                    if (
+                      dragPath &&
+                      parentPath &&
+                      (parentPath.startsWith(dragPath + '/') ||
+                        parentPath.startsWith(dragPath + '\\'))
+                    ) {
+                      return true;
+                    }
+                  }
+                }
+                return false;
+              }}
               padding={4}
               overscanCount={10}
             >
@@ -450,6 +547,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           onCopyAsImportPath={handleCopyAsImportPath}
           containerRef={containerRef}
         />
+
+        {isExternalDrag && (
+          <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-blue-500/40 rounded-md z-40 bg-blue-500/5" />
+        )}
       </div>
 
       <GitChangesPanel

@@ -13,12 +13,13 @@ import { markdown } from '@codemirror/lang-markdown';
 import { java } from '@codemirror/lang-java';
 import { cpp } from '@codemirror/lang-cpp';
 import { closeBrackets, closeBracketsKeymap, autocompletion } from '@codemirror/autocomplete';
-import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
-import { searchKeymap, highlightSelectionMatches, openSearchPanel } from '@codemirror/search';
+import { defaultKeymap, history, historyKeymap, indentWithTab, standardKeymap } from '@codemirror/commands';
+import { search, findNext, findPrevious, setSearchQuery, SearchQuery, highlightSelectionMatches } from '@codemirror/search';
 import { showMinimap } from '@replit/codemirror-minimap';
 import { useAppStore } from '../../stores/appStore';
 import { EditorTabs } from './EditorTabs';
 import { MarkdownPreview } from './MarkdownPreview';
+import { FindReplaceBar } from './FindReplaceBar';
 import { ImagePreview, isImageFile } from './ImagePreview';
 import { PdfPreview } from './PdfPreview';
 import { DocxPreview } from './DocxPreview';
@@ -42,6 +43,33 @@ const languageCompartment = new Compartment();
 const themeCompartment = new Compartment();
 const wordWrapCompartment = new Compartment();
 const minimapCompartment = new Compartment();
+
+const editorBaseTheme = EditorView.baseTheme({
+  '&dark .cm-selectionBackground': {
+    background: 'rgba(75, 93, 173, 0.5) !important',
+  },
+  '&dark .cm-focused .cm-selectionBackground': {
+    background: 'rgba(88, 109, 211, 0.6) !important',
+  },
+  '&dark .cm-selectionMatch': {
+    background: 'rgba(99, 102, 241, 0.25)',
+  },
+  '&dark .cm-focused .cm-selectionMatch': {
+    background: 'rgba(99, 102, 241, 0.35)',
+  },
+  '&light .cm-selectionBackground': {
+    background: 'rgba(59, 130, 246, 0.3) !important',
+  },
+  '&light .cm-focused .cm-selectionBackground': {
+    background: 'rgba(59, 130, 246, 0.45) !important',
+  },
+  '&light .cm-selectionMatch': {
+    background: 'rgba(37, 99, 235, 0.18)',
+  },
+  '&light .cm-focused .cm-selectionMatch': {
+    background: 'rgba(37, 99, 235, 0.28)',
+  },
+});
 
 const darkEditorTheme = EditorView.theme({
   '&': {
@@ -71,14 +99,9 @@ const darkEditorTheme = EditorView.theme({
   '.cm-activeLine': {
     backgroundColor: 'rgba(63, 63, 70, 0.15)',
   },
-  '.cm-selectionBackground': {
-    backgroundColor: '#27272a !important',
-  },
-  '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: '#27272a !important',
-  },
   '.cm-cursor': {
     borderLeftColor: '#a1a1aa',
+    borderLeftWidth: '2px',
   },
   '.cm-line': {
     padding: '0 4px',
@@ -116,14 +139,9 @@ const lightEditorTheme = EditorView.theme({
   '.cm-activeLine': {
     backgroundColor: 'rgba(24, 24, 27, 0.08)',
   },
-  '.cm-selectionBackground': {
-    backgroundColor: '#93c5fd !important',
-  },
-  '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: '#93c5fd !important',
-  },
   '.cm-cursor': {
     borderLeftColor: '#2563eb',
+    borderLeftWidth: '2px',
   },
   '.cm-line': {
     padding: '0 4px',
@@ -157,10 +175,11 @@ const getExtension = (name: string): string | null => {
   return null;
 };
 
-const getThemeExtensions = (t: string): any => {
-  return t === 'light'
-    ? [lightEditorTheme, lightHighlightStyle, syntaxHighlighting(defaultHighlightStyle, { fallback: true })]
-    : [darkEditorTheme, oneDark];
+const getThemeExtensions = (t: string): any[] => {
+  if (t === 'light') {
+    return [lightEditorTheme, lightHighlightStyle, syntaxHighlighting(defaultHighlightStyle, { fallback: true })];
+  }
+  return [oneDark, darkEditorTheme];
 };
 
 function getMinimapExtension(enabled: boolean) {
@@ -204,6 +223,8 @@ export const FileEditor: React.FC = () => {
 
   const [mdPreview, setMdPreview] = useState(false);
   const [wordWrap, setWordWrap] = useState(false);
+  const [showFindBar, setShowFindBar] = useState(false);
+  const [showReplaceBar, setShowReplaceBar] = useState(false);
 
   const activeFile = openFiles.find((f) => f.path === activeFilePath);
   const fileExt = activeFile ? getExtension(activeFile.name) : null;
@@ -248,6 +269,7 @@ export const FileEditor: React.FC = () => {
     const state = EditorState.create({
       doc: activeFile.content,
       extensions: [
+        editorBaseTheme,
         themeCompartment.of(getThemeExtensions(theme)),
         languageCompartment.of(langExt),
         wordWrapCompartment.of(wordWrap ? EditorView.lineWrapping : []),
@@ -256,19 +278,52 @@ export const FileEditor: React.FC = () => {
         highlightActiveLine(),
         highlightActiveLineGutter(),
         drawSelection(),
+        highlightSelectionMatches(),
         bracketMatching(),
         closeBrackets(),
         autocompletion(),
         history(),
         indentOnInput(),
-        highlightSelectionMatches(),
+        search(),
         foldGutter(),
         keymap.of([
           ...closeBracketsKeymap,
           ...defaultKeymap,
-          ...searchKeymap,
+          ...standardKeymap,
           ...historyKeymap,
           indentWithTab,
+          {
+            key: 'Mod-f',
+            run: () => {
+              setShowReplaceBar(false);
+              setShowFindBar(true);
+              return true;
+            },
+          },
+          {
+            key: 'Mod-h',
+            run: () => {
+              setShowReplaceBar(true);
+              setShowFindBar(true);
+              return true;
+            },
+          },
+          {
+            key: 'F3',
+            run: () => {
+              const v = viewRef.current;
+              if (v) { findNext(v); return true; }
+              return false;
+            },
+          },
+          {
+            key: 'Shift-F3',
+            run: () => {
+              const v = viewRef.current;
+              if (v) { findPrevious(v); return true; }
+              return false;
+            },
+          },
           {
             key: 'Mod-s',
             run: () => {
@@ -425,9 +480,12 @@ export const FileEditor: React.FC = () => {
             {showEditor && !isMarkdown && (
               <>
                 <button
-                  onClick={() => viewRef.current && openSearchPanel(viewRef.current)}
+                  onClick={() => {
+                    setShowReplaceBar(false);
+                    setShowFindBar(true);
+                  }}
                   className={toolbarBtnClass(false)}
-                  title="Find & Replace (Ctrl-F)"
+                  title="Find & Replace (Ctrl+F)"
                   aria-label="Find and replace"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -507,9 +565,25 @@ export const FileEditor: React.FC = () => {
       <div className="flex-1 relative min-h-0 overflow-hidden">
         <div
           ref={editorRef}
-          className={`absolute inset-0 ${theme === 'light' ? 'bg-gray-300' : 'bg-[#09090b]'}`}
+          className={`absolute inset-0 ${theme === 'light' ? 'bg-gray-300' : 'bg-[#09090b]'} [&_.cm-panels]:hidden`}
           style={{ visibility: showEditor ? 'visible' : 'hidden' }}
         />
+
+        {showFindBar && showEditor && (
+          <FindReplaceBar
+            view={viewRef.current}
+            theme={theme === 'light' ? 'light' : 'dark'}
+            onClose={() => {
+              setShowFindBar(false);
+              setShowReplaceBar(false);
+              if (viewRef.current) {
+                viewRef.current.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
+                viewRef.current.focus();
+              }
+            }}
+            showReplaceInitially={showReplaceBar}
+          />
+        )}
 
         {activeFile && isImage && (
           <ImagePreview

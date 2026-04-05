@@ -161,7 +161,9 @@ pub async fn get_available_shells() -> Result<Vec<ShellOption>, String> {
             ("Git Bash", "bash"),
         ];
         for (name, binary) in candidates {
-            let path = which::which(binary).ok().map(|p| p.to_string_lossy().to_string());
+            let path = which::which(binary)
+                .ok()
+                .map(|p| p.to_string_lossy().to_string());
             shells.push(ShellOption {
                 name: name.to_string(),
                 path: path.clone().unwrap_or_default(),
@@ -180,7 +182,10 @@ pub async fn get_available_shells() -> Result<Vec<ShellOption>, String> {
         ];
         for (name, path) in candidates {
             let available = std::path::Path::new(path).exists() || which::which(name).is_ok();
-            let resolved = which::which(name).ok().map(|p| p.to_string_lossy().to_string()).unwrap_or(path.to_string());
+            let resolved = which::which(name)
+                .ok()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or(path.to_string());
             shells.push(ShellOption {
                 name: name.to_string(),
                 path: resolved,
@@ -199,7 +204,10 @@ pub async fn get_available_shells() -> Result<Vec<ShellOption>, String> {
         ];
         for (name, path) in candidates {
             let available = std::path::Path::new(path).exists() || which::which(name).is_ok();
-            let resolved = which::which(name).ok().map(|p| p.to_string_lossy().to_string()).unwrap_or(path.to_string());
+            let resolved = which::which(name)
+                .ok()
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or(path.to_string());
             shells.push(ShellOption {
                 name: name.to_string(),
                 path: resolved,

@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useRef, useEffect, memo } from 'react';
+import React, { useCallback, useContext, useRef, useEffect, useState, memo } from 'react';
 import { motion } from 'framer-motion';
 import type { NodeRendererProps } from 'react-arborist';
 import type { TreeNodeData } from '../../hooks/useFileTree';
@@ -11,6 +11,7 @@ interface ExplorerContextValue {
   gitStatuses: { path: string; change: 'added' | 'modified' | 'deleted' | 'untracked' }[];
   activeFilePath: string | null;
   onContextMenu: (e: React.MouseEvent, nodeData: TreeNodeData) => void;
+  externalDropTarget: string | null;
 }
 
 export const ExplorerContext = React.createContext<ExplorerContextValue>({
@@ -18,6 +19,7 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
   gitStatuses: [],
   activeFilePath: null,
   onContextMenu: () => {},
+  externalDropTarget: null,
 });
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
@@ -104,10 +106,31 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   dragHandle,
 }) => {
   const ctx = useContext(ExplorerContext);
-  const { onFileClick, gitStatuses, activeFilePath, onContextMenu } = ctx;
+  const { onFileClick, gitStatuses, activeFilePath, onContextMenu, externalDropTarget } = ctx;
   const data = node.data;
   const isActive = activeFilePath === data.id;
   const gitChange = gitStatuses.find((g) => g.path === data.id)?.change;
+  const willReceiveDrop = node.willReceiveDrop;
+  const isExternalTarget = externalDropTarget === data.id && data.isDir;
+
+  const [autoExpandTimer, setAutoExpandTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (willReceiveDrop && data.isDir && node.isClosed) {
+      const timer = setTimeout(() => {
+        node.toggle();
+      }, 600);
+      setAutoExpandTimer(timer);
+      return () => {
+        clearTimeout(timer);
+        setAutoExpandTimer(null);
+      };
+    }
+    if (!willReceiveDrop && autoExpandTimer) {
+      clearTimeout(autoExpandTimer);
+      setAutoExpandTimer(null);
+    }
+  }, [willReceiveDrop, data.isDir, node.isClosed]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -154,25 +177,39 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
     node.reset();
   }, [node]);
 
+  const dropHighlight = willReceiveDrop || isExternalTarget;
+
   return (
     <div
       ref={dragHandle}
       role="treeitem"
       aria-expanded={data.isDir ? node.isOpen : undefined}
+      data-file-path={data.path}
+      data-is-dir={data.isDir ? 'true' : undefined}
       style={{
         ...style,
         paddingLeft: 0,
       }}
-      className={`flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-100 rounded-sm mx-1 ${
+      className={`flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-100 rounded-sm mx-1 relative ${
         isActive
           ? 'bg-zinc-800 text-zinc-100'
-          : node.willReceiveDrop
-            ? 'bg-zinc-700/30 text-zinc-300'
+          : dropHighlight
+            ? 'bg-blue-500/15 text-blue-300 ring-1 ring-inset ring-blue-500/50'
             : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
       }`}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
+      {dropHighlight && data.isDir && (
+        <motion.div
+          className="absolute inset-0 rounded-sm border-2 border-blue-500/60 pointer-events-none"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          style={{ margin: '0 4px' }}
+        />
+      )}
       <IndentGuides level={node.level} />
 
       <div className="flex items-center gap-1.5 py-1 flex-1 min-w-0 pl-1">

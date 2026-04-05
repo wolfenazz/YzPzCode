@@ -81,7 +81,7 @@ impl AgentCliDetector {
                         info.status = CliStatus::Installed;
                         info.version = provider
                             .get_npm_package_name()
-                            .and_then(|pkg| Self::get_npm_version(pkg))
+                            .and_then(Self::get_npm_version)
                             .or_else(|| Some("unknown".to_string()));
                     }
                 }

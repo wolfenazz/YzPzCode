@@ -183,3 +183,61 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     }
     Ok(())
 }
+
+pub fn import_entries(source_paths: &[String], destination_dir: &str) -> Result<Vec<String>> {
+    validate_no_path_traversal(destination_dir)?;
+    let dest_dir = Path::new(destination_dir);
+    if !dest_dir.is_dir() {
+        return Err(anyhow::anyhow!(
+            "Destination is not a directory: {}",
+            destination_dir
+        ));
+    }
+
+    let mut imported = Vec::new();
+
+    for source_path in source_paths {
+        let source = Path::new(source_path);
+        if !source.exists() {
+            continue;
+        }
+
+        let file_name = source
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("Invalid source path: {}", source_path))?;
+        let mut dest_path = dest_dir.join(file_name);
+
+        if dest_path.exists() {
+            let stem = source
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            let ext = source
+                .extension()
+                .map(|e| format!(".{}", e.to_string_lossy()));
+            let mut counter = 1;
+            loop {
+                let new_name = if source.is_dir() {
+                    format!("{} ({})", stem, counter)
+                } else {
+                    format!("{} ({}){}", stem, counter, ext.as_deref().unwrap_or(""))
+                };
+                dest_path = dest_dir.join(&new_name);
+                if !dest_path.exists() {
+                    break;
+                }
+                counter += 1;
+            }
+        }
+
+        if source.is_dir() {
+            copy_dir_recursive(source, &dest_path)?;
+        } else {
+            fs::copy(source, &dest_path)?;
+        }
+
+        imported.push(dest_path.to_string_lossy().to_string());
+    }
+
+    Ok(imported)
+}

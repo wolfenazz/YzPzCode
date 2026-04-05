@@ -339,6 +339,19 @@ export function useFileTree(workspacePath: string | null) {
     }
   }, []);
 
+  const importExternalFiles = useCallback(
+    async (sourcePaths: string[], destinationDir: string) => {
+      try {
+        await invoke('import_files', { sourcePaths, destinationDir });
+        loadRoot();
+      } catch (err) {
+        console.error('Failed to import files:', err);
+        loadRoot();
+      }
+    },
+    [loadRoot]
+  );
+
   return {
     treeData,
     isLoading,
@@ -352,5 +365,6 @@ export function useFileTree(workspacePath: string | null) {
     renameEntry,
     revealInFileManager,
     refreshRoot: loadRoot,
+    importExternalFiles,
   };
 }

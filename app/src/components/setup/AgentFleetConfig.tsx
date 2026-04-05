@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion } from 'framer-motion';
 import { AgentType, AgentFleet } from '../../types';
@@ -85,21 +85,19 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     }
   }, [installProgress]);
 
-  const isTemplateSyncRef = useRef(false);
-
   useEffect(() => {
-    if (isTemplateSyncRef.current) {
-      isTemplateSyncRef.current = false;
-      return;
+    if (templateAllocation) {
+      setAllocationFromTemplate(templateAllocation);
+      onAllocationChange({ totalSlots, allocation: templateAllocation });
+    } else {
+      onAllocationChange(getAgentFleet());
     }
-    onAllocationChange(getAgentFleet());
-  }, [allocation, totalSlots, onAllocationChange, getAgentFleet]);
+  }, [templateAllocation, totalSlots, onAllocationChange, setAllocationFromTemplate, getAgentFleet]);
 
   useEffect(() => {
-    if (!templateAllocation) return;
-    isTemplateSyncRef.current = true;
-    setAllocationFromTemplate(templateAllocation);
-  }, [templateAllocation, setAllocationFromTemplate]);
+    if (templateAllocation) return;
+    onAllocationChange(getAgentFleet());
+  }, [allocation, totalSlots, onAllocationChange, getAgentFleet, templateAllocation]);
 
   useEffect(() => {
     if (!autoFillTrigger) return;

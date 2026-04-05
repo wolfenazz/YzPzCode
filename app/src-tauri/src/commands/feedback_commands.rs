@@ -129,7 +129,7 @@ fn get_windows_version() -> String {
                     let build = version_part.split('.').nth(2).unwrap_or("0");
                     let build_num: u32 = build
                         .chars()
-                        .filter(|c| c.is_digit(10))
+                        .filter(|c| c.is_ascii_digit())
                         .collect::<String>()
                         .parse()
                         .unwrap_or(0);
