@@ -17,11 +17,12 @@ import { FileEntry } from '../../types';
 interface WorkspaceProps {
   isWindows: boolean;
   onDocsClick: () => void;
+  onSettingsClick: () => void;
 }
 
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
     currentWorkspace,
     openWorkspaces,
@@ -230,6 +231,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick }) 
         onWorkspaceClose={handleWorkspaceClose}
         onNewWorkspace={handleNewWorkspace}
         onDocsClick={onDocsClick}
+        onSettingsClick={onSettingsClick}
         isWindows={isWindows}
         onThemeToggle={toggleTheme}
         theme={theme}

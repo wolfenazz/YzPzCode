@@ -12,8 +12,8 @@ interface AppState {
   activeSessionId: string | null;
   activeSessionByWorkspace: Record<string, string | null>;
   isLoadingTerminals: boolean;
-  view: "setup" | "workspace" | "docs";
-  previousView: "setup" | "workspace" | null;
+  view: "setup" | "workspace" | "docs" | "settings";
+  previousView: "setup" | "workspace" | "settings" | null;
   lastOpenedWorkspaceId: string | null;
   terminalError: string | null;
 
@@ -26,11 +26,42 @@ interface AppState {
   selectedIdes: IdeType[];
   ideStatuses: Record<IdeType, IdeInfo | null>;
   autoSave: boolean;
+  autoSaveDelay: number;
   showMinimap: boolean;
   customCursor: boolean;
+  accentColor: string;
+  uiDensity: "compact" | "comfortable" | "spacious";
+  animationsEnabled: boolean;
+  terminalFontFamily: string;
+  terminalFontSize: number;
+  terminalCursorStyle: "block" | "underline" | "bar";
+  terminalCursorBlink: boolean;
+  terminalScrollbackSize: number;
+  terminalCopyOnSelect: boolean;
+  terminalPasteOnRightClick: boolean;
+  terminalBellEnabled: boolean;
+  terminalOpacity: number;
+  terminalWordWrap: boolean;
+  editorFontFamily: string;
+  editorFontSize: number;
+  editorTabSize: number;
+  editorWordWrap: boolean;
+  editorLineNumbers: "on" | "off" | "relative";
+  editorBracketColorization: boolean;
+  editorFormatOnSave: boolean;
+  editorTrimWhitespace: boolean;
+  confirmBeforeClose: boolean;
+  saveWorkspaceState: boolean;
+  defaultLayoutTemplate: string;
+  defaultWorkspaceDirectory: string;
+  agentTimeout: number;
+  launchIdeOnWorkspaceCreation: boolean;
+  autoCheckUpdates: boolean;
+  autoDownloadUpdates: boolean;
+  updateChannel: "stable" | "beta" | "nightly";
 
-  setView: (view: "setup" | "workspace" | "docs") => void;
-  setViewWithPrevious: (view: "docs") => void;
+  setView: (view: "setup" | "workspace" | "docs" | "settings") => void;
+  setViewWithPrevious: (view: "docs" | "settings") => void;
   setCurrentWorkspace: (workspace: WorkspaceConfig | null) => void;
   setSessions: (sessions: TerminalSession[]) => void;
   addSession: (session: TerminalSession) => void;
@@ -45,8 +76,39 @@ interface AppState {
   clearCurrentWorkspace: () => void;
   toggleTheme: () => void;
   setAutoSave: (enabled: boolean) => void;
+  setAutoSaveDelay: (delay: number) => void;
   setShowMinimap: (show: boolean) => void;
   setCustomCursor: (enabled: boolean) => void;
+  setAccentColor: (color: string) => void;
+  setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
+  setAnimationsEnabled: (enabled: boolean) => void;
+  setTerminalFontFamily: (font: string) => void;
+  setTerminalFontSize: (size: number) => void;
+  setTerminalCursorStyle: (style: "block" | "underline" | "bar") => void;
+  setTerminalCursorBlink: (blink: boolean) => void;
+  setTerminalScrollbackSize: (size: number) => void;
+  setTerminalCopyOnSelect: (enabled: boolean) => void;
+  setTerminalPasteOnRightClick: (enabled: boolean) => void;
+  setTerminalBellEnabled: (enabled: boolean) => void;
+  setTerminalOpacity: (opacity: number) => void;
+  setTerminalWordWrap: (enabled: boolean) => void;
+  setEditorFontFamily: (font: string) => void;
+  setEditorFontSize: (size: number) => void;
+  setEditorTabSize: (size: number) => void;
+  setEditorWordWrap: (enabled: boolean) => void;
+  setEditorLineNumbers: (mode: "on" | "off" | "relative") => void;
+  setEditorBracketColorization: (enabled: boolean) => void;
+  setEditorFormatOnSave: (enabled: boolean) => void;
+  setEditorTrimWhitespace: (enabled: boolean) => void;
+  setConfirmBeforeClose: (enabled: boolean) => void;
+  setSaveWorkspaceState: (enabled: boolean) => void;
+  setDefaultLayoutTemplate: (template: string) => void;
+  setDefaultWorkspaceDirectory: (path: string) => void;
+  setAgentTimeout: (timeout: number) => void;
+  setLaunchIdeOnWorkspaceCreation: (enabled: boolean) => void;
+  setAutoCheckUpdates: (enabled: boolean) => void;
+  setAutoDownloadUpdates: (enabled: boolean) => void;
+  setUpdateChannel: (channel: "stable" | "beta" | "nightly") => void;
 
   openWorkspace: (workspace: WorkspaceConfig) => void;
   closeWorkspace: (workspaceId: string) => void;
@@ -129,8 +191,39 @@ export const useAppStore = create<AppState>()(
       theme: "dark",
       selectedIdes: [],
       autoSave: true,
+      autoSaveDelay: 1000,
       showMinimap: true,
       customCursor: true,
+      accentColor: "default",
+      uiDensity: "comfortable",
+      animationsEnabled: true,
+      terminalFontFamily: "JetBrains Mono",
+      terminalFontSize: 14,
+      terminalCursorStyle: "block",
+      terminalCursorBlink: true,
+      terminalScrollbackSize: 10000,
+      terminalCopyOnSelect: false,
+      terminalPasteOnRightClick: false,
+      terminalBellEnabled: true,
+      terminalOpacity: 100,
+      terminalWordWrap: false,
+      editorFontFamily: "JetBrains Mono",
+      editorFontSize: 14,
+      editorTabSize: 2,
+      editorWordWrap: false,
+      editorLineNumbers: "on",
+      editorBracketColorization: true,
+      editorFormatOnSave: false,
+      editorTrimWhitespace: true,
+      confirmBeforeClose: true,
+      saveWorkspaceState: true,
+      defaultLayoutTemplate: "custom",
+      defaultWorkspaceDirectory: "",
+      agentTimeout: 300,
+      launchIdeOnWorkspaceCreation: true,
+      autoCheckUpdates: true,
+      autoDownloadUpdates: false,
+      updateChannel: "stable",
       ideStatuses: {
         vsCode: null,
         visualStudio: null,
@@ -146,7 +239,7 @@ export const useAppStore = create<AppState>()(
 
       setView: (view) => set({ view }),
       setViewWithPrevious: (view) => set((state) => ({ 
-        previousView: state.view === "docs" ? state.previousView : state.view as "setup" | "workspace",
+        previousView: state.view === "docs" || state.view === "settings" ? state.previousView : state.view as "setup" | "workspace" | "settings",
         view 
       })),
       setCurrentWorkspace: (workspace) => set({
@@ -260,8 +353,39 @@ export const useAppStore = create<AppState>()(
 
       toggleTheme: () => set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
       setAutoSave: (enabled) => set({ autoSave: enabled }),
+      setAutoSaveDelay: (delay) => set({ autoSaveDelay: delay }),
       setShowMinimap: (show) => set({ showMinimap: show }),
       setCustomCursor: (enabled) => set({ customCursor: enabled }),
+      setAccentColor: (color) => set({ accentColor: color }),
+      setUiDensity: (density) => set({ uiDensity: density }),
+      setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
+      setTerminalFontFamily: (font) => set({ terminalFontFamily: font }),
+      setTerminalFontSize: (size) => set({ terminalFontSize: size }),
+      setTerminalCursorStyle: (style) => set({ terminalCursorStyle: style }),
+      setTerminalCursorBlink: (blink) => set({ terminalCursorBlink: blink }),
+      setTerminalScrollbackSize: (size) => set({ terminalScrollbackSize: size }),
+      setTerminalCopyOnSelect: (enabled) => set({ terminalCopyOnSelect: enabled }),
+      setTerminalPasteOnRightClick: (enabled) => set({ terminalPasteOnRightClick: enabled }),
+      setTerminalBellEnabled: (enabled) => set({ terminalBellEnabled: enabled }),
+      setTerminalOpacity: (opacity) => set({ terminalOpacity: opacity }),
+      setTerminalWordWrap: (enabled) => set({ terminalWordWrap: enabled }),
+      setEditorFontFamily: (font) => set({ editorFontFamily: font }),
+      setEditorFontSize: (size) => set({ editorFontSize: size }),
+      setEditorTabSize: (size) => set({ editorTabSize: size }),
+      setEditorWordWrap: (enabled) => set({ editorWordWrap: enabled }),
+      setEditorLineNumbers: (mode) => set({ editorLineNumbers: mode }),
+      setEditorBracketColorization: (enabled) => set({ editorBracketColorization: enabled }),
+      setEditorFormatOnSave: (enabled) => set({ editorFormatOnSave: enabled }),
+      setEditorTrimWhitespace: (enabled) => set({ editorTrimWhitespace: enabled }),
+      setConfirmBeforeClose: (enabled) => set({ confirmBeforeClose: enabled }),
+      setSaveWorkspaceState: (enabled) => set({ saveWorkspaceState: enabled }),
+      setDefaultLayoutTemplate: (template) => set({ defaultLayoutTemplate: template }),
+      setDefaultWorkspaceDirectory: (path) => set({ defaultWorkspaceDirectory: path }),
+      setAgentTimeout: (timeout) => set({ agentTimeout: timeout }),
+      setLaunchIdeOnWorkspaceCreation: (enabled) => set({ launchIdeOnWorkspaceCreation: enabled }),
+      setAutoCheckUpdates: (enabled) => set({ autoCheckUpdates: enabled }),
+      setAutoDownloadUpdates: (enabled) => set({ autoDownloadUpdates: enabled }),
+      setUpdateChannel: (channel) => set({ updateChannel: channel }),
 
       openWorkspace: (workspace) =>
         set((state) => {
@@ -666,8 +790,39 @@ export const useAppStore = create<AppState>()(
         theme: state.theme,
         selectedIdes: state.selectedIdes,
         autoSave: state.autoSave,
+        autoSaveDelay: state.autoSaveDelay,
         showMinimap: state.showMinimap,
         customCursor: state.customCursor,
+        accentColor: state.accentColor,
+        uiDensity: state.uiDensity,
+        animationsEnabled: state.animationsEnabled,
+        terminalFontFamily: state.terminalFontFamily,
+        terminalFontSize: state.terminalFontSize,
+        terminalCursorStyle: state.terminalCursorStyle,
+        terminalCursorBlink: state.terminalCursorBlink,
+        terminalScrollbackSize: state.terminalScrollbackSize,
+        terminalCopyOnSelect: state.terminalCopyOnSelect,
+        terminalPasteOnRightClick: state.terminalPasteOnRightClick,
+        terminalBellEnabled: state.terminalBellEnabled,
+        terminalOpacity: state.terminalOpacity,
+        terminalWordWrap: state.terminalWordWrap,
+        editorFontFamily: state.editorFontFamily,
+        editorFontSize: state.editorFontSize,
+        editorTabSize: state.editorTabSize,
+        editorWordWrap: state.editorWordWrap,
+        editorLineNumbers: state.editorLineNumbers,
+        editorBracketColorization: state.editorBracketColorization,
+        editorFormatOnSave: state.editorFormatOnSave,
+        editorTrimWhitespace: state.editorTrimWhitespace,
+        confirmBeforeClose: state.confirmBeforeClose,
+        saveWorkspaceState: state.saveWorkspaceState,
+        defaultLayoutTemplate: state.defaultLayoutTemplate,
+        defaultWorkspaceDirectory: state.defaultWorkspaceDirectory,
+        agentTimeout: state.agentTimeout,
+        launchIdeOnWorkspaceCreation: state.launchIdeOnWorkspaceCreation,
+        autoCheckUpdates: state.autoCheckUpdates,
+        autoDownloadUpdates: state.autoDownloadUpdates,
+        updateChannel: state.updateChannel,
         recentDirectories: state.recentDirectories,
       }),
     }

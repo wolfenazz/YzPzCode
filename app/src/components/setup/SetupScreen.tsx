@@ -13,9 +13,10 @@ import logo from '../../assets/YzPzCodeLogo.png';
 interface SetupScreenProps {
   isWindows: boolean;
   onDocsClick: () => void;
+  onSettingsClick: () => void;
 }
 
-export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick }) => {
+export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const { setView, theme, toggleTheme, openWorkspaces, switchWorkspace, sessionsByWorkspace, closeWorkspace, selectedIdes, ideStatuses } = useAppStore();
   const {
     selectedPath,
@@ -192,20 +193,15 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
 
         {/* Right: Controls & Utilities */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="relative group/settings">
-            <button
-              disabled
-              className="flex items-center justify-center w-10 h-full border-l border-theme text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-not-allowed group"
-            >
-              <svg className="w-4 h-4 transition-all duration-500 group-hover:rotate-180 group-hover:scale-110 group-hover:drop-shadow-[0_0_8px_rgba(161,161,170,0.3)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </button>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2.5 py-1 bg-zinc-800 border border-zinc-700 rounded-md text-[10px] font-mono text-zinc-300 tracking-wider uppercase whitespace-nowrap opacity-0 invisible group-hover/settings:opacity-100 group-hover/settings:visible transition-all duration-200 pointer-events-none shadow-xl shadow-black/40">
-              Coming Soon
-            </div>
-          </div>
+          <button
+            onClick={onSettingsClick}
+            className="group/settings flex items-center justify-center w-10 h-full border-l border-theme text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer group"
+          >
+            <svg className="w-4 h-4 transition-all duration-500 group-hover/settings:rotate-180 group-hover/settings:scale-110 group-hover/settings:drop-shadow-[0_0_8px_rgba(161,161,170,0.3)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </button>
 
           <div className="flex items-center h-full border-l border-theme">
             <ThemeToggleButton theme={theme} onToggle={toggleTheme} />

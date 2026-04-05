@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { SetupScreen } from './components/setup/SetupScreen';
 import { Workspace } from './components/workspace/Workspace';
 import { DocsScreen } from './components/docs/DocsScreen';
+import { SettingsScreen } from './components/settings/SettingsScreen';
 import { UpdateNotification } from './components/common/UpdateNotification';
 import { ContextMenu } from './components/common/ContextMenu';
 import { CustomCursor } from './components/common/CustomCursor';
 import { useAppStore } from './stores/appStore';
 import { initWindowPlatform } from './utils/window';
+import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -51,11 +53,34 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === ',') {
+        e.preventDefault();
+        setView('settings');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setView]);
+
   const handleDocsClick = () => {
     setViewWithPrevious('docs');
   };
 
+  const handleSettingsClick = () => {
+    setViewWithPrevious('settings');
+  };
+
   const handleBackFromDocs = () => {
+    if (previousView) {
+      setView(previousView);
+    } else {
+      setView('setup');
+    }
+  };
+
+  const handleBackFromSettings = () => {
     if (previousView) {
       setView(previousView);
     } else {
@@ -77,13 +102,15 @@ function App() {
           {view === 'setup' && (
             <SetupScreen 
               isWindows={isWindows} 
-              onDocsClick={handleDocsClick} 
+              onDocsClick={handleDocsClick}
+              onSettingsClick={handleSettingsClick}
             />
           )}
           {view === 'workspace' && (
             <Workspace 
               isWindows={isWindows} 
-              onDocsClick={handleDocsClick} 
+              onDocsClick={handleDocsClick}
+              onSettingsClick={handleSettingsClick}
             />
           )}
           {view === 'docs' && (
@@ -92,6 +119,15 @@ function App() {
               onBack={handleBackFromDocs}
               theme={theme}
               onThemeToggle={toggleTheme}
+            />
+          )}
+          {view === 'settings' && (
+            <SettingsScreen
+              isWindows={isWindows}
+              onBack={handleBackFromSettings}
+              onMinimizeWindow={() => minimizeWindow().catch(() => {})}
+              onMaximizeWindow={() => maximizeWindow().catch(() => {})}
+              onCloseWindow={() => closeWindow().catch(() => {})}
             />
           )}
         </motion.div>
