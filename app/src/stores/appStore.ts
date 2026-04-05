@@ -27,6 +27,7 @@ interface AppState {
   ideStatuses: Record<IdeType, IdeInfo | null>;
   autoSave: boolean;
   showMinimap: boolean;
+  independentResize: boolean;
 
   setView: (view: "setup" | "workspace" | "docs") => void;
   setViewWithPrevious: (view: "docs") => void;
@@ -45,6 +46,7 @@ interface AppState {
   toggleTheme: () => void;
   setAutoSave: (enabled: boolean) => void;
   setShowMinimap: (show: boolean) => void;
+  toggleIndependentResize: () => void;
 
   openWorkspace: (workspace: WorkspaceConfig) => void;
   closeWorkspace: (workspaceId: string) => void;
@@ -128,6 +130,7 @@ export const useAppStore = create<AppState>()(
       selectedIdes: [],
       autoSave: true,
       showMinimap: true,
+      independentResize: false,
       ideStatuses: {
         vsCode: null,
         visualStudio: null,
@@ -258,6 +261,7 @@ export const useAppStore = create<AppState>()(
       toggleTheme: () => set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
       setAutoSave: (enabled) => set({ autoSave: enabled }),
       setShowMinimap: (show) => set({ showMinimap: show }),
+      toggleIndependentResize: () => set((state) => ({ independentResize: !state.independentResize })),
 
       openWorkspace: (workspace) =>
         set((state) => {
@@ -663,6 +667,7 @@ export const useAppStore = create<AppState>()(
         selectedIdes: state.selectedIdes,
         autoSave: state.autoSave,
         showMinimap: state.showMinimap,
+        independentResize: state.independentResize,
         recentDirectories: state.recentDirectories,
       }),
     }

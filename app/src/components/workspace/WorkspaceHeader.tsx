@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { WorkspaceConfig } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
 import { ThemeToggleButton } from '../common/ThemeToggleButton';
+import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
 
 interface WorkspaceHeaderProps {
@@ -157,6 +158,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   activeView,
 }) => {
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
+  const independentResize = useAppStore((s) => s.independentResize);
+  const toggleIndependentResize = useAppStore((s) => s.toggleIndependentResize);
 
   return (
     <>
@@ -255,6 +258,21 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
             </button>
 
             <ThemeToggleButton theme={theme} onToggle={onThemeToggle} />
+
+            <button
+              onClick={toggleIndependentResize}
+              className={`flex items-center justify-center w-10 h-full transition-colors duration-150 cursor-pointer ${
+                independentResize
+                  ? 'bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20'
+                  : 'text-zinc-500 hover:bg-theme-hover hover:text-theme-main'
+              }`}
+              title={independentResize ? 'Independent Resize: ON' : 'Independent Resize: OFF'}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6h16M4 12h16M4 18h16" />
+                <path strokeLinecap="round" strokeWidth={1.5} d="M2 4v4M22 4v4M2 16v4M22 16v4" />
+              </svg>
+            </button>
 
             <button
               onClick={onViewToggle}
