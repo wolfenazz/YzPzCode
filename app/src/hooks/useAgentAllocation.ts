@@ -114,11 +114,14 @@ export const useAgentAllocation = (totalSlots: number) => {
 
   const setAllocationFromTemplate = useCallback((newAllocation: Record<AgentType, number>) => {
     setAllocation(newAllocation);
-    const enabled = new Set<AgentType>(
-      (Object.entries(newAllocation) as [AgentType, number][])
-        .filter(([, count]) => count > 0)
-        .map(([agent]) => agent)
-    );
+    const allZero = (Object.values(newAllocation) as number[]).every((count) => count === 0);
+    const enabled = allZero
+      ? new Set<AgentType>(VALID_AGENTS)
+      : new Set<AgentType>(
+          (Object.entries(newAllocation) as [AgentType, number][])
+            .filter(([, count]) => count > 0)
+            .map(([agent]) => agent)
+        );
     setEnabledAgents(enabled);
     persistAllocation(newAllocation);
   }, []);

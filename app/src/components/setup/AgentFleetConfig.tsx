@@ -85,19 +85,17 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     }
   }, [installProgress]);
 
+  // Apply template allocation only when the user selects a different template
   useEffect(() => {
     if (templateAllocation) {
       setAllocationFromTemplate(templateAllocation);
-      onAllocationChange({ totalSlots, allocation: templateAllocation });
-    } else {
-      onAllocationChange(getAgentFleet());
     }
-  }, [templateAllocation, totalSlots, onAllocationChange, setAllocationFromTemplate, getAgentFleet]);
+  }, [selectedTemplateId, templateAllocation, setAllocationFromTemplate]);
 
+  // Always notify parent of allocation changes
   useEffect(() => {
-    if (templateAllocation) return;
     onAllocationChange(getAgentFleet());
-  }, [allocation, totalSlots, onAllocationChange, getAgentFleet, templateAllocation]);
+  }, [allocation, totalSlots, onAllocationChange, getAgentFleet]);
 
   useEffect(() => {
     if (!autoFillTrigger) return;

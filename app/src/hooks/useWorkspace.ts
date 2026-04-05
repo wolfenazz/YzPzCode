@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { WorkspaceConfig, LayoutConfig, AgentFleet, AgentType } from '../types';
 import { useAppStore } from '../stores/appStore';
@@ -149,18 +149,6 @@ export const useWorkspace = () => {
       setWorkspaceName(template.name);
     }
   }, []);
-
-  useEffect(() => {
-    const allTemplates = [...WORKSPACE_TEMPLATES, ...loadCustomTemplates()];
-    const template = allTemplates.find((t) => t.id === selectedTemplateId);
-    if (template) {
-      setAgentFleet((prev) => ({
-        ...prev,
-        totalSlots: template.layout.sessions,
-        allocation: { ...template.allocation },
-      }));
-    }
-  }, [selectedTemplateId]);
 
   const saveAsCustomTemplate = useCallback((name: string) => {
     const id = `custom-${Date.now()}`;
