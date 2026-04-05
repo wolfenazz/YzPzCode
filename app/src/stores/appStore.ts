@@ -140,11 +140,13 @@ interface AppState {
   activeFileByWorkspace: Record<string, string | null>;
   activeViewByWorkspace: Record<string, "terminal" | "editor">;
   explorerClipboard: { operation: 'copy' | 'cut'; path: string; name: string; isDir: boolean } | null;
+  restoredFilePathsByWorkspace: Record<string, string[]>;
   recentDirectories: string[];
   addRecentDirectory: (path: string) => void;
   clearRecentDirectories: () => void;
   toggleExplorer: () => void;
   setExplorerClipboard: (entry: { operation: 'copy' | 'cut'; path: string; name: string; isDir: boolean } | null) => void;
+  clearRestoredFilePaths: (workspaceId: string) => void;
   setActiveView: (view: "terminal" | "editor") => void;
   openFileTab: (tab: FileTab) => void;
   closeFileTab: (path: string) => void;
@@ -530,10 +532,17 @@ export const useAppStore = create<AppState>()(
       activeFileByWorkspace: {} as Record<string, string | null>,
       activeViewByWorkspace: {} as Record<string, "terminal" | "editor">,
       explorerClipboard: null,
+      restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
 
       toggleExplorer: () => set((state) => ({ explorerOpen: !state.explorerOpen })),
       setExplorerClipboard: (entry) => set({ explorerClipboard: entry }),
+      clearRestoredFilePaths: (workspaceId) =>
+        set((state) => {
+          const updated = { ...state.restoredFilePathsByWorkspace };
+          delete updated[workspaceId];
+          return { restoredFilePathsByWorkspace: updated };
+        }),
 
       addRecentDirectory: (path) =>
         set((state) => {
@@ -789,47 +798,68 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
-      partialize: (state) => ({
-        cliStatuses: state.cliStatuses,
-        theme: state.theme,
-        selectedIdes: state.selectedIdes,
-        autoSave: state.autoSave,
-        autoSaveDelay: state.autoSaveDelay,
-        showMinimap: state.showMinimap,
-        customCursor: state.customCursor,
-        accentColor: state.accentColor,
-        uiDensity: state.uiDensity,
-        animationsEnabled: state.animationsEnabled,
-        terminalFontFamily: state.terminalFontFamily,
-        terminalFontSize: state.terminalFontSize,
-        terminalCursorStyle: state.terminalCursorStyle,
-        terminalCursorBlink: state.terminalCursorBlink,
-        terminalScrollbackSize: state.terminalScrollbackSize,
-        terminalCopyOnSelect: state.terminalCopyOnSelect,
-        terminalPasteOnRightClick: state.terminalPasteOnRightClick,
-        terminalBellEnabled: state.terminalBellEnabled,
-        terminalOpacity: state.terminalOpacity,
-        terminalWordWrap: state.terminalWordWrap,
-        editorFontFamily: state.editorFontFamily,
-        editorFontSize: state.editorFontSize,
-        editorTabSize: state.editorTabSize,
-        editorWordWrap: state.editorWordWrap,
-        editorLineNumbers: state.editorLineNumbers,
-        editorBracketColorization: state.editorBracketColorization,
-        editorFormatOnSave: state.editorFormatOnSave,
-        editorTrimWhitespace: state.editorTrimWhitespace,
-        confirmBeforeClose: state.confirmBeforeClose,
-        saveWorkspaceState: state.saveWorkspaceState,
-        defaultLayoutTemplate: state.defaultLayoutTemplate,
-        defaultWorkspaceDirectory: state.defaultWorkspaceDirectory,
-        agentTimeout: state.agentTimeout,
-        launchIdeOnWorkspaceCreation: state.launchIdeOnWorkspaceCreation,
-        autoCheckUpdates: state.autoCheckUpdates,
-        autoDownloadUpdates: state.autoDownloadUpdates,
-        updateChannel: state.updateChannel,
-        recentDirectories: state.recentDirectories,
-        setupViewMode: state.setupViewMode,
-      }),
+      partialize: (state) => {
+        const base = {
+          cliStatuses: state.cliStatuses,
+          theme: state.theme,
+          selectedIdes: state.selectedIdes,
+          autoSave: state.autoSave,
+          autoSaveDelay: state.autoSaveDelay,
+          showMinimap: state.showMinimap,
+          customCursor: state.customCursor,
+          accentColor: state.accentColor,
+          uiDensity: state.uiDensity,
+          animationsEnabled: state.animationsEnabled,
+          terminalFontFamily: state.terminalFontFamily,
+          terminalFontSize: state.terminalFontSize,
+          terminalCursorStyle: state.terminalCursorStyle,
+          terminalCursorBlink: state.terminalCursorBlink,
+          terminalScrollbackSize: state.terminalScrollbackSize,
+          terminalCopyOnSelect: state.terminalCopyOnSelect,
+          terminalPasteOnRightClick: state.terminalPasteOnRightClick,
+          terminalBellEnabled: state.terminalBellEnabled,
+          terminalOpacity: state.terminalOpacity,
+          terminalWordWrap: state.terminalWordWrap,
+          editorFontFamily: state.editorFontFamily,
+          editorFontSize: state.editorFontSize,
+          editorTabSize: state.editorTabSize,
+          editorWordWrap: state.editorWordWrap,
+          editorLineNumbers: state.editorLineNumbers,
+          editorBracketColorization: state.editorBracketColorization,
+          editorFormatOnSave: state.editorFormatOnSave,
+          editorTrimWhitespace: state.editorTrimWhitespace,
+          confirmBeforeClose: state.confirmBeforeClose,
+          saveWorkspaceState: state.saveWorkspaceState,
+          defaultLayoutTemplate: state.defaultLayoutTemplate,
+          defaultWorkspaceDirectory: state.defaultWorkspaceDirectory,
+          agentTimeout: state.agentTimeout,
+          launchIdeOnWorkspaceCreation: state.launchIdeOnWorkspaceCreation,
+          autoCheckUpdates: state.autoCheckUpdates,
+          autoDownloadUpdates: state.autoDownloadUpdates,
+          updateChannel: state.updateChannel,
+          recentDirectories: state.recentDirectories,
+        };
+
+        if (state.saveWorkspaceState) {
+          return {
+            ...base,
+            workspaceList: state.workspaceList,
+            openWorkspaces: state.openWorkspaces,
+            activeWorkspaceId: state.activeWorkspaceId,
+            lastOpenedWorkspaceId: state.lastOpenedWorkspaceId,
+            explorerOpen: state.explorerOpen,
+            activeViewByWorkspace: state.activeViewByWorkspace,
+            activeFileByWorkspace: state.activeFileByWorkspace,
+            restoredFilePathsByWorkspace: Object.fromEntries(
+              Object.entries(state.filesByWorkspace)
+                .filter(([_, files]) => files.length > 0)
+                .map(([wsId, files]) => [wsId, files.map(f => f.path)])
+            ),
+          };
+        }
+
+        return base;
+      },
     }
   )
 );

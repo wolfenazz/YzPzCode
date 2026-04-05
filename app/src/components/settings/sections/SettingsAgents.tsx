@@ -8,6 +8,7 @@ import geminiLogo from '../../../assets/gemini-cli-logo.svg';
 import opencodeLogo from '../../../assets/opencode.png';
 import cursorLogo from '../../../assets/cursor-ai.png';
 import kiloLogo from '../../../assets/kiloCode.gif';
+import { SettingsSlider } from '../../common/SettingsSlider';
 
 const AGENT_ICONS: Record<string, string> = {
   claude: claudeLogo,
@@ -156,28 +157,16 @@ export const SettingsAgents: React.FC = () => {
             Timeout
           </h3>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-300">Agent Response Timeout</p>
-              <p className="text-[10px] text-zinc-600 mt-0.5">
-                Maximum time to wait for agent response
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min="60"
-                max="600"
-                step="30"
-                value={agentTimeout}
-                onChange={(e) => setAgentTimeout(Number(e.target.value))}
-                className="w-24 accent-cyan-500/70"
-              />
-              <span className="text-xs text-cyan-400/60 w-16 text-right font-mono">
-                {agentTimeout}s
-              </span>
-            </div>
-          </div>
+          <SettingsSlider
+            label="Agent Response Timeout"
+            description="Maximum time to wait for agent response"
+            value={agentTimeout}
+            displayValue={`${agentTimeout}s`}
+            min={60}
+            max={600}
+            step={30}
+            onChange={setAgentTimeout}
+          />
         </div>
       </div>
     </div>

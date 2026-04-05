@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAppStore } from '../../../stores/appStore';
+import { SettingsToggle } from '../../common/SettingsToggle';
 
 const ACCENT_COLORS = [
   { name: 'Default', value: 'default', color: '#a1a1aa' },
@@ -20,26 +21,6 @@ const UI_DENSITIES = [
 
 const Divider = () => (
   <div className="h-px bg-gradient-to-r from-transparent via-cyan-500/20 to-transparent" />
-);
-
-const ToggleSwitch: React.FC<{
-  enabled: boolean;
-  onToggle: () => void;
-}> = ({ enabled, onToggle }) => (
-  <button
-    onClick={onToggle}
-    className={`relative w-11 h-6 rounded-full transition-all duration-300 cursor-pointer ${
-      enabled ? 'bg-cyan-500/30' : 'bg-[#1a1a2e]'
-    }`}
-  >
-    <div
-      className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${
-        enabled
-          ? 'translate-x-5 bg-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.5)]'
-          : 'translate-x-0.5 bg-zinc-500'
-      }`}
-    />
-  </button>
 );
 
 export const SettingsAppearance: React.FC = () => {
@@ -72,29 +53,12 @@ export const SettingsAppearance: React.FC = () => {
           Theme
         </h3>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-zinc-300 font-mono">Color Theme</p>
-            <p className="text-[10px] text-zinc-600 font-mono mt-0.5">Choose between dark and light mode</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">{theme}</span>
-            <button
-              onClick={toggleTheme}
-              className={`relative w-11 h-6 rounded-full transition-all duration-300 cursor-pointer ${
-                theme === 'light' ? 'bg-cyan-500/30' : 'bg-[#1a1a2e]'
-              }`}
-            >
-              <div
-                className={`absolute top-0.5 w-5 h-5 rounded-full transition-all duration-300 ${
-                  theme === 'light'
-                    ? 'translate-x-5 bg-cyan-300 shadow-[0_0_8px_rgba(6,182,212,0.5)]'
-                    : 'translate-x-0.5 bg-zinc-500'
-                }`}
-              />
-            </button>
-          </div>
-        </div>
+        <SettingsToggle
+          enabled={theme === 'light'}
+          onToggle={toggleTheme}
+          label="Color Theme"
+          description={`Currently using ${theme} mode`}
+        />
       </div>
 
       <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
@@ -160,23 +124,11 @@ export const SettingsAppearance: React.FC = () => {
         </h3>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-300 font-mono">Custom Cursor</p>
-              <p className="text-[10px] text-zinc-600 font-mono mt-0.5">Enable the custom crosshair cursor</p>
-            </div>
-            <ToggleSwitch enabled={customCursor} onToggle={() => setCustomCursor(!customCursor)} />
-          </div>
+          <SettingsToggle enabled={customCursor} onToggle={() => setCustomCursor(!customCursor)} label="Custom Cursor" description="Enable the custom crosshair cursor" />
 
           <Divider />
 
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-300 font-mono">Animations</p>
-              <p className="text-[10px] text-zinc-600 font-mono mt-0.5">Enable motion animations throughout the app</p>
-            </div>
-            <ToggleSwitch enabled={animationsEnabled} onToggle={() => setAnimationsEnabled(!animationsEnabled)} />
-          </div>
+          <SettingsToggle enabled={animationsEnabled} onToggle={() => setAnimationsEnabled(!animationsEnabled)} label="Animations" description="Enable motion animations throughout the app" />
 
           <Divider />
 

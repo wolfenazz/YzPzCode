@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '../../../stores/appStore';
 import { useUpdaterStore } from '../../../stores/updaterStore';
+import { SettingsToggle } from '../../common/SettingsToggle';
 
 export const SettingsUpdates: React.FC = () => {
   const {
@@ -36,27 +37,6 @@ export const SettingsUpdates: React.FC = () => {
       setAppVersion('dev');
     }
   }, []);
-
-  const Toggle = ({ enabled, onToggle, label, description }: { enabled: boolean; onToggle: () => void; label: string; description?: string }) => (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-xs text-zinc-300 font-mono">{label}</p>
-        {description && <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">{description}</p>}
-      </div>
-      <button
-        onClick={onToggle}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer ${
-          enabled ? 'bg-cyan-500/30' : 'bg-[#1a1a2e]'
-        }`}
-      >
-        <div
-          className={`absolute top-0.5 w-5 h-5 rounded-full bg-zinc-200 transition-transform duration-200 ${
-            enabled ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </div>
-  );
 
   const formatLastChecked = (timestamp: number) => {
     if (!timestamp) return 'Never';
@@ -133,14 +113,14 @@ export const SettingsUpdates: React.FC = () => {
           <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Preferences</h3>
 
           <div className="space-y-3">
-            <Toggle
+            <SettingsToggle
               enabled={autoCheckUpdates}
               onToggle={() => setAutoCheckUpdates(!autoCheckUpdates)}
               label="Auto-check for Updates"
               description="Automatically check for updates on startup"
             />
 
-            <Toggle
+            <SettingsToggle
               enabled={autoDownloadUpdates}
               onToggle={() => setAutoDownloadUpdates(!autoDownloadUpdates)}
               label="Auto-download Updates"

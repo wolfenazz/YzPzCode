@@ -95,6 +95,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
 }) => {
   const [currentStep, setCurrentStep] = useState<StepId>('template');
   const [direction, setDirection] = useState(0);
+  const [didAutoAdvance, setDidAutoAdvance] = useState(false);
 
   const isTemplateSelected = selectedTemplateId !== 'custom';
 
@@ -103,6 +104,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
   const goToStep = useCallback((step: StepId) => {
     setDirection(STEPS.findIndex((s) => s.id === step) > STEPS.findIndex((s) => s.id === currentStep) ? 1 : -1);
     setCurrentStep(step);
+    setDidAutoAdvance(false);
   }, [currentStep]);
 
   const goNext = useCallback(() => {
@@ -120,13 +122,14 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
       const prev = STEPS[idx - 1].id;
       setDirection(-1);
       setCurrentStep(prev);
+      setDidAutoAdvance(false);
     }
   }, [currentStep]);
 
   const isStepComplete = useCallback((stepId: StepId): boolean => {
     switch (stepId) {
       case 'template':
-        return isTemplateSelected;
+        return true;
       case 'workspace':
         return selectedPath.length > 0 && (isExternalMode || workspaceName.trim().length > 0);
       case 'init':
@@ -154,13 +157,14 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
   }, [onTemplateSelect]);
 
   React.useEffect(() => {
-    if (isTemplateSelected && currentStep === 'template') {
+    if (isTemplateSelected && currentStep === 'template' && !didAutoAdvance) {
+      setDidAutoAdvance(true);
       const timer = setTimeout(() => {
         goNext();
       }, 350);
       return () => clearTimeout(timer);
     }
-  }, [isTemplateSelected, currentStep, goNext]);
+  }, [isTemplateSelected, currentStep, didAutoAdvance, goNext]);
 
   const renderStepContent = () => {
     switch (currentStep) {
@@ -310,8 +314,8 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
       </div>
 
       {/* Step Indicator */}
-      <div className="px-8 py-4 border-b border-theme bg-zinc-900/20">
-        <div className="flex items-center gap-1">
+      <div className="px-8 py-3 border-b border-theme">
+        <div className="flex items-center">
           {STEPS.map((step, idx) => {
             const isActive = step.id === currentStep;
             const isComplete = isStepComplete(step.id);
@@ -320,56 +324,29 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
             return (
               <React.Fragment key={step.id}>
                 {idx > 0 && (
-                  <div className="flex-1 h-px mx-1">
-                    <motion.div
-                      className="h-full bg-gradient-to-r from-cyan-500/30 to-cyan-500/30"
-                      initial={{ scaleX: 0 }}
-                      animate={{ scaleX: idx <= stepIndex ? 1 : 0 }}
-                      transition={{ duration: 0.3, ease: 'easeInOut' }}
-                      style={{ transformOrigin: 'left' }}
-                    />
-                  </div>
+                  <span className="text-zinc-700 mx-1.5 select-none">{'>'}</span>
                 )}
                 <button
                   onClick={() => goToStep(step.id)}
-                  className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-1.5 py-1 rounded transition-colors duration-100 cursor-pointer ${
                     isActive
-                      ? 'bg-cyan-500/[0.08] border border-cyan-500/20'
-                      : isSkipped
-                        ? 'hover:bg-zinc-800/40 border border-transparent'
-                        : 'hover:bg-zinc-800/40 border border-transparent'
+                      ? 'text-zinc-200'
+                      : isComplete || isSkipped
+                        ? 'text-zinc-500 hover:text-zinc-400'
+                        : 'text-zinc-700 hover:text-zinc-500'
                   }`}
                 >
-                  <div className={`w-6 h-6 flex items-center justify-center rounded-full transition-all duration-300 ${
-                    isActive
-                      ? 'bg-cyan-500/20 ring-1 ring-cyan-400/30'
-                      : isComplete || isSkipped
-                        ? 'bg-emerald-500/15'
-                        : 'bg-zinc-800'
+                  <span className={`text-[10px] font-mono tracking-wide ${
+                    isActive ? 'text-zinc-200' : ''
                   }`}>
-                    {isComplete && !isActive && !isSkipped ? (
-                      <svg className="w-3 h-3 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    ) : isSkipped && !isActive ? (
-                      <svg className="w-3 h-3 text-cyan-400/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                      </svg>
-                    ) : (
-                      <svg className={`w-3 h-3 ${isActive ? 'text-cyan-400' : 'text-zinc-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={step.icon} />
-                      </svg>
-                    )}
-                  </div>
-                  <span className={`text-[10px] font-mono uppercase tracking-wider hidden sm:inline transition-colors duration-200 ${
-                    isActive
-                      ? 'text-cyan-300'
-                      : isComplete || isSkipped
-                        ? 'text-zinc-400'
-                        : 'text-zinc-600'
-                  }`}>
-                    {step.label}
+                    {step.label.toLowerCase()}
                   </span>
+                  {isComplete && !isActive && !isSkipped && (
+                    <span className="text-emerald-600 text-[9px]">ok</span>
+                  )}
+                  {isSkipped && !isActive && (
+                    <span className="text-zinc-600 text-[9px]">auto</span>
+                  )}
                 </button>
               </React.Fragment>
             );
@@ -378,7 +355,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
       </div>
 
       {/* Step Content */}
-      <div className="p-8 min-h-[340px] relative overflow-hidden">
+      <div className="p-8 min-h-[340px] relative overflow-visible">
         <AnimatePresence initial={false} custom={direction} mode="wait">
           <motion.div
             key={currentStep}

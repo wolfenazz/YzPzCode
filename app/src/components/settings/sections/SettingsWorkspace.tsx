@@ -2,6 +2,7 @@ import React from 'react';
 import { useAppStore } from '../../../stores/appStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import { SEED_TEMPLATES } from '../../../hooks/useWorkspace';
+import { SettingsToggle } from '../../common/SettingsToggle';
 
 export const SettingsWorkspace: React.FC = () => {
   const {
@@ -32,27 +33,6 @@ export const SettingsWorkspace: React.FC = () => {
     }
   };
 
-  const Toggle = ({ enabled, onToggle, label, description }: { enabled: boolean; onToggle: () => void; label: string; description?: string }) => (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-xs text-zinc-300 font-mono">{label}</p>
-        {description && <p className="text-[10px] text-zinc-600 font-mono mt-0.5">{description}</p>}
-      </div>
-      <button
-        onClick={onToggle}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer ${
-          enabled ? 'bg-cyan-500/30' : 'bg-[#1a1a2e]'
-        }`}
-      >
-        <div
-          className={`absolute top-0.5 w-5 h-5 rounded-full bg-zinc-200 transition-transform duration-200 ${
-            enabled ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </div>
-  );
-
   return (
     <div className="space-y-8 font-mono">
       <div>
@@ -65,18 +45,18 @@ export const SettingsWorkspace: React.FC = () => {
           <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">General</h3>
 
           <div className="space-y-3">
-            <Toggle
+            <SettingsToggle
               enabled={confirmBeforeClose}
               onToggle={() => setConfirmBeforeClose(!confirmBeforeClose)}
               label="Confirm Before Closing"
               description="Show confirmation dialog when closing workspaces"
             />
 
-            <Toggle
+            <SettingsToggle
               enabled={saveWorkspaceState}
               onToggle={() => setSaveWorkspaceState(!saveWorkspaceState)}
               label="Save Workspace State"
-              description="Remember terminal history and open files"
+              description="Restore open workspaces and files on app restart"
             />
           </div>
         </div>

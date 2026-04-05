@@ -3,6 +3,7 @@ import { useAppStore } from '../../../stores/appStore';
 import { useIde } from '../../../hooks/useIde';
 import { IdeInfo, IdeType } from '../../../types';
 import { IDE_DISPLAY_NAMES, IDE_ICONS, IDE_ORDER } from '../../setup/ideConstants';
+import { SettingsToggle } from '../../common/SettingsToggle';
 
 export const SettingsIde: React.FC = () => {
   const { ideStatuses, detectAllIdes, loading } = useIde();
@@ -22,29 +23,6 @@ export const SettingsIde: React.FC = () => {
       setSelectedIdes([...selectedIdes, ide]);
     }
   };
-
-  const Toggle = ({ enabled, onToggle, label, description }: { enabled: boolean; onToggle: () => void; label: string; description?: string }) => (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-xs text-zinc-300 font-mono">{label}</p>
-        {description && <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">{description}</p>}
-      </div>
-      <button
-        onClick={onToggle}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer ${
-          enabled ? 'bg-cyan-500/30' : 'bg-zinc-800'
-        }`}
-      >
-        <div
-          className={`absolute top-0.5 w-5 h-5 rounded-full transition-transform duration-200 ${
-            enabled
-              ? 'translate-x-5 bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.5)]'
-              : 'translate-x-0.5 bg-zinc-500'
-          }`}
-        />
-      </button>
-    </div>
-  );
 
   return (
     <div className="space-y-8">
@@ -125,7 +103,7 @@ export const SettingsIde: React.FC = () => {
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Behavior</h3>
 
-          <Toggle
+          <SettingsToggle
             enabled={launchIdeOnWorkspaceCreation}
             onToggle={() => setLaunchIdeOnWorkspaceCreation(!launchIdeOnWorkspaceCreation)}
             label="Auto-launch IDEs"

@@ -16,15 +16,15 @@ function App() {
   const { 
     view, 
     previousView,
-    lastOpenedWorkspaceId, 
-    workspaceList, 
     openWorkspaces, 
-    openWorkspace, 
+    activeWorkspaceId,
+    switchWorkspace,
     setView, 
     setViewWithPrevious,
     theme,
     toggleTheme,
-    customCursor 
+    customCursor,
+    saveWorkspaceState,
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
 
@@ -44,10 +44,10 @@ function App() {
       console.error('Failed to initialize window platform:', err);
     });
 
-    if (lastOpenedWorkspaceId && view === 'setup' && openWorkspaces.length === 0) {
-      const lastWorkspace = workspaceList.find(w => w.id === lastOpenedWorkspaceId);
-      if (lastWorkspace) {
-        openWorkspace(lastWorkspace);
+    if (saveWorkspaceState && openWorkspaces.length > 0) {
+      const targetId = activeWorkspaceId || openWorkspaces[0]?.id;
+      if (targetId) {
+        switchWorkspace(targetId);
         setView('workspace');
       }
     }

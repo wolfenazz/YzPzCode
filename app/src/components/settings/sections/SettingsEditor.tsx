@@ -1,5 +1,7 @@
 import React from 'react';
 import { useAppStore } from '../../../stores/appStore';
+import { SettingsToggle } from '../../common/SettingsToggle';
+import { SettingsSlider } from '../../common/SettingsSlider';
 
 const FONT_FAMILIES = [
   'JetBrains Mono',
@@ -44,27 +46,6 @@ export const SettingsEditor: React.FC = () => {
     setEditorTrimWhitespace,
   } = useAppStore();
 
-  const Toggle = ({ enabled, onToggle, label, description }: { enabled: boolean; onToggle: () => void; label: string; description?: string }) => (
-    <div className="flex items-center justify-between">
-      <div>
-        <p className="text-xs text-zinc-300 font-mono">{label}</p>
-        {description && <p className="text-[10px] text-zinc-600 font-mono mt-0.5">{description}</p>}
-      </div>
-      <button
-        onClick={onToggle}
-        className={`relative w-11 h-6 rounded-full transition-colors duration-200 cursor-pointer ${
-          enabled ? 'bg-cyan-500/30' : 'bg-[#1a1a2e]'
-        }`}
-      >
-        <div
-          className={`absolute top-0.5 w-5 h-5 rounded-full bg-zinc-200 transition-transform duration-200 ${
-            enabled ? 'translate-x-5' : 'translate-x-0.5'
-          }`}
-        />
-      </button>
-    </div>
-  );
-
   return (
     <div className="space-y-8 font-mono">
       <div>
@@ -96,23 +77,15 @@ export const SettingsEditor: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-zinc-300 font-mono">Font Size</p>
-              <p className="text-[10px] text-zinc-600 font-mono mt-0.5">Editor text size in pixels</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min="10"
-                max="24"
-                value={editorFontSize}
-                onChange={(e) => setEditorFontSize(Number(e.target.value))}
-                className="w-24 accent-cyan-500"
-              />
-              <span className="text-xs text-zinc-400 font-mono w-8 text-right">{editorFontSize}px</span>
-            </div>
-          </div>
+          <SettingsSlider
+            label="Font Size"
+            description="Editor text size in pixels"
+            value={editorFontSize}
+            displayValue={`${editorFontSize}px`}
+            min={10}
+            max={24}
+            onChange={setEditorFontSize}
+          />
         </div>
 
         <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
@@ -161,7 +134,7 @@ export const SettingsEditor: React.FC = () => {
           <h3 className="text-xs font-mono font-bold text-cyan-400/70 uppercase tracking-[0.2em]">Toggles</h3>
 
           <div className="space-y-3">
-            <Toggle
+            <SettingsToggle
               enabled={autoSave}
               onToggle={() => setAutoSave(!autoSave)}
               label="Auto Save"
@@ -169,55 +142,49 @@ export const SettingsEditor: React.FC = () => {
             />
 
             {autoSave && (
-              <div className="flex items-center justify-between border-l-2 border-cyan-500/20 pl-3">
-                <div>
-                  <p className="text-xs text-zinc-400 font-mono">Auto Save Delay</p>
-                  <p className="text-[10px] text-zinc-600 font-mono mt-0.5">Delay before saving (ms)</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="range"
-                    min="500"
-                    max="5000"
-                    step="500"
-                    value={autoSaveDelay}
-                    onChange={(e) => setAutoSaveDelay(Number(e.target.value))}
-                    className="w-24 accent-cyan-500"
-                  />
-                  <span className="text-xs text-zinc-400 font-mono w-12 text-right">{autoSaveDelay}ms</span>
-                </div>
+              <div className="border-l-2 border-cyan-500/20 pl-3">
+                <SettingsSlider
+                  label="Auto Save Delay"
+                  description="Delay before saving (ms)"
+                  value={autoSaveDelay}
+                  displayValue={`${autoSaveDelay}ms`}
+                  min={500}
+                  max={5000}
+                  step={500}
+                  onChange={setAutoSaveDelay}
+                />
               </div>
             )}
 
-            <Toggle
+            <SettingsToggle
               enabled={showMinimap}
               onToggle={() => setShowMinimap(!showMinimap)}
               label="Show Minimap"
               description="Display code overview on the right side"
             />
 
-            <Toggle
+            <SettingsToggle
               enabled={editorWordWrap}
               onToggle={() => setEditorWordWrap(!editorWordWrap)}
               label="Word Wrap"
               description="Wrap long lines in the editor"
             />
 
-            <Toggle
+            <SettingsToggle
               enabled={editorBracketColorization}
               onToggle={() => setEditorBracketColorization(!editorBracketColorization)}
               label="Bracket Pair Colorization"
               description="Color matching brackets differently"
             />
 
-            <Toggle
+            <SettingsToggle
               enabled={editorFormatOnSave}
               onToggle={() => setEditorFormatOnSave(!editorFormatOnSave)}
               label="Format on Save"
               description="Auto-format code when saving files"
             />
 
-            <Toggle
+            <SettingsToggle
               enabled={editorTrimWhitespace}
               onToggle={() => setEditorTrimWhitespace(!editorTrimWhitespace)}
               label="Trim Trailing Whitespace"

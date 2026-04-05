@@ -42,6 +42,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     toggleExplorer,
     setActiveView,
     closeFileTab,
+    restoredFilePathsByWorkspace,
+    clearRestoredFilePaths,
   } = useAppStore();
   const { createSessions, killAllSessions, killWorkspaceSessions, isLoading, error } = useTerminal();
   const { detectAllClis } = useAgentCli();
@@ -85,6 +87,45 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       markWorkspaceOpened(currentWorkspace.id);
     }
   }, [currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, setSessionsForWorkspace, markWorkspaceOpened]);
+
+  const restoredFilesRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!currentWorkspace) return;
+    const wsId = currentWorkspace.id;
+    const paths = restoredFilePathsByWorkspace[wsId];
+
+    if (!paths || paths.length === 0 || restoredFilesRef.current[wsId]) return;
+
+    restoredFilesRef.current[wsId] = true;
+    clearRestoredFilePaths(wsId);
+
+    Promise.all(
+      paths.map(async (filePath) => {
+        try {
+          const fileName = filePath.split(/[/\\]/).pop() || filePath;
+          const ext = fileName.split('.').pop()?.toLowerCase() || '';
+          const entry: FileEntry = {
+            name: fileName,
+            path: filePath,
+            isDir: false,
+            size: 0,
+            modifiedAt: 0,
+            extension: ext || null,
+          };
+          await openFile(entry);
+        } catch (err) {
+          console.error(`Failed to restore file ${filePath}:`, err);
+        }
+      })
+    ).then(() => {
+      const state = useAppStore.getState();
+      const savedActiveView = state.activeViewByWorkspace[wsId];
+      if (savedActiveView) {
+        setActiveView(savedActiveView);
+      }
+    });
+  }, [currentWorkspace?.id, restoredFilePathsByWorkspace, clearRestoredFilePaths, openFile, setActiveView]);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
