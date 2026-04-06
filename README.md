@@ -34,7 +34,7 @@
 
 ---
 
-## 🎯 The Problem
+## - The Problem
 
 <div align="center">
 
