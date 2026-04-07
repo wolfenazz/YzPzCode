@@ -12,7 +12,7 @@ export type CliLaunchStatus = "NotLaunched" | "Starting" | "Running" | "Authenti
 
 export type AuthStatus = "Unknown" | "Checking" | "Authenticated" | "NotAuthenticated" | "Error";
 
-export type PrerequisiteType = "NodeJs" | "Npm" | "Git" | "Bun" | "Pnpm";
+export type PrerequisiteType = "NodeJs" | "Npm" | "Git" | "Bun" | "Pnpm" | "Docker";
 
 export type IdeType = "vsCode" | "visualStudio" | "cursor" | "zed" | "webStorm" | "intelliJ" | "sublimeText" | "windsurf" | "perplexity" | "antigravity";
 

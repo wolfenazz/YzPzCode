@@ -9,6 +9,7 @@ pub enum PrerequisiteType {
     Git,
     Bun,
     Pnpm,
+    Docker,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +33,14 @@ impl PrerequisitesChecker {
     }
 
     pub fn check_all() -> Vec<PrerequisiteStatus> {
-        vec![Self::check_nodejs(), Self::check_npm(), Self::check_git()]
+        vec![
+            Self::check_nodejs(),
+            Self::check_npm(),
+            Self::check_git(),
+            Self::check_bun(),
+            Self::check_pnpm(),
+            Self::check_docker(),
+        ]
     }
 
     pub fn check_nodejs() -> PrerequisiteStatus {
@@ -132,6 +140,80 @@ impl PrerequisitesChecker {
         }
     }
 
+    pub fn check_bun() -> PrerequisiteStatus {
+        let minimum = "1.0.0";
+        let result = Self::run_command("bun", &["--version"]);
+
+        match result {
+            Some(output) => {
+                let version = Self::parse_version(&output);
+                let meets_minimum = Self::compare_versions(&version, minimum);
+                PrerequisiteStatus {
+                    name: "Bun".to_string(),
+                    prerequisite_type: PrerequisiteType::Bun,
+                    installed: true,
+                    version: Some(version.clone()),
+                    minimum_version: minimum.to_string(),
+                    meets_minimum,
+                    install_url: "https://bun.sh".to_string(),
+                    required_for: vec!["Bun Runtime".to_string()],
+                }
+            }
+            None => Self::not_installed("Bun", PrerequisiteType::Bun, minimum, "https://bun.sh"),
+        }
+    }
+
+    pub fn check_pnpm() -> PrerequisiteStatus {
+        let minimum = "8.0.0";
+        let result = Self::run_command("pnpm", &["--version"]);
+
+        match result {
+            Some(output) => {
+                let version = Self::parse_version(&output);
+                let meets_minimum = Self::compare_versions(&version, minimum);
+                PrerequisiteStatus {
+                    name: "pnpm".to_string(),
+                    prerequisite_type: PrerequisiteType::Pnpm,
+                    installed: true,
+                    version: Some(version.clone()),
+                    minimum_version: minimum.to_string(),
+                    meets_minimum,
+                    install_url: "https://pnpm.io".to_string(),
+                    required_for: vec!["Package Management".to_string()],
+                }
+            }
+            None => Self::not_installed("pnpm", PrerequisiteType::Pnpm, minimum, "https://pnpm.io"),
+        }
+    }
+
+    pub fn check_docker() -> PrerequisiteStatus {
+        let minimum = "20.0.0";
+        let result = Self::run_command("docker", &["--version"]);
+
+        match result {
+            Some(output) => {
+                let version = Self::parse_docker_version(&output);
+                let meets_minimum = Self::compare_versions(&version, minimum);
+                PrerequisiteStatus {
+                    name: "Docker".to_string(),
+                    prerequisite_type: PrerequisiteType::Docker,
+                    installed: true,
+                    version: Some(version.clone()),
+                    minimum_version: minimum.to_string(),
+                    meets_minimum,
+                    install_url: "https://docker.com".to_string(),
+                    required_for: vec!["Supabase CLI".to_string()],
+                }
+            }
+            None => Self::not_installed(
+                "Docker",
+                PrerequisiteType::Docker,
+                minimum,
+                "https://docker.com",
+            ),
+        }
+    }
+
     fn not_installed(
         name: &str,
         prereq_type: PrerequisiteType,
@@ -156,10 +238,26 @@ impl PrerequisitesChecker {
     }
 
     fn run_command(cmd: &str, args: &[&str]) -> Option<String> {
-        ProcessRunner::run_hidden(cmd, args)
-            .ok()
-            .filter(|o| o.status.success())
-            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        #[cfg(target_os = "windows")]
+        {
+            let full_args = vec![cmd.to_string()]
+                .into_iter()
+                .chain(args.iter().map(|s| s.to_string()))
+                .collect::<Vec<_>>();
+            let mut cmd_args: Vec<&str> = vec!["/c"];
+            cmd_args.extend(full_args.iter().map(|s| s.as_str()));
+            ProcessRunner::run_hidden("cmd", &cmd_args)
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            ProcessRunner::run_hidden(cmd, args)
+                .ok()
+                .filter(|o| o.status.success())
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        }
     }
 
     fn parse_version(output: &str) -> String {
@@ -174,6 +272,19 @@ impl PrerequisitesChecker {
     fn parse_git_version(output: &str) -> String {
         output
             .strip_prefix("git version ")
+            .unwrap_or("0.0.0")
+            .split_whitespace()
+            .next()
+            .unwrap_or("0.0.0")
+            .to_string()
+    }
+
+    fn parse_docker_version(output: &str) -> String {
+        output
+            .strip_prefix("Docker version ")
+            .unwrap_or("0.0.0")
+            .split(',')
+            .next()
             .unwrap_or("0.0.0")
             .split_whitespace()
             .next()
@@ -296,6 +407,36 @@ impl PrerequisitesChecker {
                     "-g".to_string(),
                     "pnpm".to_string(),
                 ]
+            }
+            PrerequisiteType::Docker => {
+                #[cfg(target_os = "windows")]
+                {
+                    vec![
+                        "winget".to_string(),
+                        "install".to_string(),
+                        "--id".to_string(),
+                        "Docker.DockerDesktop".to_string(),
+                        "-e".to_string(),
+                        "--accept-package-agreements".to_string(),
+                        "--accept-source-agreements".to_string(),
+                    ]
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    vec![
+                        "bash".to_string(),
+                        "-c".to_string(),
+                        "brew install --cask docker".to_string(),
+                    ]
+                }
+                #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+                {
+                    vec![
+                        "bash".to_string(),
+                        "-c".to_string(),
+                        "sudo apt-get install -y docker.io".to_string(),
+                    ]
+                }
             }
         }
     }
