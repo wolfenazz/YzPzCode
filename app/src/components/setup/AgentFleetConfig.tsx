@@ -15,6 +15,7 @@ import geminiLogo from '../../assets/gemini-cli-logo.svg';
 import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
+import hermesLogo from '../../assets/Hermes-logo.png';
 
 interface AgentFleetConfigProps {
   totalSlots: number;
@@ -31,6 +32,7 @@ const AGENT_INFO: Record<AgentType, { label: string; color: string; logo: string
   opencode: { label: 'OpenCode', color: 'bg-purple-500', logo: opencodeLogo },
   cursor: { label: 'Cursor', color: 'bg-pink-500', logo: cursorLogo },
   kilo: { label: 'Kilo', color: 'bg-teal-500', logo: kiloLogo },
+  hermes: { label: 'Hermes', color: 'bg-amber-500', logo: hermesLogo },
 };
 
 const ShellOnlyIcon = () => (

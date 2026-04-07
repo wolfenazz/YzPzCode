@@ -47,8 +47,10 @@ pub trait AgentCliProvider: Send + Sync {
 
 pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
     use super::providers::{
-        ClaudeCliProvider, CodexCliProvider, CursorCliProvider, GeminiCliProvider, KiloCliProvider,
-        OpenCodeCliProvider,
+        AgentmailCliProvider, ClaudeCliProvider, CodexCliProvider, CursorCliProvider,
+        ElevenlabsCliProvider, GeminiCliProvider, GhCliProvider, GwsCliProvider, HermesCliProvider,
+        KiloCliProvider, OpenCodeCliProvider, PosthogCliProvider, RampCliProvider,
+        StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
     match agent {
         AgentType::Claude => Box::new(ClaudeCliProvider),
@@ -57,5 +59,16 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AgentType::Gemini => Box::new(GeminiCliProvider),
         AgentType::Cursor => Box::new(CursorCliProvider),
         AgentType::Kilo => Box::new(KiloCliProvider),
+        AgentType::Hermes => Box::new(HermesCliProvider),
+        AgentType::Gh => Box::new(GhCliProvider),
+        AgentType::Stripe => Box::new(StripeCliProvider),
+        AgentType::Supabase => Box::new(SupabaseCliProvider),
+        AgentType::Valyu => Box::new(ValyuCliProvider),
+        AgentType::Posthog => Box::new(PosthogCliProvider),
+        AgentType::Elevenlabs => Box::new(ElevenlabsCliProvider),
+        AgentType::Ramp => Box::new(RampCliProvider),
+        AgentType::Gws => Box::new(GwsCliProvider),
+        AgentType::Agentmail => Box::new(AgentmailCliProvider),
+        AgentType::Vercel => Box::new(VercelCliProvider),
     }
 }

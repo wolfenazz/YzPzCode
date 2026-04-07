@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo } from '../types';
 
 interface AppState {
   currentWorkspace: WorkspaceConfig | null;
@@ -22,6 +22,8 @@ interface AppState {
   installInProgress: AgentType | null;
   cliLaunchStates: Record<string, CliLaunchState | null>;
   authInfos: Record<AgentType, AuthInfo | null>;
+  toolCliStatuses: Record<ToolCliType, ToolCliInfo | null>;
+  toolAuthInfos: Record<ToolCliType, ToolAuthInfo | null>;
   theme: "dark" | "light";
   selectedIdes: IdeType[];
   ideStatuses: Record<IdeType, IdeInfo | null>;
@@ -130,6 +132,8 @@ interface AppState {
   setInstallInProgress: (agent: AgentType | null) => void;
   setLaunchState: (sessionId: string, state: CliLaunchState | null) => void;
   setAuthInfo: (agent: AgentType, info: AuthInfo | null) => void;
+  setToolCliStatuses: (statuses: Record<ToolCliType, ToolCliInfo>) => void;
+  setToolAuthInfos: (infos: Record<ToolCliType, ToolAuthInfo>) => void;
   toggleIde: (ide: IdeType) => void;
   setSelectedIdes: (ides: IdeType[]) => void;
   setIdeStatuses: (statuses: Record<IdeType, IdeInfo | null>) => void;
@@ -173,6 +177,7 @@ const initialCliStatuses: Record<AgentType, AgentCliInfo | null> = {
   opencode: null,
   cursor: null,
   kilo: null,
+  hermes: null,
 };
 
 export const useAppStore = create<AppState>()(
@@ -196,6 +201,8 @@ export const useAppStore = create<AppState>()(
       installInProgress: null,
       cliLaunchStates: {} as Record<string, CliLaunchState | null>,
       authInfos: {} as Record<AgentType, AuthInfo | null>,
+      toolCliStatuses: {} as Record<ToolCliType, ToolCliInfo | null>,
+      toolAuthInfos: {} as Record<ToolCliType, ToolAuthInfo | null>,
       theme: "dark",
       selectedIdes: [],
       autoSave: true,
@@ -521,6 +528,8 @@ export const useAppStore = create<AppState>()(
             [agent]: info,
           },
         })),
+      setToolCliStatuses: (statuses) => set({ toolCliStatuses: statuses }),
+      setToolAuthInfos: (infos) => set({ toolAuthInfos: infos }),
       toggleIde: (ide) =>
         set((state) => ({
           selectedIdes: state.selectedIdes.includes(ide)

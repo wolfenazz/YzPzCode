@@ -102,8 +102,28 @@ impl AgentCliDetector {
             AgentType::Gemini,
             AgentType::Cursor,
             AgentType::Kilo,
+            AgentType::Hermes,
         ];
         agents
+            .iter()
+            .map(|&agent| (agent, self.detect(agent)))
+            .collect()
+    }
+
+    pub fn detect_all_tool_clis(&self) -> HashMap<AgentType, AgentCliInfo> {
+        let tools = [
+            AgentType::Gh,
+            AgentType::Stripe,
+            AgentType::Supabase,
+            AgentType::Valyu,
+            AgentType::Posthog,
+            AgentType::Elevenlabs,
+            AgentType::Ramp,
+            AgentType::Gws,
+            AgentType::Agentmail,
+            AgentType::Vercel,
+        ];
+        tools
             .iter()
             .map(|&agent| (agent, self.detect(agent)))
             .collect()

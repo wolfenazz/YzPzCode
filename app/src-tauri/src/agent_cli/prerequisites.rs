@@ -122,6 +122,7 @@ impl PrerequisitesChecker {
                         "Codex CLI".to_string(),
                         "Gemini CLI".to_string(),
                         "Kilo CLI".to_string(),
+                        "Hermes Agent".to_string(),
                     ],
                 }
             }

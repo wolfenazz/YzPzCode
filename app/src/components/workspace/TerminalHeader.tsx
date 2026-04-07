@@ -8,6 +8,7 @@ import geminiLogo from '../../assets/gemini-cli-logo.svg';
 import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
+import hermesLogo from '../../assets/Hermes-logo.png';
 
 export const AGENT_LOGOS: Record<AgentType, string> = {
   claude: claudeLogo,
@@ -16,6 +17,7 @@ export const AGENT_LOGOS: Record<AgentType, string> = {
   opencode: opencodeLogo,
   cursor: cursorLogo,
   kilo: kiloLogo,
+  hermes: hermesLogo,
 };
 
 const STATUS_COLORS = {

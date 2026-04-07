@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType } from '../../types';
+import { Icon } from '@iconify/react';
+import { AgentType, ToolCliType } from '../../types';
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
 import geminiLogo from '../../assets/gemini-cli-logo.svg';
 import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
+import hermesLogo from '../../assets/Hermes-logo.png';
 
 interface AgentOption {
   type: AgentType;
@@ -23,6 +25,7 @@ const AGENT_OPTIONS: AgentOption[] = [
   { type: 'opencode', label: 'OpenCode', description: 'Open Source Autonomy', logo: opencodeLogo, color: '#FFFFFF' },
   { type: 'cursor', label: 'Cursor Agent', description: 'Contextual AI Environment', logo: cursorLogo, color: '#3178C6' },
   { type: 'kilo', label: 'Kilo Code', description: 'Lightweight AI Developer', logo: kiloLogo, color: '#8B5CF6' },
+  { type: 'hermes', label: 'Hermes Agent', description: 'NousResearch Autonomous Agent', logo: hermesLogo, color: '#F59E0B' },
 ];
 
 const AGENT_CAPABILITIES: Record<AgentType, string> = {
@@ -32,7 +35,21 @@ const AGENT_CAPABILITIES: Record<AgentType, string> = {
   opencode: 'Fully open-source AI coding agent. Transparent, customizable, and community-driven. Supports multiple model backends with no vendor lock-in.',
   cursor: 'IDE-integrated AI agent with deep codebase awareness. Context-aware suggestions, multi-file edits, and seamless editor integration.',
   kilo: 'Lightweight, fast AI coding assistant optimized for quick tasks. Lower resource usage while maintaining strong code generation capabilities.',
+  hermes: 'NousResearch autonomous AI agent with tool use, messaging platform integration, and multi-modal capabilities. Supports browser automation, web search, and image generation.',
 };
+
+const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; icon: string; color: string }[] = [
+  { type: 'gh', label: 'GitHub CLI', description: 'Repos, PRs, and issues', icon: 'simple-icons:github', color: '#ffffff' },
+  { type: 'stripe', label: 'Stripe CLI', description: 'Payments and webhooks', icon: 'simple-icons:stripe', color: '#635BFF' },
+  { type: 'supabase', label: 'Supabase CLI', description: 'Database and local stack', icon: 'simple-icons:supabase', color: '#3FCF8E' },
+  { type: 'vercel', label: 'Vercel CLI', description: 'Deploy and cloud mgmt', icon: 'simple-icons:vercel', color: '#ffffff' },
+  { type: 'elevenlabs', label: 'ElevenLabs CLI', description: 'TTS and voice agents', icon: 'simple-icons:elevenlabs', color: '#8B5CF6' },
+  { type: 'valyu', label: 'Valyu CLI', description: 'Search and data access', icon: 'simple-icons:search', color: '#F59E0B' },
+  { type: 'posthog', label: 'PostHog CLI', description: 'Analytics and SQL', icon: 'simple-icons:posthog', color: '#1D4AFF' },
+  { type: 'gws', label: 'Google Workspace', description: 'Gmail, Drive, Docs', icon: 'simple-icons:google', color: '#4285F4' },
+  { type: 'ramp', label: 'Ramp CLI', description: 'Expense management', icon: 'simple-icons:creditcard', color: '#1AE65E' },
+  { type: 'agentmail', label: 'AgentMail CLI', description: 'Email for AI agents', icon: 'simple-icons:mailgun', color: '#EC4899' },
+];
 
 interface ShellOption {
   name: string;
@@ -297,6 +314,41 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
                   </div>
                 )}
               </div>
+            ))}
+          </div>
+
+          <div className="pt-2 pb-2 flex items-center gap-4 px-4">
+            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.3em] whitespace-nowrap">Tool CLIs</span>
+            <div className="h-px w-full bg-current opacity-[0.06]" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-1 px-1">
+            {TOOL_OPTIONS.map((tool) => (
+              <button
+                key={tool.type}
+                onClick={() => handleSelect(null)}
+                onMouseEnter={() => setHovered(`tool-${tool.type}`)}
+                onMouseLeave={() => setHovered(null)}
+                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                  hovered === `tool-${tool.type}`
+                    ? 'bg-white/5 translate-x-0.5'
+                    : 'bg-transparent'
+                }`}
+              >
+                <div className={`w-7 h-7 rounded-md flex items-center justify-center transition-all duration-200 ${
+                  hovered === `tool-${tool.type}` ? 'scale-110' : 'opacity-50'
+                }`}>
+                  <Icon icon={tool.icon} style={{ color: tool.color }} className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-left min-w-0">
+                  <span className={`text-[9px] font-bold tracking-wider uppercase block ${
+                    hovered === `tool-${tool.type}` ? 'text-zinc-200' : 'text-zinc-500'
+                  }`}>
+                    {tool.label}
+                  </span>
+                  <span className="text-[8px] text-zinc-600 tracking-wide">{tool.description}</span>
+                </div>
+              </button>
             ))}
           </div>
         </div>

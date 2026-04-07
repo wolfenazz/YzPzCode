@@ -9,6 +9,36 @@ pub enum AgentType {
     Opencode,
     Cursor,
     Kilo,
+    Hermes,
+    Gh,
+    Stripe,
+    Supabase,
+    Valyu,
+    Posthog,
+    Elevenlabs,
+    Ramp,
+    Gws,
+    Agentmail,
+    Vercel,
+}
+
+impl AgentType {
+    #[allow(dead_code)]
+    pub fn is_tool_cli(&self) -> bool {
+        matches!(
+            self,
+            AgentType::Gh
+                | AgentType::Stripe
+                | AgentType::Supabase
+                | AgentType::Valyu
+                | AgentType::Posthog
+                | AgentType::Elevenlabs
+                | AgentType::Ramp
+                | AgentType::Gws
+                | AgentType::Agentmail
+                | AgentType::Vercel
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

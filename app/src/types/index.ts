@@ -1,4 +1,6 @@
-export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo";
+export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo" | "hermes";
+
+export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
@@ -35,6 +37,27 @@ export interface AgentCliInfo {
   error: string | null;
   docsUrl: string;
   iconPath: string;
+}
+
+export interface ToolCliInfo {
+  tool: ToolCliType;
+  binaryName: string;
+  displayName: string;
+  description: string;
+  provider: string;
+  status: CliStatus;
+  version: string | null;
+  path: string | null;
+  error: string | null;
+  docsUrl: string;
+  iconPath: string;
+}
+
+export interface ToolAuthInfo {
+  tool: ToolCliType;
+  status: AuthStatus;
+  error: string | null;
+  configPath: string | null;
 }
 
 export interface InstallProgress {

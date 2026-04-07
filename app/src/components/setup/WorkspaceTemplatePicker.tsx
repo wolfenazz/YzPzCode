@@ -50,6 +50,7 @@ const AGENT_LABELS: Record<AgentType, string> = {
   opencode: 'OpenCode',
   cursor: 'Cursor',
   kilo: 'Kilo',
+  hermes: 'Hermes',
 };
 
 const AGENT_COLORS: Record<AgentType, string> = {
@@ -59,10 +60,11 @@ const AGENT_COLORS: Record<AgentType, string> = {
   opencode: '#A855F7',
   cursor: '#EC4899',
   kilo: '#14B8A6',
+  hermes: '#F59E0B',
 };
 
 const EMPTY_ALLOCATION: Record<AgentType, number> = {
-  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0,
+  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0,
 };
 
 const AgentPill: React.FC<{ agent: AgentType; count: number }> = ({ agent, count }) => {

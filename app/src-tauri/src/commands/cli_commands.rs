@@ -191,6 +191,28 @@ pub async fn get_cli_binary_name(agent: AgentType) -> Result<String, String> {
     Ok(CliLauncher::get_binary_name(agent).to_string())
 }
 
+#[tauri::command]
+pub async fn detect_all_tool_clis(
+    detector: State<'_, AgentCliDetector>,
+) -> Result<HashMap<AgentType, AgentCliInfo>, String> {
+    Ok(detector.detect_all_tool_clis())
+}
+
+#[tauri::command]
+pub async fn check_all_tool_auths() -> Result<Vec<AuthInfo>, String> {
+    Ok(AuthDetector::check_all_tool_auths())
+}
+
+#[tauri::command]
+pub async fn get_tool_install_command(agent: AgentType) -> Result<String, String> {
+    Ok(AgentCliInstaller::get_install_command(agent))
+}
+
+#[tauri::command]
+pub async fn open_tool_install_terminal(agent: AgentType) -> Result<(), String> {
+    open_install_terminal(agent).await
+}
+
 pub fn build_agent_queue(
     allocation: &HashMap<AgentType, usize>,
     count: usize,
