@@ -1,6 +1,6 @@
 [package]
 name = "yzpzcode"
-version = "1.8.0"
+version = "1.8.1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -32,4 +32,3 @@ notify = { version = "6", features = ["macos_kqueue"] }
 base64 = "0.22"
 regex = "1"
 discord-rich-presence = "0.2"
-

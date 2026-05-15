@@ -33,7 +33,7 @@ export const ThemeToggleButton: React.FC<ThemeToggleButtonProps> = ({ theme, onT
       aria-checked={theme === 'dark'}
       aria-label="Toggle dark mode"
       onClick={handleClick}
-      className="group/theme relative flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover transition-colors text-theme-secondary hover:text-theme-main overflow-hidden"
+      className="group/theme relative flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors text-zinc-500 hover:text-zinc-100 overflow-hidden cursor-pointer"
       title="Switch Theme"
     >
       {ripple && (

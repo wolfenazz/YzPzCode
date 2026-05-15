@@ -4,12 +4,7 @@ import { SettingsToggle } from '../../common/SettingsToggle';
 import { SettingsSlider } from '../../common/SettingsSlider';
 
 const FONT_FAMILIES = [
-  'JetBrains Mono',
-  'Fira Code',
-  'Cascadia Code',
-  'Consolas',
-  'Menlo',
-  'Monospace',
+  'Cascadia Mono',
 ];
 
 const CURSOR_STYLES = [

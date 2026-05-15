@@ -24,8 +24,10 @@ export const SortableTerminalPane: React.FC<SortableTerminalPaneProps> = ({ sess
   });
 
   const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
+    transform: transform && (transform.x !== 0 || transform.y !== 0 || transform.scaleX !== 1 || transform.scaleY !== 1)
+      ? CSS.Transform.toString(transform)
+      : undefined,
+    transition: isDragging ? transition : undefined,
     opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 50 : 'auto',
     position: 'relative',

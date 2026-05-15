@@ -164,23 +164,23 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
     <>
       <header 
         data-tauri-drag-region
-        className="relative z-[100] flex items-center h-11 bg-theme-card/60 backdrop-blur-md border-b border-theme select-none titlebar-drag flex-shrink-0"
+        className="relative z-[100] flex items-center h-12 bg-[linear-gradient(180deg,rgba(28,28,34,0.92),rgba(17,17,21,0.86))] backdrop-blur-xl border-b border-zinc-800/90 shadow-[0_10px_30px_rgba(0,0,0,0.35)] select-none titlebar-drag flex-shrink-0"
       >
         {/* Left: Branding & Core Navigation */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center gap-2.5 px-4 h-full border-r border-theme bg-theme-card/40 group cursor-default">
-            <img src={logo} alt="YzPzCode" className="h-5 w-auto opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300" />
+          <div className="flex items-center gap-2.5 px-4 h-full border-r border-zinc-800/80 bg-black/20 group cursor-default">
+            <img src={logo} alt="YzPzCode" className="h-5 w-auto opacity-75 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300" />
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-semibold tracking-tight text-theme-main">YZPZ</span>
+              <span className="text-[10px] font-mono font-semibold tracking-tight text-zinc-100">YZPZ</span>
               <span className="text-[9px] text-zinc-600">/</span>
-              <span className="text-[10px] font-mono text-theme-secondary tracking-wide">code</span>
+              <span className="text-[10px] font-mono text-zinc-400 tracking-wide">code</span>
             </div>
           </div>
 
-          <div className="flex items-center h-full">
+          <div className="flex items-center h-full px-1.5 gap-1">
             <button
               onClick={onDocsClick}
-              className="flex items-center justify-center w-10 h-full border-r border-theme hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-theme-main cursor-pointer"
+              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
               title="Documentation"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,7 +190,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={onSidebarToggle}
-              className="flex items-center justify-center w-10 h-full border-r border-theme hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-theme-main cursor-pointer"
+              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
               title="Toggle Sidebar (Ctrl+B)"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -203,7 +203,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
         {/* Middle: Tabs Area */}
         <div className="flex-1 flex items-center h-full overflow-hidden">
-          <div className="flex items-center h-full overflow-x-auto overflow-y-hidden titlebar-nodrag min-w-0">
+          <div className="flex items-center h-full overflow-x-auto overflow-y-hidden titlebar-nodrag min-w-0 px-1.5 gap-1">
             {workspaces.map((workspace) => (
               <WorkspaceTab
                 key={workspace.id}
@@ -220,7 +220,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={onNewWorkspace}
-              className="flex items-center gap-1.5 h-full px-3 border-l border-theme hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-theme-main cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-1.5 h-8.5 px-3 rounded-lg border border-zinc-800/90 bg-zinc-900/50 hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-400 hover:text-zinc-100 cursor-pointer whitespace-nowrap"
               title="New Session"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,10 +233,10 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
         {/* Right: Tools & Window Controls */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center h-full border-l border-theme">
+          <div className="flex items-center h-full border-l border-zinc-800/80 pl-1.5 gap-1">
             <button
               onClick={onSettingsClick}
-              className="group/settings flex items-center justify-center w-10 h-full transition-colors duration-150 text-zinc-500 hover:text-zinc-200 cursor-pointer"
+              className="group/settings flex items-center justify-center w-8.5 h-8.5 rounded-lg transition-colors duration-150 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800/80 cursor-pointer"
               title="Settings (Ctrl+,)"
             >
               <svg className="w-4 h-4 transition-transform duration-500 group-hover/settings:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,7 +247,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={() => setIsShortcutOpen(true)}
-              className="flex items-center justify-center w-10 h-full hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-theme-main cursor-pointer"
+              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
               title="Shortcuts"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -260,7 +260,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={onViewToggle}
-              className="flex items-center justify-center w-10 h-full hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-theme-main cursor-pointer"
+              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
               title={activeView === "terminal" ? "Editor (Ctrl+E)" : "Terminal (Ctrl+E)"}
             >
               {activeView === "terminal" ? (
@@ -276,10 +276,10 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           </div>
 
           {isWindows && (
-            <div className="flex h-full border-l border-theme">
+            <div className="flex h-full border-l border-zinc-800/80 ml-1.5">
               <button
                 onClick={onMinimizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
                 title="Minimize"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
@@ -288,7 +288,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
               </button>
               <button
                 onClick={onMaximizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
                 title="Maximize"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">

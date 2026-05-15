@@ -39,6 +39,37 @@ const TERMINAL_THEME = {
   brightWhite: '#e5e5e5',
 };
 
+const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
+  const fallback = {
+    width: Math.max(1, Math.round(13 * 0.6)),
+    height: Math.max(1, Math.round(13 * 1.2)),
+  };
+
+  try {
+    const core = term as unknown as {
+      _core?: {
+        _renderService?: {
+          dimensions?: {
+            css?: {
+              cell?: { width?: number; height?: number };
+            };
+          };
+        };
+      };
+    };
+    const cell = core._core?._renderService?.dimensions?.css?.cell;
+    const width = cell?.width ? Math.round(cell.width) : 0;
+    const height = cell?.height ? Math.round(cell.height) : 0;
+    if (width > 0 && height > 0) {
+      return { width, height };
+    }
+  } catch {
+    // Ignore and use fallback.
+  }
+
+  return fallback;
+};
+
 export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, autoRun, onClose }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
@@ -46,6 +77,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
   const sessionIdRef = useRef<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isWindowsHost = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
   const handleClose = useCallback(async () => {
     if (isClosing) return;
@@ -64,6 +96,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
   useEffect(() => {
     if (!terminalRef.current) return;
+    const terminalElement = terminalRef.current;
     let mounted = true;
 
     const init = async () => {
@@ -86,16 +119,26 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
         const xterm = new XTerm({
           theme: TERMINAL_THEME,
-          fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-          fontSize: 13,
+          fontFamily: 'Cascadia Mono',
+          fontSize: 14,
+          fontWeight: '400',
+          lineHeight: 1,
+          letterSpacing: 0,
+          customGlyphs: true,
+          rescaleOverlappingGlyphs: true,
+          minimumContrastRatio: 1,
           cursorBlink: true,
           cursorStyle: 'block',
           allowProposedApi: true,
           scrollback: 10000,
-          // Enable mouse tracking for TUI applications
+          convertEol: false,
+          allowTransparency: false,
           disableStdin: false,
           macOptionIsMeta: false,
           macOptionClickForcesSelection: false,
+          scrollOnUserInput: true,
+          smoothScrollDuration: 0,
+          windowsPty: isWindowsHost ? { backend: 'conpty', buildNumber: 19000 } : undefined,
         });
 
         const fitAddon = new FitAddon();
@@ -109,21 +152,18 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
         xterm.loadAddon(fitAddon);
         xterm.loadAddon(webLinksAddon);
-        xterm.open(terminalRef.current!);
+        xterm.open(terminalElement);
 
-        // Focus terminal on click for immediate interaction
-        terminalRef.current!.addEventListener('mousedown', () => {
+        const handleMouseDownFocus = () => {
           xterm.focus();
-        }, { capture: false });
+        };
 
-        // Wheel event handling for TUI app scroll support
-        terminalRef.current!.addEventListener('wheel', (e: WheelEvent) => {
-          // Stop propagation to prevent parent container scroll
-          // but don't prevent default so xterm.js can handle the event
+        const handleWheel = (e: WheelEvent) => {
           e.stopPropagation();
-          // xterm.js will automatically convert wheel events to escape sequences
-          // when mouse tracking is enabled by the PTY
-        }, { passive: true });
+        };
+
+        terminalElement.addEventListener('mousedown', handleMouseDownFocus, { capture: false });
+        terminalElement.addEventListener('wheel', handleWheel, { passive: true });
 
         xtermRef.current = xterm;
         fitAddonRef.current = fitAddon;
@@ -134,17 +174,42 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
               fitAddonRef.current.fit();
               const cols = xterm.cols;
               const rows = xterm.rows;
-              const fontSize = 13;
+              const cell = getTerminalCellPixels(xterm);
               invoke('resize_terminal', {
                 sessionId: session.id,
                 cols,
                 rows,
-                pixelWidth: Math.round(cols * fontSize * 0.6),
-                pixelHeight: Math.round(rows * fontSize * 1.2),
+                pixelWidth: Math.round(cols * cell.width),
+                pixelHeight: Math.round(rows * cell.height),
               }).catch(() => {});
             } catch {}
           }
         }, 50);
+
+        const fontsApi = (document as Document & { fonts?: FontFaceSet }).fonts;
+        const onFontsDone = () => {
+          if (!fitAddonRef.current || !xtermRef.current || !sessionIdRef.current) return;
+          try {
+            fitAddonRef.current.fit();
+            const cols = xtermRef.current.cols;
+            const rows = xtermRef.current.rows;
+            const cell = getTerminalCellPixels(xtermRef.current);
+            invoke('resize_terminal', {
+              sessionId: sessionIdRef.current,
+              cols,
+              rows,
+              pixelWidth: Math.round(cols * cell.width),
+              pixelHeight: Math.round(rows * cell.height),
+            }).catch(() => {});
+            xtermRef.current.clearTextureAtlas();
+            xtermRef.current.refresh(0, Math.max(0, xtermRef.current.rows - 1));
+          } catch {}
+        };
+
+        if (fontsApi) {
+          fontsApi.ready.then(() => onFontsDone()).catch(() => {});
+          fontsApi.addEventListener('loadingdone', onFontsDone);
+        }
 
         // Non-blocking input pipeline — fire-and-forget for TUI mouse/scroll support
         let inputBuffer = '';
@@ -217,6 +282,14 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
         }, 300);
 
         return () => {
+          if (inputFlushTimer) {
+            clearTimeout(inputFlushTimer);
+          }
+          if (fontsApi) {
+            fontsApi.removeEventListener('loadingdone', onFontsDone);
+          }
+          terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
+          terminalElement.removeEventListener('wheel', handleWheel);
           unlisten();
         };
       } catch (e) {
@@ -251,12 +324,13 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
           fitAddonRef.current.fit();
           const cols = xtermRef.current.cols;
           const rows = xtermRef.current.rows;
+          const cell = getTerminalCellPixels(xtermRef.current);
           invoke('resize_terminal', {
             sessionId: sessionIdRef.current,
             cols,
             rows,
-            pixelWidth: Math.round(cols * 13 * 0.6),
-            pixelHeight: Math.round(rows * 13 * 1.2),
+            pixelWidth: Math.round(cols * cell.width),
+            pixelHeight: Math.round(rows * cell.height),
           }).catch(() => {});
         } catch {}
       }

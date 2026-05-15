@@ -74,6 +74,39 @@ const LIGHT_TERMINAL_THEME = {
   brightWhite: '#ffffff',
 };
 
+const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
+  const fallbackFont = typeof term.options.fontSize === 'number' ? term.options.fontSize : 13;
+  const fallback = {
+    width: Math.max(1, Math.round(fallbackFont * 0.6)),
+    height: Math.max(1, Math.round(fallbackFont * 1.2)),
+  };
+
+  try {
+    const core = term as unknown as {
+      _core?: {
+        _renderService?: {
+          dimensions?: {
+            css?: {
+              cell?: { width?: number; height?: number };
+            };
+          };
+        };
+      };
+    };
+    const cell = core._core?._renderService?.dimensions?.css?.cell;
+    const width = cell?.width ? Math.round(cell.width) : 0;
+    const height = cell?.height ? Math.round(cell.height) : 0;
+
+    if (width > 0 && height > 0) {
+      return { width, height };
+    }
+  } catch {
+    // Ignore and use fallback.
+  }
+
+  return fallback;
+};
+
 export const TerminalPane: React.FC<TerminalPaneProps> = ({
   session,
   onResize,
@@ -90,17 +123,19 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [cliLaunched, setCliLaunched] = useState(false);
   const terminalReadyRef = useRef(false);
+  const firstOutputFitDoneRef = useRef(false);
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const launchAttemptsRef = useRef(0);
   const launchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPasteConfirm, setShowPasteConfirm] = useState(false);
   const [pendingPasteText, setPendingPasteText] = useState('');
-  // Track whether mouse tracking is enabled by the TUI app
-  const mouseTrackingEnabledRef = useRef(false);
+  const [mouseTrackingEnabled, setMouseTrackingEnabled] = useState(false);
+  const mouseModesRef = useRef<Set<number>>(new Set());
 
   const theme = themeProp || 'dark';
   const isLight = theme === 'light';
+  const isWindowsHost = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
   const { listenToTaskUpdates } = useAgent();
   const { cliStatuses, installCli, installProgress, detectCli } = useAgentCli();
@@ -124,16 +159,14 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       } : null;
 
       if (dims) {
-        const fontSize = xtermRef.current.options.fontSize || 13;
-        const charWidth = Math.round(fontSize * 0.6);
-        const charHeight = Math.round(fontSize * 1.2);
+        const cell = getTerminalCellPixels(xtermRef.current);
 
         invoke('resize_terminal', {
           sessionId: session.id,
           cols: dims.cols,
           rows: dims.rows,
-          pixelWidth: Math.round(dims.cols * charWidth),
-          pixelHeight: Math.round(dims.rows * charHeight)
+          pixelWidth: Math.round(dims.cols * cell.width),
+          pixelHeight: Math.round(dims.rows * cell.height)
         }).catch(console.error);
 
         onResize?.(dims.cols, dims.rows);
@@ -198,25 +231,83 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }, 1000);
   }, [session.id, session.agent, isRefreshing, stopCli, launchCli, checkAuth]);
 
+  const parseMouseTrackingState = useCallback((output: string) => {
+    if (!output.includes('\x1b[') && !output.includes('\x9b')) return;
+
+    // Match CSI private mode set/reset such as: ESC[?1000h, ESC[?1002;1006l, CSI ? 1006 h
+    const regex = /(?:\x1b\[|\x9b)\?([0-9;]+)([hl])/g;
+    let match: RegExpExecArray | null = regex.exec(output);
+
+    while (match) {
+      const [, params, op] = match;
+      const codes = params.split(';').map((n) => Number(n)).filter((n) => !Number.isNaN(n));
+
+      for (const code of codes) {
+        if (code === 1000 || code === 1002 || code === 1003 || code === 1005 || code === 1006 || code === 1015) {
+          if (op === 'h') {
+            mouseModesRef.current.add(code);
+          } else {
+            mouseModesRef.current.delete(code);
+          }
+        }
+      }
+
+      match = regex.exec(output);
+    }
+
+    setMouseTrackingEnabled(mouseModesRef.current.size > 0);
+  }, []);
+
+  const handleToggleMouseTracking = useCallback(async () => {
+    const enableSequence = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
+    const disableSequence = '\x1b[?1006l\x1b[?1002l\x1b[?1000l';
+
+    try {
+      await invoke('write_to_terminal', {
+        sessionId: session.id,
+        input: mouseTrackingEnabled ? disableSequence : enableSequence,
+      });
+
+      if (mouseTrackingEnabled) {
+        mouseModesRef.current.clear();
+        setMouseTrackingEnabled(false);
+      } else {
+        mouseModesRef.current.add(1000);
+        mouseModesRef.current.add(1002);
+        mouseModesRef.current.add(1006);
+        setMouseTrackingEnabled(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle mouse tracking:', error);
+    }
+  }, [session.id, mouseTrackingEnabled]);
+
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
+    const terminalElement = terminalRef.current;
 
     const xterm = new XTerm({
       theme: terminalTheme,
-      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-      fontSize: 13,
+      fontFamily: 'Cascadia Mono',
+      fontSize: 14,
+      fontWeight: '400',
+      lineHeight: 1,
+      letterSpacing: 0,
+      customGlyphs: true,
+      rescaleOverlappingGlyphs: true,
+      minimumContrastRatio: 1,
       cursorBlink: true,
       cursorStyle: 'block',
       allowProposedApi: true,
       scrollback: 10000,
-      convertEol: true,
+      convertEol: false,
       allowTransparency: false,
-      // Enable mouse tracking for TUI applications
-      // When TUI apps enable mouse mode via escape sequences, xterm.js will send mouse events
       disableStdin: false,
-      // Allow the terminal to handle mouse events for TUI apps
       macOptionIsMeta: false,
       macOptionClickForcesSelection: false,
+      scrollOnUserInput: true,
+      smoothScrollDuration: 0,
+      windowsPty: isWindowsHost ? { backend: 'conpty', buildNumber: 19000 } : undefined,
     });
 
     const fitAddon = new FitAddon();
@@ -239,50 +330,24 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
     xterm.unicode.activeVersion = '11';
 
-    xterm.open(terminalRef.current);
+    xterm.open(terminalElement);
 
-    terminalRef.current.addEventListener('paste', (e: Event) => {
+    const handlePasteCapture = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-    }, { capture: true });
+    };
 
-    // Focus terminal on click for immediate interaction
-    terminalRef.current.addEventListener('mousedown', () => {
+    const handleMouseDownFocus = () => {
       xterm.focus();
-    });
+    };
 
-    // Wheel event handling for TUI app scroll support
-    // When mouse tracking is enabled by TUI apps, xterm.js sends scroll as escape sequences.
-    // We need to let wheel events reach xterm.js without interference.
-    // Only stop propagation to prevent parent container scrolling.
-    terminalRef.current.addEventListener('wheel', (e: WheelEvent) => {
-      // Stop propagation to prevent parent container scroll
-      // but DON'T prevent default so xterm.js can handle the event
+    const handleWheel = (e: WheelEvent) => {
       e.stopPropagation();
-      // xterm.js will automatically convert wheel events to escape sequences
-      // when mouse tracking is enabled by the PTY (via DECSET sequences)
-      // Otherwise, it will scroll the terminal buffer normally
-    }, { passive: true }); // Use passive for better scroll performance
+    };
 
-    // Handle mouse button events for TUI click support
-    // xterm.js automatically handles mouse tracking when enabled by TUI apps
-    // via DECSET escape sequences, but we need to ensure the container doesn't interfere
-    terminalRef.current.addEventListener('mousedown', () => {
-      // Focus the terminal on any mouse interaction
-      xterm.focus();
-      // Don't stop propagation - let xterm.js handle the event
-    }, { capture: false });
-
-    // Ensure mouseup events also reach xterm.js
-    terminalRef.current.addEventListener('mouseup', () => {
-      // Let xterm.js handle mouseup for proper click detection
-    }, { capture: false });
-
-    // Handle context menu - allow right-click for TUI apps
-    terminalRef.current.addEventListener('contextmenu', () => {
-      // Don't prevent default - let xterm.js handle it
-      // This allows TUI apps to use right-click when they want
-    });
+    terminalElement.addEventListener('paste', handlePasteCapture, { capture: true });
+    terminalElement.addEventListener('mousedown', handleMouseDownFocus);
+    terminalElement.addEventListener('wheel', handleWheel, { passive: true });
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
@@ -292,6 +357,30 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setTimeout(() => {
       handleFitAndResize();
     }, 50);
+    setTimeout(() => {
+      handleFitAndResize();
+    }, 250);
+    setTimeout(() => {
+      handleFitAndResize();
+    }, 900);
+
+    const fontsApi = (document as Document & { fonts?: FontFaceSet }).fonts;
+    const onFontsDone = () => {
+      handleFitAndResize();
+      xterm.clearTextureAtlas();
+      if (xterm.rows > 0) {
+        xterm.refresh(0, xterm.rows - 1);
+      }
+    };
+
+    if (fontsApi) {
+      fontsApi.ready.then(() => {
+        onFontsDone();
+      }).catch(() => {
+        // Ignore font readiness errors.
+      });
+      fontsApi.addEventListener('loadingdone', onFontsDone);
+    }
 
     // Non-blocking input pipeline with write buffer for TUI mouse/scroll support.
     // Fire-and-forget prevents mouse events from queue-blocking.
@@ -299,21 +388,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     let inputFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
     xterm.onData((data) => {
-      // Detect DECSET sequences that enable/disable mouse tracking
-      // \x1b[?1000h - X11 mouse tracking
-      // \x1b[?1002h - button event tracking
-      // \x1b[?1003h - any event tracking
-      // \x1b[?1005h - UTF-8 mouse mode
-      // \x1b[?1006h - SGR mouse mode
-      if (data.includes('\x1b[?')) {
-        if (data.includes('1000h') || data.includes('1002h') || data.includes('1003h') ||
-            data.includes('1005h') || data.includes('1006h')) {
-          mouseTrackingEnabledRef.current = true;
-        } else if (data.includes('1000l') || data.includes('1002l') || data.includes('1003l')) {
-          mouseTrackingEnabledRef.current = false;
-        }
-      }
-
       inputBuffer += data;
       if (!inputFlushTimer) {
         inputFlushTimer = setTimeout(() => {
@@ -393,6 +467,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     });
 
     return () => {
+      if (inputFlushTimer) {
+        clearTimeout(inputFlushTimer);
+      }
+      if (fontsApi) {
+        fontsApi.removeEventListener('loadingdone', onFontsDone);
+      }
+      terminalElement.removeEventListener('paste', handlePasteCapture, true);
+      terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
+      terminalElement.removeEventListener('wheel', handleWheel);
       xterm.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
@@ -411,7 +494,18 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const setupListener = async () => {
       const unlisten = await listen<string>(`terminal-output:${session.id}`, (event) => {
         if (!mounted) return;
-        xtermRef.current?.write(event.payload);
+        parseMouseTrackingState(event.payload);
+        const term = xtermRef.current;
+        if (!term) return;
+
+        term.write(event.payload);
+        if (!firstOutputFitDoneRef.current) {
+          firstOutputFitDoneRef.current = true;
+          setTimeout(() => {
+            if (!mounted) return;
+            handleFitAndResize();
+          }, 0);
+        }
       });
       return unlisten;
     };
@@ -429,17 +523,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       mounted = false;
       if (unlistenFn) unlistenFn();
     };
-  }, [session.id]);
+  }, [session.id, parseMouseTrackingState, handleFitAndResize]);
 
   useEffect(() => {
     setCliLaunched(false);
     terminalReadyRef.current = false;
+    firstOutputFitDoneRef.current = false;
     launchAttemptsRef.current = 0;
+    mouseModesRef.current.clear();
+    setMouseTrackingEnabled(false);
     if (launchTimeoutRef.current) {
       clearTimeout(launchTimeoutRef.current);
       launchTimeoutRef.current = null;
     }
-  }, [session.id]);
+  }, [session.id, isWindowsHost]);
 
   useEffect(() => {
     if (!session.agent) return;
@@ -600,12 +697,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`h-full flex flex-col overflow-hidden rounded-xl transition-all duration-300 font-mono border-2 border-[var(--accent-border)] ${
+      className={`h-full flex flex-col overflow-hidden rounded-2xl font-mono border border-zinc-800/80 ${
         isLight
-          ? 'bg-zinc-900 shadow-xl'
-          : 'bg-zinc-950 shadow-2xl'
+          ? 'bg-zinc-900'
+          : 'bg-zinc-950'
       }`}
-      style={{ touchAction: 'none' }}
     >
       <TerminalHeader
         session={session}
@@ -613,6 +709,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         onRefreshCli={handleRefreshCli}
         isRefreshing={isRefreshing}
         onClose={onClose}
+        mouseTrackingEnabled={mouseTrackingEnabled}
+        onToggleMouseTracking={handleToggleMouseTracking}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}
@@ -683,13 +781,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
       <div
         ref={terminalRef}
-        className={`flex-1 overflow-hidden min-h-0 p-0.5 ${isLight ? 'bg-[#18181b]' : 'bg-[#09090b]'}`}
+        className={`flex-1 overflow-hidden min-h-0 p-[3px] ${isLight ? 'bg-[#18181b]' : 'bg-[#09090b]'}`}
         style={{
-          touchAction: 'none',
-          // Ensure pointer events reach xterm.js
           pointerEvents: 'auto',
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
+          touchAction: 'auto',
         }}
         onClick={() => xtermRef.current?.focus()}
         onMouseDown={() => xtermRef.current?.focus()}

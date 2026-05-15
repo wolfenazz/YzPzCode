@@ -40,7 +40,7 @@ function makeEqualSizes(n: number): number[] {
 
 const MIN_SIZE = 12;
 const DIVIDER = 3;
-const GAP_PX = 8;
+const GAP_PX = 10;
 
 export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading, theme }) => {
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -276,7 +276,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
             return (
               <div
                 key={session.id}
-                className="relative overflow-hidden rounded-xl"
+                className="relative overflow-hidden rounded-2xl"
                 style={{ gridRow: row + 1, gridColumn: col + 1 }}
               >
                 <SortableTerminalPane
@@ -289,14 +289,14 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           })}
           {sorted.length < cellCount && (
             <div
-              className={`relative overflow-hidden rounded-xl border-2 bg-theme-card border-accent-light`}
+              className={`relative overflow-hidden rounded-2xl border bg-zinc-950/30 border-zinc-800/80 shadow-[0_20px_35px_rgba(0,0,0,0.25)]`}
               style={{ gridRow: Math.floor(sorted.length / cols) + 1, gridColumn: (sorted.length % cols) + 1 }}
             >
               <div
                 className={`h-full flex items-center justify-center cursor-pointer transition-all duration-300 group/empty ${
                   isLight
-                    ? 'bg-zinc-800/10 hover:bg-zinc-800/30'
-                    : 'bg-zinc-900/10 hover:bg-zinc-900/30'
+                    ? 'bg-zinc-800/20 hover:bg-zinc-800/40'
+                    : 'bg-zinc-900/20 hover:bg-zinc-900/40'
                 }`}
                 onClick={() => setShowNewDialog(true)}
                 title="Spawn Terminal"
@@ -304,8 +304,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
                 <div className="flex flex-col items-center gap-4 transition-all duration-300 group-hover/empty:scale-110">
                   <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${
                     isLight
-                      ? 'border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/40'
-                      : 'border-zinc-800 text-zinc-700 group-hover/empty:border-zinc-600 group-hover/empty:bg-zinc-800/20 group-hover/empty:text-zinc-400'
+                      ? 'border-zinc-600 text-zinc-400 group-hover/empty:border-zinc-400 group-hover/empty:bg-zinc-800/50'
+                      : 'border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/35 group-hover/empty:text-zinc-300'
                   }`}>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -373,8 +373,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           >
             <div className={`w-1 h-full transition-all duration-300 mx-auto rounded-full ${
               isLight
-                ? 'bg-transparent group-hover/divider:bg-zinc-600/50'
-                : 'bg-transparent group-hover/divider:bg-zinc-700/50 group-active/divider:bg-zinc-500'
+                ? 'bg-transparent group-hover/divider:bg-zinc-500/60'
+                : 'bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70'
             }`} />
           </div>
         );
@@ -398,8 +398,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           >
             <div className={`h-1 w-full transition-all duration-300 my-auto rounded-full ${
               isLight
-                ? 'bg-transparent group-hover/divider:bg-zinc-600/50'
-                : 'bg-transparent group-hover/divider:bg-zinc-700/50 group-active/divider:bg-zinc-500'
+                ? 'bg-transparent group-hover/divider:bg-zinc-500/60'
+                : 'bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70'
             }`} />
           </div>
         );
@@ -408,7 +408,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
   );
 
   return (
-    <div className={`h-full w-full flex flex-col bg-theme-main`}>
+    <div className="h-full w-full flex flex-col bg-theme-main relative overflow-hidden">
       <div
         ref={containerRef}
         className="flex-1 min-h-0 relative"
@@ -417,25 +417,25 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
         {renderGridDividers()}
       </div>
 
-      <div className={`flex items-center justify-between px-4 py-2 shrink-0 border-t border-theme bg-theme-card/50 backdrop-blur-sm`}>
+      <div className="flex items-center justify-between px-4 py-2.5 shrink-0 border-t border-zinc-800/80 bg-zinc-950">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black tracking-[0.2em] text-theme-secondary uppercase">Sessions</span>
-            <span className="text-[10px] font-bold text-theme-main">{sorted.length}</span>
+            <span className="text-[9px] font-black tracking-[0.22em] text-zinc-500 uppercase">Sessions</span>
+            <span className="text-[10px] font-bold text-zinc-200">{sorted.length}</span>
           </div>
-          <div className="h-3 w-px bg-theme-hover mx-1" />
+          <div className="h-3 w-px bg-zinc-700/70 mx-1" />
           <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black tracking-[0.2em] text-theme-secondary uppercase">Layout</span>
-            <span className="text-[10px] font-bold text-theme-main">{cols}x{rows}</span>
+            <span className="text-[9px] font-black tracking-[0.22em] text-zinc-500 uppercase">Layout</span>
+            <span className="text-[10px] font-bold text-zinc-200">{cols}x{rows}</span>
           </div>
         </div>
         <button
           onClick={() => setShowNewDialog(true)}
           className={`group/init relative flex items-center gap-2 px-3.5 py-1.5 ${
             isLight 
-              ? 'bg-zinc-800 text-zinc-200 border-zinc-700 hover:bg-zinc-700' 
-              : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-800'
-          } border rounded-lg text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 active:scale-95 active:translate-y-0 cursor-pointer shadow-md hover:shadow-xl`}
+              ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700' 
+              : 'bg-zinc-900/90 text-zinc-200 border-zinc-700/90 hover:bg-zinc-800/95'
+          } border rounded-xl text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 active:scale-95 active:translate-y-0 cursor-pointer shadow-[0_10px_26px_rgba(0,0,0,0.32)] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)]`}
           title="Initialize new TTY"
         >
           <div className="relative flex items-center justify-center">

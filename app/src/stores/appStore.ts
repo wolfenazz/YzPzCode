@@ -222,7 +222,7 @@ export const useAppStore = create<AppState>()(
       accentColor: "default",
       uiDensity: "comfortable",
       animationsEnabled: true,
-      terminalFontFamily: "JetBrains Mono",
+      terminalFontFamily: "Cascadia Mono",
       terminalFontSize: 14,
       terminalCursorStyle: "block",
       terminalCursorBlink: true,

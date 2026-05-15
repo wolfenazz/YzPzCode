@@ -823,38 +823,27 @@ html.animations-disabled *::after {
 }
 
 /* ── Terminal (xterm.js) ─────────────────────────────────────────────── */
-/* Use .xterm descendant selectors to match xterm.css specificity (0,2,0) */
-/* and !important to guarantee overrides win in production builds */
-
 .xterm.xterm {
   padding: 0 !important;
   height: 100% !important;
+  cursor: text !important;
 }
 
-/* CRITICAL: overflow-y MUST be 'scroll' not 'auto'.
-   With 'auto', when TUI apps use alternate screen buffer (content fits viewport),
-   the browser doesn't create a scroll container, so wheel events never reach
-   xterm's viewport handler and are never translated to mouse scroll escape
-   sequences for the PTY. 'scroll' always creates a scroll container. */
 .xterm .xterm-viewport {
-  overflow-y: scroll !important;
+  overflow-y: auto !important;
   scroll-behavior: auto !important;
-  pointer-events: auto !important;
+  overscroll-behavior: contain;
 }
 
 .xterm .xterm-screen {
   pointer-events: auto !important;
-  height: auto !important;
 }
 
-/* Ensure xterm rows don't interfere with click targeting */
-.xterm .xterm-rows > div {
-  cursor: text !important;
-}
-
-/* Smooth text selection in terminal */
-.xterm .xterm-selection {
-  pointer-events: none !important;
+/* Avoid ligature shaping in fixed-grid rendering to prevent glyph overlap artifacts. */
+.xterm .xterm-rows,
+.xterm .xterm-rows span {
+  font-variant-ligatures: none !important;
+  font-feature-settings: "liga" 0, "calt" 0 !important;
 }
 
 /* xterm scroll bar styling for both normal and alt screen */
@@ -873,85 +862,6 @@ html.animations-disabled *::after {
 
 .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
   background: rgba(82, 82, 91, 0.7) !important;
-}
-
-/* Ensure xterm DOM renderer elements receive all pointer events for TUI interaction */
-.xterm .xterm-screen canvas {
-  pointer-events: auto !important;
-  touch-action: none !important;
-}
-
-/* CRITICAL FOR TUI MOUSE SUPPORT: Ensure the viewport receives all mouse events */
-.xterm-viewport {
-  pointer-events: auto !important;
-  -webkit-user-select: none !important;
-  user-select: none !important;
-}
-
-/* Ensure all xterm interactive elements receive pointer events */
-.xterm .xterm-rows,
-.xterm .xterm-rows span,
-.xterm .xterm-screen {
-  pointer-events: auto !important;
-}
-
-/* Enable text cursor in terminal for proper focus handling */
-.xterm {
-  cursor: text !important;
-}
-
-/* Ensure the xterm helper textarea (used for IME/input) doesn't block mouse events */
-.xterm-helper-textarea {
-  position: absolute !important;
-  opacity: 0 !important;
-  width: 0 !important;
-  height: 0 !important;
-  pointer-events: none !important;
-  z-index: -10 !important;
-}
-
-/* Prevent any parent or overlay from interfering with terminal mouse events */
-.xterm .xterm-scroll-area {
-  pointer-events: auto !important;
-}
-
-/* CRITICAL: Ensure all terminal containers allow mouse events */
-div[class*="terminal"],
-div[class*="Terminal"] {
-  pointer-events: auto !important;
-}
-
-/* Make sure no element with overflow-hidden blocks pointer events */
-.overflow-hidden {
-  /* Don't override pointer-events for layout containers */
-}
-
-/* But ensure terminal-specific containers allow pointer events */
-.xterm-container,
-.terminal-container,
-[class*="xterm"] {
-  pointer-events: auto !important;
-}
-
-/* Ensure cursor is visible and correct for terminal interaction */
-.xterm {
-  cursor: text !important;
-}
-
-.xterm:hover {
-  cursor: text !important;
-}
-
-/* macOS-specific: Fix trackpad scrolling */
-@media (pointer: fine) {
-  .xterm .xterm-viewport {
-    scroll-behavior: auto !important;
-  }
-}
-
-/* Fix for momentum scrolling on macOS */
-.xterm .xterm-viewport {
-  -webkit-overflow-scrolling: auto !important;
 }
 
 /* ── Custom Crosshair Cursor ──────────────────────────────────────────── */

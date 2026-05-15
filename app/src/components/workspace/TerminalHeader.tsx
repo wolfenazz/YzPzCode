@@ -50,6 +50,8 @@ interface TerminalHeaderProps {
   onClose?: () => void;
   cliStatusBadge: React.ReactNode;
   dragListeners?: Record<string, unknown>;
+  mouseTrackingEnabled?: boolean;
+  onToggleMouseTracking?: () => void;
 }
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
@@ -60,6 +62,8 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   onClose,
   cliStatusBadge,
   dragListeners,
+  mouseTrackingEnabled = false,
+  onToggleMouseTracking,
 }) => {
   const isLight = theme === 'light';
 
@@ -67,8 +71,8 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
     <div
       className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing ${
         isLight
-          ? 'bg-zinc-800/80 border-b border-zinc-700 backdrop-blur-md'
-          : 'bg-zinc-900/40 border-b border-zinc-800/50 backdrop-blur-md'
+          ? 'bg-zinc-800 border-b border-zinc-700/80'
+          : 'bg-zinc-900 border-b border-zinc-800/80'
       }`}
       {...dragListeners}
     >
@@ -84,26 +88,34 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
           TTY::{session.index + 1}
         </span>
 
-        <div className="h-3 w-px bg-zinc-800/50 mx-1" />
+        <div className="h-3 w-px bg-zinc-700/50 mx-1" />
 
         {session.agent ? (
           <div className="flex items-center gap-2 min-w-0">
             <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md shrink-0 border transition-all duration-300 ${
-              isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700 group/agent'
+              isLight ? 'bg-zinc-800/90 border-zinc-700' : 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700 group/agent'
             }`}>
               {isAgentType(session.agent) ? (
-                <img
-                  src={AGENT_LOGOS[session.agent]}
-                  alt={session.agent}
-                  className={`w-3 h-3 object-contain transition-transform group-hover/agent:scale-110 ${session.agent === 'opencode' || session.agent === 'cursor' || session.agent === 'codex'
-                      ? isLight
-                        ? 'invert brightness-[3.5] contrast-[1.5]'
-                        : 'invert brightness-[3.5] contrast-[1.5]'
-                      : isLight
-                        ? 'brightness-[2.2] contrast-[1.2]'
-                        : 'brightness-[2.2] contrast-[1.2]'
-                    }`}
-                />
+                session.agent === 'claude' ? (
+                  <Icon
+                    icon="simple-icons:anthropic"
+                    className="w-3 h-3 transition-transform group-hover/agent:scale-110"
+                    style={{ color: '#D97757' }}
+                  />
+                ) : (
+                  <img
+                    src={AGENT_LOGOS[session.agent]}
+                    alt={session.agent}
+                    className={`w-3 h-3 object-contain transition-transform group-hover/agent:scale-110 ${session.agent === 'opencode' || session.agent === 'cursor' || session.agent === 'codex'
+                        ? isLight
+                          ? 'invert brightness-[3.5] contrast-[1.5]'
+                          : 'invert brightness-[3.5] contrast-[1.5]'
+                        : isLight
+                          ? 'brightness-[2.2] contrast-[1.2]'
+                          : 'brightness-[2.2] contrast-[1.2]'
+                      }`}
+                  />
+                )
               ) : (
                 <Icon
                   icon={TOOL_ICON_MAP[session.agent as ToolCliType].icon}
@@ -132,8 +144,29 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       </div>
 
       <div className="flex items-center shrink-0 gap-1 ml-2">
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleMouseTracking?.();
+          }}
+          className={`px-2 py-1 rounded-md border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+            mouseTrackingEnabled
+              ? (isLight
+                  ? 'bg-emerald-900/45 border-emerald-700 text-emerald-300'
+                  : 'bg-emerald-950/45 border-emerald-800 text-emerald-400')
+              : (isLight
+                  ? 'bg-rose-900/35 border-rose-700 text-rose-300 hover:bg-rose-900/50'
+                  : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50')
+          }`}
+          title={mouseTrackingEnabled ? 'Mouse mode enabled (click to disable)' : 'Mouse mode disabled (click to enable manually)'}
+        >
+          Mouse {mouseTrackingEnabled ? 'On' : 'Off'}
+        </button>
         <QuickActions sessionId={session.id} cwd={session.cwd} theme={theme} />
-        <div className="h-3 w-px bg-zinc-800/50" />
+        <div className="h-3 w-px bg-zinc-700/50" />
         {session.agent && (
           <button
             onClick={onRefreshCli}

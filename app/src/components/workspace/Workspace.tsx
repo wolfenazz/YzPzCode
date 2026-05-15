@@ -285,7 +285,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         activeView={activeView}
       />
 
-      <main className="flex-1 overflow-hidden bg-theme-main">
+      <main className="flex-1 overflow-hidden bg-[radial-gradient(1200px_600px_at_18%_-10%,rgba(255,255,255,0.05),transparent),radial-gradient(900px_500px_at_90%_120%,rgba(16,185,129,0.08),transparent),#09090b]">
         {currentWorkspace ? (
           <div className="h-full flex items-stretch">
             <AnimatePresence initial={false}>
@@ -319,14 +319,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={activeView}
-                  initial={{ opacity: 0, scale: 0.99, y: 4 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 1.01, y: -4 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                   transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
                   className="h-full w-full"
                 >
                   {activeView === "terminal" ? (
-                    <TerminalGrid sessions={sessions} isLoading={isLoading} theme={theme} />
+                    <div className="h-full p-2.5">
+                      <div className="h-full rounded-2xl border border-zinc-800/70 bg-zinc-950/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+                        <TerminalGrid sessions={sessions} isLoading={isLoading} theme={theme} />
+                      </div>
+                    </div>
                   ) : (
                     <FileEditor />
                   )}
