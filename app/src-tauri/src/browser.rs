@@ -24,6 +24,21 @@ fn resolve_browser_url(url: &str) -> String {
     }
 }
 
+#[cfg(test)]
+fn canonicalize_browser_url(url: &str) -> Option<String> {
+    Url::parse(&resolve_browser_url(url))
+        .ok()
+        .map(|parsed| parsed.as_str().to_string())
+}
+
+#[cfg(test)]
+fn browser_urls_match(left: &str, right: &str) -> bool {
+    match (canonicalize_browser_url(left), canonicalize_browser_url(right)) {
+        (Some(left_url), Some(right_url)) => left_url == right_url,
+        _ => resolve_browser_url(left) == resolve_browser_url(right),
+    }
+}
+
 const BROWSER_INIT_SCRIPT: &str = r#"
 (() => {
   if (window.__YZPZ_BROWSER_BRIDGE__) {
@@ -495,10 +510,48 @@ impl BrowserManager {
         if let Some(webview) = app.get_webview(&label) {
             self.apply_bounds(&webview, &bounds)?;
             webview.show()?;
-            if !resolved_url.is_empty() {
-                self.navigate_webview(&webview, &resolved_url)?;
-            }
+            let current_url = webview
+                .url()
+                .ok()
+                .map(|value| value.to_string())
+                .or_else(|| {
+                    self.instances
+                        .lock()
+                        .unwrap()
+                        .get(workspace_id)
+                        .map(|instance| instance.current_url.clone())
+                });
             webview.set_zoom(existing_zoom)?;
+
+            // Re-showing an existing webview should not trigger a navigation.
+            // Explicit URL changes go through `navigate()`, which keeps the
+            // browser from snapping back to a default page during UI churn.
+            let current_url = current_url.unwrap_or_else(|| resolved_url.clone());
+
+            let state = BrowserViewState {
+                workspace_id: workspace_id.to_string(),
+                label: label.clone(),
+                current_url: current_url.clone(),
+                visible: true,
+                inspect_mode: existing_inspect,
+            };
+
+            self.instances.lock().unwrap().insert(
+                workspace_id.to_string(),
+                BrowserInstance {
+                    label,
+                    current_url,
+                    visible: true,
+                    inspect_mode: existing_inspect,
+                    zoom_factor: existing_zoom,
+                },
+            );
+
+            if existing_inspect {
+                self.set_inspect_mode(workspace_id, true)?;
+            }
+
+            return Ok(state);
         } else {
             let window = self.main_window(&app)?;
             let parsed_url = Url::parse(&resolved_url)
@@ -897,4 +950,23 @@ fn inspect_mode_script(enabled: bool) -> String {
     format!(
         "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setInspectMode({enabled});"
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{browser_urls_match, canonicalize_browser_url, resolve_browser_url, DEFAULT_BROWSER_URL};
+
+    #[test]
+    fn canonicalizes_default_url_variants() {
+        let canonical_default = canonicalize_browser_url(DEFAULT_BROWSER_URL).expect("default url should parse");
+
+        assert_eq!(canonical_default, canonicalize_browser_url("http://localhost:3000/").expect("trailing slash should parse"));
+        assert_eq!(canonical_default, canonicalize_browser_url("about:blank").expect("blank should normalize to default"));
+    }
+
+    #[test]
+    fn matches_equivalent_urls_without_forced_reload() {
+        assert!(browser_urls_match("http://localhost:3000", "http://localhost:3000/"));
+        assert!(browser_urls_match("about:blank", &resolve_browser_url("")));
+    }
 }

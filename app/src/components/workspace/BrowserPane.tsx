@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
+import { Icon } from '@iconify/react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type {
@@ -120,6 +122,110 @@ const sessionDisplayName = (session: TerminalSession): string => {
   return `TTY ${session.index + 1} · shell`;
 };
 
+const buildBracketedPasteInput = (value: string): string => `\x1b[200~${value}\x1b[201~\r`;
+
+type BrowserToolbarIconName =
+  | 'open'
+  | 'back'
+  | 'forward'
+  | 'copy'
+  | 'external'
+  | 'reload'
+  | 'export'
+  | 'inspect'
+  | 'rotate';
+
+interface BrowserToolbarIconProps {
+  name: BrowserToolbarIconName;
+  className?: string;
+}
+
+const BrowserToolbarIcon: React.FC<BrowserToolbarIconProps> = ({ name, className = 'h-4 w-4' }) => {
+  const iconProps = {
+    className,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+    focusable: 'false' as const,
+  };
+
+  switch (name) {
+    case 'open':
+      return (
+        <svg {...iconProps}>
+          <path d="M7 17L17 7" />
+          <path d="M7 7h10v10" />
+        </svg>
+      );
+    case 'back':
+      return (
+        <svg {...iconProps}>
+          <path d="M19 12H5" />
+          <path d="m12 19-7-7 7-7" />
+        </svg>
+      );
+    case 'forward':
+      return (
+        <svg {...iconProps}>
+          <path d="M5 12h14" />
+          <path d="m12 5 7 7-7 7" />
+        </svg>
+      );
+    case 'copy':
+      return (
+        <svg {...iconProps}>
+          <rect x="8" y="8" width="12" height="12" rx="2" />
+          <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+        </svg>
+      );
+    case 'external':
+      return (
+        <svg {...iconProps}>
+          <path d="M14 4h6v6" />
+          <path d="m21 3-9 9" />
+          <path d="M10 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-4" />
+        </svg>
+      );
+    case 'reload':
+      return (
+        <Icon icon="material-symbols:refresh-rounded" className={className} aria-hidden="true" />
+      );
+    case 'export':
+      return (
+        <svg {...iconProps}>
+          <path d="M12 3v11" />
+          <path d="m7 9 5 5 5-5" />
+          <path d="M5 19h14" />
+        </svg>
+      );
+    case 'inspect':
+      return (
+        <svg {...iconProps}>
+          <circle cx="12" cy="12" r="7" />
+          <path d="M12 2v3" />
+          <path d="M12 19v3" />
+          <path d="M2 12h3" />
+          <path d="M19 12h3" />
+        </svg>
+      );
+    case 'rotate':
+      return (
+        <svg {...iconProps}>
+          <path d="M3 12a9 9 0 0 1 15-6.7" />
+          <path d="M18 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-15 6.7" />
+          <path d="M6 21v-5h5" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+};
+
 const getViewportMetrics = (
   hostWidth: number,
   hostHeight: number,
@@ -133,20 +239,19 @@ const getViewportMetrics = (
   shellPadding: number;
   shellHeader: number;
 } => {
-  const availableWidth = Math.max(hostWidth - 48, 280);
-  const availableHeight = Math.max(hostHeight - 48, 320);
-
   if (device.id === 'responsive') {
     return {
-      stageWidth: availableWidth,
-      stageHeight: availableHeight,
-      viewportWidth: availableWidth,
-      viewportHeight: availableHeight,
+      stageWidth: Math.max(hostWidth, 280),
+      stageHeight: Math.max(hostHeight, 320),
+      viewportWidth: Math.max(hostWidth, 280),
+      viewportHeight: Math.max(hostHeight, 320),
       shellPadding: 0,
       shellHeader: 0,
     };
   }
 
+  const availableWidth = Math.max(hostWidth - 48, 280);
+  const availableHeight = Math.max(hostHeight - 48, 320);
   const shellPadding = device.category === 'mobile' ? 16 : 12;
   const shellHeader = device.category === 'mobile' ? 22 : 18;
   const requestedWidth = orientation === 'landscape' && device.width && device.height ? device.height : device.width;
@@ -568,7 +673,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
 
     setIsSubmitting(true);
     try {
-      await writeToTerminal(targetSessionId, `${formattedPrompt}\n`);
+      await writeToTerminal(targetSessionId, buildBracketedPasteInput(formattedPrompt));
       setBrowserPrompt(workspaceId, '');
       setError(null);
     } catch (err) {
@@ -622,10 +727,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   const previewModeLabel = activeDevice.id === 'responsive'
     ? 'Adaptive canvas'
     : `${viewportMetrics.viewportWidth} × ${viewportMetrics.viewportHeight}`;
+  const selectedElement = effectiveState.selectedElement;
+  const selectedElementSelectors = selectedElement?.selectors.slice(0, 3) ?? [];
+  const selectedElementTitle = selectedElement?.pageTitle || pageTitle || 'Untitled page';
+  const selectedElementSummary = selectedElement?.textContent || 'No visible text in this element.';
+  const selectedElementAttributeCount = selectedElement ? Object.keys(selectedElement.attributes).length : 0;
 
   return (
-    <div className="h-full p-2.5">
-      <div className={`h-full rounded-[28px] border overflow-hidden flex flex-col ${
+    <div className="h-full w-full">
+      <div className={`h-full w-full border overflow-hidden flex flex-col ${
         isLight
           ? 'border-zinc-700 bg-[linear-gradient(180deg,rgba(39,39,42,0.98),rgba(24,24,27,0.94))]'
           : 'border-zinc-800/80 bg-[linear-gradient(180deg,rgba(15,23,42,0.82),rgba(9,9,11,0.95))]'
@@ -664,59 +774,115 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
               />
               <button
                 onClick={() => void handleNavigate()}
-                className="rounded-xl border border-emerald-700/60 bg-emerald-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 transition-colors hover:bg-emerald-500/18 cursor-pointer"
+                title="Open URL"
+                aria-label="Open URL"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-emerald-700/60 bg-emerald-500/10 text-emerald-300 transition-colors hover:bg-emerald-500/18 cursor-pointer"
               >
-                Open
+                <span className="sr-only">Open URL</span>
+                <BrowserToolbarIcon name="open" />
               </button>
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              <motion.button
+                type="button"
+                onClick={() => void handleToggleInspect()}
+                title={effectiveState.inspectMode ? 'Stop inspecting' : 'Inspect element'}
+                aria-label={effectiveState.inspectMode ? 'Stop inspecting' : 'Inspect element'}
+                aria-pressed={effectiveState.inspectMode}
+                whileHover={{ y: -1, scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ type: 'spring', stiffness: 420, damping: 28 }}
+                className={`relative isolate flex h-11 min-w-[164px] items-center justify-between overflow-hidden rounded-[22px] border border-transparent px-4 py-2 text-left shadow-[0_16px_35px_rgba(0,0,0,0.28)] cursor-pointer ${
+                  effectiveState.inspectMode
+                    ? 'text-white shadow-[0_0_0_1px_rgba(16,185,129,0.18),0_0_34px_rgba(59,130,246,0.24)]'
+                    : 'text-zinc-50 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_18px_36px_rgba(0,0,0,0.3)]'
+                }`}
+              >
+                <div className="absolute inset-0 rounded-[22px] bg-[linear-gradient(180deg,rgba(12,15,24,0.97),rgba(7,10,16,0.98))]" />
+                <motion.div
+                  aria-hidden="true"
+                  className="absolute inset-[-44%] rounded-full bg-[conic-gradient(from_180deg,#4285F4,#34A853,#FBBC05,#A142F4,#4285F4)] blur-2xl opacity-80"
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
+                />
+                <div className="absolute inset-px rounded-[21px] bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.1),transparent_28%),linear-gradient(180deg,rgba(15,23,42,0.94),rgba(8,11,18,0.97))]" />
+                <div className="absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                <span className="relative flex items-center gap-3">
+                  <span className={`flex h-7 w-7 items-center justify-center rounded-full border text-white/95 ${
+                    effectiveState.inspectMode
+                      ? 'border-white/15 bg-white/10 shadow-[0_0_18px_rgba(59,130,246,0.2)]'
+                      : 'border-white/10 bg-white/5'
+                  }`}>
+                    <BrowserToolbarIcon name="inspect" />
+                  </span>
+                  <span className="flex min-w-0 flex-col leading-none">
+                    <span className="text-[10px] font-black uppercase tracking-[0.28em]">Inspect</span>
+                    <span className="mt-1 text-[9px] uppercase tracking-[0.24em] text-zinc-300/70">Gemini glow</span>
+                  </span>
+                </span>
+                <span className={`relative inline-flex h-5 items-center rounded-full border px-2 text-[9px] font-black uppercase tracking-[0.18em] ${
+                  effectiveState.inspectMode
+                    ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+                    : 'border-white/10 bg-white/5 text-zinc-200'
+                }`}>
+                  Live
+                </span>
+              </motion.button>
               <button
                 onClick={() => void handleGoBack()}
                 disabled={historyLength <= 1}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                title="Back"
+                aria-label="Back"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/75 text-zinc-300 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
               >
-                Back
+                <span className="sr-only">Back</span>
+                <BrowserToolbarIcon name="back" />
               </button>
               <button
                 onClick={() => void handleGoForward()}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
+                title="Forward"
+                aria-label="Forward"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/75 text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
               >
-                Forward
+                <span className="sr-only">Forward</span>
+                <BrowserToolbarIcon name="forward" />
               </button>
               <button
                 onClick={() => void handleCopyUrl()}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
+                title="Copy URL"
+                aria-label="Copy URL"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/75 text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
               >
-                Copy URL
+                <span className="sr-only">Copy URL</span>
+                <BrowserToolbarIcon name="copy" />
               </button>
               <button
                 onClick={() => void handleOpenExternal()}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
+                title="Open externally"
+                aria-label="Open externally"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/75 text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
               >
-                External
+                <span className="sr-only">Open externally</span>
+                <BrowserToolbarIcon name="external" />
               </button>
               <button
                 onClick={() => void handleReload()}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
+                title="Reload"
+                aria-label="Reload"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/75 text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
               >
-                Reload
+                <span className="sr-only">Reload</span>
+                <BrowserToolbarIcon name="reload" />
               </button>
               <button
                 onClick={() => void handleExportSnapshot()}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
+                title="Export snapshot"
+                aria-label="Export snapshot"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-900/75 text-zinc-300 transition-colors hover:bg-zinc-800 cursor-pointer"
               >
-                Export
-              </button>
-              <button
-                onClick={() => void handleToggleInspect()}
-                className={`rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-colors cursor-pointer ${
-                  effectiveState.inspectMode
-                    ? 'border-emerald-500/70 bg-emerald-500/12 text-emerald-300'
-                    : 'border-zinc-800 bg-zinc-900/75 text-zinc-300 hover:bg-zinc-800'
-                }`}
-              >
-                {effectiveState.inspectMode ? 'Inspecting' : 'Inspect'}
+                <span className="sr-only">Export snapshot</span>
+                <BrowserToolbarIcon name="export" />
               </button>
             </div>
           </div>
@@ -737,9 +903,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
             <button
               onClick={handleRotateDevice}
               disabled={activeDevice.id === 'responsive'}
-              className="rounded-xl border border-zinc-800 bg-zinc-950/75 px-3 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-300 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+              title="Rotate device"
+              aria-label="Rotate device"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-800 bg-zinc-950/75 text-zinc-300 transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
             >
-              Rotate
+              <span className="sr-only">Rotate device</span>
+              <BrowserToolbarIcon name="rotate" />
             </button>
 
             <div className="flex items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-950/75 p-1">
@@ -810,51 +979,54 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
               className="absolute inset-0 overflow-hidden bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.12),transparent_28%),linear-gradient(180deg,rgba(9,9,11,0.12),rgba(9,9,11,0.58))]"
             >
               <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:28px_28px]" />
-              <div className="relative flex h-full items-center justify-center p-6">
+              {activeDevice.id === 'responsive' ? (
                 <div
-                  className={`relative transition-all duration-200 ${
-                    activeDevice.id === 'responsive'
-                      ? ''
-                      : activeDevice.category === 'mobile'
+                  ref={previewViewportRef}
+                  className="absolute inset-0 overflow-hidden rounded-none bg-zinc-900/40"
+                  style={{
+                    width: viewportMetrics.viewportWidth,
+                    height: viewportMetrics.viewportHeight,
+                  }}
+                />
+              ) : (
+                <div className="relative flex h-full items-center justify-center p-6">
+                  <div
+                    className={`relative transition-all duration-200 ${
+                      activeDevice.category === 'mobile'
                         ? 'rounded-[36px] border border-zinc-700/70 bg-zinc-950/92 shadow-[0_35px_90px_rgba(0,0,0,0.55)]'
                         : 'rounded-[26px] border border-zinc-700/70 bg-zinc-950/88 shadow-[0_28px_80px_rgba(0,0,0,0.45)]'
-                  }`}
-                  style={{
-                    width: viewportMetrics.stageWidth,
-                    height: viewportMetrics.stageHeight,
-                    padding: activeDevice.id === 'responsive' ? 0 : viewportMetrics.shellPadding,
-                    paddingTop: activeDevice.id === 'responsive'
-                      ? 0
-                      : viewportMetrics.shellPadding + viewportMetrics.shellHeader,
-                  }}
-                >
-                  {activeDevice.id !== 'responsive' && (
+                    }`}
+                    style={{
+                      width: viewportMetrics.stageWidth,
+                      height: viewportMetrics.stageHeight,
+                      padding: viewportMetrics.shellPadding,
+                      paddingTop: viewportMetrics.shellPadding + viewportMetrics.shellHeader,
+                    }}
+                  >
                     <div className="absolute inset-x-0 top-0 flex items-center justify-between px-4 pt-3 text-[10px] uppercase tracking-[0.2em] text-zinc-500">
                       <span>{activeDevice.label}</span>
                       <span>{viewportMetrics.viewportWidth} x {viewportMetrics.viewportHeight}</span>
                     </div>
-                  )}
 
-                  {activeDevice.category === 'mobile' && activeDevice.id !== 'responsive' && (
-                    <div className="absolute left-1/2 top-3 h-1.5 w-20 -translate-x-1/2 rounded-full bg-zinc-700/90" />
-                  )}
+                    {activeDevice.category === 'mobile' && (
+                      <div className="absolute left-1/2 top-3 h-1.5 w-20 -translate-x-1/2 rounded-full bg-zinc-700/90" />
+                    )}
 
-                  <div
-                    ref={previewViewportRef}
-                    className={`relative overflow-hidden ${
-                      activeDevice.id === 'responsive'
-                        ? 'h-full w-full rounded-none'
-                        : activeDevice.category === 'mobile'
+                    <div
+                      ref={previewViewportRef}
+                      className={`relative overflow-hidden ${
+                        activeDevice.category === 'mobile'
                           ? 'rounded-[28px] bg-zinc-900/40'
                           : 'rounded-[18px] bg-zinc-900/40'
-                    }`}
-                    style={{
-                      width: viewportMetrics.viewportWidth,
-                      height: viewportMetrics.viewportHeight,
-                    }}
-                  />
+                      }`}
+                      style={{
+                        width: viewportMetrics.viewportWidth,
+                        height: viewportMetrics.viewportHeight,
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {!nativeBrowserReady && (
@@ -867,80 +1039,178 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
             )}
           </div>
 
-          {effectiveState.selectedElement && (
-            <aside className="w-[390px] shrink-0 bg-[linear-gradient(180deg,rgba(10,10,12,0.98),rgba(17,24,39,0.96))] p-4 text-zinc-100">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-300">Element Handoff</div>
-                  <div className="mt-2 text-xs text-zinc-400">Target the exact UI node, describe the change, then send the structured prompt into one of the running agents.</div>
-                </div>
-                <button
-                  onClick={() => clearBrowserSelection(workspaceId)}
-                  className="rounded-xl border border-zinc-800 bg-zinc-900/75 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer"
-                >
-                  Clear
-                </button>
-              </div>
-
-              <div className="mt-4 rounded-3xl border border-zinc-800/80 bg-black/30 p-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-300">
-                  {effectiveState.selectedElement.tagName}
-                  {effectiveState.selectedElement.id ? `#${effectiveState.selectedElement.id}` : ''}
-                </div>
-                <div className="mt-2 text-[11px] leading-5 text-zinc-400">
-                  {effectiveState.selectedElement.textContent || 'No visible text in this element.'}
-                </div>
-                <div className="mt-3 space-y-2">
-                  {effectiveState.selectedElement.selectors.slice(0, 3).map((selector) => (
-                    <div key={selector} className="rounded-2xl border border-zinc-800/60 bg-zinc-950/65 px-3 py-2 text-[10px] text-zinc-300 break-all">
-                      {selector}
+          {selectedElement && (
+            <motion.aside
+              initial={{ opacity: 0, x: 18 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+              className="w-[400px] shrink-0 border-l border-white/5 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.08),transparent_28%),radial-gradient(circle_at_bottom,rgba(16,185,129,0.10),transparent_30%),linear-gradient(180deg,rgba(8,10,20,0.98),rgba(12,15,26,0.96))] p-3 text-zinc-100"
+            >
+              <div className="flex h-full flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(11,15,28,0.96),rgba(6,8,15,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+                <div className="relative border-b border-white/8 px-5 py-4">
+                  <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/40 via-emerald-400/45 to-transparent" />
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.3em] text-emerald-200">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_10px_rgba(52,211,153,0.75)]" />
+                        Targeted element
+                      </div>
+                      <div className="mt-3 text-[10px] uppercase tracking-[0.32em] text-zinc-500">Element Handoff</div>
+                      <div className="mt-1 text-[17px] font-semibold tracking-tight text-zinc-50">
+                        Route the exact node into an agent.
+                      </div>
                     </div>
-                  ))}
+                    <button
+                      onClick={() => clearBrowserSelection(workspaceId)}
+                      className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-300 transition-colors hover:bg-white/10 hover:text-white cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto px-5 py-4">
+                  <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.24em] text-zinc-300">
+                          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.7)]" />
+                          Focused node
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                            <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Tag</div>
+                            <div className="mt-1 text-sm font-black uppercase tracking-[0.2em] text-zinc-50">
+                              {selectedElement.tagName}
+                              {selectedElement.id ? `#${selectedElement.id}` : ''}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                            <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Page</div>
+                            <div className="mt-1 max-w-[140px] truncate text-[12px] font-medium text-zinc-100">
+                              {selectedElementTitle}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                            <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Bounds</div>
+                            <div className="mt-1 text-[12px] font-semibold text-zinc-100">
+                              {selectedElement.rect.width} × {selectedElement.rect.height}
+                            </div>
+                          </div>
+                        </div>
+                        <p className="mt-3 max-h-[5.75rem] overflow-hidden text-[13px] leading-6 text-zinc-300">
+                          {selectedElementSummary}
+                        </p>
+                      </div>
+                      <div className="shrink-0 rounded-2xl border border-white/10 bg-black/25 p-3 text-right">
+                        <div className="text-[9px] uppercase tracking-[0.24em] text-zinc-500">Selectors</div>
+                        <div className="mt-1 text-2xl font-black text-white">{selectedElement.selectors.length}</div>
+                        <div className="mt-1 text-[9px] uppercase tracking-[0.2em] text-zinc-400">
+                          {selectedElementAttributeCount} attrs
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Viewport</div>
+                        <div className="mt-1 text-[12px] font-semibold text-zinc-100">
+                          {selectedElement.viewport.width} × {selectedElement.viewport.height}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">URL</div>
+                        <div className="mt-1 truncate text-[12px] font-medium text-zinc-100">
+                          {selectedElement.pageUrl}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">Target</div>
+                        <div className="mt-1 text-[12px] font-semibold text-zinc-100">
+                          Ready to hand off
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">Selectors</div>
+                        <div className="mt-1 text-[12px] text-zinc-400">Use the most stable hook first.</div>
+                      </div>
+                      <div className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.22em] text-zinc-400">
+                        {selectedElementAttributeCount} attrs
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      {selectedElementSelectors.map((selector, index) => (
+                        <div key={selector} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-black/20 px-3 py-2.5">
+                          <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-300">
+                            {index === 0 ? 'P' : `F${index}`}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[9px] uppercase tracking-[0.22em] text-zinc-500">
+                              {index === 0 ? 'Primary selector' : `Fallback ${index}`}
+                            </div>
+                            <div className="mt-1 break-all font-mono text-[11px] leading-5 text-zinc-200">
+                              {selector}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <label className="mb-2 flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">
+                      <span>Destination Agent</span>
+                      <span className="text-zinc-600">{targetableSessions.length} available</span>
+                    </label>
+                    <select
+                      value={effectiveState.targetSessionId ?? ''}
+                      onChange={(event) => setBrowserTargetSession(workspaceId, event.target.value || null)}
+                      className="w-full rounded-2xl border border-white/10 bg-zinc-950/80 px-4 py-3 text-[12px] text-zinc-100 outline-none transition-colors focus:border-emerald-400/40 focus:ring-2 focus:ring-emerald-400/10"
+                    >
+                      {targetableSessions.map((session) => (
+                        <option key={session.id} value={session.id}>
+                          {sessionDisplayName(session)}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="mt-2 text-[10px] leading-5 text-zinc-500">
+                      Handoff goes straight into the chosen terminal context.
+                    </p>
+                  </div>
+
+                  <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
+                    <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.28em] text-zinc-500">
+                      Instruction
+                    </label>
+                    <textarea
+                      value={effectiveState.prompt}
+                      onChange={(event) => setBrowserPrompt(workspaceId, event.target.value)}
+                      className="min-h-[180px] w-full resize-none rounded-[22px] border border-white/10 bg-zinc-950/80 px-4 py-3 text-[12px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600 transition-colors focus:border-sky-400/40 focus:ring-2 focus:ring-sky-400/10"
+                      placeholder="Example: tighten the spacing, improve the CTA hierarchy, and keep the same visual language."
+                    />
+                  </div>
+
+                  <div className="mt-4 flex items-end justify-between gap-4">
+                    <div className="max-w-[240px] text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+                      Prompt includes selectors, bounds, viewport, and current preview mode.
+                    </div>
+                    <button
+                      onClick={() => void handleSubmitPrompt()}
+                      disabled={isSubmitting || targetableSessions.length === 0}
+                      className="group relative inline-flex items-center justify-center overflow-hidden rounded-2xl border border-emerald-500/25 bg-[linear-gradient(135deg,rgba(16,185,129,0.16),rgba(59,130,246,0.16),rgba(168,85,247,0.14))] px-5 py-3 text-[10px] font-black uppercase tracking-[0.26em] text-emerald-200 transition-transform hover:-translate-y-0.5 hover:shadow-[0_20px_50px_rgba(16,185,129,0.15)] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                    >
+                      <span className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.18),transparent_45%)] opacity-0 transition-opacity group-hover:opacity-100" />
+                      <span className="relative">{isSubmitting ? 'Sending' : 'Send to Agent'}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              <div className="mt-4">
-                <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">
-                  Destination Agent
-                </label>
-                <select
-                  value={effectiveState.targetSessionId ?? ''}
-                  onChange={(event) => setBrowserTargetSession(workspaceId, event.target.value || null)}
-                  className="w-full rounded-2xl border border-zinc-800 bg-zinc-950/80 px-3 py-3 text-[12px] text-zinc-100 outline-none"
-                >
-                  {targetableSessions.map((session) => (
-                    <option key={session.id} value={session.id}>
-                      {sessionDisplayName(session)}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="mt-4 flex-1">
-                <label className="mb-2 block text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">
-                  Instruction
-                </label>
-                <textarea
-                  value={effectiveState.prompt}
-                  onChange={(event) => setBrowserPrompt(workspaceId, event.target.value)}
-                  className="min-h-[170px] w-full resize-none rounded-[24px] border border-zinc-800 bg-zinc-950/80 px-4 py-3 text-[12px] leading-6 text-zinc-100 outline-none placeholder:text-zinc-600"
-                  placeholder="Example: tighten the spacing, improve the CTA hierarchy, and keep the same visual language."
-                />
-              </div>
-
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">
-                  Prompt includes selectors, bounds, viewport, and current preview mode.
-                </div>
-                <button
-                  onClick={() => void handleSubmitPrompt()}
-                  disabled={isSubmitting || targetableSessions.length === 0}
-                  className="rounded-2xl border border-emerald-700/70 bg-emerald-500/12 px-4 py-3 text-[10px] font-black uppercase tracking-[0.24em] text-emerald-300 transition-colors hover:bg-emerald-500/18 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                >
-                  {isSubmitting ? 'Sending' : 'Send to Agent'}
-                </button>
-              </div>
-            </aside>
+            </motion.aside>
           )}
         </div>
       </div>
