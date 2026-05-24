@@ -1,5 +1,6 @@
 mod agent;
 mod agent_cli;
+mod browser;
 mod commands;
 mod discord_presence;
 mod filesystem;
@@ -10,6 +11,7 @@ mod utils;
 
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
+use browser::BrowserManager;
 use discord_presence::DiscordPresenceManager;
 use ide::IdeDetector;
 use tauri::Listener;
@@ -51,6 +53,7 @@ pub fn run() {
     let cli_detector = AgentCliDetector::new();
     let mut cli_installer = AgentCliInstaller::new();
     let cli_launcher = CliLauncher::new(terminal_manager.clone());
+    let browser_manager = BrowserManager::new();
     let ide_detector = IdeDetector::new();
     let discord_manager = DiscordPresenceManager::new();
 
@@ -64,6 +67,7 @@ pub fn run() {
         .manage(cli_detector.clone())
         .manage(cli_installer.clone())
         .manage(cli_launcher.clone())
+        .manage(browser_manager.clone())
         .manage(ide_detector.clone())
         .manage(discord_manager.clone())
         .setup(move |app| {
@@ -71,6 +75,7 @@ pub fn run() {
             agent_executor.set_app_handle(app.handle().clone());
             cli_installer.set_app_handle(app.handle().clone());
             cli_launcher.set_app_handle(app.handle().clone());
+            browser_manager.set_app_handle(app.handle().clone());
 
             #[cfg(target_os = "macos")]
             {
@@ -101,6 +106,21 @@ pub fn run() {
             commands::kill_session,
             commands::kill_workspace_sessions,
             commands::get_all_sessions,
+            commands::ensure_browser_view,
+            commands::resize_browser_view,
+            commands::navigate_browser_view,
+            commands::reload_browser_view,
+            commands::set_browser_view_visibility,
+            commands::close_browser_view,
+            commands::set_browser_inspect_mode,
+            commands::set_browser_zoom,
+            commands::browser_go_back,
+            commands::browser_go_forward,
+            commands::request_browser_snapshot,
+            commands::browser_element_selected,
+            commands::browser_inspect_cancelled,
+            commands::browser_page_state_changed,
+            commands::browser_snapshot_exported,
             commands::execute_agent_task,
             commands::get_agent_task_status,
             commands::cancel_agent_task,

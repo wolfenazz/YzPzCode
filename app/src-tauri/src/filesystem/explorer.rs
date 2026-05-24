@@ -20,9 +20,11 @@ pub fn list_directory_entries(dir_path: &str) -> Result<Vec<FileEntry>, String> 
     builder
         .max_depth(Some(1))
         .hidden(false)
-        .git_ignore(true)
-        .git_global(true)
-        .git_exclude(true)
+        .ignore(false)
+        .parents(false)
+        .git_ignore(false)
+        .git_global(false)
+        .git_exclude(false)
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy().to_string();
             if name == ".git" {
@@ -93,12 +95,14 @@ pub fn list_all_files_recursive(dir_path: &str) -> Result<Vec<FileEntry>, String
     let mut builder = WalkBuilder::new(root);
     builder
         .hidden(false)
-        .git_ignore(true)
-        .git_global(true)
-        .git_exclude(true)
+        .ignore(false)
+        .parents(false)
+        .git_ignore(false)
+        .git_global(false)
+        .git_exclude(false)
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            if name == ".git" || name == "node_modules" || name == "target" {
+            if name == ".git" {
                 return false;
             }
             true

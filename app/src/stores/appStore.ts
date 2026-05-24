@@ -1,6 +1,23 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView } from '../types';
+
+const DEFAULT_BROWSER_URL = 'http://localhost:3000';
+const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
+  !value || value.trim() === '' || value.trim() === 'about:blank';
+
+const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
+  currentUrl: DEFAULT_BROWSER_URL,
+  draftUrl: DEFAULT_BROWSER_URL,
+  isLoading: false,
+  inspectMode: false,
+  zoomFactor: 1,
+  deviceId: 'responsive',
+  deviceOrientation: 'portrait',
+  selectedElement: null,
+  prompt: '',
+  targetSessionId: null,
+});
 
 interface AppState {
   currentWorkspace: WorkspaceConfig | null;
@@ -11,6 +28,7 @@ interface AppState {
   sessionsByWorkspace: Record<string, TerminalSession[]>;
   activeSessionId: string | null;
   activeSessionByWorkspace: Record<string, string | null>;
+  terminalMouseModesBySession: Record<string, number[]>;
   isLoadingTerminals: boolean;
   view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings";
   previousView: "nodejs-check" | "setup" | "workspace" | "settings" | null;
@@ -71,6 +89,8 @@ interface AppState {
   setSessions: (sessions: TerminalSession[]) => void;
   addSession: (session: TerminalSession) => void;
   removeSession: (sessionId: string) => void;
+  setTerminalMouseModes: (sessionId: string, modes: number[]) => void;
+  clearTerminalMouseModes: (sessionId: string) => void;
   setIsLoadingTerminals: (loading: boolean) => void;
   updateWorkspaceList: (workspaces: WorkspaceConfig[]) => void;
   addToWorkspaceList: (workspace: WorkspaceConfig) => void;
@@ -139,14 +159,15 @@ interface AppState {
   setIdeStatuses: (statuses: Record<IdeType, IdeInfo | null>) => void;
 
   explorerOpen: boolean;
-  activeView: "terminal" | "editor";
+  activeView: WorkspaceView;
   openFiles: FileTab[];
   activeFilePath: string | null;
   gitStatuses: GitFileStatus[];
   gitDiffStats: GitDiffStat[];
   filesByWorkspace: Record<string, FileTab[]>;
   activeFileByWorkspace: Record<string, string | null>;
-  activeViewByWorkspace: Record<string, "terminal" | "editor">;
+  activeViewByWorkspace: Record<string, WorkspaceView>;
+  browserStateByWorkspace: Record<string, BrowserWorkspaceState>;
   explorerClipboard: { operation: 'copy' | 'cut'; path: string; name: string; isDir: boolean } | null;
   restoredFilePathsByWorkspace: Record<string, string[]>;
   recentDirectories: string[];
@@ -155,7 +176,19 @@ interface AppState {
   toggleExplorer: () => void;
   setExplorerClipboard: (entry: { operation: 'copy' | 'cut'; path: string; name: string; isDir: boolean } | null) => void;
   clearRestoredFilePaths: (workspaceId: string) => void;
-  setActiveView: (view: "terminal" | "editor") => void;
+  setActiveView: (view: WorkspaceView) => void;
+  ensureBrowserState: (workspaceId: string) => void;
+  setBrowserCurrentUrl: (workspaceId: string, url: string) => void;
+  setBrowserDraftUrl: (workspaceId: string, url: string) => void;
+  setBrowserLoading: (workspaceId: string, isLoading: boolean) => void;
+  setBrowserInspectMode: (workspaceId: string, enabled: boolean) => void;
+  setBrowserZoomFactor: (workspaceId: string, zoomFactor: number) => void;
+  setBrowserDeviceId: (workspaceId: string, deviceId: BrowserDeviceId) => void;
+  setBrowserDeviceOrientation: (workspaceId: string, orientation: BrowserDeviceOrientation) => void;
+  setBrowserSelectedElement: (workspaceId: string, element: BrowserSelectedElement | null) => void;
+  setBrowserPrompt: (workspaceId: string, prompt: string) => void;
+  setBrowserTargetSession: (workspaceId: string, sessionId: string | null) => void;
+  clearBrowserSelection: (workspaceId: string) => void;
   openFileTab: (tab: FileTab) => void;
   closeFileTab: (path: string) => void;
   setActiveFile: (path: string | null) => void;
@@ -201,6 +234,7 @@ export const useAppStore = create<AppState>()(
       sessionsByWorkspace: {} as Record<string, TerminalSession[]>,
       activeSessionId: null,
       activeSessionByWorkspace: {} as Record<string, string | null>,
+      terminalMouseModesBySession: {} as Record<string, number[]>,
       isLoadingTerminals: false,
       view: "nodejs-check" as const,
       previousView: null,
@@ -316,10 +350,26 @@ export const useAppStore = create<AppState>()(
           return {
             sessions: finalSessions,
             sessionsByWorkspace: updatedByWorkspace,
+            terminalMouseModesBySession: Object.fromEntries(
+              Object.entries(state.terminalMouseModesBySession).filter(([id]) => id !== sessionId)
+            ),
             activeSessionId:
               state.activeSessionId === sessionId ? null : state.activeSessionId,
           };
         }),
+      setTerminalMouseModes: (sessionId, modes) =>
+        set((state) => ({
+          terminalMouseModesBySession: {
+            ...state.terminalMouseModesBySession,
+            [sessionId]: modes,
+          },
+        })),
+      clearTerminalMouseModes: (sessionId) =>
+        set((state) => ({
+          terminalMouseModesBySession: Object.fromEntries(
+            Object.entries(state.terminalMouseModesBySession).filter(([id]) => id !== sessionId)
+          ),
+        })),
       setIsLoadingTerminals: (loading) => set({ isLoadingTerminals: loading }),
       setTerminalError: (error) => set({ terminalError: error }),
       updateWorkspaceList: (workspaces) => set({ workspaceList: workspaces }),
@@ -376,6 +426,7 @@ export const useAppStore = create<AppState>()(
           sessions: [],
           isLoadingTerminals: false,
           activeSessionId: null,
+          terminalMouseModesBySession: {},
           cliLaunchStates: {},
         }),
 
@@ -436,6 +487,10 @@ export const useAppStore = create<AppState>()(
             openFiles: state.filesByWorkspace[workspace.id] || [],
             activeFilePath: state.activeFileByWorkspace[workspace.id] ?? null,
             activeView: state.activeViewByWorkspace[workspace.id] || "terminal",
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspace.id]: state.browserStateByWorkspace[workspace.id] ?? createDefaultBrowserWorkspaceState(),
+            },
           };
         }),
 
@@ -469,6 +524,10 @@ export const useAppStore = create<AppState>()(
             openFiles: state.filesByWorkspace[workspaceId] || [],
             activeFilePath: state.activeFileByWorkspace[workspaceId] ?? null,
             activeView: state.activeViewByWorkspace[workspaceId] || "terminal",
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState(),
+            },
           };
         }),
 
@@ -505,6 +564,7 @@ export const useAppStore = create<AppState>()(
           sessionsByWorkspace: {},
           activeSessionByWorkspace: {},
           activeSessionId: null,
+          terminalMouseModesBySession: {},
           view: "setup",
           openFiles: [],
           activeFilePath: null,
@@ -512,6 +572,7 @@ export const useAppStore = create<AppState>()(
           filesByWorkspace: {},
           activeFileByWorkspace: {},
           activeViewByWorkspace: {},
+          browserStateByWorkspace: {},
         }),
 
       setCliStatus: (agent, info) =>
@@ -557,7 +618,8 @@ export const useAppStore = create<AppState>()(
       gitDiffStats: [],
       filesByWorkspace: {} as Record<string, FileTab[]>,
       activeFileByWorkspace: {} as Record<string, string | null>,
-      activeViewByWorkspace: {} as Record<string, "terminal" | "editor">,
+      activeViewByWorkspace: {} as Record<string, WorkspaceView>,
+      browserStateByWorkspace: {} as Record<string, BrowserWorkspaceState>,
       explorerClipboard: null,
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
@@ -591,6 +653,152 @@ export const useAppStore = create<AppState>()(
             },
           };
         }),
+
+      ensureBrowserState: (workspaceId) =>
+        set((state) => ({
+          browserStateByWorkspace: state.browserStateByWorkspace[workspaceId]
+            ? {
+                ...state.browserStateByWorkspace,
+                [workspaceId]: {
+                  ...createDefaultBrowserWorkspaceState(),
+                  ...state.browserStateByWorkspace[workspaceId],
+                  currentUrl: isBlankBrowserUrl(state.browserStateByWorkspace[workspaceId].currentUrl)
+                    ? DEFAULT_BROWSER_URL
+                    : state.browserStateByWorkspace[workspaceId].currentUrl,
+                  draftUrl: isBlankBrowserUrl(state.browserStateByWorkspace[workspaceId].draftUrl)
+                    ? DEFAULT_BROWSER_URL
+                    : state.browserStateByWorkspace[workspaceId].draftUrl,
+                },
+              }
+            : {
+                ...state.browserStateByWorkspace,
+                [workspaceId]: createDefaultBrowserWorkspaceState(),
+              },
+        })),
+
+      setBrowserCurrentUrl: (workspaceId, url) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              currentUrl: isBlankBrowserUrl(url) ? DEFAULT_BROWSER_URL : url,
+              draftUrl: isBlankBrowserUrl(url) ? DEFAULT_BROWSER_URL : url,
+            },
+          },
+        })),
+
+      setBrowserDraftUrl: (workspaceId, url) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              draftUrl: isBlankBrowserUrl(url) ? DEFAULT_BROWSER_URL : url,
+            },
+          },
+        })),
+
+      setBrowserLoading: (workspaceId, isLoading) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              isLoading,
+            },
+          },
+        })),
+
+      setBrowserInspectMode: (workspaceId, enabled) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              inspectMode: enabled,
+            },
+          },
+        })),
+
+      setBrowserZoomFactor: (workspaceId, zoomFactor) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              zoomFactor,
+            },
+          },
+        })),
+
+      setBrowserDeviceId: (workspaceId, deviceId) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              deviceId,
+            },
+          },
+        })),
+
+      setBrowserDeviceOrientation: (workspaceId, deviceOrientation) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              deviceOrientation,
+            },
+          },
+        })),
+
+      setBrowserSelectedElement: (workspaceId, element) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              selectedElement: element,
+              prompt: element ? state.browserStateByWorkspace[workspaceId]?.prompt ?? '' : '',
+            },
+          },
+        })),
+
+      setBrowserPrompt: (workspaceId, prompt) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              prompt,
+            },
+          },
+        })),
+
+      setBrowserTargetSession: (workspaceId, sessionId) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              targetSessionId: sessionId,
+            },
+          },
+        })),
+
+      clearBrowserSelection: (workspaceId) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              selectedElement: null,
+              prompt: '',
+            },
+          },
+        })),
 
       openFileTab: (tab) =>
         set((state) => {
@@ -636,7 +844,8 @@ export const useAppStore = create<AppState>()(
               newActive = newFiles[0].path;
             }
           }
-          const newView = newFiles.length === 0 ? "terminal" as const : (state.activeViewByWorkspace[wsId] || "editor") as "terminal" | "editor";
+          const currentView = state.activeViewByWorkspace[wsId] || "editor";
+          const newView: WorkspaceView = newFiles.length === 0 ? "terminal" : currentView === "browser" ? "browser" : "editor";
           return {
             openFiles: newFiles,
             activeFilePath: newActive,
@@ -880,6 +1089,19 @@ export const useAppStore = create<AppState>()(
             explorerOpen: state.explorerOpen,
             activeViewByWorkspace: state.activeViewByWorkspace,
             activeFileByWorkspace: state.activeFileByWorkspace,
+            browserStateByWorkspace: Object.fromEntries(
+              Object.entries(state.browserStateByWorkspace).map(([wsId, browserState]) => [
+                wsId,
+                {
+                  ...createDefaultBrowserWorkspaceState(),
+                  currentUrl: browserState.currentUrl,
+                  draftUrl: browserState.draftUrl,
+                  zoomFactor: browserState.zoomFactor,
+                  deviceId: browserState.deviceId,
+                  deviceOrientation: browserState.deviceOrientation,
+                },
+              ])
+            ),
             restoredFilePathsByWorkspace: Object.fromEntries(
               Object.entries(state.filesByWorkspace)
                 .filter(([_, files]) => files.length > 0)

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WorkspaceConfig } from '../../types';
+import { WorkspaceConfig, WorkspaceView } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
 import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import logo from '../../assets/YzPzCodeLogo.png';
@@ -18,8 +18,8 @@ interface WorkspaceHeaderProps {
   onMaximizeWindow: () => void;
   onCloseWindow: () => void;
   onSidebarToggle: () => void;
-  onViewToggle: () => void;
-  activeView: "terminal" | "editor";
+  onViewChange: (view: WorkspaceView) => void;
+  activeView: WorkspaceView;
   onThemeToggle: () => void;
   theme: 'dark' | 'light';
 }
@@ -153,7 +153,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onMaximizeWindow,
   onCloseWindow,
   onSidebarToggle,
-  onViewToggle,
+  onViewChange,
   activeView,
   onThemeToggle,
   theme,
@@ -258,21 +258,51 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <ThemeToggleButton theme={theme} onToggle={onThemeToggle} />
 
-            <button
-              onClick={onViewToggle}
-              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
-              title={activeView === "terminal" ? "Editor (Ctrl+E)" : "Terminal (Ctrl+E)"}
-            >
-              {activeView === "terminal" ? (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-              ) : (
+            <div className="flex items-center rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-1">
+              <button
+                onClick={() => onViewChange('terminal')}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] transition-colors cursor-pointer ${
+                  activeView === 'terminal'
+                    ? 'bg-zinc-200 text-zinc-900'
+                    : 'text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-100'
+                }`}
+                title="Terminal"
+              >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-              )}
-            </button>
+                TTY
+              </button>
+              <button
+                onClick={() => onViewChange('editor')}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] transition-colors cursor-pointer ${
+                  activeView === 'editor'
+                    ? 'bg-zinc-200 text-zinc-900'
+                    : 'text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-100'
+                }`}
+                title="Editor"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                </svg>
+                Code
+              </button>
+              <button
+                onClick={() => onViewChange('browser')}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] transition-colors cursor-pointer ${
+                  activeView === 'browser'
+                    ? 'bg-emerald-300 text-zinc-950'
+                    : 'text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-100'
+                }`}
+                title="Built-in browser"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 010 18M12 3a15.3 15.3 0 000 18" />
+                </svg>
+                Browser
+              </button>
+            </div>
           </div>
 
           {isWindows && (

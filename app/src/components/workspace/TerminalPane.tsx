@@ -10,6 +10,7 @@ import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType } fr
 import { useAgent } from '../../hooks/useAgent';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
+import { useAppStore } from '../../stores/appStore';
 import '@xterm/xterm/css/xterm.css';
 
 import { TerminalHeader } from './TerminalHeader';
@@ -74,6 +75,20 @@ const LIGHT_TERMINAL_THEME = {
   brightWhite: '#ffffff',
 };
 
+const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
+const DEFAULT_MOUSE_TRACKING_MODES = [1000, 1002, 1006] as const;
+const EMPTY_MOUSE_MODES: number[] = [];
+
+const normalizeMouseModes = (modes: Iterable<number>): number[] =>
+  Array.from(new Set(modes))
+    .filter((mode) => SUPPORTED_MOUSE_MODE_CODES.includes(mode as typeof SUPPORTED_MOUSE_MODE_CODES[number]))
+    .sort((a, b) => a - b);
+
+const buildMouseModeSequence = (modes: Iterable<number>, operation: 'h' | 'l'): string =>
+  normalizeMouseModes(modes)
+    .map((mode) => `\x1b[?${mode}${operation}`)
+    .join('');
+
 const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
   const fallbackFont = typeof term.options.fontSize === 'number' ? term.options.fontSize : 13;
   const fallback = {
@@ -132,6 +147,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [pendingPasteText, setPendingPasteText] = useState('');
   const [mouseTrackingEnabled, setMouseTrackingEnabled] = useState(false);
   const mouseModesRef = useRef<Set<number>>(new Set());
+  const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
+  const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
 
   const theme = themeProp || 'dark';
   const isLight = theme === 'light';
@@ -206,6 +223,34 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setShowSearch(false);
   }, []);
 
+  const syncMouseModes = useCallback((modes: Iterable<number>) => {
+    const normalizedModes = normalizeMouseModes(modes);
+    const currentModes = normalizeMouseModes(mouseModesRef.current);
+    const changed =
+      normalizedModes.length !== currentModes.length ||
+      normalizedModes.some((mode, index) => mode !== currentModes[index]);
+
+    if (!changed) {
+      setMouseTrackingEnabled(normalizedModes.length > 0);
+      return normalizedModes;
+    }
+
+    mouseModesRef.current = new Set(normalizedModes);
+    setMouseTrackingEnabled(normalizedModes.length > 0);
+    setTerminalMouseModes(session.id, normalizedModes);
+    return normalizedModes;
+  }, [session.id, setTerminalMouseModes]);
+
+  const replayMouseModes = useCallback((modes: Iterable<number>) => {
+    const normalizedModes = syncMouseModes(modes);
+    if (normalizedModes.length === 0) return;
+
+    const term = xtermRef.current;
+    if (!term) return;
+
+    term.write(buildMouseModeSequence(normalizedModes, 'h'));
+  }, [syncMouseModes]);
+
   const handleRefreshCli = useCallback(async () => {
     if (!session.agent || isRefreshing) return;
     setIsRefreshing(true);
@@ -243,7 +288,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       const codes = params.split(';').map((n) => Number(n)).filter((n) => !Number.isNaN(n));
 
       for (const code of codes) {
-        if (code === 1000 || code === 1002 || code === 1003 || code === 1005 || code === 1006 || code === 1015) {
+        if (SUPPORTED_MOUSE_MODE_CODES.includes(code as typeof SUPPORTED_MOUSE_MODE_CODES[number])) {
           if (op === 'h') {
             mouseModesRef.current.add(code);
           } else {
@@ -255,12 +300,14 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       match = regex.exec(output);
     }
 
-    setMouseTrackingEnabled(mouseModesRef.current.size > 0);
-  }, []);
+    syncMouseModes(mouseModesRef.current);
+  }, [syncMouseModes]);
 
   const handleToggleMouseTracking = useCallback(async () => {
-    const enableSequence = '\x1b[?1000h\x1b[?1002h\x1b[?1006h';
-    const disableSequence = '\x1b[?1006l\x1b[?1002l\x1b[?1000l';
+    const enableModes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
+    const disableModes = normalizeMouseModes(mouseModesRef.current);
+    const enableSequence = buildMouseModeSequence(enableModes, 'h');
+    const disableSequence = buildMouseModeSequence(disableModes, 'l');
 
     try {
       await invoke('write_to_terminal', {
@@ -269,18 +316,16 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       });
 
       if (mouseTrackingEnabled) {
-        mouseModesRef.current.clear();
-        setMouseTrackingEnabled(false);
+        xtermRef.current?.write(disableSequence);
+        syncMouseModes([]);
       } else {
-        mouseModesRef.current.add(1000);
-        mouseModesRef.current.add(1002);
-        mouseModesRef.current.add(1006);
-        setMouseTrackingEnabled(true);
+        xtermRef.current?.write(enableSequence);
+        syncMouseModes(enableModes);
       }
     } catch (error) {
       console.error('Failed to toggle mouse tracking:', error);
     }
-  }, [session.id, mouseTrackingEnabled]);
+  }, [session.id, mouseTrackingEnabled, syncMouseModes]);
 
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
@@ -331,6 +376,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     xterm.unicode.activeVersion = '11';
 
     xterm.open(terminalElement);
+    if (savedMouseModes.length > 0) {
+      replayMouseModes(savedMouseModes);
+    }
 
     const handlePasteCapture = (e: Event) => {
       e.preventDefault();
@@ -481,7 +529,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id]);
+  }, [session.id, isWindowsHost, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
@@ -530,13 +578,22 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     terminalReadyRef.current = false;
     firstOutputFitDoneRef.current = false;
     launchAttemptsRef.current = 0;
-    mouseModesRef.current.clear();
-    setMouseTrackingEnabled(false);
+    mouseModesRef.current = new Set(savedMouseModes);
+    setMouseTrackingEnabled(savedMouseModes.length > 0);
     if (launchTimeoutRef.current) {
       clearTimeout(launchTimeoutRef.current);
       launchTimeoutRef.current = null;
     }
-  }, [session.id, isWindowsHost]);
+  }, [session.id, isWindowsHost, savedMouseModes]);
+
+  useEffect(() => {
+    mouseModesRef.current = new Set(savedMouseModes);
+    setMouseTrackingEnabled(savedMouseModes.length > 0);
+
+    if (savedMouseModes.length > 0 && xtermRef.current) {
+      replayMouseModes(savedMouseModes);
+    }
+  }, [savedMouseModes, replayMouseModes]);
 
   useEffect(() => {
     if (!session.agent) return;

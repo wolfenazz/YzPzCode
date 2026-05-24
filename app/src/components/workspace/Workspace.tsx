@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceHeader } from './WorkspaceHeader';
+import { BrowserPane } from './BrowserPane';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { FileEditor } from '../editor/FileEditor';
@@ -10,9 +11,10 @@ import { useFileWatcher } from '../../hooks/useFileWatcher';
 import { useTerminal } from '../../hooks/useTerminal';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
+import { useBrowser } from '../../hooks/useBrowser';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
-import { FileEntry } from '../../types';
+import { FileEntry, WorkspaceView } from '../../types';
 
 interface WorkspaceProps {
   isWindows: boolean;
@@ -48,6 +50,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const { createSessions, killAllSessions, killWorkspaceSessions, isLoading, error } = useTerminal();
   const { detectAllClis } = useAgentCli();
   const { checkAllAuth } = useCliLauncher();
+  const { closeBrowserView } = useBrowser();
   const { openFile } = useFileEditor();
   useFileWatcher(currentWorkspace?.path ?? null);
   const hasInitialized = useRef<Record<string, boolean>>({});
@@ -220,18 +223,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const handleWorkspaceClose = useCallback(async (workspaceId: string) => {
     closeWorkspace(workspaceId);
     delete hasInitialized.current[workspaceId];
+    closeBrowserView(workspaceId).catch((err) => {
+      console.error('Error closing browser view:', err);
+    });
     killWorkspaceSessions(workspaceId).catch((err) => {
       console.error('Error killing workspace sessions:', err);
     });
-  }, [killWorkspaceSessions, closeWorkspace]);
+  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView]);
 
   const handleNewWorkspace = useCallback(() => {
     setView('setup');
   }, [setView]);
 
-  const handleViewToggle = useCallback(() => {
-    setActiveView(activeView === "terminal" ? "editor" : "terminal");
-  }, [setActiveView, activeView]);
+  const handleViewChange = useCallback((view: WorkspaceView) => {
+    setActiveView(view);
+  }, [setActiveView]);
 
   const sessionsCountMap: Record<string, number> = {};
   Object.entries(sessionsByWorkspace).forEach(([workspaceId, sessions]) => {
@@ -281,7 +287,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
         onSidebarToggle={toggleExplorer}
-        onViewToggle={handleViewToggle}
+        onViewChange={handleViewChange}
         activeView={activeView}
       />
 
@@ -331,6 +337,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                         <TerminalGrid sessions={sessions} isLoading={isLoading} theme={theme} />
                       </div>
                     </div>
+                  ) : activeView === "browser" ? (
+                    <BrowserPane workspaceId={currentWorkspace.id} sessions={sessions} theme={theme} />
                   ) : (
                     <FileEditor />
                   )}

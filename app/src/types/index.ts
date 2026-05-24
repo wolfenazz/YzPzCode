@@ -3,6 +3,7 @@ export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
+export type WorkspaceView = "terminal" | "editor" | "browser";
 
 export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
@@ -114,6 +115,111 @@ export interface TerminalSession {
   agent?: CliType;
   status: "idle" | "running" | "error";
   shell: string;
+}
+
+export interface BrowserBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface BrowserViewState {
+  workspaceId: string;
+  label: string;
+  currentUrl: string;
+  visible: boolean;
+  inspectMode: boolean;
+}
+
+export type BrowserDeviceId =
+  | "responsive"
+  | "desktop"
+  | "tablet"
+  | "ipad-mini"
+  | "iphone-se"
+  | "iphone-14-pro"
+  | "pixel-7"
+  | "galaxy-s20";
+
+export interface BrowserDevicePreset {
+  id: BrowserDeviceId;
+  label: string;
+  width: number | null;
+  height: number | null;
+  category: "desktop" | "tablet" | "mobile";
+  chromeScale?: number;
+}
+
+export type BrowserDeviceOrientation = "portrait" | "landscape";
+
+export interface BrowserPageLoadPayload {
+  workspaceId: string;
+  url: string;
+  event: "started" | "finished";
+}
+
+export interface BrowserInspectModePayload {
+  workspaceId: string;
+  enabled: boolean;
+}
+
+export interface BrowserElementRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface BrowserViewport {
+  width: number;
+  height: number;
+}
+
+export interface BrowserSelectedElement {
+  tagName: string;
+  id: string | null;
+  className: string | null;
+  textContent: string;
+  htmlSnippet: string;
+  selectors: string[];
+  attributes: Record<string, string>;
+  rect: BrowserElementRect;
+  pageUrl: string;
+  pageTitle: string;
+  viewport: BrowserViewport;
+}
+
+export interface BrowserElementSelectedEventPayload {
+  workspaceId: string;
+  element: BrowserSelectedElement;
+}
+
+export interface BrowserWorkspaceState {
+  currentUrl: string;
+  draftUrl: string;
+  isLoading: boolean;
+  inspectMode: boolean;
+  zoomFactor: number;
+  deviceId: BrowserDeviceId;
+  deviceOrientation: BrowserDeviceOrientation;
+  selectedElement: BrowserSelectedElement | null;
+  prompt: string;
+  targetSessionId: string | null;
+}
+
+export interface BrowserPageStatePayload {
+  workspaceId: string;
+  url: string;
+  title: string;
+  historyLength: number;
+}
+
+export interface BrowserSnapshotPayload {
+  workspaceId: string;
+  url: string;
+  title: string;
+  html: string;
 }
 
 export interface AgentTask {

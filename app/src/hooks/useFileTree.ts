@@ -83,6 +83,92 @@ function removeNodeFromTree(data: TreeNodeData[], nodeId: string): TreeNodeData[
     });
 }
 
+function sortNodes(nodes: TreeNodeData[]): TreeNodeData[] {
+  return [...nodes].sort((a, b) => {
+    if (a.isDir !== b.isDir) {
+      return a.isDir ? -1 : 1;
+    }
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+}
+
+function rebaseNodePath(node: TreeNodeData, oldBasePath: string, newBasePath: string): TreeNodeData {
+  const nextPath = node.path === oldBasePath
+    ? newBasePath
+    : node.path.replace(oldBasePath, newBasePath);
+
+  return {
+    ...node,
+    id: nextPath,
+    path: nextPath,
+    children: node.children?.map((child) => rebaseNodePath(child, oldBasePath, newBasePath)),
+  };
+}
+
+function detachNode(
+  data: TreeNodeData[],
+  nodeId: string,
+): { tree: TreeNodeData[]; removed: TreeNodeData | null } {
+  let removed: TreeNodeData | null = null;
+
+  const walk = (nodes: TreeNodeData[]): TreeNodeData[] =>
+    nodes.flatMap((node) => {
+      if (node.id === nodeId) {
+        removed = node;
+        return [];
+      }
+
+      if (!node.children) {
+        return [node];
+      }
+
+      return [
+        {
+          ...node,
+          children: walk(node.children),
+        },
+      ];
+    });
+
+  return { tree: walk(data), removed };
+}
+
+function insertNodeIntoDirectory(
+  data: TreeNodeData[],
+  parentPath: string | null,
+  nodeToInsert: TreeNodeData,
+): { tree: TreeNodeData[]; inserted: boolean } {
+  if (parentPath === null) {
+    return { tree: sortNodes([...data, nodeToInsert]), inserted: true };
+  }
+
+  let inserted = false;
+
+  const walk = (nodes: TreeNodeData[]): TreeNodeData[] =>
+    nodes.map((node) => {
+      if (node.path === parentPath) {
+        inserted = true;
+        const nextChildren = sortNodes([...(node.children ?? []), nodeToInsert]);
+        return {
+          ...node,
+          children: nextChildren,
+          loaded: true,
+        };
+      }
+
+      if (!node.children) {
+        return node;
+      }
+
+      return {
+        ...node,
+        children: walk(node.children),
+      };
+    });
+
+  return { tree: walk(data), inserted };
+}
+
 function buildNodeMap(nodes: TreeNodeData[]): Map<string, TreeNodeData> {
   const map = new Map<string, TreeNodeData>();
   function walk(list: TreeNodeData[]) {
@@ -164,21 +250,45 @@ export function useFileTree(workspacePath: string | null) {
       const sourcePath = dragIds[0];
       if (!sourcePath || !workspacePath) return;
 
-      const destDir =
-        parentId && parentNode ? parentNode.data.path : workspacePath;
+      const destDir = parentId && parentNode ? parentNode.data.path : workspacePath;
+      const sourceNode = nodeMap.get(sourcePath);
+      if (!sourceNode) {
+        loadRoot();
+        return;
+      }
+
+      const currentParent = findParentPath(sourcePath) ?? workspacePath;
+      if (destDir === currentParent) {
+        return;
+      }
 
       try {
         await invoke('move_entry', {
           sourcePath,
           destinationDir: destDir,
         });
-        loadRoot();
+
+        const separator = destDir.includes('\\') ? '\\' : '/';
+        const movedPath = `${destDir}${separator}${sourceNode.name}`;
+
+        setTreeData((prev) => {
+          const { tree: withoutNode, removed } = detachNode(prev, sourcePath);
+          const nodeToInsert = rebaseNodePath(removed ?? sourceNode, sourcePath, movedPath);
+          const parentPath = destDir === workspacePath ? null : destDir;
+          const inserted = insertNodeIntoDirectory(withoutNode, parentPath, nodeToInsert);
+
+          if (!inserted.inserted) {
+            return prev;
+          }
+
+          return inserted.tree;
+        });
       } catch (err) {
         console.error('Failed to move entry:', err);
         loadRoot();
       }
     },
-    [workspacePath, loadRoot]
+    [workspacePath, loadRoot, nodeMap]
   );
 
   const handleRename = useCallback(
@@ -200,12 +310,11 @@ export function useFileTree(workspacePath: string | null) {
         const sep = id.includes('\\') ? '\\' : '/';
         const newPath = parentPath ? parentPath + sep + name : name;
         setTreeData((prev) =>
-          updateNodeInTree(prev, id, {
-            id: newPath,
+          updateNodeInTreeWithCallback(prev, id, (node) => ({
+            ...rebaseNodePath(node, id, newPath),
             name,
-            path: newPath,
             extension: name.includes('.') ? name.split('.').pop() ?? null : null,
-          })
+          }))
         );
       } catch (err) {
         console.error('Failed to rename entry:', err);
@@ -316,12 +425,11 @@ export function useFileTree(workspacePath: string | null) {
         const sep = oldPath.includes('\\') ? '\\' : '/';
         const newPath = parentPath ? parentPath + sep + newName : newName;
         setTreeData((prev) =>
-          updateNodeInTree(prev, oldPath, {
-            id: newPath,
+          updateNodeInTreeWithCallback(prev, oldPath, (node) => ({
+            ...rebaseNodePath(node, oldPath, newPath),
             name: newName,
-            path: newPath,
             extension: newName.includes('.') ? newName.split('.').pop() ?? null : null,
-          })
+          }))
         );
       } catch (err) {
         console.error('Failed to rename entry:', err);

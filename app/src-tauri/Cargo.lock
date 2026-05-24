@@ -6373,6 +6373,7 @@ dependencies = [
  "tauri-plugin-updater",
  "thiserror 1.0.69",
  "tokio",
+ "url",
  "uuid 1.22.0",
  "which",
 ]
