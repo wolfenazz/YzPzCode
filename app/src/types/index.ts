@@ -136,6 +136,7 @@ export type BrowserDeviceId =
   | "responsive"
   | "desktop"
   | "tablet"
+  | "ipad"
   | "ipad-mini"
   | "iphone-se"
   | "iphone-14-pro"
@@ -174,6 +175,13 @@ export interface BrowserElementRect {
 export interface BrowserViewport {
   width: number;
   height: number;
+}
+
+export interface BrowserPreviewChrome {
+  radius: number;
+  mode?: "iphone" | "ipad";
+  topInset?: number;
+  orientation?: "portrait" | "landscape";
 }
 
 export interface BrowserSelectedElement {

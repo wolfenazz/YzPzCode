@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { BrowserBounds, BrowserViewState, CapturedStyle } from '../types';
+import { BrowserBounds, BrowserPreviewChrome, BrowserViewState, CapturedStyle } from '../types';
 
 export const useBrowser = () => {
   const ensureBrowserView = useCallback(async (workspaceId: string, url: string, bounds: BrowserBounds) => {
@@ -68,6 +68,15 @@ export const useBrowser = () => {
       request: {
         workspaceId,
         zoomFactor,
+      },
+    });
+  }, []);
+
+  const setBrowserPreviewChrome = useCallback(async (workspaceId: string, chrome: BrowserPreviewChrome | null) => {
+    await invoke('set_browser_preview_chrome', {
+      request: {
+        workspaceId,
+        chrome,
       },
     });
   }, []);
@@ -140,6 +149,7 @@ export const useBrowser = () => {
     closeBrowserView,
     setBrowserInspectMode,
     setBrowserZoom,
+    setBrowserPreviewChrome,
     goBackBrowserView,
     goForwardBrowserView,
     exportBrowserSnapshot,

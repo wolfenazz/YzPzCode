@@ -55,6 +55,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   let pickStyleMode = false;
   let pickUiElementMode = false;
   let applyMode = false;
+  let previewChrome = null;
   let applyPayload = null;
   let undoStack = [];
   let applyHoverTarget = null;
@@ -120,6 +121,82 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   const clearOverlay = () => {
     activeElement = null;
     overlay.style.display = 'none';
+  };
+
+  const applyPreviewChrome = () => {
+    const html = document.documentElement;
+    const body = document.body;
+    if (!html || !body) return;
+    let island = document.getElementById('yzpz-preview-island');
+    let previewStyle = document.getElementById('yzpz-preview-style');
+
+    if (!previewChrome) {
+      html.style.removeProperty('overflow');
+      html.style.removeProperty('border-radius');
+      html.style.removeProperty('clip-path');
+      body.style.removeProperty('overflow');
+      body.style.removeProperty('border-radius');
+      body.style.removeProperty('clip-path');
+      body.style.removeProperty('min-height');
+      body.style.removeProperty('padding-top');
+      body.style.removeProperty('box-sizing');
+      if (island) island.remove();
+      if (previewStyle) previewStyle.remove();
+      return;
+    }
+
+    const radius = `${previewChrome.radius}px`;
+    const topInset = `${previewChrome.topInset || 0}px`;
+    html.style.overflow = 'hidden';
+    html.style.borderRadius = radius;
+    html.style.clipPath = `inset(0 round ${radius})`;
+    body.style.overflow = 'hidden';
+    body.style.borderRadius = radius;
+    body.style.clipPath = `inset(0 round ${radius})`;
+    body.style.minHeight = '100vh';
+    body.style.boxSizing = 'border-box';
+    body.style.paddingTop = topInset;
+
+    if (!previewStyle) {
+      previewStyle = document.createElement('style');
+      previewStyle.id = 'yzpz-preview-style';
+      document.head.appendChild(previewStyle);
+    }
+    previewStyle.textContent = `
+      html, body { background: #202228 !important; }
+      body { position: relative !important; }
+    `;
+
+    if (previewChrome.mode === 'iphone') {
+      if (!island) {
+        island = document.createElement('div');
+        island.id = 'yzpz-preview-island';
+        document.body.appendChild(island);
+      }
+      island.setAttribute('aria-hidden', 'true');
+      island.style.position = 'fixed';
+      const orientation = previewChrome.orientation || 'portrait';
+      island.style.width = orientation === 'landscape' ? '28px' : '104px';
+      island.style.height = orientation === 'landscape' ? '104px' : '28px';
+      island.style.borderRadius = '999px';
+      island.style.background = '#000';
+      island.style.zIndex = '2147483645';
+      island.style.pointerEvents = 'none';
+      island.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,0.05)';
+      if (orientation === 'landscape') {
+        island.style.left = 'auto';
+        island.style.right = '8px';
+        island.style.top = '50%';
+        island.style.transform = 'translateY(-50%)';
+      } else {
+        island.style.left = '50%';
+        island.style.right = 'auto';
+        island.style.top = '8px';
+        island.style.transform = 'translateX(-50%)';
+      }
+    } else if (island) {
+      island.remove();
+    }
   };
 
   const buildPathSelector = (element) => {
@@ -820,6 +897,10 @@ const BROWSER_INIT_SCRIPT: &str = r#"
         clearOverlay();
       }
     },
+    setPreviewChrome(payload) {
+      previewChrome = payload || null;
+      applyPreviewChrome();
+    },
     undoLastStyle() {
       handleUndoLastStyle();
     },
@@ -849,6 +930,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   window.addEventListener('click', handleApplyClick, true);
 
   setTimeout(emitPageState, 0);
+  setTimeout(applyPreviewChrome, 0);
 })();
 "#;
 
@@ -1074,6 +1156,15 @@ pub struct BrowserUiElementReference {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BrowserPreviewChrome {
+    pub radius: u32,
+    pub mode: Option<String>,
+    pub top_inset: Option<u32>,
+    pub orientation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StyleApplyPayload {
     pub target_selector: String,
     pub class_name: String,
@@ -1087,6 +1178,7 @@ struct BrowserInstance {
     visible: bool,
     inspect_mode: bool,
     zoom_factor: f64,
+    preview_chrome: Option<BrowserPreviewChrome>,
 }
 
 #[derive(Clone)]
@@ -1126,6 +1218,12 @@ impl BrowserManager {
             .get(workspace_id)
             .map(|instance| instance.zoom_factor)
             .unwrap_or(1.0);
+        let existing_preview_chrome = self
+            .instances
+            .lock()
+            .unwrap()
+            .get(workspace_id)
+            .and_then(|instance| instance.preview_chrome.clone());
 
         if let Some(webview) = app.get_webview(&label) {
             self.apply_bounds(&webview, &bounds)?;
@@ -1164,11 +1262,15 @@ impl BrowserManager {
                     visible: true,
                     inspect_mode: existing_inspect,
                     zoom_factor: existing_zoom,
+                    preview_chrome: existing_preview_chrome.clone(),
                 },
             );
 
             if existing_inspect {
                 self.set_inspect_mode(workspace_id, true)?;
+            }
+            if let Some(chrome) = existing_preview_chrome {
+                self.set_preview_chrome(workspace_id, Some(chrome))?;
             }
 
             return Ok(state);
@@ -1225,11 +1327,15 @@ impl BrowserManager {
                 visible: true,
                 inspect_mode: existing_inspect,
                 zoom_factor: existing_zoom,
+                preview_chrome: existing_preview_chrome.clone(),
             },
         );
 
         if existing_inspect {
             self.set_inspect_mode(workspace_id, true)?;
+        }
+        if let Some(chrome) = existing_preview_chrome {
+            self.set_preview_chrome(workspace_id, Some(chrome))?;
         }
 
         Ok(state)
@@ -1448,6 +1554,17 @@ impl BrowserManager {
         Ok(())
     }
 
+    pub fn set_preview_chrome(&self, workspace_id: &str, chrome: Option<BrowserPreviewChrome>) -> Result<()> {
+        let webview = self.webview_for_workspace(workspace_id)?;
+        webview.eval(preview_chrome_script(chrome.clone()))?;
+
+        if let Some(instance) = self.instances.lock().unwrap().get_mut(workspace_id) {
+          instance.preview_chrome = chrome;
+        }
+
+        Ok(())
+    }
+
     pub fn set_pick_ui_element_mode(&self, workspace_id: &str, enabled: bool) -> Result<()> {
         let webview = self.webview_for_workspace(workspace_id)?;
         webview.eval(pick_ui_element_mode_script(enabled))?;
@@ -1549,18 +1666,22 @@ impl BrowserManager {
         )?;
 
         if matches!(event, PageLoadEvent::Finished) {
-            let inspect_mode = self
+            let (inspect_mode, preview_chrome) = self
                 .instances
                 .lock()
                 .unwrap()
                 .get(&workspace_id)
-                .map(|instance| instance.inspect_mode)
-                .unwrap_or(false);
+                .map(|instance| (instance.inspect_mode, instance.preview_chrome.clone()))
+                .unwrap_or((false, None));
 
             if inspect_mode {
                 webview.eval(
                     "setTimeout(() => window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setInspectMode(true), 0);",
                 )?;
+            }
+            if let Some(chrome) = preview_chrome {
+                let script = preview_chrome_script(Some(chrome));
+                webview.eval(&format!("setTimeout(() => {{ {script} }}, 0);"))?;
             }
             webview
                 .eval(
@@ -1669,6 +1790,20 @@ fn pick_ui_element_mode_script(enabled: bool) -> String {
     format!(
         "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setPickUiElementMode({enabled});"
     )
+}
+
+fn preview_chrome_script(chrome: Option<BrowserPreviewChrome>) -> String {
+    match chrome {
+        Some(payload) => {
+            let json = serde_json::to_string(&payload).unwrap_or_default();
+            format!(
+                "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setPreviewChrome({json});"
+            )
+        }
+        None => {
+            "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setPreviewChrome(null);".to_string()
+        }
+    }
 }
 
 fn apply_mode_script(style_payload: Option<CapturedStyle>) -> String {

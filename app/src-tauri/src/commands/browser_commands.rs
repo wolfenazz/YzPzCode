@@ -3,7 +3,7 @@ use tauri::{State, Webview};
 
 use crate::browser::{
     BrowserBounds, BrowserManager, BrowserPageStateCommandPayload, BrowserSelectedElementPayload,
-    BrowserSnapshotCommandPayload, BrowserUiElementReference, BrowserViewState, CapturedStyle,
+    BrowserPreviewChrome, BrowserSnapshotCommandPayload, BrowserUiElementReference, BrowserViewState, CapturedStyle,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,6 +46,13 @@ pub struct BrowserInspectModeRequest {
 pub struct BrowserZoomRequest {
     pub workspace_id: String,
     pub zoom_factor: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserPreviewChromeRequest {
+    pub workspace_id: String,
+    pub chrome: Option<BrowserPreviewChrome>,
 }
 
 #[tauri::command]
@@ -124,6 +131,16 @@ pub async fn set_browser_zoom(
 ) -> Result<(), String> {
     manager
         .set_zoom(&request.workspace_id, request.zoom_factor)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_browser_preview_chrome(
+    manager: State<'_, BrowserManager>,
+    request: BrowserPreviewChromeRequest,
+) -> Result<(), String> {
+    manager
+        .set_preview_chrome(&request.workspace_id, request.chrome)
         .map_err(|e| e.to_string())
 }
 

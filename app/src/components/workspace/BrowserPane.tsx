@@ -8,6 +8,7 @@ import type {
   BrowserDevicePreset,
   BrowserElementSelectedEventPayload,
   BrowserInspectModePayload,
+  BrowserPreviewChrome,
   BrowserUiIntegrationMode,
   CapturedUiElementReference,
   BrowserPageLoadPayload,
@@ -37,13 +38,14 @@ const LOCALHOST_URL = 'http://localhost:3000';
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 const BROWSER_DEVICES: BrowserDevicePreset[] = [
   { id: 'responsive', label: 'Responsive', width: null, height: null, category: 'desktop' },
-  { id: 'desktop', label: 'Desktop 1440', width: 1440, height: null, category: 'desktop' },
-  { id: 'tablet', label: 'Tablet 1024', width: 1024, height: 1366, category: 'tablet' },
-  { id: 'ipad-mini', label: 'iPad mini', width: 768, height: 1024, category: 'tablet' },
-  { id: 'iphone-se', label: 'iPhone SE', width: 375, height: 667, category: 'mobile' },
   { id: 'iphone-14-pro', label: 'iPhone 14 Pro', width: 393, height: 852, category: 'mobile' },
-  { id: 'pixel-7', label: 'Pixel 7', width: 412, height: 915, category: 'mobile' },
-  { id: 'galaxy-s20', label: 'Galaxy S20', width: 360, height: 800, category: 'mobile' },
+  { id: 'ipad', label: 'iPad', width: 820, height: 1180, category: 'tablet' },
+];
+
+const BROWSER_DEVICE_OPTIONS: BrowserDevicePreset[] = [
+  BROWSER_DEVICES[0],
+  BROWSER_DEVICES[1],
+  BROWSER_DEVICES[2],
 ];
 
 const normalizeBrowserUrl = (value: string): string => {
@@ -54,6 +56,9 @@ const normalizeBrowserUrl = (value: string): string => {
 };
 
 const clampZoom = (value: number): number => Math.min(2, Math.max(0.5, Math.round(value * 100) / 100));
+
+const getDefaultZoomForDevice = (deviceId: BrowserDevicePreset['id']): number =>
+  deviceId === 'responsive' ? 1 : 0.67;
 
 const sanitizeFileSegment = (value: string): string =>
   value
@@ -75,6 +80,71 @@ const buildExportStamp = (): string => {
   return `${parts[0]}${parts[1]}${parts[2]}-${parts[3]}${parts[4]}${parts[5]}`;
 };
 
+interface DeviceFrameDefinition {
+  outerWidth: number;
+  outerHeight: number;
+  screenX: number;
+  screenY: number;
+  screenWidth: number;
+  screenHeight: number;
+  screenRadius: number;
+  contentInsetTop: number;
+  contentInsetRight: number;
+  contentInsetBottom: number;
+  contentInsetLeft: number;
+  kind: 'iphone' | 'ipad';
+  baseOrientation: BrowserDeviceOrientation;
+}
+
+interface DeviceFrameMetrics {
+  stageWidth: number;
+  stageHeight: number;
+  viewportWidth: number;
+  viewportHeight: number;
+  viewportLeft: number;
+  viewportTop: number;
+  viewBoxWidth: number;
+  viewBoxHeight: number;
+  shellPadding: number;
+  shellHeader: number;
+  kind: 'responsive' | 'iphone' | 'ipad';
+  screenRadius: number;
+  orientation: BrowserDeviceOrientation;
+}
+
+const DEVICE_FRAME_DEFINITIONS: Record<'iphone-14-pro' | 'ipad', DeviceFrameDefinition> = {
+  'iphone-14-pro': {
+    outerWidth: 200,
+    outerHeight: 400,
+    screenX: 14.08,
+    screenY: 12.81,
+    screenWidth: 171.98,
+    screenHeight: 374.37,
+    screenRadius: 24,
+    contentInsetTop: 1,
+    contentInsetRight: 1,
+    contentInsetBottom: 2,
+    contentInsetLeft: 1,
+    kind: 'iphone',
+    baseOrientation: 'portrait',
+  },
+  ipad: {
+    outerWidth: 520,
+    outerHeight: 400,
+    screenX: 31.37,
+    screenY: 28.47,
+    screenWidth: 457.25,
+    screenHeight: 342.87,
+    screenRadius: 14,
+    contentInsetTop: 1,
+    contentInsetRight: 1,
+    contentInsetBottom: 1,
+    contentInsetLeft: 1,
+    kind: 'ipad',
+    baseOrientation: 'landscape',
+  },
+};
+
 const getNextZoom = (current: number, direction: -1 | 1): number => {
   const currentIndex = ZOOM_STEPS.findIndex((value) => value >= current - 0.001 && value <= current + 0.001);
   if (currentIndex >= 0) {
@@ -86,6 +156,132 @@ const getNextZoom = (current: number, direction: -1 | 1): number => {
     : [...ZOOM_STEPS].reverse().find((value) => value < current);
   return fallback ?? current;
 };
+
+const IPhoneMockupFrame: React.FC<{
+  metrics: DeviceFrameMetrics;
+  children: React.ReactNode;
+}> = ({ metrics, children }) => (
+  <div
+    className="relative"
+    style={{
+      width: metrics.stageWidth,
+      height: metrics.stageHeight,
+    }}
+  >
+    <div
+      className="absolute overflow-hidden bg-zinc-900/30 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+      style={{
+        left: metrics.viewportLeft,
+        top: metrics.viewportTop,
+        width: metrics.viewportWidth,
+        height: metrics.viewportHeight,
+        borderRadius: metrics.screenRadius,
+      }}
+    >
+      {children}
+    </div>
+    <svg
+      className="absolute inset-0 h-full w-full pointer-events-none"
+      viewBox={`0 0 ${metrics.viewBoxWidth} ${metrics.viewBoxHeight}`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+    >
+      {metrics.orientation === 'portrait' ? (
+        <>
+          <path
+            fill="#303333"
+            d="M196.11,128.09c0-.25-.2-.45-.45-.45-.11.04-.37.03-.69,0V36.69c0-17.84-14.46-32.31-32.31-32.31H37.48C19.63,4.39,5.17,18.85,5.17,36.69v48.99c-.3.02-.55.03-.66-.02-.25,0-.45.2-.45.45,0,0,0,17.29,0,17.29-.03.41.5.49,1.11.48v13.63c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v7.95c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v178.86c0,17.84,14.46,32.31,32.31,32.31h125.2c17.84,0,32.31-14.46,32.31-32.31v-188.87c.32-.02.58-.03.69.04,1.26.1.03-45.94.45-46.38ZM186.07,362.63c0,13.56-10.99,24.56-24.56,24.56H38.64c-13.56,0-24.56-10.99-24.56-24.56V37.37c0-13.56,10.99-24.56,24.56-24.56h122.87c13.56,0,24.56,10.99,24.56,24.56v325.26Z"
+          />
+          <path
+            fill="#000000"
+            d="M161.38,7.29H38.78c-16.54,0-29.95,13.41-29.95,29.95v325.52c0,16.54,13.41,29.95,29.95,29.95h122.6c16.54,0,29.95-13.41,29.95-29.95V37.24c0-16.54-13.41-29.95-29.95-29.95ZM186.07,362.57c0,13.6-11.02,24.62-24.62,24.62H38.7c-13.6,0-24.62-11.02-24.62-24.62V37.43c0-13.6,11.02-24.62,24.62-24.62h122.75c13.6,0,24.62,11.02,24.62,24.62v325.14Z"
+          />
+          <rect x="14.08" y="12.81" width="171.98" height="374.37" rx="24.62" ry="24.62" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.75" />
+          <path
+            fill="#000000"
+            d="M119.61,33.86h-38.93c-10.48-.18-10.5-15.78,0-15.96,0,0,38.93,0,38.93,0,4.41,0,7.98,3.57,7.98,7.98,0,4.41-3.57,7.98-7.98,7.98Z"
+          />
+          <path fill="#080d4c" d="M118.78,29.21c-4.32.06-4.32-6.73,0-6.66,4.32-.06,4.32,6.73,0,6.66Z" />
+        </>
+      ) : (
+        <g transform="translate(400 0) rotate(90)">
+          <path
+            fill="#303333"
+            d="M196.11,128.09c0-.25-.2-.45-.45-.45-.11.04-.37.03-.69,0V36.69c0-17.84-14.46-32.31-32.31-32.31H37.48C19.63,4.39,5.17,18.85,5.17,36.69v48.99c-.3.02-.55.03-.66-.02-.25,0-.45.2-.45.45,0,0,0,17.29,0,17.29-.03.41.5.49,1.11.48v13.63c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v7.95c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v178.86c0,17.84,14.46,32.31,32.31,32.31h125.2c17.84,0,32.31-14.46,32.31-32.31v-188.87c.32-.02.58-.03.69.04,1.26.1.03-45.94.45-46.38ZM186.07,362.63c0,13.56-10.99,24.56-24.56,24.56H38.64c-13.56,0-24.56-10.99-24.56-24.56V37.37c0-13.56,10.99-24.56,24.56-24.56h122.87c13.56,0,24.56,10.99,24.56,24.56v325.26Z"
+          />
+          <path
+            fill="#000000"
+            d="M161.38,7.29H38.78c-16.54,0-29.95,13.41-29.95,29.95v325.52c0,16.54,13.41,29.95,29.95,29.95h122.6c16.54,0,29.95-13.41,29.95-29.95V37.24c0-16.54-13.41-29.95-29.95-29.95ZM186.07,362.57c0,13.6-11.02,24.62-24.62,24.62H38.7c-13.6,0-24.62-11.02-24.62-24.62V37.43c0-13.6,11.02-24.62,24.62-24.62h122.75c13.6,0,24.62,11.02,24.62,24.62v325.14Z"
+          />
+          <rect x="14.08" y="12.81" width="171.98" height="374.37" rx="24.62" ry="24.62" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.75" />
+          <path
+            fill="#000000"
+            d="M119.61,33.86h-38.93c-10.48-.18-10.5-15.78,0-15.96,0,0,38.93,0,38.93,0,4.41,0,7.98,3.57,7.98,7.98,0,4.41-3.57,7.98-7.98,7.98Z"
+          />
+          <path fill="#080d4c" d="M118.78,29.21c-4.32.06-4.32-6.73,0-6.66,4.32-.06,4.32,6.73,0,6.66Z" />
+        </g>
+      )}
+    </svg>
+  </div>
+);
+
+const IPadMockupFrame: React.FC<{
+  metrics: DeviceFrameMetrics;
+  children: React.ReactNode;
+}> = ({ metrics, children }) => (
+  <div
+    className="relative"
+    style={{
+      width: metrics.stageWidth,
+      height: metrics.stageHeight,
+    }}
+  >
+    <div
+      className="absolute overflow-hidden bg-zinc-900/30 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]"
+      style={{
+        left: metrics.viewportLeft,
+        top: metrics.viewportTop,
+        width: metrics.viewportWidth,
+        height: metrics.viewportHeight,
+        borderRadius: metrics.screenRadius,
+      }}
+    >
+      {children}
+    </div>
+    <svg
+      className="absolute inset-0 h-full w-full pointer-events-none"
+      viewBox={`0 0 ${metrics.viewBoxWidth} ${metrics.viewBoxHeight}`}
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      preserveAspectRatio="none"
+    >
+      {metrics.orientation === 'landscape' ? (
+        <>
+          <path
+            fill="#aaabac"
+            d="M479.04,14.14H88.14v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-3.46v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-9.13c-13.4,0-24.27,10.78-24.45,24.14h-.48c-.16,0-.3.13-.3.3v20.07c0,.16.13.3.3.3h.47v303.38c0,13.51,10.95,24.45,24.45,24.45h438.08c13.51,0,24.45-10.95,24.45-24.45V38.6c0-13.51-10.95-24.45-24.45-24.45Z"
+          />
+          <rect x="18.58" y="15.94" width="482.84" height="368.91" rx="23.29" ry="23.29" fill="#000" />
+          <rect x="31.37" y="28.47" width="457.25" height="342.87" rx="9.61" ry="9.61" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+          <circle fill="#0a1054" cx="245.1" cy="22.23" r="2.44" />
+          <circle fill="#333" cx="274.98" cy="22.23" r=".88" />
+        </>
+      ) : (
+        <g transform="translate(400 0) rotate(90)">
+          <path
+            fill="#aaabac"
+            d="M479.04,14.14H88.14v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-3.46v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-9.13c-13.4,0-24.27,10.78-24.45,24.14h-.48c-.16,0-.3.13-.3.3v20.07c0,.16.13.3.3.3h.47v303.38c0,13.51,10.95,24.45,24.45,24.45h438.08c13.51,0,24.45-10.95,24.45-24.45V38.6c0-13.51-10.95-24.45-24.45-24.45Z"
+          />
+          <rect x="18.58" y="15.94" width="482.84" height="368.91" rx="23.29" ry="23.29" fill="#000" />
+          <rect x="31.37" y="28.47" width="457.25" height="342.87" rx="9.61" ry="9.61" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
+          <circle fill="#0a1054" cx="245.1" cy="22.23" r="2.44" />
+          <circle fill="#333" cx="274.98" cy="22.23" r=".88" />
+        </g>
+      )}
+    </svg>
+  </div>
+);
 
 const formatElementPrompt = (
   element: BrowserSelectedElement,
@@ -201,43 +397,85 @@ const getViewportMetrics = (
   hostHeight: number,
   device: BrowserDevicePreset,
   orientation: BrowserDeviceOrientation,
-): {
-  stageWidth: number;
-  stageHeight: number;
-  viewportWidth: number;
-  viewportHeight: number;
-  shellPadding: number;
-  shellHeader: number;
-} => {
+): DeviceFrameMetrics => {
   if (device.id === 'responsive') {
     return {
       stageWidth: Math.max(hostWidth, 280),
       stageHeight: Math.max(hostHeight, 320),
       viewportWidth: Math.max(hostWidth, 280),
       viewportHeight: Math.max(hostHeight, 320),
+      viewportLeft: 0,
+      viewportTop: 0,
+      viewBoxWidth: Math.max(hostWidth, 280),
+      viewBoxHeight: Math.max(hostHeight, 320),
       shellPadding: 0,
       shellHeader: 0,
+      kind: 'responsive',
+      screenRadius: 0,
+      orientation,
     };
   }
 
-  const availableWidth = Math.max(hostWidth - 48, 280);
-  const availableHeight = Math.max(hostHeight - 48, 320);
-  const shellPadding = device.category === 'mobile' ? 16 : 12;
-  const shellHeader = device.category === 'mobile' ? 22 : 18;
-  const requestedWidth = orientation === 'landscape' && device.width && device.height ? device.height : device.width;
-  const requestedHeight = orientation === 'landscape' && device.width && device.height ? device.width : device.height;
-  const maxViewportWidth = Math.max(240, availableWidth - shellPadding * 2);
-  const maxViewportHeight = Math.max(260, availableHeight - shellPadding * 2 - shellHeader);
-  const viewportWidth = Math.min(requestedWidth ?? maxViewportWidth, maxViewportWidth);
-  const viewportHeight = Math.min(requestedHeight ?? maxViewportHeight, maxViewportHeight);
+  const definition = DEVICE_FRAME_DEFINITIONS[device.id as keyof typeof DEVICE_FRAME_DEFINITIONS];
+  const rotated = orientation !== definition.baseOrientation;
+  const requestedWidth = orientation === 'landscape' && device.width && device.height ? device.height : device.width ?? 0;
+  const requestedHeight = orientation === 'landscape' && device.width && device.height ? device.width : device.height ?? 0;
+  const frameOuterWidth = rotated ? definition.outerHeight : definition.outerWidth;
+  const frameOuterHeight = rotated ? definition.outerWidth : definition.outerHeight;
+  const frameScreenWidth = rotated ? definition.screenHeight : definition.screenWidth;
+  const frameScreenHeight = rotated ? definition.screenWidth : definition.screenHeight;
+  const frameScreenX = rotated
+    ? definition.outerHeight - definition.screenY - definition.screenHeight
+    : definition.screenX;
+  const frameScreenY = rotated ? definition.screenX : definition.screenY;
+  const insets = rotated
+    ? {
+        top: definition.contentInsetLeft,
+        right: definition.contentInsetTop,
+        bottom: definition.contentInsetRight,
+        left: definition.contentInsetBottom,
+      }
+    : {
+        top: definition.contentInsetTop,
+        right: definition.contentInsetRight,
+        bottom: definition.contentInsetBottom,
+        left: definition.contentInsetLeft,
+      };
+  const clippedScreenX = frameScreenX + insets.left;
+  const clippedScreenY = frameScreenY + insets.top;
+  const clippedScreenWidth = frameScreenWidth - insets.left - insets.right;
+  const clippedScreenHeight = frameScreenHeight - insets.top - insets.bottom;
+
+  const availableWidth = Math.max(hostWidth - 56, 240);
+  const availableHeight = Math.max(hostHeight - 56, 280);
+  const screenScale = Math.min(requestedWidth / clippedScreenWidth, requestedHeight / clippedScreenHeight);
+  const desiredStageWidth = frameOuterWidth * screenScale;
+  const desiredStageHeight = frameOuterHeight * screenScale;
+  const scale = Math.min(1, availableWidth / desiredStageWidth, availableHeight / desiredStageHeight);
+  const stageWidth = Math.max(220, Math.round(desiredStageWidth * scale));
+  const stageHeight = Math.max(260, Math.round(desiredStageHeight * scale));
+  const finalFrameScale = stageWidth / frameOuterWidth;
+  const viewportWidth = Math.round(clippedScreenWidth * finalFrameScale);
+  const viewportHeight = Math.round(clippedScreenHeight * finalFrameScale);
+  const viewportLeft = Math.round(clippedScreenX * finalFrameScale);
+  const viewportTop = Math.round(clippedScreenY * finalFrameScale);
+  const maxInset = Math.max(insets.top, insets.right, insets.bottom, insets.left);
+  const screenRadius = Math.max(8, Math.round((definition.screenRadius - maxInset) * finalFrameScale));
 
   return {
-    stageWidth: viewportWidth + shellPadding * 2,
-    stageHeight: viewportHeight + shellPadding * 2 + shellHeader,
+    stageWidth,
+    stageHeight,
     viewportWidth,
     viewportHeight,
-    shellPadding,
-    shellHeader,
+    viewportLeft,
+    viewportTop,
+    viewBoxWidth: frameOuterWidth,
+    viewBoxHeight: frameOuterHeight,
+    shellPadding: 0,
+    shellHeader: 0,
+    kind: definition.kind,
+    screenRadius,
+    orientation,
   };
 };
 
@@ -297,6 +535,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     setBrowserViewVisibility,
     setBrowserInspectMode,
     setBrowserZoom,
+    setBrowserPreviewChrome,
     goBackBrowserView,
     goForwardBrowserView,
     exportBrowserSnapshot,
@@ -352,7 +591,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   }, [activeSessionId, targetableSessions]);
 
   const activeDevice = useMemo(
-    () => BROWSER_DEVICES.find((device) => device.id === effectiveState.deviceId) ?? BROWSER_DEVICES[0],
+    () => BROWSER_DEVICE_OPTIONS.find((device) => device.id === effectiveState.deviceId) ?? BROWSER_DEVICE_OPTIONS[0],
     [effectiveState.deviceId],
   );
 
@@ -437,6 +676,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
 
   useEffect(() => {
     let frame = 0;
+    let timeout: number | null = null;
 
     const scheduleSync = () => {
       if (frame) {
@@ -445,6 +685,13 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       frame = requestAnimationFrame(() => {
         void syncBrowserBounds();
       });
+
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
+      }
+      timeout = window.setTimeout(() => {
+        void syncBrowserBounds();
+      }, 260);
     };
 
     scheduleSync();
@@ -452,6 +699,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     return () => {
       if (frame) {
         cancelAnimationFrame(frame);
+      }
+      if (timeout !== null) {
+        window.clearTimeout(timeout);
       }
     };
   }, [
@@ -611,6 +861,37 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
 
   useEffect(() => {
     if (!nativeBrowserReady) return;
+
+    const chrome: BrowserPreviewChrome | null = viewportMetrics.kind === 'responsive'
+      ? null
+      : viewportMetrics.kind === 'iphone'
+        ? {
+            radius: Math.max(10, viewportMetrics.screenRadius),
+            mode: 'iphone',
+            topInset: Math.max(18, Math.round(viewportMetrics.viewportHeight * 0.06)),
+            orientation: effectiveState.deviceOrientation,
+          }
+        : {
+            radius: Math.max(10, viewportMetrics.screenRadius),
+            mode: 'ipad',
+            topInset: 0,
+            orientation: effectiveState.deviceOrientation,
+          };
+
+    void setBrowserPreviewChrome(workspaceId, chrome).catch((err) => {
+      setError(err instanceof Error ? err.message : String(err));
+    });
+  }, [
+    nativeBrowserReady,
+    setBrowserPreviewChrome,
+    effectiveState.deviceOrientation,
+    viewportMetrics.kind,
+    viewportMetrics.screenRadius,
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    if (!nativeBrowserReady) return;
     const activeTabId = browserState?.activeTabId;
     if (!activeTabId || activeTabId === lastNavigatedTabRef.current) return;
 
@@ -683,6 +964,11 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   const handleZoomChange = useCallback((nextZoom: number) => {
     setBrowserZoomFactor(workspaceId, clampZoom(nextZoom));
   }, [setBrowserZoomFactor, workspaceId]);
+
+  const handleDeviceChange = useCallback((deviceId: BrowserDevicePreset['id']) => {
+    setBrowserDeviceId(workspaceId, deviceId);
+    setBrowserZoomFactor(workspaceId, getDefaultZoomForDevice(deviceId));
+  }, [setBrowserDeviceId, setBrowserZoomFactor, workspaceId]);
 
   const handleRotateDevice = useCallback(() => {
     setBrowserDeviceOrientation(
@@ -1211,10 +1497,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
               <Icon icon="material-symbols:devices-outline-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
               <select
                 value={effectiveState.deviceId}
-                onChange={(event) => setBrowserDeviceId(workspaceId, event.target.value as BrowserDevicePreset['id'])}
+                onChange={(event) => handleDeviceChange(event.target.value as BrowserDevicePreset['id'])}
                 className="bg-transparent text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-primary)] outline-none appearance-none pr-1 cursor-pointer"
               >
-                {BROWSER_DEVICES.map((device) => (
+                {BROWSER_DEVICE_OPTIONS.map((device) => (
                   <option key={device.id} value={device.id} className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
                     {device.label}
                   </option>
@@ -1350,41 +1636,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
                 />
               ) : (
                 <div className="relative flex h-full items-center justify-center p-4">
-                  <div
-                    className={`relative transition-all duration-200 ${
-                      activeDevice.category === 'mobile'
-                        ? 'rounded-[32px] border border-zinc-700/50 bg-zinc-950/90 shadow-[0_30px_80px_rgba(0,0,0,0.5)]'
-                        : 'rounded-[22px] border border-zinc-700/50 bg-zinc-950/85 shadow-[0_24px_70px_rgba(0,0,0,0.4)]'
-                    }`}
-                    style={{
-                      width: viewportMetrics.stageWidth,
-                      height: viewportMetrics.stageHeight,
-                      padding: viewportMetrics.shellPadding,
-                      paddingTop: viewportMetrics.shellPadding + viewportMetrics.shellHeader,
-                    }}
-                  >
-                    <div className="absolute inset-x-0 top-0 flex items-center justify-between px-3 pt-2 text-[9px] font-medium uppercase tracking-[0.15em] text-zinc-500">
-                      <span>{activeDevice.label}</span>
-                      <span className="text-zinc-600">{viewportMetrics.viewportWidth}×{viewportMetrics.viewportHeight}</span>
-                    </div>
-
-                    {activeDevice.category === 'mobile' && (
-                      <div className="absolute left-1/2 top-2.5 h-1 w-16 -translate-x-1/2 rounded-full bg-zinc-700/70" />
-                    )}
-
-                    <div
-                      ref={previewViewportRef}
-                      className={`relative overflow-hidden ${
-                        activeDevice.category === 'mobile'
-                          ? 'rounded-[24px] bg-zinc-900/30'
-                          : 'rounded-[14px] bg-zinc-900/30'
-                      }`}
-                      style={{
-                        width: viewportMetrics.viewportWidth,
-                        height: viewportMetrics.viewportHeight,
-                      }}
-                    />
-                  </div>
+                  {viewportMetrics.kind === 'iphone' ? (
+                    <IPhoneMockupFrame metrics={viewportMetrics}>
+                      <div ref={previewViewportRef} className="h-full w-full" />
+                    </IPhoneMockupFrame>
+                  ) : (
+                    <IPadMockupFrame metrics={viewportMetrics}>
+                      <div ref={previewViewportRef} className="h-full w-full" />
+                    </IPadMockupFrame>
+                  )}
                 </div>
               )}
             </div>

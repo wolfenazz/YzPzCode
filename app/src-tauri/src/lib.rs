@@ -114,6 +114,7 @@ pub fn run() {
             commands::close_browser_view,
             commands::set_browser_inspect_mode,
             commands::set_browser_zoom,
+            commands::set_browser_preview_chrome,
             commands::browser_go_back,
             commands::browser_go_forward,
             commands::request_browser_snapshot,
