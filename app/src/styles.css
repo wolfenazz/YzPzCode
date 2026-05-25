@@ -27,12 +27,12 @@
 }
 
 .light-theme {
-  --bg-primary: #18181b; /* zinc-900 */
-  --bg-secondary: #09090b; /* zinc-950 */
-  --bg-tertiary: #27272a; /* zinc-800 */
-  --border-primary: #3f3f46; /* zinc-700 */
-  --text-primary: #f4f4f5; /* zinc-100 */
-  --text-secondary: #a1a1aa; /* zinc-400 */
+  --bg-primary: #17191d;
+  --bg-secondary: #1c1f25;
+  --bg-tertiary: #23272e;
+  --border-primary: #353b46;
+  --text-primary: #f3f4f6;
+  --text-secondary: #a1a8b3;
 }
 
 body {
@@ -196,6 +196,49 @@ html.animations-disabled *::after {
 
 .animate-spin-slow {
   animation: spin-slow 1.5s linear infinite;
+}
+
+@keyframes gemini-border-flow {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(18deg);
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg);
+  }
+}
+
+.inspect-button-gemini {
+  position: relative;
+  background: linear-gradient(90deg, #4285f4, #34a853, #fbbc05, #ea4335, #8ab4f8, #34a853);
+  background-size: 300% 300%;
+  box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.16), 0 0 14px rgba(52, 168, 83, 0.08);
+}
+
+.inspect-button-gemini::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: inherit;
+  background-size: inherit;
+  z-index: -1;
+  animation: gemini-border-flow 3.5s linear infinite;
+  opacity: 0.9;
+  filter: blur(8px) saturate(1.35);
+}
+
+.inspect-button-gemini:not(.is-active) {
+  animation: gemini-border-flow 3.5s linear infinite;
+}
+
+.inspect-button-gemini.is-active {
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25), 0 0 16px rgba(52, 211, 153, 0.28);
 }
 
 /* ── Help Tooltip ────────────────────────────────────────────────────── */

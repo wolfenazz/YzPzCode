@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode } from '../types';
 
-const DEFAULT_BROWSER_URL = 'http://localhost:3000';
+const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
   !value || value.trim() === '' || value.trim() === 'about:blank';
 
@@ -11,12 +11,23 @@ const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
   draftUrl: DEFAULT_BROWSER_URL,
   isLoading: false,
   inspectMode: false,
+  pickStyleMode: false,
+  pickUiElementMode: false,
+  applyMode: false,
   zoomFactor: 1,
   deviceId: 'responsive',
   deviceOrientation: 'portrait',
   selectedElement: null,
   prompt: '',
+  uiReferencePrompt: '',
+  uiReferenceMode: 'insert',
   targetSessionId: null,
+  browserTabs: [{ id: 'default', url: DEFAULT_BROWSER_URL, title: 'Google' }],
+  activeTabId: 'default',
+  styleClipboard: [],
+  uiReferenceClipboard: [],
+  activeUiReferenceId: null,
+  appliedStyles: [],
 });
 
 interface AppState {
@@ -189,6 +200,22 @@ interface AppState {
   setBrowserPrompt: (workspaceId: string, prompt: string) => void;
   setBrowserTargetSession: (workspaceId: string, sessionId: string | null) => void;
   clearBrowserSelection: (workspaceId: string) => void;
+  addBrowserTab: (workspaceId: string, tab: BrowserTab) => void;
+  removeBrowserTab: (workspaceId: string, tabId: string) => void;
+  setActiveBrowserTab: (workspaceId: string, tabId: string) => void;
+  updateBrowserTab: (workspaceId: string, tabId: string, updates: Partial<BrowserTab>) => void;
+  addCapturedStyle: (workspaceId: string, style: CapturedStyle) => void;
+  removeCapturedStyle: (workspaceId: string, styleId: string) => void;
+  setBrowserPickStyleMode: (workspaceId: string, enabled: boolean) => void;
+  addCapturedUiReference: (workspaceId: string, reference: CapturedUiElementReference) => void;
+  removeCapturedUiReference: (workspaceId: string, referenceId: string) => void;
+  setActiveUiReference: (workspaceId: string, referenceId: string | null) => void;
+  setBrowserPickUiElementMode: (workspaceId: string, enabled: boolean) => void;
+  setBrowserUiReferencePrompt: (workspaceId: string, prompt: string) => void;
+  setBrowserUiReferenceMode: (workspaceId: string, mode: BrowserUiIntegrationMode) => void;
+  setBrowserApplyMode: (workspaceId: string, stylePayload: CapturedStyle | null) => void;
+  addAppliedStyle: (workspaceId: string, applied: AppliedStyle) => void;
+  undoBrowserStyle: (workspaceId: string) => void;
   openFileTab: (tab: FileTab) => void;
   closeFileTab: (path: string) => void;
   setActiveFile: (path: string | null) => void;
@@ -799,6 +826,204 @@ export const useAppStore = create<AppState>()(
             },
           },
         })),
+
+      addBrowserTab: (workspaceId, tab) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          const tabs = [...bs.browserTabs, tab];
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, browserTabs: tabs, activeTabId: tab.id },
+            },
+          };
+        }),
+
+      removeBrowserTab: (workspaceId, tabId) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          const tabs = bs.browserTabs.filter((t) => t.id !== tabId);
+          const activeTabId = bs.activeTabId === tabId ? (tabs[0]?.id ?? null) : bs.activeTabId;
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, browserTabs: tabs, activeTabId },
+            },
+          };
+        }),
+
+      setActiveBrowserTab: (workspaceId, tabId) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, activeTabId: tabId },
+            },
+          };
+        }),
+
+      updateBrowserTab: (workspaceId, tabId, updates) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          const tabs = bs.browserTabs.map((t) => (t.id === tabId ? { ...t, ...updates } : t));
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, browserTabs: tabs },
+            },
+          };
+        }),
+
+      addCapturedStyle: (workspaceId, style) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, styleClipboard: [style, ...bs.styleClipboard] },
+            },
+          };
+        }),
+
+      removeCapturedStyle: (workspaceId, styleId) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, styleClipboard: bs.styleClipboard.filter((s) => s.id !== styleId) },
+            },
+          };
+        }),
+
+      setBrowserPickStyleMode: (workspaceId, enabled) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              pickStyleMode: enabled,
+              pickUiElementMode: enabled ? false : state.browserStateByWorkspace[workspaceId]?.pickUiElementMode,
+              inspectMode: enabled ? false : state.browserStateByWorkspace[workspaceId]?.inspectMode,
+              applyMode: enabled ? false : state.browserStateByWorkspace[workspaceId]?.applyMode,
+            },
+          },
+        })),
+
+      addCapturedUiReference: (workspaceId, reference) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: {
+                ...bs,
+                uiReferenceClipboard: [reference, ...bs.uiReferenceClipboard],
+                activeUiReferenceId: reference.id,
+              },
+            },
+          };
+        }),
+
+      removeCapturedUiReference: (workspaceId, referenceId) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          const nextReferences = bs.uiReferenceClipboard.filter((reference) => reference.id !== referenceId);
+          const activeUiReferenceId = bs.activeUiReferenceId === referenceId
+            ? nextReferences[0]?.id ?? null
+            : bs.activeUiReferenceId;
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, uiReferenceClipboard: nextReferences, activeUiReferenceId },
+            },
+          };
+        }),
+
+      setActiveUiReference: (workspaceId, referenceId) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              activeUiReferenceId: referenceId,
+            },
+          },
+        })),
+
+      setBrowserPickUiElementMode: (workspaceId, enabled) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              pickUiElementMode: enabled,
+              pickStyleMode: enabled ? false : state.browserStateByWorkspace[workspaceId]?.pickStyleMode,
+              inspectMode: enabled ? false : state.browserStateByWorkspace[workspaceId]?.inspectMode,
+              applyMode: enabled ? false : state.browserStateByWorkspace[workspaceId]?.applyMode,
+            },
+          },
+        })),
+
+      setBrowserUiReferencePrompt: (workspaceId, prompt) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              uiReferencePrompt: prompt,
+            },
+          },
+        })),
+
+      setBrowserUiReferenceMode: (workspaceId, mode) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              uiReferenceMode: mode,
+            },
+          },
+        })),
+
+      setBrowserApplyMode: (workspaceId, stylePayload) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              applyMode: !!stylePayload,
+              pickStyleMode: false,
+              pickUiElementMode: false,
+              inspectMode: false,
+            },
+          },
+        })),
+
+      addAppliedStyle: (workspaceId, applied) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, appliedStyles: [...bs.appliedStyles, applied], applyMode: false },
+            },
+          };
+        }),
+
+      undoBrowserStyle: (workspaceId) =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          const next = bs.appliedStyles.slice(0, -1);
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, appliedStyles: next },
+            },
+          };
+        }),
 
       openFileTab: (tab) =>
         set((state) => {

@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { BrowserBounds, BrowserViewState } from '../types';
+import { BrowserBounds, BrowserViewState, CapturedStyle } from '../types';
 
 export const useBrowser = () => {
   const ensureBrowserView = useCallback(async (workspaceId: string, url: string, bounds: BrowserBounds) => {
@@ -96,6 +96,41 @@ export const useBrowser = () => {
     });
   }, []);
 
+  const setBrowserPickStyleMode = useCallback(async (workspaceId: string, enabled: boolean) => {
+    await invoke('set_browser_pick_style_mode', {
+      request: {
+        workspaceId,
+        enabled,
+      },
+    });
+  }, []);
+
+  const setBrowserPickUiElementMode = useCallback(async (workspaceId: string, enabled: boolean) => {
+    await invoke('set_browser_pick_ui_element_mode', {
+      request: {
+        workspaceId,
+        enabled,
+      },
+    });
+  }, []);
+
+  const setBrowserApplyMode = useCallback(async (workspaceId: string, stylePayload: CapturedStyle | null) => {
+    await invoke('set_browser_apply_mode', {
+      request: {
+        workspaceId,
+        stylePayload,
+      },
+    });
+  }, []);
+
+  const undoBrowserStyle = useCallback(async (workspaceId: string) => {
+    await invoke('undo_browser_style', {
+      request: {
+        workspaceId,
+      },
+    });
+  }, []);
+
   return {
     ensureBrowserView,
     resizeBrowserView,
@@ -108,5 +143,9 @@ export const useBrowser = () => {
     goBackBrowserView,
     goForwardBrowserView,
     exportBrowserSnapshot,
+    setBrowserPickStyleMode,
+    setBrowserPickUiElementMode,
+    setBrowserApplyMode,
+    undoBrowserStyle,
   };
 };

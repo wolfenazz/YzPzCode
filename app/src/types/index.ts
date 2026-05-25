@@ -195,17 +195,137 @@ export interface BrowserElementSelectedEventPayload {
   element: BrowserSelectedElement;
 }
 
+export interface BrowserTab {
+  id: string;
+  url: string;
+  title: string;
+  favicon?: string;
+}
+
+export interface CapturedStyle {
+  id: string;
+  sourceUrl: string;
+  selector: string;
+  tagName: string;
+  computedStyles: Record<string, string>;
+  pseudoBefore?: Record<string, string>;
+  pseudoAfter?: Record<string, string>;
+  htmlSnippet: string;
+  viewport: BrowserViewport;
+  timestamp: number;
+}
+
+export interface CapturedUiElementNode {
+  tagName: string;
+  role: string | null;
+  className: string | null;
+  textPreview: string;
+  childCount: number;
+  children: CapturedUiElementNode[];
+}
+
+export interface CapturedUiElementAsset {
+  type: "image" | "icon" | "background";
+  sourceUrl: string;
+  alt: string | null;
+}
+
+export interface CapturedUiElementLayout {
+  width: string;
+  height: string;
+  display: string;
+  position: string;
+  flexDirection: string | null;
+  justifyContent: string | null;
+  alignItems: string | null;
+  gap: string | null;
+  gridTemplateColumns: string | null;
+  gridTemplateRows: string | null;
+}
+
+export interface CapturedUiElementSpacing {
+  margin: string;
+  padding: string;
+  borderRadius: string;
+}
+
+export interface CapturedUiElementTypography {
+  fontFamily: string;
+  fontSize: string;
+  fontWeight: string;
+  lineHeight: string;
+  letterSpacing: string;
+  textTransform: string;
+}
+
+export interface CapturedUiElementVisuals {
+  background: string;
+  color: string;
+  border: string;
+  boxShadow: string;
+  opacity: string;
+}
+
+export interface CapturedUiElementInteractivity {
+  cursor: string;
+  transition: string;
+  hoverSelectors: string[];
+}
+
+export interface CapturedUiElementReference {
+  id: string;
+  sourceUrl: string;
+  pageTitle: string;
+  selector: string;
+  tagName: string;
+  textContent: string;
+  htmlSnippet: string;
+  computedStyles: Record<string, string>;
+  pseudoBefore?: Record<string, string>;
+  pseudoAfter?: Record<string, string>;
+  layout: CapturedUiElementLayout;
+  spacing: CapturedUiElementSpacing;
+  typography: CapturedUiElementTypography;
+  visuals: CapturedUiElementVisuals;
+  interactivity: CapturedUiElementInteractivity;
+  assets: CapturedUiElementAsset[];
+  structure: CapturedUiElementNode;
+  designIntent: string;
+  componentLabel: string;
+  viewport: BrowserViewport;
+  timestamp: number;
+}
+
+export type BrowserUiIntegrationMode = "insert" | "replace";
+
+export interface AppliedStyle {
+  targetSelector: string;
+  className: string;
+  cssRules: string[];
+}
+
 export interface BrowserWorkspaceState {
   currentUrl: string;
   draftUrl: string;
   isLoading: boolean;
   inspectMode: boolean;
+  pickStyleMode: boolean;
+  pickUiElementMode: boolean;
+  applyMode: boolean;
   zoomFactor: number;
   deviceId: BrowserDeviceId;
   deviceOrientation: BrowserDeviceOrientation;
   selectedElement: BrowserSelectedElement | null;
   prompt: string;
+  uiReferencePrompt: string;
+  uiReferenceMode: BrowserUiIntegrationMode;
   targetSessionId: string | null;
+  browserTabs: BrowserTab[];
+  activeTabId: string | null;
+  styleClipboard: CapturedStyle[];
+  uiReferenceClipboard: CapturedUiElementReference[];
+  activeUiReferenceId: string | null;
+  appliedStyles: AppliedStyle[];
 }
 
 export interface BrowserPageStatePayload {

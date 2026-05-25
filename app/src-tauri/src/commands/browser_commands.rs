@@ -3,7 +3,7 @@ use tauri::{State, Webview};
 
 use crate::browser::{
     BrowserBounds, BrowserManager, BrowserPageStateCommandPayload, BrowserSelectedElementPayload,
-    BrowserSnapshotCommandPayload, BrowserViewState,
+    BrowserSnapshotCommandPayload, BrowserUiElementReference, BrowserViewState, CapturedStyle,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,5 +197,105 @@ pub async fn browser_snapshot_exported(
 ) -> Result<(), String> {
     manager
         .handle_snapshot_exported(webview.label(), payload)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserPickStyleModeRequest {
+    pub workspace_id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserPickUiElementModeRequest {
+    pub workspace_id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserApplyModeRequest {
+    pub workspace_id: String,
+    pub style_payload: Option<CapturedStyle>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserUndoStyleRequest {
+    pub workspace_id: String,
+}
+
+#[tauri::command]
+pub async fn set_browser_pick_style_mode(
+    manager: State<'_, BrowserManager>,
+    request: BrowserPickStyleModeRequest,
+) -> Result<(), String> {
+    manager
+        .set_pick_style_mode(&request.workspace_id, request.enabled)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_browser_pick_ui_element_mode(
+    manager: State<'_, BrowserManager>,
+    request: BrowserPickUiElementModeRequest,
+) -> Result<(), String> {
+    manager
+        .set_pick_ui_element_mode(&request.workspace_id, request.enabled)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_browser_apply_mode(
+    manager: State<'_, BrowserManager>,
+    request: BrowserApplyModeRequest,
+) -> Result<(), String> {
+    manager
+        .set_apply_mode(&request.workspace_id, request.style_payload)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn undo_browser_style(
+    manager: State<'_, BrowserManager>,
+    request: BrowserUndoStyleRequest,
+) -> Result<(), String> {
+    manager
+        .undo_last_style(&request.workspace_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn browser_style_captured(
+    webview: Webview,
+    manager: State<'_, BrowserManager>,
+    payload: CapturedStyle,
+) -> Result<(), String> {
+    manager
+        .handle_style_captured(webview.label(), payload)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn browser_ui_element_captured(
+    webview: Webview,
+    manager: State<'_, BrowserManager>,
+    payload: BrowserUiElementReference,
+) -> Result<(), String> {
+    manager
+        .handle_ui_element_captured(webview.label(), payload)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn browser_style_applied(
+    webview: Webview,
+    manager: State<'_, BrowserManager>,
+    payload: crate::browser::StyleApplyPayload,
+) -> Result<(), String> {
+    manager
+        .handle_style_applied(webview.label(), payload)
         .map_err(|e| e.to_string())
 }

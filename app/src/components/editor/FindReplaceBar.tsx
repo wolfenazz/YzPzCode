@@ -230,13 +230,13 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
   const inputCls = `flex-1 bg-transparent text-xs font-mono outline-none min-w-0 ${
     isDark
       ? 'text-zinc-200 placeholder:text-zinc-600'
-      : 'text-zinc-800 placeholder:text-zinc-400'
+      : 'text-zinc-100 placeholder:text-zinc-500'
   }`;
 
   const fieldCls = `flex items-center flex-1 gap-1.5 px-2.5 py-1 rounded-md border transition-colors ${
     isDark
       ? 'bg-zinc-950/80 border-zinc-700/80 focus-within:border-zinc-500'
-      : 'bg-zinc-50 border-zinc-300 focus-within:border-zinc-500'
+      : 'bg-[#15181c] border-zinc-700/70 focus-within:border-zinc-500'
   }`;
 
   const iconBtnCls = (active: boolean) =>
@@ -244,10 +244,10 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
       active
         ? isDark
           ? 'bg-zinc-700/80 text-zinc-100 shadow-sm'
-          : 'bg-zinc-300 text-zinc-800 shadow-sm'
+          : 'bg-[#262930] text-zinc-100 shadow-sm'
         : isDark
           ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-          : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200'
+          : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
     }`;
 
   const actionBtnCls = (disabled: boolean) =>
@@ -256,19 +256,19 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
         ? 'opacity-40 cursor-not-allowed'
         : isDark
           ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 border border-zinc-700/60'
-          : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300 hover:text-zinc-800 border border-zinc-300'
+          : 'bg-[#23262c] text-zinc-300 hover:bg-[#2b2f36] hover:text-zinc-100 border border-zinc-700/60'
     }`;
 
   const navBtnCls = `p-1 rounded-md transition-colors duration-100 cursor-pointer ${
     isDark
       ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'
-      : 'text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200'
+      : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
   }`;
 
   const closeBtnCls = `p-1 rounded-md transition-colors duration-100 cursor-pointer ${
     isDark
       ? 'text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800'
-      : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200'
+      : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
   }`;
 
   const matchLabel = (() => {
@@ -290,7 +290,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
       className={`absolute top-2 right-2 z-50 w-[440px] rounded-lg border overflow-hidden shadow-2xl ${
         isDark
           ? 'bg-zinc-900/95 border-zinc-700/60 shadow-black/50 backdrop-blur-sm'
-          : 'bg-white/95 border-zinc-300 shadow-black/10 backdrop-blur-sm'
+          : 'bg-[#1b1e23]/95 border-zinc-700/70 shadow-black/40 backdrop-blur-sm'
       }`}
       onClick={(e) => e.stopPropagation()}
     >
@@ -303,10 +303,10 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
             showReplace
               ? isDark
                 ? 'text-zinc-300 bg-zinc-800 rotate-180'
-                : 'text-zinc-600 bg-zinc-200 rotate-180'
+                : 'text-zinc-200 bg-[#23262c] rotate-180'
               : isDark
                 ? 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800'
-                : 'text-zinc-400 hover:text-zinc-500 hover:bg-zinc-200'
+                : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
           }`}
           title={showReplace ? 'Hide Replace' : 'Show Replace (Ctrl+H)'}
           aria-label={showReplace ? 'Hide replace' : 'Show replace'}
@@ -319,7 +319,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
 
         {/* Search Field */}
         <div className={fieldCls}>
-          <svg className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-zinc-600' : 'text-zinc-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className={`w-3.5 h-3.5 shrink-0 ${isDark ? 'text-zinc-600' : 'text-zinc-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -369,7 +369,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
         </button>
 
         {/* Navigation Arrows */}
-        <div className={`flex flex-col rounded-md overflow-hidden border ${isDark ? 'border-zinc-700/50' : 'border-zinc-300'}`}>
+        <div className={`flex flex-col rounded-md overflow-hidden border ${isDark ? 'border-zinc-700/50' : 'border-zinc-700/70'}`}>
           <button
             onClick={handleFindPrevious}
             className={navBtnCls}
@@ -381,7 +381,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
             </svg>
           </button>
-          <div className={`h-px ${isDark ? 'bg-zinc-700/50' : 'bg-zinc-300'}`} />
+          <div className={`h-px ${isDark ? 'bg-zinc-700/50' : 'bg-zinc-700/70'}`} />
           <button
             onClick={handleFindNext}
             className={navBtnCls}
@@ -410,7 +410,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
 
       {/* Replace Row */}
       {showReplace && (
-        <div className={`flex items-center gap-1.5 px-2 py-1.5 border-t ${isDark ? 'border-zinc-800/60' : 'border-zinc-200/80'}`}>
+        <div className={`flex items-center gap-1.5 px-2 py-1.5 border-t ${isDark ? 'border-zinc-800/60' : 'border-zinc-700/70'}`}>
           <div className="w-[22px]" />
 
           {/* Replace Field */}

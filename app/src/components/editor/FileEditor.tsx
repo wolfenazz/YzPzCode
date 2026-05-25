@@ -154,49 +154,49 @@ const getThemeExtensions = (
       EditorView.theme({
         "&": {
           fontSize: `${fontSize}px`,
-          backgroundColor: "#d5d7dd",
-          color: "#1e222b",
+          backgroundColor: "#1c1e23",
+          color: "#e7e9ee",
           height: "100%",
         },
         ".cm-scroller": {
-          backgroundColor: "#d5d7dd",
+          backgroundColor: "#1c1e23",
         },
         ".cm-content": {
           fontFamily: `'${fontFamily}', 'JetBrains Mono', 'Fira Code', Consolas, monospace`,
           padding: "12px 0",
-          caretColor: "#1d4ed8",
+          caretColor: "#8ab4ff",
           minHeight: "100%",
         },
         ".cm-gutters": {
-          backgroundColor: "#c8cbd3",
-          borderRight: "1px solid rgba(99, 105, 120, 0.35)",
-          color: "#6b7280",
+          backgroundColor: "#181a1f",
+          borderRight: "1px solid rgba(84, 92, 107, 0.55)",
+          color: "#8a92a0",
           minWidth: "48px",
         },
         ".cm-activeLineGutter": {
-          backgroundColor: "#d1d4dc",
-          color: "#374151",
+          backgroundColor: "#23262c",
+          color: "#d4d7de",
         },
         ".cm-activeLine": {
-          backgroundColor: "rgba(90, 99, 122, 0.08)",
+          backgroundColor: "rgba(255, 255, 255, 0.04)",
         },
         ".cm-line": {
           padding: "0 14px 0 8px",
         },
         ".cm-cursor": {
-          borderLeftColor: "#1d4ed8",
+          borderLeftColor: "#8ab4ff",
           borderLeftWidth: "2px",
         },
         ".cm-foldGutter": {
-          backgroundColor: "#c8cbd3",
+          backgroundColor: "#181a1f",
         },
         ".cm-minimap": {
-          backgroundColor: "#c4c7cf",
-          borderLeft: "1px solid rgba(99, 105, 120, 0.25)",
+          backgroundColor: "#17191d",
+          borderLeft: "1px solid rgba(84, 92, 107, 0.45)",
         },
         ".cm-matchingBracket, .cm-nonmatchingBracket": {
-          backgroundColor: "rgba(37, 99, 235, 0.10)",
-          outline: "1px solid rgba(37, 99, 235, 0.24)",
+          backgroundColor: "rgba(138, 180, 255, 0.10)",
+          outline: "1px solid rgba(138, 180, 255, 0.22)",
         },
       }, { dark: false }),
       lightHighlightStyle,
@@ -631,16 +631,16 @@ export const FileEditor: React.FC = () => {
   const showEditor = Boolean(activeFile && !isPreviewable && !(isMarkdown && mdPreview));
   const isLightTheme = theme === "light";
   const frameClass = isLightTheme
-    ? "bg-[#d9dbe1] text-zinc-800"
+    ? "bg-[#181a1f] text-zinc-100"
     : "bg-[#101214] text-zinc-100";
   const panelClass = isLightTheme
-    ? "border-zinc-400/70 bg-[#cfd2d9]"
+    ? "border-zinc-700/70 bg-[#1d2026]"
     : "border-zinc-800/80 bg-[#15181c]";
   const toolbarClass = isLightTheme
-    ? "border-zinc-400/70 bg-[#d7d9df]"
+    ? "border-zinc-700/70 bg-[#1b1e23]"
     : "border-zinc-800/80 bg-[#111317]";
   const contentShellClass = isLightTheme
-    ? "bg-[#d6d8de]"
+    ? "bg-[#1c1e23]"
     : "bg-[#121417]";
 
   const toolbarBtnClass = (active: boolean, accent: "default" | "emerald" = "default"): string => {
@@ -651,7 +651,7 @@ export const FileEditor: React.FC = () => {
     }
 
     return isLightTheme
-      ? "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600 transition-colors hover:border-zinc-400/70 hover:bg-[#c9ccd3] hover:text-zinc-800 cursor-pointer"
+      ? "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-400 transition-colors hover:border-zinc-600/70 hover:bg-[#22252b] hover:text-zinc-100 cursor-pointer"
       : "inline-flex items-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:border-zinc-700/70 hover:bg-zinc-800/70 hover:text-zinc-200 cursor-pointer";
   };
 
@@ -677,7 +677,7 @@ export const FileEditor: React.FC = () => {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className={`truncate text-sm font-semibold ${isLightTheme ? "text-zinc-800" : "text-zinc-100"}`}>
+                    <span className={`truncate text-sm font-semibold ${isLightTheme ? "text-zinc-100" : "text-zinc-100"}`}>
                       {activeFile.name}
                     </span>
                     {activeFile.isDirty && (
@@ -686,7 +686,7 @@ export const FileEditor: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <div className={`mt-1 truncate text-[10px] font-mono uppercase tracking-[0.18em] ${isLightTheme ? "text-zinc-600" : "text-zinc-500"}`}>
+                  <div className={`mt-1 truncate text-[10px] font-mono uppercase tracking-[0.18em] ${isLightTheme ? "text-zinc-500" : "text-zinc-500"}`}>
                     {getBreadcrumb(activeFile.path)}
                   </div>
                 </div>
@@ -848,15 +848,15 @@ export const FileEditor: React.FC = () => {
             {!activeFile && (
               <div className={`absolute inset-0 flex items-center justify-center ${contentShellClass}`}>
                 <div className="max-w-sm rounded-2xl border border-dashed border-zinc-500/20 bg-black/10 px-8 py-10 text-center backdrop-blur-sm">
-                  <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border ${isLightTheme ? "border-zinc-400/70 bg-[#cfd2d9] text-zinc-700" : "border-zinc-700/70 bg-zinc-900/70 text-zinc-300"}`}>
+                  <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border ${isLightTheme ? "border-zinc-700/70 bg-[#1f2228] text-zinc-300" : "border-zinc-700/70 bg-zinc-900/70 text-zinc-300"}`}>
                     <svg className="h-7 w-7 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                     </svg>
                   </div>
-                  <div className={`text-xs font-semibold uppercase tracking-[0.22em] ${isLightTheme ? "text-zinc-700" : "text-zinc-300"}`}>
+                  <div className={`text-xs font-semibold uppercase tracking-[0.22em] ${isLightTheme ? "text-zinc-300" : "text-zinc-300"}`}>
                     Editor Ready
                   </div>
-                  <div className={`mt-3 text-[11px] leading-5 ${isLightTheme ? "text-zinc-600" : "text-zinc-500"}`}>
+                  <div className={`mt-3 text-[11px] leading-5 ${isLightTheme ? "text-zinc-500" : "text-zinc-500"}`}>
                     Open any file from the explorer to edit it here. Search, minimap, selection tracking, and autosave are wired into the workspace.
                   </div>
                   <div className={`mt-4 text-[10px] font-mono uppercase tracking-[0.18em] ${isLightTheme ? "text-zinc-500" : "text-zinc-600"}`}>
@@ -869,13 +869,13 @@ export const FileEditor: React.FC = () => {
 
           <div className={`shrink-0 border-t px-4 py-2 ${toolbarClass}`}>
             <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.18em]">
-              <div className={`flex flex-wrap items-center gap-3 ${isLightTheme ? "text-zinc-600" : "text-zinc-500"}`}>
+              <div className={`flex flex-wrap items-center gap-3 ${isLightTheme ? "text-zinc-500" : "text-zinc-500"}`}>
                 <span>{activeFile?.language ?? "No file"}</span>
                 <span>{cursorStatus.lineCount.toLocaleString()} lines</span>
                 <span>{cursorStatus.characterCount.toLocaleString()} chars</span>
                 <span>tab {editorTabSize}</span>
               </div>
-              <div className={`flex flex-wrap items-center gap-3 ${isLightTheme ? "text-zinc-700" : "text-zinc-400"}`}>
+              <div className={`flex flex-wrap items-center gap-3 ${isLightTheme ? "text-zinc-400" : "text-zinc-400"}`}>
                 <span>Ln {cursorStatus.line}</span>
                 <span>Col {cursorStatus.column}</span>
                 <span>Sel {cursorStatus.selection}</span>

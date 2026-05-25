@@ -125,7 +125,7 @@ const TabBar: React.FC<TabBarProps> = ({
   return (
     <div
       role="tablist"
-      className={`flex items-center overflow-x-auto shrink-0 relative ${theme === 'light' ? 'bg-zinc-100 border-b border-zinc-300' : 'bg-zinc-950 border-b border-zinc-800'}`}
+      className={`flex items-center overflow-x-auto shrink-0 relative ${theme === 'light' ? 'bg-[#17191d] border-b border-zinc-700/60' : 'bg-zinc-950 border-b border-zinc-800'}`}
       onContextMenu={handleBarContextMenu}
     >
       {openFiles.map((file, index) => {
@@ -171,16 +171,16 @@ const TabBar: React.FC<TabBarProps> = ({
             } ${
               isDragOver
                 ? theme === 'light'
-                  ? 'border-l-2 border-l-blue-500 bg-blue-50'
+                  ? 'border-l-2 border-l-blue-500 bg-[#23262c]'
                   : 'border-l-2 border-l-blue-500 bg-blue-950/30'
                 : ''
             } ${
               isActive
                 ? theme === 'light'
-                  ? 'bg-zinc-100 text-zinc-800 border-zinc-300'
+                  ? 'bg-[#1f2228] text-zinc-100 border-zinc-700/60'
                   : 'bg-zinc-900 text-zinc-200 border-zinc-800/60'
                 : theme === 'light'
-                  ? 'bg-zinc-200/60 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700 border-zinc-300'
+                  ? 'bg-[#14161a] text-zinc-400 hover:bg-[#1d2026] hover:text-zinc-100 border-zinc-700/60'
                   : 'bg-zinc-950 text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-400 border-zinc-800/60'
             }`}
             onClick={() => onTabClick(file.path)}
@@ -195,7 +195,7 @@ const TabBar: React.FC<TabBarProps> = ({
             <span className="text-[11px] truncate" title={file.path}>{file.name}</span>
 
             {file.isDirty && (
-              <span className={`w-2 h-2 rounded-full shrink-0 group-hover:hidden ${theme === 'light' ? 'bg-zinc-400' : 'bg-zinc-400'}`} />
+              <span className={`w-2 h-2 rounded-full shrink-0 group-hover:hidden ${theme === 'light' ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
             )}
 
             <button
