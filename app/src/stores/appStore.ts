@@ -3,10 +3,6 @@ import { persist } from 'zustand/middleware';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode } from '../types';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
-const DEFAULT_QUICK_ACTION_RUN_TARGET: 'embedded' | 'external' =
-  typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows')
-    ? 'external'
-    : 'embedded';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
   !value || value.trim() === '' || value.trim() === 'about:blank';
 
@@ -95,7 +91,6 @@ interface AppState {
   autoDownloadUpdates: boolean;
   updateChannel: "stable" | "beta" | "nightly";
   setupViewMode: "page" | "stepper";
-  quickActionRunTarget: "embedded" | "external";
   discordRichPresence: boolean;
   nodejsCheckPassed: boolean;
 
@@ -151,7 +146,6 @@ interface AppState {
   setAutoDownloadUpdates: (enabled: boolean) => void;
   setUpdateChannel: (channel: "stable" | "beta" | "nightly") => void;
   setSetupViewMode: (mode: "page" | "stepper") => void;
-  setQuickActionRunTarget: (target: "embedded" | "external") => void;
   setDiscordRichPresence: (enabled: boolean) => void;
   setNodeJsCheckPassed: (passed: boolean) => void;
 
@@ -317,7 +311,6 @@ export const useAppStore = create<AppState>()(
       autoDownloadUpdates: false,
       updateChannel: "stable",
       setupViewMode: "page",
-      quickActionRunTarget: DEFAULT_QUICK_ACTION_RUN_TARGET,
       discordRichPresence: false,
       nodejsCheckPassed: false,
       ideStatuses: {
@@ -500,7 +493,6 @@ export const useAppStore = create<AppState>()(
       setAutoDownloadUpdates: (enabled) => set({ autoDownloadUpdates: enabled }),
       setUpdateChannel: (channel) => set({ updateChannel: channel }),
       setSetupViewMode: (mode) => set({ setupViewMode: mode }),
-      setQuickActionRunTarget: (target) => set({ quickActionRunTarget: target }),
       setDiscordRichPresence: (enabled) => set({ discordRichPresence: enabled }),
       setNodeJsCheckPassed: (passed) => set({ nodejsCheckPassed: passed }),
 
@@ -1308,7 +1300,6 @@ export const useAppStore = create<AppState>()(
           updateChannel: state.updateChannel,
           recentDirectories: state.recentDirectories,
           setupViewMode: state.setupViewMode,
-          quickActionRunTarget: state.quickActionRunTarget,
           discordRichPresence: state.discordRichPresence,
           nodejsCheckPassed: state.nodejsCheckPassed,
         };
