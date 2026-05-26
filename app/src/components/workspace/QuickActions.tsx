@@ -1,20 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { detectProject, ProjectActions } from '../../utils/projectDetect';
 import { useAppStore } from '../../stores/appStore';
+import type { ManagedTerminalCommandState } from '../../types';
 
 interface QuickActionsProps {
   sessionId: string;
+  workspaceId: string;
   cwd: string;
   theme: 'dark' | 'light';
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   sessionId,
+  workspaceId,
   cwd,
   theme,
 }) => {
   const [actions, setActions] = useState<ProjectActions | null>(null);
+  const [managedState, setManagedState] = useState<ManagedTerminalCommandState | null>(null);
   const isLight = theme === 'light';
   const quickActionRunTarget = useAppStore((state) => state.quickActionRunTarget);
   const setQuickActionRunTarget = useAppStore((state) => state.setQuickActionRunTarget);
@@ -29,7 +34,40 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
     };
   }, [cwd]);
 
+  useEffect(() => {
+    let mounted = true;
+    let unlisten: UnlistenFn | null = null;
+
+    invoke<ManagedTerminalCommandState | null>('get_managed_terminal_command_state', {
+      sessionId,
+    }).then((state) => {
+      if (mounted) {
+        setManagedState(state);
+      }
+    }).catch(() => undefined);
+
+    listen<ManagedTerminalCommandState>('managed-command-state-changed', (event) => {
+      if (!mounted || event.payload.sessionId !== sessionId) return;
+      setManagedState(event.payload);
+    }).then((fn) => {
+      if (mounted) {
+        unlisten = fn;
+      } else {
+        fn();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (unlisten) unlisten();
+    };
+  }, [sessionId]);
+
   if (!actions) return null;
+
+  const managedBusy = managedState
+    ? managedState.status === 'Starting' || managedState.status === 'Running' || managedState.status === 'Stopping'
+    : false;
 
   const runCommand = async (cmd: string) => {
     try {
@@ -43,12 +81,24 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
         return;
       }
 
-      await invoke('write_to_terminal', {
-        sessionId,
-        input: '\x1b[200~' + cmd + '\x1b[201~\r',
+      await invoke('run_managed_terminal_command', {
+        request: {
+          sessionId,
+          workspaceId,
+          cwd,
+          command: cmd,
+        },
       });
     } catch (e) {
       console.error('Quick action failed:', e);
+    }
+  };
+
+  const stopManagedCommand = async () => {
+    try {
+      await invoke('stop_managed_terminal_command', { sessionId });
+    } catch (e) {
+      console.error('Failed to stop managed command:', e);
     }
   };
 
@@ -91,6 +141,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       {actions.devCmd && (
         <button
           className={btnBase}
+          disabled={managedBusy}
           onClick={() => runCommand(actions.devCmd!)}
           title={`Run: ${actions.devCmd}`}
         >
@@ -107,6 +158,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       {actions.buildCmd && (
         <button
           className={btnBase}
+          disabled={managedBusy}
           onClick={() => runCommand(actions.buildCmd!)}
           title={`Run: ${actions.buildCmd}`}
         >
@@ -124,6 +176,22 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
             />
           </svg>
           <span>Build</span>
+        </button>
+      )}
+      {managedBusy && quickActionRunTarget === 'embedded' && (
+        <button
+          className={`${btnBase} ${
+            isLight
+              ? 'hover:text-rose-300 hover:border-rose-700 hover:bg-rose-950/35'
+              : 'hover:text-rose-400 hover:border-rose-900 hover:bg-rose-950/25'
+          }`}
+          onClick={stopManagedCommand}
+          title={managedState?.command ? `Stop: ${managedState.command}` : 'Stop managed command'}
+        >
+          <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M7 7h10v10H7z" />
+          </svg>
+          <span>Stop</span>
         </button>
       )}
     </div>

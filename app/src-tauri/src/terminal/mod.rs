@@ -1,6 +1,8 @@
 mod session;
+mod managed;
 
 pub use session::PtySession;
+pub use managed::{ManagedCommandManager, ManagedCommandState};
 
 use anyhow::Result;
 use std::collections::HashMap;
@@ -15,7 +17,11 @@ use crate::types::{AgentType, TerminalSession};
 const EMIT_BATCH_INTERVAL_MS: u64 = 16;
 const MAX_BATCH_SIZE: usize = 64 * 1024;
 
-fn spawn_output_reader(app_clone: AppHandle, sid: String, output_rx: mpsc::Receiver<Vec<u8>>) {
+pub(crate) fn spawn_output_reader(
+    app_clone: AppHandle,
+    sid: String,
+    output_rx: mpsc::Receiver<Vec<u8>>,
+) {
     thread::spawn(move || {
         let mut buffer = Vec::with_capacity(MAX_BATCH_SIZE);
         let mut last_emit = Instant::now();

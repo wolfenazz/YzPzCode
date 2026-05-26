@@ -10,6 +10,7 @@ export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "
 export type CliStatus = "NotInstalled" | "Installed" | "Checking" | "Error";
 
 export type CliLaunchStatus = "NotLaunched" | "Starting" | "Running" | "AuthenticationRequired" | "Error";
+export type ManagedCommandStatus = "Idle" | "Starting" | "Running" | "Stopping" | "Stopped" | "Completed" | "Failed";
 
 export type AuthStatus = "Unknown" | "Checking" | "Authenticated" | "NotAuthenticated" | "Error";
 
@@ -115,6 +116,16 @@ export interface TerminalSession {
   agent?: CliType;
   status: "idle" | "running" | "error";
   shell: string;
+}
+
+export interface ManagedTerminalCommandState {
+  sessionId: string;
+  workspaceId: string;
+  command: string;
+  status: ManagedCommandStatus;
+  pid: number | null;
+  exitCode: number | null;
+  error: string | null;
 }
 
 export interface BrowserBounds {

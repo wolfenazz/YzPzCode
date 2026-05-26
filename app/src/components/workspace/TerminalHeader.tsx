@@ -165,7 +165,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         >
           Mouse {mouseTrackingEnabled ? 'On' : 'Off'}
         </button>
-        <QuickActions sessionId={session.id} cwd={session.cwd} theme={theme} />
+        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} theme={theme} />
         <div className="h-3 w-px bg-zinc-700/50" />
         {session.agent && (
           <button

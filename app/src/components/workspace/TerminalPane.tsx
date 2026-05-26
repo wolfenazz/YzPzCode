@@ -6,7 +6,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType } from '../../types';
+import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, ManagedTerminalCommandState } from '../../types';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useAppStore } from '../../stores/appStore';
@@ -77,6 +77,30 @@ const LIGHT_TERMINAL_THEME = {
 const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
 const DEFAULT_MOUSE_TRACKING_MODES = [1000, 1002, 1006] as const;
 const EMPTY_MOUSE_MODES: number[] = [];
+const MANAGED_COMMAND_PREFIXES = [
+  'npm run dev',
+  'npm run build',
+  'npm run tauri dev',
+  'npm run tauri build',
+  'npx tauri dev',
+  'npx tauri build',
+  'pnpm dev',
+  'pnpm build',
+  'pnpm tauri dev',
+  'pnpm tauri build',
+  'yarn dev',
+  'yarn build',
+  'yarn tauri dev',
+  'yarn tauri build',
+  'bun run dev',
+  'bun run build',
+  'cargo tauri dev',
+  'cargo tauri build',
+  'next dev',
+  'next build',
+  'vite',
+  'vite build',
+] as const;
 
 const normalizeMouseModes = (modes: Iterable<number>): number[] =>
   Array.from(new Set(modes))
@@ -87,6 +111,16 @@ const buildMouseModeSequence = (modes: Iterable<number>, operation: 'h' | 'l'): 
   normalizeMouseModes(modes)
     .map((mode) => `\x1b[?${mode}${operation}`)
     .join('');
+
+const normalizeManagedCommandCandidate = (value: string): string =>
+  value.trim().replace(/\s+/g, ' ').toLowerCase();
+
+const shouldInterceptManagedCommand = (value: string): boolean => {
+  const normalized = normalizeManagedCommandCandidate(value);
+  return MANAGED_COMMAND_PREFIXES.some((prefix) =>
+    normalized === prefix || normalized.startsWith(`${prefix} `)
+  );
+};
 
 const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
   const fallbackFont = typeof term.options.fontSize === 'number' ? term.options.fontSize : 13;
@@ -145,7 +179,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [showPasteConfirm, setShowPasteConfirm] = useState(false);
   const [pendingPasteText, setPendingPasteText] = useState('');
   const [mouseTrackingEnabled, setMouseTrackingEnabled] = useState(false);
+  const [managedCommandState, setManagedCommandState] = useState<ManagedTerminalCommandState | null>(null);
   const mouseModesRef = useRef<Set<number>>(new Set());
+  const lineBufferRef = useRef('');
+  const lineTrackingReliableRef = useRef(true);
   const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
 
@@ -162,6 +199,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const authInfo: AuthInfo | null | undefined = session.agent ? getAuthInfoSync(session.agent) : undefined;
 
   const terminalTheme = isLight ? LIGHT_TERMINAL_THEME : DARK_TERMINAL_THEME;
+  const managedCommandActive =
+    managedCommandState?.status === 'Starting' ||
+    managedCommandState?.status === 'Running' ||
+    managedCommandState?.status === 'Stopping';
 
   const handleFitAndResize = useCallback(() => {
     if (!fitAddonRef.current || !xtermRef.current) return;
@@ -325,6 +366,17 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
   }, [session.id, mouseTrackingEnabled, syncMouseModes]);
 
+  const startManagedCommand = useCallback(async (command: string) => {
+    await invoke('run_managed_terminal_command', {
+      request: {
+        sessionId: session.id,
+        workspaceId: session.workspaceId,
+        cwd: session.cwd,
+        command,
+      },
+    });
+  }, [session.cwd, session.id, session.workspaceId]);
+
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
     const terminalElement = terminalRef.current;
@@ -434,6 +486,69 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     let inputFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
     xterm.onData((data) => {
+      if (!managedCommandActive && data.includes('\r') && lineTrackingReliableRef.current) {
+        const commandCandidate = lineBufferRef.current;
+        lineBufferRef.current = '';
+        lineTrackingReliableRef.current = true;
+
+        if (shouldInterceptManagedCommand(commandCandidate)) {
+          inputBuffer = '';
+          if (inputFlushTimer) {
+            clearTimeout(inputFlushTimer);
+            inputFlushTimer = null;
+          }
+
+          void (async () => {
+            try {
+              await invoke('write_to_terminal', {
+                sessionId: session.id,
+                input: '\x03\r',
+              });
+              await startManagedCommand(commandCandidate.trim());
+            } catch (error) {
+              console.error('Failed to reroute managed terminal command:', error);
+            }
+          })();
+          return;
+        }
+      }
+
+      for (const char of data) {
+        if (char === '\r' || char === '\n') {
+          lineBufferRef.current = '';
+          lineTrackingReliableRef.current = true;
+          continue;
+        }
+
+        if (char === '\u0003' || char === '\u0015') {
+          lineBufferRef.current = '';
+          lineTrackingReliableRef.current = true;
+          continue;
+        }
+
+        if (char === '\u001b') {
+          lineBufferRef.current = '';
+          lineTrackingReliableRef.current = false;
+          continue;
+        }
+
+        if (char === '\u0008' || char === '\u007f') {
+          if (lineTrackingReliableRef.current) {
+            lineBufferRef.current = lineBufferRef.current.slice(0, -1);
+          }
+          continue;
+        }
+
+        if (char < ' ') {
+          lineTrackingReliableRef.current = false;
+          continue;
+        }
+
+        if (lineTrackingReliableRef.current) {
+          lineBufferRef.current += char;
+        }
+      }
+
       inputBuffer += data;
       if (!inputFlushTimer) {
         inputFlushTimer = setTimeout(() => {
@@ -516,6 +631,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       if (inputFlushTimer) {
         clearTimeout(inputFlushTimer);
       }
+      lineBufferRef.current = '';
+      lineTrackingReliableRef.current = true;
       if (fontsApi) {
         fontsApi.removeEventListener('loadingdone', onFontsDone);
       }
@@ -527,12 +644,46 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, isWindowsHost, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize]);
+  }, [session.id, isWindowsHost, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
     xtermRef.current.options.theme = terminalTheme;
   }, [theme]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    invoke<ManagedTerminalCommandState | null>('get_managed_terminal_command_state', {
+      sessionId: session.id,
+    }).then((state) => {
+      if (mounted) {
+        setManagedCommandState(state);
+      }
+    }).catch(() => undefined);
+
+    let unlistenFn: (() => void) | null = null;
+    listen<ManagedTerminalCommandState>('managed-command-state-changed', (event) => {
+      if (!mounted || event.payload.sessionId !== session.id) return;
+      setManagedCommandState(event.payload);
+    }).then((fn) => {
+      if (mounted) {
+        unlistenFn = fn;
+      } else {
+        fn();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      if (unlistenFn) unlistenFn();
+    };
+  }, [session.id]);
+
+  useEffect(() => {
+    if (!xtermRef.current) return;
+    xtermRef.current.options.disableStdin = managedCommandActive;
+  }, [managedCommandActive]);
 
   useEffect(() => {
     let mounted = true;

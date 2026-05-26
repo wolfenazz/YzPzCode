@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::agent_cli::CliLauncher;
-use crate::terminal::TerminalManager;
+use crate::terminal::{ManagedCommandManager, ManagedCommandState, TerminalManager};
 use crate::types::{AgentType, CreateSessionsRequest, TerminalSession};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,11 +46,18 @@ pub async fn create_single_terminal_session(
 #[tauri::command]
 pub async fn create_terminal_sessions(
     manager: State<'_, TerminalManager>,
+    managed_manager: State<'_, ManagedCommandManager>,
     launcher: State<'_, CliLauncher>,
     request: CreateSessionsRequest,
 ) -> Result<Vec<TerminalSession>, String> {
     if let Err(e) = manager.kill_sessions_by_workspace(&request.workspace_id) {
         eprintln!("Warning: failed to kill existing sessions: {}", e);
+    }
+    if let Err(e) = managed_manager.stop_commands_by_workspace(&request.workspace_id) {
+        eprintln!(
+            "Warning: failed to stop managed commands for workspace {}: {}",
+            request.workspace_id, e
+        );
     }
 
     let sessions = manager
@@ -107,16 +114,24 @@ pub async fn resize_terminal(
 #[tauri::command]
 pub async fn kill_session(
     manager: State<'_, TerminalManager>,
+    managed_manager: State<'_, ManagedCommandManager>,
     session_id: String,
 ) -> Result<(), String> {
+    managed_manager
+        .stop_command(&session_id)
+        .map_err(|e| e.to_string())?;
     manager.kill_session(&session_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn kill_workspace_sessions(
     manager: State<'_, TerminalManager>,
+    managed_manager: State<'_, ManagedCommandManager>,
     workspace_id: String,
 ) -> Result<(), String> {
+    managed_manager
+        .stop_commands_by_workspace(&workspace_id)
+        .map_err(|e| e.to_string())?;
     manager
         .kill_sessions_by_workspace(&workspace_id)
         .map_err(|e| e.to_string())
@@ -127,6 +142,46 @@ pub async fn get_all_sessions(
     manager: State<'_, TerminalManager>,
 ) -> Result<Vec<TerminalSession>, String> {
     Ok(manager.get_all_sessions())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunManagedTerminalCommandRequest {
+    pub session_id: String,
+    pub workspace_id: String,
+    pub cwd: String,
+    pub command: String,
+}
+
+#[tauri::command]
+pub async fn run_managed_terminal_command(
+    manager: State<'_, ManagedCommandManager>,
+    request: RunManagedTerminalCommandRequest,
+) -> Result<(), String> {
+    manager
+        .run_command(
+            &request.session_id,
+            &request.workspace_id,
+            &request.cwd,
+            &request.command,
+        )
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn stop_managed_terminal_command(
+    manager: State<'_, ManagedCommandManager>,
+    session_id: String,
+) -> Result<(), String> {
+    manager.stop_command(&session_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_managed_terminal_command_state(
+    manager: State<'_, ManagedCommandManager>,
+    session_id: String,
+) -> Result<Option<ManagedCommandState>, String> {
+    Ok(manager.get_state(&session_id))
 }
 
 pub fn get_grid_dimensions(count: usize) -> (usize, usize) {

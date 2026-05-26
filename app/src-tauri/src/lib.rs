@@ -17,7 +17,7 @@ use ide::IdeDetector;
 use tauri::Listener;
 #[cfg(target_os = "macos")]
 use tauri::Manager;
-use terminal::TerminalManager;
+use terminal::{ManagedCommandManager, TerminalManager};
 
 fn setup_panic_hooks() {
     std::panic::set_hook(Box::new(|panic_info| {
@@ -53,6 +53,7 @@ pub fn run() {
     let cli_detector = AgentCliDetector::new();
     let mut cli_installer = AgentCliInstaller::new();
     let cli_launcher = CliLauncher::new(terminal_manager.clone());
+    let managed_command_manager = ManagedCommandManager::new();
     let browser_manager = BrowserManager::new();
     let ide_detector = IdeDetector::new();
     let discord_manager = DiscordPresenceManager::new();
@@ -67,6 +68,7 @@ pub fn run() {
         .manage(cli_detector.clone())
         .manage(cli_installer.clone())
         .manage(cli_launcher.clone())
+        .manage(managed_command_manager.clone())
         .manage(browser_manager.clone())
         .manage(ide_detector.clone())
         .manage(discord_manager.clone())
@@ -75,6 +77,7 @@ pub fn run() {
             agent_executor.set_app_handle(app.handle().clone());
             cli_installer.set_app_handle(app.handle().clone());
             cli_launcher.set_app_handle(app.handle().clone());
+            managed_command_manager.set_app_handle(app.handle().clone());
             browser_manager.set_app_handle(app.handle().clone());
 
             #[cfg(target_os = "macos")]
@@ -88,9 +91,13 @@ pub fn run() {
 
             {
                 let terminal_manager_clone = terminal_manager.clone();
+                let managed_command_manager_clone = managed_command_manager.clone();
                 let browser_manager_clone = browser_manager.clone();
 
                 app.listen("tauri://close-requested", move |_event| {
+                    if let Err(e) = managed_command_manager_clone.stop_all() {
+                        eprintln!("Warning: failed to stop managed commands on close-requested: {}", e);
+                    }
                     if let Err(e) = terminal_manager_clone.kill_all_sessions() {
                         eprintln!("Warning: failed to kill sessions on close-requested: {}", e);
                     }
@@ -110,6 +117,9 @@ pub fn run() {
             commands::kill_session,
             commands::kill_workspace_sessions,
             commands::get_all_sessions,
+            commands::run_managed_terminal_command,
+            commands::stop_managed_terminal_command,
+            commands::get_managed_terminal_command_state,
             commands::ensure_browser_view,
             commands::resize_browser_view,
             commands::navigate_browser_view,
