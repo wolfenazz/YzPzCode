@@ -4,27 +4,36 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { CliType, CliLaunchState, AuthInfo } from '../types';
 import { useAppStore } from '../stores/appStore';
 
+let launchStateListenerPromise: Promise<UnlistenFn> | null = null;
+let launchStateListenerRefCount = 0;
+
+const ensureLaunchStateListener = (): Promise<UnlistenFn> => {
+  if (!launchStateListenerPromise) {
+    launchStateListenerPromise = listen<CliLaunchState>('cli-launch-state-changed', (event) => {
+      useAppStore.getState().setLaunchState(event.payload.sessionId, event.payload);
+    });
+  }
+
+  return launchStateListenerPromise;
+};
+
 export const useCliLauncher = () => {
   const launchStates = useAppStore(state => state.cliLaunchStates);
   const authInfos = useAppStore(state => state.authInfos);
-  const setLaunchState = useAppStore(state => state.setLaunchState);
   const setAuthInfo = useAppStore(state => state.setAuthInfo);
 
   useEffect(() => {
-    let unlisten: UnlistenFn | null = null;
-
-    const setupListener = async () => {
-      unlisten = await listen<CliLaunchState>('cli-launch-state-changed', (event) => {
-        setLaunchState(event.payload.sessionId, event.payload);
-      });
-    };
-
-    setupListener();
+    launchStateListenerRefCount += 1;
+    void ensureLaunchStateListener();
 
     return () => {
-      if (unlisten) unlisten();
+      launchStateListenerRefCount = Math.max(0, launchStateListenerRefCount - 1);
+      if (launchStateListenerRefCount === 0 && launchStateListenerPromise) {
+        void launchStateListenerPromise.then((unlisten) => unlisten()).catch(() => undefined);
+        launchStateListenerPromise = null;
+      }
     };
-  }, [setLaunchState]);
+  }, []);
 
   const launchCli = useCallback(async (sessionId: string, agent: CliType) => {
     await invoke('launch_cli_in_terminal', { sessionId, agent });
@@ -40,15 +49,16 @@ export const useCliLauncher = () => {
 
   const getLaunchState = useCallback(async (sessionId: string): Promise<CliLaunchState | null> => {
     const state = await invoke<Option<CliLaunchState>>('get_cli_launch_state', { sessionId });
-    if (state) setLaunchState(sessionId, state);
+    if (state) useAppStore.getState().setLaunchState(sessionId, state);
     return state;
-  }, [setLaunchState]);
+  }, []);
 
   const getAllLaunchStates = useCallback(async (): Promise<CliLaunchState[]> => {
     const states = await invoke<CliLaunchState[]>('get_all_cli_launch_states');
+    const setLaunchState = useAppStore.getState().setLaunchState;
     states.forEach(s => setLaunchState(s.sessionId, s));
     return states;
-  }, [setLaunchState]);
+  }, []);
 
   const checkAuth = useCallback(async (agent: CliType): Promise<AuthInfo> => {
     const info = await invoke<AuthInfo>('check_cli_auth', { agent });

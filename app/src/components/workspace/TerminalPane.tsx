@@ -4,10 +4,9 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType } from '../../types';
-import { useAgent } from '../../hooks/useAgent';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useAppStore } from '../../stores/appStore';
@@ -154,7 +153,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const isLight = theme === 'light';
   const isWindowsHost = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
-  const { listenToTaskUpdates } = useAgent();
   const { cliStatuses, installCli, installProgress, detectCli } = useAgentCli();
   const { launchCli, stopCli, checkAuth, getAuthInstructions, getLaunchState, getLaunchStateSync, getAuthInfoSync } = useCliLauncher();
   const [installing, setInstalling] = useState(false);
@@ -686,18 +684,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       window.removeEventListener('resize', handleWindowResize);
     };
   }, [handleFitAndResize]);
-
-  useEffect(() => {
-    if (!session.agent) return;
-
-    let unlisten: UnlistenFn | null = null;
-    listenToTaskUpdates(session.agent).then((fn) => {
-      unlisten = fn;
-    });
-    return () => {
-      if (unlisten) unlisten();
-    };
-  }, [session.agent, listenToTaskUpdates]);
 
   useEffect(() => {
     if (installProgress && installProgress.agent === session.agent) {

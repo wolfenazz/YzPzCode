@@ -60,6 +60,10 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   let undoStack = [];
   let applyHoverTarget = null;
   let applyHoverBackup = null;
+  let pointerMoveFrame = 0;
+  let lastPointerEvent = null;
+  let pageStateTimer = 0;
+  let lastPageStateKey = null;
 
   const invoke = (command, payload = {}) => {
     const ipc = window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.invoke;
@@ -351,9 +355,18 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     return target;
   };
 
+  const flushPointerMove = () => {
+    pointerMoveFrame = 0;
+    if (!lastPointerEvent) return;
+    if (!inspectMode && !pickStyleMode && !pickUiElementMode && !applyMode) return;
+    updateOverlay(elementFromEvent(lastPointerEvent));
+  };
+
   const handlePointerMove = (event) => {
     if (!inspectMode && !pickStyleMode && !pickUiElementMode && !applyMode) return;
-    updateOverlay(elementFromEvent(event));
+    lastPointerEvent = event;
+    if (pointerMoveFrame) return;
+    pointerMoveFrame = window.requestAnimationFrame(flushPointerMove);
   };
 
   const handleScroll = () => {
@@ -517,13 +530,27 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   };
 
   const emitPageState = () => {
-    invoke('browser_page_state_changed', {
-      payload: {
-        title: document.title || '',
-        url: window.location.href,
-        historyLength: window.history.length
-      }
-    });
+    const payload = {
+      title: document.title || '',
+      url: window.location.href,
+      historyLength: window.history.length
+    };
+    const payloadKey = JSON.stringify(payload);
+    if (payloadKey === lastPageStateKey) {
+      return;
+    }
+    lastPageStateKey = payloadKey;
+    invoke('browser_page_state_changed', { payload });
+  };
+
+  const scheduleEmitPageState = () => {
+    if (pageStateTimer) {
+      window.clearTimeout(pageStateTimer);
+    }
+    pageStateTimer = window.setTimeout(() => {
+      pageStateTimer = 0;
+      emitPageState();
+    }, 80);
   };
 
   const getBaselineStyles = (tagName) => {
@@ -837,13 +864,13 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   window.addEventListener('resize', handleScroll, true);
   window.addEventListener('click', handleClick, true);
   window.addEventListener('keydown', handleKeyDown, true);
-  window.addEventListener('load', () => setTimeout(emitPageState, 0), true);
-  window.addEventListener('pageshow', () => setTimeout(emitPageState, 0), true);
-  window.addEventListener('popstate', () => setTimeout(emitPageState, 0), true);
+  window.addEventListener('load', scheduleEmitPageState, true);
+  window.addEventListener('pageshow', scheduleEmitPageState, true);
+  window.addEventListener('popstate', scheduleEmitPageState, true);
 
   const titleElement = document.querySelector('title');
   if (titleElement) {
-    const titleObserver = new MutationObserver(() => emitPageState());
+    const titleObserver = new MutationObserver(() => scheduleEmitPageState());
     titleObserver.observe(titleElement, { childList: true, subtree: true, characterData: true });
   }
 
@@ -920,7 +947,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
       });
     },
     emitPageState() {
-      emitPageState();
+      scheduleEmitPageState();
     }
   };
 
@@ -929,7 +956,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   window.addEventListener('mouseout', handleApplyMouseOut, true);
   window.addEventListener('click', handleApplyClick, true);
 
-  setTimeout(emitPageState, 0);
+  scheduleEmitPageState();
   setTimeout(applyPreviewChrome, 0);
 })();
 "#;
@@ -1373,6 +1400,12 @@ impl BrowserManager {
     }
 
     pub fn set_zoom(&self, workspace_id: &str, zoom_factor: f64) -> Result<()> {
+        if let Some(instance) = self.instances.lock().unwrap().get_mut(workspace_id) {
+            if (instance.zoom_factor - zoom_factor).abs() < f64::EPSILON {
+                return Ok(());
+            }
+        }
+
         let webview = self.webview_for_workspace(workspace_id)?;
         webview.set_zoom(zoom_factor)?;
 
@@ -1430,6 +1463,16 @@ impl BrowserManager {
         }
 
         self.instances.lock().unwrap().remove(workspace_id);
+        Ok(())
+    }
+
+    pub fn close_all(&self) -> Result<()> {
+        let workspace_ids: Vec<String> = self.instances.lock().unwrap().keys().cloned().collect();
+
+        for workspace_id in workspace_ids {
+            let _ = self.close(&workspace_id);
+        }
+
         Ok(())
     }
 

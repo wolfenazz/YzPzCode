@@ -88,10 +88,14 @@ pub fn run() {
 
             {
                 let terminal_manager_clone = terminal_manager.clone();
+                let browser_manager_clone = browser_manager.clone();
 
                 app.listen("tauri://close-requested", move |_event| {
                     if let Err(e) = terminal_manager_clone.kill_all_sessions() {
                         eprintln!("Warning: failed to kill sessions on close-requested: {}", e);
+                    }
+                    if let Err(e) = browser_manager_clone.close_all() {
+                        eprintln!("Warning: failed to close browser views on close-requested: {}", e);
                     }
                 });
             }

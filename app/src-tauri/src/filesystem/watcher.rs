@@ -11,6 +11,27 @@ use std::sync::LazyLock;
 static LAST_EMIT: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
 const DEBOUNCE_INTERVAL: Duration = Duration::from_millis(300);
 
+fn should_ignore_path(path: &str) -> bool {
+    let normalized = path.replace('\\', "/").to_ascii_lowercase();
+    const IGNORED_SEGMENTS: &[&str] = &[
+        "/.git/",
+        "/node_modules/",
+        "/dist/",
+        "/build/",
+        "/target/",
+        "/.next/",
+        "/.nuxt/",
+        "/coverage/",
+        "/tmp/",
+        "/temp/",
+        "/.turbo/",
+    ];
+
+    IGNORED_SEGMENTS
+        .iter()
+        .any(|segment| normalized.contains(segment))
+}
+
 pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result<(), String> {
     let path = PathBuf::from(&workspace_path);
     if !path.exists() {
@@ -41,6 +62,7 @@ pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result
                 .paths
                 .iter()
                 .map(|p| p.to_string_lossy().to_string())
+                .filter(|path| !should_ignore_path(path))
                 .collect();
 
             if changed_paths.is_empty() {
@@ -76,9 +98,7 @@ pub fn stop_fs_watcher() -> Result<(), String> {
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?;
 
-    if let Some(mut watcher) = guard.take() {
-        watcher.unwatch(PathBuf::new().as_path()).unwrap_or(());
-    }
+    let _ = guard.take();
 
     Ok(())
 }

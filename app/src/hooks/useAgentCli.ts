@@ -5,6 +5,20 @@ import { AgentType, AgentCliInfo, PrerequisiteStatus, InstallProgress, CliType }
 import { useAppStore } from '../stores/appStore';
 import { useState } from 'react';
 
+let installProgressListenerPromise: Promise<(() => void)> | null = null;
+let installProgressListenerRefCount = 0;
+const installProgressSubscribers = new Set<(progress: InstallProgress) => void>();
+
+const ensureInstallProgressListener = (): Promise<(() => void)> => {
+  if (!installProgressListenerPromise) {
+    installProgressListenerPromise = listen<InstallProgress>('cli-install-progress', (event) => {
+      installProgressSubscribers.forEach((subscriber) => subscriber(event.payload));
+    });
+  }
+
+  return installProgressListenerPromise;
+};
+
 export function useAgentCli() {
   // Read cliStatuses from the global store so all components share the same state
   const cliStatuses = useAppStore(state => state.cliStatuses);
@@ -83,15 +97,24 @@ export function useAgentCli() {
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<InstallProgress>('cli-install-progress', (event) => {
-      setInstallProgress(event.payload);
-      if (event.payload.stage === 'Completed' || event.payload.stage === 'Failed') {
+    const handleProgress = (progress: InstallProgress) => {
+      setInstallProgress(progress);
+      if (progress.stage === 'Completed' || progress.stage === 'Failed') {
         setTimeout(() => setInstallProgress(null), 3000);
       }
-    });
+    };
+
+    installProgressSubscribers.add(handleProgress);
+    installProgressListenerRefCount += 1;
+    void ensureInstallProgressListener();
 
     return () => {
-      unlisten.then(fn => fn());
+      installProgressSubscribers.delete(handleProgress);
+      installProgressListenerRefCount = Math.max(0, installProgressListenerRefCount - 1);
+      if (installProgressListenerRefCount === 0 && installProgressListenerPromise) {
+        void installProgressListenerPromise.then((unlisten) => unlisten()).catch(() => undefined);
+        installProgressListenerPromise = null;
+      }
     };
   }, []);
 

@@ -12,8 +12,8 @@ use tauri::{AppHandle, Emitter};
 
 use crate::types::{AgentType, TerminalSession};
 
-const EMIT_BATCH_INTERVAL_MS: u64 = 8;
-const MAX_BATCH_SIZE: usize = 32 * 1024;
+const EMIT_BATCH_INTERVAL_MS: u64 = 16;
+const MAX_BATCH_SIZE: usize = 64 * 1024;
 
 fn spawn_output_reader(app_clone: AppHandle, sid: String, output_rx: mpsc::Receiver<Vec<u8>>) {
     thread::spawn(move || {

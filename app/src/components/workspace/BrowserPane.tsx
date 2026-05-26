@@ -484,6 +484,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   const previewViewportRef = useRef<HTMLDivElement>(null);
   const loadStartRef = useRef<number | null>(null);
   const lastNavigatedTabRef = useRef<string | null>(null);
+  const lastSyncedBoundsKeyRef = useRef<string | null>(null);
   const browserStateByWorkspace = useAppStore((state) => state.browserStateByWorkspace);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspace = useAppStore((state) => state.currentWorkspace);
@@ -599,6 +600,50 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     () => getViewportMetrics(hostSize.width, hostSize.height, activeDevice, effectiveState.deviceOrientation),
     [activeDevice, effectiveState.deviceOrientation, hostSize.height, hostSize.width],
   );
+  const browserEventContextRef = useRef({
+    activeTabId: effectiveState.activeTabId,
+    currentWorkspacePath: currentWorkspace?.path ?? null,
+    defaultSessionId,
+    deviceId: effectiveState.deviceId,
+    deviceLabel: activeDevice.label,
+    deviceOrientation: effectiveState.deviceOrientation,
+    pageTitle: '',
+    selectedElement: effectiveState.selectedElement,
+    targetSessionId: effectiveState.targetSessionId,
+    viewportHeight: viewportMetrics.viewportHeight,
+    viewportWidth: viewportMetrics.viewportWidth,
+    zoomFactor: effectiveState.zoomFactor,
+  });
+
+  useEffect(() => {
+    browserEventContextRef.current = {
+      activeTabId: effectiveState.activeTabId,
+      currentWorkspacePath: currentWorkspace?.path ?? null,
+      defaultSessionId,
+      deviceId: effectiveState.deviceId,
+      deviceLabel: activeDevice.label,
+      deviceOrientation: effectiveState.deviceOrientation,
+      pageTitle,
+      selectedElement: effectiveState.selectedElement,
+      targetSessionId: effectiveState.targetSessionId,
+      viewportHeight: viewportMetrics.viewportHeight,
+      viewportWidth: viewportMetrics.viewportWidth,
+      zoomFactor: effectiveState.zoomFactor,
+    };
+  }, [
+    activeDevice.label,
+    currentWorkspace?.path,
+    defaultSessionId,
+    effectiveState.activeTabId,
+    effectiveState.deviceId,
+    effectiveState.deviceOrientation,
+    effectiveState.selectedElement,
+    effectiveState.targetSessionId,
+    effectiveState.zoomFactor,
+    pageTitle,
+    viewportMetrics.viewportHeight,
+    viewportMetrics.viewportWidth,
+  ]);
 
   useEffect(() => {
     ensureBrowserState(workspaceId);
@@ -656,10 +701,21 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     };
 
     const url = resolvedCurrentUrl;
+    const boundsKey = JSON.stringify({
+      url,
+      x: Math.round(bounds.x),
+      y: Math.round(bounds.y),
+      width: Math.round(bounds.width),
+      height: Math.round(bounds.height),
+    });
+
+    if (lastSyncedBoundsKeyRef.current === boundsKey) {
+      return;
+    }
 
     try {
       await ensureBrowserView(workspaceId, url, bounds);
-      await setBrowserZoom(workspaceId, effectiveState.zoomFactor);
+      lastSyncedBoundsKeyRef.current = boundsKey;
       setNativeBrowserReady(true);
       setError(null);
     } catch (err) {
@@ -667,10 +723,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [
-    effectiveState.zoomFactor,
     ensureBrowserView,
     resolvedCurrentUrl,
-    setBrowserZoom,
     workspaceId,
   ]);
 
@@ -726,6 +780,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     const unlisteners: Promise<UnlistenFn>[] = [
       listen<BrowserPageLoadPayload>('browser-page-load', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
+        const context = browserEventContextRef.current;
 
         if (event.payload.event === 'started') {
           loadStartRef.current = performance.now();
@@ -742,17 +797,18 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
         setBrowserLoading(workspaceId, false);
         setNativeBrowserReady(true);
         setBrowserCurrentUrl(workspaceId, event.payload.url);
-        if (effectiveState.activeTabId) {
-          updateBrowserTab(workspaceId, effectiveState.activeTabId, { url: event.payload.url });
+        if (context.activeTabId) {
+          updateBrowserTab(workspaceId, context.activeTabId, { url: event.payload.url });
         }
       }),
       listen<BrowserPageStatePayload>('browser-page-state', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
+        const context = browserEventContextRef.current;
         setPageTitle(event.payload.title || '');
         setHistoryLength(event.payload.historyLength);
         setBrowserCurrentUrl(workspaceId, event.payload.url);
-        if (effectiveState.activeTabId) {
-          updateBrowserTab(workspaceId, effectiveState.activeTabId, { title: event.payload.title, url: event.payload.url });
+        if (context.activeTabId) {
+          updateBrowserTab(workspaceId, context.activeTabId, { title: event.payload.title, url: event.payload.url });
         }
       }),
       listen<BrowserInspectModePayload>('browser-inspect-mode-changed', (event) => {
@@ -760,27 +816,28 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
         setBrowserInspectModeState(workspaceId, event.payload.enabled);
       }),
       listen<BrowserSnapshotPayload>('browser-snapshot-ready', async (event) => {
-        if (event.payload.workspaceId !== workspaceId || !currentWorkspace?.path) return;
+        const context = browserEventContextRef.current;
+        if (event.payload.workspaceId !== workspaceId || !context.currentWorkspacePath) return;
 
         const stamp = buildExportStamp();
-        const slug = sanitizeFileSegment(event.payload.title || pageTitle || activeDevice.label);
-        const baseDir = `${currentWorkspace.path}\\.yzpzcode\\browser-exports`;
+        const slug = sanitizeFileSegment(event.payload.title || context.pageTitle || context.deviceLabel);
+        const baseDir = `${context.currentWorkspacePath}\\.yzpzcode\\browser-exports`;
         const htmlPath = `${baseDir}\\${stamp}-${slug}.html`;
         const jsonPath = `${baseDir}\\${stamp}-${slug}.json`;
         const metadata = {
           exportedAt: new Date().toISOString(),
           workspaceId,
-          pageTitle: event.payload.title || pageTitle,
+          pageTitle: event.payload.title || context.pageTitle,
           url: event.payload.url,
-          zoomFactor: effectiveState.zoomFactor,
-          deviceId: effectiveState.deviceId,
-          deviceLabel: activeDevice.label,
-          orientation: effectiveState.deviceOrientation,
+          zoomFactor: context.zoomFactor,
+          deviceId: context.deviceId,
+          deviceLabel: context.deviceLabel,
+          orientation: context.deviceOrientation,
           viewport: {
-            width: viewportMetrics.viewportWidth,
-            height: viewportMetrics.viewportHeight,
+            width: context.viewportWidth,
+            height: context.viewportHeight,
           },
-          selectedElement: effectiveState.selectedElement,
+          selectedElement: context.selectedElement,
         };
 
         try {
@@ -794,9 +851,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       }),
       listen<BrowserElementSelectedEventPayload>('browser-element-selected', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
+        const context = browserEventContextRef.current;
         setBrowserSelectedElement(workspaceId, event.payload.element);
-        if (!effectiveState.targetSessionId && defaultSessionId) {
-          setBrowserTargetSession(workspaceId, defaultSessionId);
+        if (!context.targetSessionId && context.defaultSessionId) {
+          setBrowserTargetSession(workspaceId, context.defaultSessionId);
         }
       }),
       listen<CapturedStyle>('browser-style-captured', (event) => {
@@ -825,16 +883,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       });
     };
   }, [
-    activeDevice.label,
-    currentWorkspace?.path,
-    defaultSessionId,
-    effectiveState.deviceId,
-    effectiveState.deviceOrientation,
-    effectiveState.selectedElement,
-    effectiveState.targetSessionId,
-    effectiveState.zoomFactor,
-    effectiveState.activeTabId,
-    pageTitle,
     setBrowserCurrentUrl,
     setBrowserInspectModeState,
     setBrowserLoading,
@@ -847,8 +895,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     setActiveSidebar,
     setAppliedToolbarOpen,
     setLastApplied,
-    viewportMetrics.viewportHeight,
-    viewportMetrics.viewportWidth,
     workspaceId,
   ]);
 
