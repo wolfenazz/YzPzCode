@@ -82,8 +82,29 @@ pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result
     .map_err(|e| format!("Failed to create watcher: {}", e))?;
 
     watcher
-        .watch(&path, RecursiveMode::Recursive)
-        .map_err(|e| format!("Failed to start watching: {}", e))?;
+        .watch(&path, RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to start watching workspace root: {}", e))?;
+
+    if let Ok(entries) = std::fs::read_dir(&path) {
+        for entry in entries.flatten() {
+            let child_path = entry.path();
+            let child_display = child_path.to_string_lossy().to_string();
+
+            if should_ignore_path(&child_display) {
+                continue;
+            }
+
+            let mode = if child_path.is_dir() {
+                RecursiveMode::Recursive
+            } else {
+                RecursiveMode::NonRecursive
+            };
+
+            watcher
+                .watch(&child_path, mode)
+                .map_err(|e| format!("Failed to watch path {}: {}", child_display, e))?;
+        }
+    }
 
     let mut guard = FS_WATCHER
         .lock()

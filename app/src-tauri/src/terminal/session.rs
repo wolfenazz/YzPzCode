@@ -3,7 +3,7 @@ use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
 use std::io::{Read, Write};
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, TrySendError};
 use std::sync::Arc;
 use std::thread;
 use uuid::Uuid;
@@ -288,7 +288,7 @@ impl PtySession {
 
         let writer = pair.master.take_writer()?;
 
-        let (output_tx, output_rx) = mpsc::channel();
+        let (output_tx, output_rx) = mpsc::sync_channel(256);
 
         let kill_flag = Arc::new(AtomicBool::new(false));
         let kill_flag_clone = kill_flag.clone();
@@ -304,8 +304,12 @@ impl PtySession {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        if output_tx_clone.send(buf[..n].to_vec()).is_err() {
-                            break;
+                        match output_tx_clone.try_send(buf[..n].to_vec()) {
+                            Ok(()) => {}
+                            Err(TrySendError::Full(_)) => {
+                                // Drop excess output instead of letting the queue grow without bound.
+                            }
+                            Err(TrySendError::Disconnected(_)) => break,
                         }
                     }
                     Err(e) => {

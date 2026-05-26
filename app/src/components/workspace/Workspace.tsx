@@ -52,7 +52,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const { checkAllAuth } = useCliLauncher();
   const { closeBrowserView } = useBrowser();
   const { openFile } = useFileEditor();
-  useFileWatcher(currentWorkspace?.path ?? null);
+  const shouldWatchFiles = !!currentWorkspace?.path && (explorerOpen || activeView === 'editor');
+  useFileWatcher(shouldWatchFiles ? currentWorkspace?.path ?? null : null);
   const hasInitialized = useRef<Record<string, boolean>>({});
   const sidebarWidthRef = useRef(250);
   const [sidebarWidth, setSidebarWidth] = useState(250);

@@ -8,19 +8,34 @@ export const useFileWatcher = (workspacePath: string | null) => {
   const setGitStatuses = useAppStore((s) => s.setGitStatuses);
   const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshInFlightRef = useRef(false);
+  const refreshQueuedRef = useRef(false);
 
   const refreshGitStatus = useCallback(async () => {
     if (!workspacePath) return;
+    if (refreshInFlightRef.current) {
+      refreshQueuedRef.current = true;
+      return;
+    }
+
+    refreshInFlightRef.current = true;
+
     try {
-      const [statuses, diffStats] = await Promise.all([
-        invoke<any[]>('get_git_status', { workspacePath }),
-        invoke<GitDiffStat[]>('get_git_diff_stats', { workspacePath }),
-      ]);
-      setGitStatuses(statuses);
-      setGitDiffStats(diffStats);
+      do {
+        refreshQueuedRef.current = false;
+
+        const [statuses, diffStats] = await Promise.all([
+          invoke<any[]>('get_git_status', { workspacePath }),
+          invoke<GitDiffStat[]>('get_git_diff_stats', { workspacePath }),
+        ]);
+        setGitStatuses(statuses);
+        setGitDiffStats(diffStats);
+      } while (refreshQueuedRef.current);
     } catch {
       setGitStatuses([]);
       setGitDiffStats([]);
+    } finally {
+      refreshInFlightRef.current = false;
     }
   }, [workspacePath, setGitStatuses, setGitDiffStats]);
 
@@ -34,7 +49,15 @@ export const useFileWatcher = (workspacePath: string | null) => {
   }, [refreshGitStatus]);
 
   useEffect(() => {
-    if (!workspacePath) return;
+    refreshInFlightRef.current = false;
+    refreshQueuedRef.current = false;
+
+    if (!workspacePath) {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      return;
+    }
 
     invoke('start_fs_watcher', { workspacePath }).catch((err) => {
       console.error('Failed to start file watcher:', err);
@@ -55,6 +78,8 @@ export const useFileWatcher = (workspacePath: string | null) => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      refreshInFlightRef.current = false;
+      refreshQueuedRef.current = false;
     };
   }, [workspacePath, debouncedRefresh]);
 };

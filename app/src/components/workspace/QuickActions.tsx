@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { detectProject, ProjectActions } from '../../utils/projectDetect';
+import { useAppStore } from '../../stores/appStore';
 
 interface QuickActionsProps {
   sessionId: string;
@@ -15,6 +16,8 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
 }) => {
   const [actions, setActions] = useState<ProjectActions | null>(null);
   const isLight = theme === 'light';
+  const quickActionRunTarget = useAppStore((state) => state.quickActionRunTarget);
+  const setQuickActionRunTarget = useAppStore((state) => state.setQuickActionRunTarget);
 
   useEffect(() => {
     let mounted = true;
@@ -30,6 +33,16 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
 
   const runCommand = async (cmd: string) => {
     try {
+      if (quickActionRunTarget === 'external') {
+        await invoke('launch_external_command', {
+          request: {
+            workspacePath: cwd,
+            command: cmd,
+          },
+        });
+        return;
+      }
+
       await invoke('write_to_terminal', {
         sessionId,
         input: '\x1b[200~' + cmd + '\x1b[201~\r',
@@ -44,6 +57,15 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-emerald-400 hover:border-emerald-800 hover:bg-emerald-950/40'
       : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-emerald-400 hover:border-emerald-900 hover:bg-emerald-950/30'
   }`;
+  const modeBtn = `px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-[0.18em] transition-all duration-200 cursor-pointer border shrink-0 ${
+    quickActionRunTarget === 'external'
+      ? (isLight
+          ? 'bg-amber-950/40 border-amber-800 text-amber-300 hover:bg-amber-900/50'
+          : 'bg-amber-950/30 border-amber-900 text-amber-400 hover:bg-amber-950/50')
+      : (isLight
+          ? 'bg-sky-950/35 border-sky-800 text-sky-300 hover:bg-sky-900/50'
+          : 'bg-sky-950/25 border-sky-900 text-sky-400 hover:bg-sky-950/45')
+  }`;
 
   return (
     <div className="flex items-center gap-1">
@@ -54,6 +76,17 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       >
         {actions.label}
       </span>
+      <button
+        className={modeBtn}
+        onClick={() => setQuickActionRunTarget(quickActionRunTarget === 'external' ? 'embedded' : 'external')}
+        title={
+          quickActionRunTarget === 'external'
+            ? 'Quick Actions currently run in an external terminal. Click to switch to the in-app terminal.'
+            : 'Quick Actions currently run inside the app terminal. Click to switch to an external terminal.'
+        }
+      >
+        {quickActionRunTarget === 'external' ? 'Ext' : 'App'}
+      </button>
       <div className="h-3 w-px bg-zinc-800/50" />
       {actions.devCmd && (
         <button

@@ -1,7 +1,15 @@
 use crate::types::{AgentType, LaunchExternalRequest};
+use serde::Deserialize;
 
 use super::cli_commands::build_agent_queue;
 use super::terminal_commands::get_grid_dimensions;
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchExternalCommandRequest {
+    pub workspace_path: String,
+    pub command: String,
+}
 
 #[tauri::command]
 pub async fn launch_external_terminals(request: LaunchExternalRequest) -> Result<(), String> {
@@ -40,6 +48,121 @@ pub async fn launch_external_terminals(request: LaunchExternalRequest) -> Result
     {
         launch_external_linux(&request.workspace_path, &agent_queue, cols, rows)
     }
+}
+
+#[tauri::command]
+pub async fn launch_external_command(request: LaunchExternalCommandRequest) -> Result<(), String> {
+    let command = request.command.trim();
+    if command.is_empty() {
+        return Err("Command must not be empty".to_string());
+    }
+
+    let path = std::path::Path::new(&request.workspace_path);
+    if !path.exists() {
+        return Err(format!(
+            "Workspace path does not exist: {}",
+            request.workspace_path
+        ));
+    }
+    if !path.is_dir() {
+        return Err(format!(
+            "Workspace path is not a directory: {}",
+            request.workspace_path
+        ));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        launch_external_command_windows(&request.workspace_path, command)
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        launch_external_command_macos(&request.workspace_path, command)
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        launch_external_command_linux(&request.workspace_path, command)
+    }
+}
+
+#[cfg(any(target_os = "macos", all(not(target_os = "windows"), not(target_os = "macos"))))]
+fn shell_quote_single(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+#[cfg(target_os = "macos")]
+fn escape_for_applescript(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+#[cfg(target_os = "windows")]
+fn launch_external_command_windows(workspace_path: &str, command: &str) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    use std::process::Command;
+
+    const CREATE_NEW_CONSOLE: u32 = 0x00000010;
+    let escaped_path = workspace_path.replace('"', "\"\"");
+    let command_str = format!("/k \"cd /d \"\"{}\"\" && {}\"", escaped_path, command);
+
+    let mut cmd = Command::new("cmd");
+    cmd.raw_arg(&command_str);
+    cmd.creation_flags(CREATE_NEW_CONSOLE);
+    cmd.current_dir(workspace_path);
+
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to spawn external command terminal: {}", e))
+}
+
+#[cfg(target_os = "macos")]
+fn launch_external_command_macos(workspace_path: &str, command: &str) -> Result<(), String> {
+    use std::process::Command;
+
+    let shell_command = format!("cd {} && {}", shell_quote_single(workspace_path), command);
+    let applescript = format!(
+        "tell application \"Terminal\" to do script \"{}\"",
+        escape_for_applescript(&shell_command)
+    );
+
+    Command::new("osascript")
+        .arg("-e")
+        .arg(applescript)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to launch external command terminal: {}", e))
+}
+
+#[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+fn launch_external_command_linux(workspace_path: &str, command: &str) -> Result<(), String> {
+    use std::process::Command;
+
+    let terminal = detect_linux_terminal();
+    let shell_command = format!(
+        "cd {} && {}; exec bash",
+        shell_quote_single(workspace_path),
+        command
+    );
+
+    let result = match terminal.as_str() {
+        "gnome-terminal" => Command::new("gnome-terminal")
+            .args(["--", "bash", "-lc", &shell_command])
+            .spawn(),
+        "konsole" => Command::new("konsole")
+            .args(["-e", "bash", "-lc", &shell_command])
+            .spawn(),
+        "xfce4-terminal" => Command::new("xfce4-terminal")
+            .args(["--command", &format!("bash -lc \"{}\"", shell_command.replace('"', "\\\""))])
+            .spawn(),
+        _ => Command::new("x-terminal-emulator")
+            .args(["-e", "bash", "-lc", &shell_command])
+            .spawn(),
+    };
+
+    result
+        .map(|_| ())
+        .map_err(|e| format!("Failed to launch external command terminal: {}", e))
 }
 
 #[cfg(target_os = "windows")]
