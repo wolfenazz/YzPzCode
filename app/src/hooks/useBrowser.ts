@@ -54,6 +54,23 @@ export const useBrowser = () => {
     });
   }, []);
 
+  const popOutBrowserView = useCallback(async (workspaceId: string, url: string) => {
+    return invoke<BrowserViewState>('pop_out_browser_view', {
+      request: {
+        workspaceId,
+        url,
+      },
+    });
+  }, []);
+
+  const dockBrowserView = useCallback(async (workspaceId: string) => {
+    await invoke('dock_browser_view', {
+      request: {
+        workspaceId,
+      },
+    });
+  }, []);
+
   const setBrowserInspectMode = useCallback(async (workspaceId: string, enabled: boolean) => {
     await invoke('set_browser_inspect_mode', {
       request: {
@@ -147,6 +164,8 @@ export const useBrowser = () => {
     reloadBrowserView,
     setBrowserViewVisibility,
     closeBrowserView,
+    popOutBrowserView,
+    dockBrowserView,
     setBrowserInspectMode,
     setBrowserZoom,
     setBrowserPreviewChrome,

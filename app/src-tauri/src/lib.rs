@@ -96,13 +96,19 @@ pub fn run() {
 
                 app.listen("tauri://close-requested", move |_event| {
                     if let Err(e) = managed_command_manager_clone.stop_all() {
-                        eprintln!("Warning: failed to stop managed commands on close-requested: {}", e);
+                        eprintln!(
+                            "Warning: failed to stop managed commands on close-requested: {}",
+                            e
+                        );
                     }
                     if let Err(e) = terminal_manager_clone.kill_all_sessions() {
                         eprintln!("Warning: failed to kill sessions on close-requested: {}", e);
                     }
                     if let Err(e) = browser_manager_clone.close_all() {
-                        eprintln!("Warning: failed to close browser views on close-requested: {}", e);
+                        eprintln!(
+                            "Warning: failed to close browser views on close-requested: {}",
+                            e
+                        );
                     }
                 });
             }
@@ -126,6 +132,8 @@ pub fn run() {
             commands::reload_browser_view,
             commands::set_browser_view_visibility,
             commands::close_browser_view,
+            commands::pop_out_browser_view,
+            commands::dock_browser_view,
             commands::set_browser_inspect_mode,
             commands::set_browser_zoom,
             commands::set_browser_preview_chrome,

@@ -306,7 +306,10 @@ where
 fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
     let path = std::path::Path::new(cwd);
     if !path.exists() || !path.is_dir() {
-        return Err(anyhow::anyhow!("Workspace path is not a valid directory: {}", cwd));
+        return Err(anyhow::anyhow!(
+            "Workspace path is not a valid directory: {}",
+            cwd
+        ));
     }
 
     #[cfg(target_os = "windows")]

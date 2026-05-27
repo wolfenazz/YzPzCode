@@ -2,9 +2,10 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::webview::{PageLoadEvent, WebviewBuilder};
+use tauri::webview::{PageLoadEvent, WebviewBuilder, WebviewWindowBuilder};
 use tauri::{
-    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, Window,
+    AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Webview, WebviewUrl, WebviewWindow,
+    Window, WindowEvent,
 };
 use url::Url;
 
@@ -16,6 +17,7 @@ const BROWSER_SNAPSHOT_READY_EVENT: &str = "browser-snapshot-ready";
 const BROWSER_STYLE_CAPTURED_EVENT: &str = "browser-style-captured";
 const BROWSER_UI_ELEMENT_CAPTURED_EVENT: &str = "browser-ui-element-captured";
 const BROWSER_STYLE_APPLIED_EVENT: &str = "browser-style-applied";
+const BROWSER_POPOUT_STATE_EVENT: &str = "browser-popout-state";
 const DEFAULT_BROWSER_URL: &str = "http://localhost:3000";
 
 fn resolve_browser_url(url: &str) -> String {
@@ -24,6 +26,22 @@ fn resolve_browser_url(url: &str) -> String {
         DEFAULT_BROWSER_URL.to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+fn canonicalize_browser_url_runtime(url: &str) -> Option<String> {
+    Url::parse(&resolve_browser_url(url))
+        .ok()
+        .map(|parsed| parsed.as_str().to_string())
+}
+
+fn browser_urls_match_runtime(left: &str, right: &str) -> bool {
+    match (
+        canonicalize_browser_url_runtime(left),
+        canonicalize_browser_url_runtime(right),
+    ) {
+        (Some(left_url), Some(right_url)) => left_url == right_url,
+        _ => resolve_browser_url(left) == resolve_browser_url(right),
     }
 }
 
@@ -36,7 +54,10 @@ fn canonicalize_browser_url(url: &str) -> Option<String> {
 
 #[cfg(test)]
 fn browser_urls_match(left: &str, right: &str) -> bool {
-    match (canonicalize_browser_url(left), canonicalize_browser_url(right)) {
+    match (
+        canonicalize_browser_url(left),
+        canonicalize_browser_url(right),
+    ) {
         (Some(left_url), Some(right_url)) => left_url == right_url,
         _ => resolve_browser_url(left) == resolve_browser_url(right),
     }
@@ -347,19 +368,103 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     activeElement = element;
   };
 
-  const elementFromEvent = (event) => {
+  const uiComponentTokens = new Set([
+    'app', 'banner', 'block', 'card', 'carousel', 'component', 'content', 'cta',
+    'dialog', 'drawer', 'feature', 'footer', 'form', 'gallery', 'grid', 'header',
+    'hero', 'item', 'layout', 'list', 'menu', 'modal', 'module', 'nav', 'navbar',
+    'panel', 'popover', 'pricing', 'product', 'row', 'section', 'sidebar', 'stack',
+    'tab', 'testimonial', 'tile', 'toast', 'toolbar', 'widget'
+  ]);
+  const uiSemanticTags = new Set(['article', 'aside', 'dialog', 'figure', 'footer', 'form', 'header', 'main', 'nav', 'section']);
+  const uiInteractiveTags = new Set(['a', 'button', 'details', 'label', 'li', 'summary']);
+  const uiBoundaryRoles = new Set([
+    'alert', 'banner', 'complementary', 'contentinfo', 'dialog', 'form', 'grid',
+    'group', 'list', 'listitem', 'main', 'menu', 'menubar', 'navigation',
+    'region', 'search', 'tablist', 'toolbar'
+  ]);
+
+  const elementTokens = (element) => {
+    const text = `${element.id || ''} ${typeof element.className === 'string' ? element.className : ''}`;
+    return text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean);
+  };
+
+  const hasComponentToken = (element) => elementTokens(element).some((token) => uiComponentTokens.has(token));
+
+  const hasCaptureMarker = (element) => (
+    element.hasAttribute('data-component') ||
+    element.hasAttribute('data-ui') ||
+    element.hasAttribute('data-testid') ||
+    element.hasAttribute('data-test-id')
+  );
+
+  const isUsefulComponentRoot = (element, target) => {
+    const tagName = element.tagName.toLowerCase();
+    const role = (element.getAttribute('role') || '').toLowerCase();
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 4 || rect.height < 4) return false;
+
+    const area = rect.width * rect.height;
+    const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
+    const isVeryLargeGenericShell = area > viewportArea * 1.25 && !uiSemanticTags.has(tagName);
+    if (isVeryLargeGenericShell) return false;
+
+    const isSemantic = uiSemanticTags.has(tagName);
+    const isInteractive = uiInteractiveTags.has(tagName);
+    const isRoleBoundary = uiBoundaryRoles.has(role);
+    const hasMarker = hasCaptureMarker(element);
+    const hasToken = hasComponentToken(element);
+    const mediaOrControls = element.querySelector('img,svg,video,canvas,picture,button,a,input,textarea,select');
+    const hasUsefulChildren = element.children.length > 0 || Boolean(mediaOrControls);
+    if (element === target) {
+      return isInteractive || isSemantic || hasMarker || (hasToken && hasUsefulChildren);
+    }
+
+    return isInteractive || isSemantic || isRoleBoundary || hasMarker || hasToken;
+  };
+
+  const resolveUiCaptureRoot = (target) => {
+    if (!target) return null;
+    let current = target;
+    let fallback = null;
+
+    while (current && current !== document.documentElement && current !== document.body) {
+      if (shouldIgnoreElement(current)) {
+        current = current.parentElement;
+        continue;
+      }
+
+      if (isUsefulComponentRoot(current, target)) {
+        return current;
+      }
+
+      const rect = current.getBoundingClientRect();
+      const viewportArea = Math.max(window.innerWidth * window.innerHeight, 1);
+      if (!fallback && current !== target && current.children.length > 1 && rect.width * rect.height <= viewportArea * 1.1) {
+        fallback = current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return fallback || target;
+  };
+
+  const elementFromEvent = (event, options = {}) => {
     const target = document.elementFromPoint(event.clientX, event.clientY);
     if (!target || shouldIgnoreElement(target)) {
       return null;
     }
-    return target;
+    return options.uiCapture ? resolveUiCaptureRoot(target) : target;
   };
 
   const flushPointerMove = () => {
     pointerMoveFrame = 0;
     if (!lastPointerEvent) return;
     if (!inspectMode && !pickStyleMode && !pickUiElementMode && !applyMode) return;
-    updateOverlay(elementFromEvent(lastPointerEvent));
+    updateOverlay(elementFromEvent(lastPointerEvent, { uiCapture: pickUiElementMode }));
   };
 
   const handlePointerMove = (event) => {
@@ -375,7 +480,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   };
 
   const handleClick = (event) => {
-    const element = elementFromEvent(event);
+    const element = elementFromEvent(event, { uiCapture: pickUiElementMode });
     if (!element) return;
 
     if (pickUiElementMode) {
@@ -402,8 +507,8 @@ const BROWSER_INIT_SCRIPT: &str = r#"
         pageTitle: document.title || '',
         selector: buildPathSelector(element),
         tagName,
-        textContent: (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300),
-        htmlSnippet: (element.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 4000),
+        textContent: (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 1000),
+        htmlSnippet: (element.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 20000),
         computedStyles,
         pseudoBefore,
         pseudoAfter,
@@ -600,24 +705,206 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     }
   };
 
-  const serializeStructureNode = (element, depth = 0) => {
-    if (!element || depth > 3) {
-      return null;
+  const UI_STRUCTURE_LIMITS = {
+    maxDepth: 8,
+    maxNodes: 140,
+    maxChildrenPerNode: 24,
+  };
+  const UI_STYLE_SNAPSHOT_PROPERTIES = [
+    'display', 'position', 'top', 'right', 'bottom', 'left', 'z-index', 'box-sizing',
+    'width', 'height', 'min-width', 'min-height', 'max-width', 'max-height',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border', 'border-width', 'border-style', 'border-color', 'border-radius',
+    'background', 'background-color', 'background-image', 'background-size', 'background-position',
+    'color', 'box-shadow', 'opacity', 'overflow', 'overflow-x', 'overflow-y',
+    'transform', 'transition', 'filter', 'backdrop-filter',
+    'font-family', 'font-size', 'font-weight', 'line-height', 'letter-spacing',
+    'text-align', 'text-transform', 'white-space',
+    'flex', 'flex-direction', 'flex-wrap', 'align-items', 'align-self', 'justify-content',
+    'gap', 'row-gap', 'column-gap',
+    'grid-template-columns', 'grid-template-rows', 'grid-auto-flow', 'grid-column', 'grid-row',
+    'object-fit', 'object-position', 'aspect-ratio', 'cursor'
+  ];
+
+  const hasMeaningfulStyleValue = (value) => (
+    value &&
+    value !== 'none' &&
+    value !== 'normal' &&
+    value !== 'auto' &&
+    value !== '0px' &&
+    value !== 'rgba(0, 0, 0, 0)' &&
+    value !== 'transparent'
+  );
+
+  const compactStyleMap = (styles, maxEntries = 40) => {
+    if (!styles) return null;
+    const compact = {};
+    for (const [key, value] of Object.entries(styles)) {
+      if (!hasMeaningfulStyleValue(value)) continue;
+      compact[key] = resolveUrl(value);
+      if (Object.keys(compact).length >= maxEntries) break;
+    }
+    return Object.keys(compact).length > 0 ? compact : null;
+  };
+
+  const captureStyleSnapshot = (element) => {
+    const computed = window.getComputedStyle(element);
+    const styles = {};
+    for (const property of UI_STYLE_SNAPSHOT_PROPERTIES) {
+      const value = computed.getPropertyValue(property);
+      if (hasMeaningfulStyleValue(value)) {
+        styles[property] = resolveUrl(value);
+      }
+    }
+    return styles;
+  };
+
+  const captureNodeAttributes = (element) => {
+    const attributes = {};
+    for (const attr of Array.from(element.attributes).slice(0, 24)) {
+      if (attr.name.startsWith('data-yzpz-browser-overlay')) continue;
+      attributes[attr.name] = attr.value.slice(0, 300);
+    }
+    return attributes;
+  };
+
+  const captureNodeRect = (element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+  };
+
+  const captureNodeLayout = (element, computed) => ({
+    width: computed.getPropertyValue('width'),
+    height: computed.getPropertyValue('height'),
+    display: computed.getPropertyValue('display'),
+    position: computed.getPropertyValue('position'),
+    flexDirection: computed.getPropertyValue('flex-direction') || null,
+    justifyContent: computed.getPropertyValue('justify-content') || null,
+    alignItems: computed.getPropertyValue('align-items') || null,
+    gap: computed.getPropertyValue('gap') || null,
+    gridTemplateColumns: computed.getPropertyValue('grid-template-columns') || null,
+    gridTemplateRows: computed.getPropertyValue('grid-template-rows') || null,
+  });
+
+  const captureNodeSpacing = (computed) => ({
+    margin: computed.getPropertyValue('margin'),
+    padding: computed.getPropertyValue('padding'),
+    borderRadius: computed.getPropertyValue('border-radius'),
+  });
+
+  const captureNodeTypography = (computed) => ({
+    fontFamily: computed.getPropertyValue('font-family'),
+    fontSize: computed.getPropertyValue('font-size'),
+    fontWeight: computed.getPropertyValue('font-weight'),
+    lineHeight: computed.getPropertyValue('line-height'),
+    letterSpacing: computed.getPropertyValue('letter-spacing'),
+    textTransform: computed.getPropertyValue('text-transform'),
+  });
+
+  const captureNodeVisuals = (computed) => ({
+    background: computed.getPropertyValue('background') || computed.getPropertyValue('background-color'),
+    color: computed.getPropertyValue('color'),
+    border: computed.getPropertyValue('border'),
+    boxShadow: computed.getPropertyValue('box-shadow'),
+    opacity: computed.getPropertyValue('opacity'),
+  });
+
+  const shallowHtmlSnippet = (element) => {
+    const clone = element.cloneNode(false);
+    return (clone.outerHTML || element.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 900);
+  };
+
+  const collectDirectAssets = (element) => {
+    const assets = [];
+    const pushAsset = (type, sourceUrl, alt = null) => {
+      if (!sourceUrl) return;
+      assets.push({ type, sourceUrl, alt });
+    };
+
+    if (element instanceof HTMLImageElement && element.currentSrc) {
+      pushAsset('image', element.currentSrc, element.alt || null);
     }
 
-    const children = Array.from(element.children)
-      .slice(0, 8)
-      .map((child) => serializeStructureNode(child, depth + 1))
-      .filter(Boolean);
+    if (element.matches && element.matches('svg,[class*="icon"],[data-icon]')) {
+      const iconLabel = element.getAttribute('aria-label') || element.getAttribute('data-icon') || element.getAttribute('class') || element.tagName.toLowerCase();
+      pushAsset('icon', iconLabel, null);
+    }
 
-    return {
-      tagName: element.tagName.toLowerCase(),
-      role: element.getAttribute('role'),
-      className: typeof element.className === 'string' ? element.className.slice(0, 180) : null,
-      textPreview: (element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 100),
-      childCount: element.children.length,
-      children,
+    const computed = window.getComputedStyle(element);
+    const backgroundImage = computed.getPropertyValue('background-image');
+    const backgroundMatch = backgroundImage.match(/url\((["']?)(.+?)\1\)/);
+    if (backgroundMatch && backgroundMatch[2]) {
+      pushAsset('background', resolveUrl(`url(${backgroundMatch[2]})`).replace(/^url\((["']?)(.+)\1\)$/,'$2'), null);
+    }
+
+    return assets.slice(0, 4);
+  };
+
+  const serializeStructureNode = (element) => {
+    let capturedNodeCount = 0;
+
+    const visit = (node, depth) => {
+      if (!node || depth > UI_STRUCTURE_LIMITS.maxDepth || capturedNodeCount >= UI_STRUCTURE_LIMITS.maxNodes) {
+        return null;
+      }
+
+      capturedNodeCount += 1;
+      const allChildren = Array.from(node.children).filter((child) => !shouldIgnoreElement(child));
+      const children = [];
+
+      for (const child of allChildren) {
+        if (children.length >= UI_STRUCTURE_LIMITS.maxChildrenPerNode || capturedNodeCount >= UI_STRUCTURE_LIMITS.maxNodes) {
+          break;
+        }
+        const serialized = visit(child, depth + 1);
+        if (serialized) {
+          children.push(serialized);
+        }
+      }
+
+      const computed = window.getComputedStyle(node);
+
+      return {
+        tagName: node.tagName.toLowerCase(),
+        role: node.getAttribute('role'),
+        id: node.id || null,
+        className: typeof node.className === 'string' ? node.className.slice(0, 220) : null,
+        attributes: captureNodeAttributes(node),
+        textPreview: (node.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 600),
+        htmlSnippet: shallowHtmlSnippet(node),
+        rect: captureNodeRect(node),
+        computedStyles: captureStyleSnapshot(node),
+        pseudoBefore: compactStyleMap(capturePseudoStyles(node, '::before'), 28),
+        pseudoAfter: compactStyleMap(capturePseudoStyles(node, '::after'), 28),
+        layout: captureNodeLayout(node, computed),
+        spacing: captureNodeSpacing(computed),
+        typography: captureNodeTypography(computed),
+        visuals: captureNodeVisuals(computed),
+        assets: collectDirectAssets(node),
+        childCount: allChildren.length,
+        capturedChildCount: children.length,
+        truncatedChildren: children.length < allChildren.length,
+        children,
+      };
     };
+
+    const root = visit(element, 0);
+    if (root) {
+      root.captureStats = {
+        capturedNodeCount,
+        maxNodes: UI_STRUCTURE_LIMITS.maxNodes,
+        maxDepth: UI_STRUCTURE_LIMITS.maxDepth,
+        maxChildrenPerNode: UI_STRUCTURE_LIMITS.maxChildrenPerNode,
+      };
+    }
+
+    return root;
   };
 
   const collectAssets = (element) => {
@@ -982,6 +1269,13 @@ pub struct BrowserViewState {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BrowserPopoutStatePayload {
+    pub workspace_id: String,
+    pub popped_out: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BrowserPageLoadPayload {
     pub workspace_id: String,
     pub url: String,
@@ -1085,12 +1379,48 @@ pub struct CapturedStyle {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BrowserUiElementCaptureStats {
+    pub captured_node_count: u64,
+    pub max_nodes: u64,
+    pub max_depth: u64,
+    pub max_children_per_node: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BrowserUiElementNode {
     pub tag_name: String,
     pub role: Option<String>,
+    pub id: Option<String>,
     pub class_name: Option<String>,
+    #[serde(default)]
+    pub attributes: HashMap<String, String>,
     pub text_preview: String,
+    #[serde(default)]
+    pub html_snippet: Option<String>,
+    #[serde(default)]
+    pub rect: Option<BrowserElementRect>,
+    #[serde(default)]
+    pub computed_styles: HashMap<String, String>,
+    pub pseudo_before: Option<HashMap<String, String>>,
+    pub pseudo_after: Option<HashMap<String, String>>,
+    #[serde(default)]
+    pub layout: Option<BrowserUiElementLayout>,
+    #[serde(default)]
+    pub spacing: Option<BrowserUiElementSpacing>,
+    #[serde(default)]
+    pub typography: Option<BrowserUiElementTypography>,
+    #[serde(default)]
+    pub visuals: Option<BrowserUiElementVisuals>,
+    #[serde(default)]
+    pub assets: Vec<BrowserUiElementAsset>,
     pub child_count: u64,
+    #[serde(default)]
+    pub captured_child_count: u64,
+    #[serde(default)]
+    pub truncated_children: bool,
+    #[serde(default)]
+    pub capture_stats: Option<BrowserUiElementCaptureStats>,
     pub children: Vec<BrowserUiElementNode>,
 }
 
@@ -1201,11 +1531,13 @@ pub struct StyleApplyPayload {
 #[derive(Debug, Clone)]
 struct BrowserInstance {
     label: String,
+    embedded_label: String,
     current_url: String,
     visible: bool,
     inspect_mode: bool,
     zoom_factor: f64,
     preview_chrome: Option<BrowserPreviewChrome>,
+    popped_out: bool,
 }
 
 #[derive(Clone)]
@@ -1227,29 +1559,50 @@ impl BrowserManager {
         *app = Some(handle);
     }
 
-    pub fn ensure_view(&self, workspace_id: &str, url: &str, bounds: BrowserBounds) -> Result<BrowserViewState> {
+    pub fn ensure_view(
+        &self,
+        workspace_id: &str,
+        url: &str,
+        bounds: BrowserBounds,
+    ) -> Result<BrowserViewState> {
         let app = self.app_handle()?;
         let label = self.label_for_workspace(workspace_id);
         let resolved_url = resolve_browser_url(url);
-        let existing_inspect = self
-            .instances
-            .lock()
-            .unwrap()
-            .get(workspace_id)
+
+        if let Some(instance) = self.instances.lock().unwrap().get(workspace_id).cloned() {
+            if instance.popped_out {
+                if let Some(webview) = app.get_webview(&instance.label) {
+                    webview.show()?;
+                    webview.set_zoom(instance.zoom_factor)?;
+                    self.emit_popout_state(workspace_id, true)?;
+                    return Ok(BrowserViewState {
+                        workspace_id: workspace_id.to_string(),
+                        label: instance.label,
+                        current_url: webview
+                            .url()
+                            .ok()
+                            .map(|value| value.to_string())
+                            .unwrap_or(instance.current_url),
+                        visible: true,
+                        inspect_mode: instance.inspect_mode,
+                    });
+                }
+
+                self.mark_popout_closed(workspace_id, &instance.label)?;
+            }
+        }
+
+        let existing = self.instances.lock().unwrap().get(workspace_id).cloned();
+        let existing_inspect = existing
+            .as_ref()
             .map(|instance| instance.inspect_mode)
             .unwrap_or(false);
-        let existing_zoom = self
-            .instances
-            .lock()
-            .unwrap()
-            .get(workspace_id)
+        let existing_zoom = existing
+            .as_ref()
             .map(|instance| instance.zoom_factor)
             .unwrap_or(1.0);
-        let existing_preview_chrome = self
-            .instances
-            .lock()
-            .unwrap()
-            .get(workspace_id)
+        let existing_preview_chrome = existing
+            .as_ref()
             .and_then(|instance| instance.preview_chrome.clone());
 
         if let Some(webview) = app.get_webview(&label) {
@@ -1284,12 +1637,14 @@ impl BrowserManager {
             self.instances.lock().unwrap().insert(
                 workspace_id.to_string(),
                 BrowserInstance {
-                    label,
+                    label: label.clone(),
+                    embedded_label: label,
                     current_url,
                     visible: true,
                     inspect_mode: existing_inspect,
                     zoom_factor: existing_zoom,
                     preview_chrome: existing_preview_chrome.clone(),
+                    popped_out: false,
                 },
             );
 
@@ -1349,12 +1704,14 @@ impl BrowserManager {
         self.instances.lock().unwrap().insert(
             workspace_id.to_string(),
             BrowserInstance {
-                label,
+                label: label.clone(),
+                embedded_label: label,
                 current_url,
                 visible: true,
                 inspect_mode: existing_inspect,
                 zoom_factor: existing_zoom,
                 preview_chrome: existing_preview_chrome.clone(),
+                popped_out: false,
             },
         );
 
@@ -1423,14 +1780,16 @@ impl BrowserManager {
     }
 
     pub fn go_forward(&self, workspace_id: &str) -> Result<()> {
-        self.webview_for_workspace(workspace_id)?
-            .eval("window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.goForward();")?;
+        self.webview_for_workspace(workspace_id)?.eval(
+            "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.goForward();",
+        )?;
         Ok(())
     }
 
     pub fn request_snapshot(&self, workspace_id: &str) -> Result<()> {
-        self.webview_for_workspace(workspace_id)?
-            .eval("window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.exportSnapshot();")?;
+        self.webview_for_workspace(workspace_id)?.eval(
+            "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.exportSnapshot();",
+        )?;
         Ok(())
     }
 
@@ -1449,16 +1808,179 @@ impl BrowserManager {
         Ok(())
     }
 
-    pub fn close(&self, workspace_id: &str) -> Result<()> {
-        let label = self
+    pub fn pop_out(&self, workspace_id: &str, url: &str) -> Result<BrowserViewState> {
+        let app = self.app_handle()?;
+        let embedded_label = self.label_for_workspace(workspace_id);
+        let popout_label = self.popout_label_for_workspace(workspace_id);
+        let resolved_url = resolve_browser_url(url);
+        let existing = self.instances.lock().unwrap().get(workspace_id).cloned();
+        let current_url = existing
+            .as_ref()
+            .and_then(|instance| {
+                app.get_webview(&instance.label)
+                    .and_then(|webview| webview.url().ok())
+                    .map(|value| value.to_string())
+            })
+            .unwrap_or_else(|| {
+                existing
+                    .as_ref()
+                    .map(|instance| instance.current_url.clone())
+                    .unwrap_or(resolved_url)
+            });
+        let inspect_mode = existing
+            .as_ref()
+            .map(|instance| instance.inspect_mode)
+            .unwrap_or(false);
+        let zoom_factor = existing
+            .as_ref()
+            .map(|instance| instance.zoom_factor)
+            .unwrap_or(1.0);
+
+        if let Some(window) = app.get_webview_window(&popout_label) {
+            window.show()?;
+            window.set_focus()?;
+            window.set_zoom(zoom_factor)?;
+            if !browser_urls_match_runtime(
+                window
+                    .url()
+                    .ok()
+                    .as_ref()
+                    .map(|value| value.as_str())
+                    .unwrap_or(""),
+                &current_url,
+            ) {
+                self.navigate_webview_window(&window, &current_url)?;
+            }
+        } else {
+            let parsed_url = Url::parse(&current_url)
+                .with_context(|| format!("Invalid browser URL: {current_url}"))?;
+            let workspace_for_load = workspace_id.to_string();
+            let workspace_for_close = workspace_id.to_string();
+            let popout_for_close = popout_label.clone();
+            let manager_for_load = self.clone();
+            let manager_for_close = self.clone();
+
+            let window = WebviewWindowBuilder::new(
+                &app,
+                popout_label.clone(),
+                WebviewUrl::External(parsed_url),
+            )
+            .title("YzPzCode Browser")
+            .inner_size(1280.0, 820.0)
+            .min_inner_size(480.0, 360.0)
+            .resizable(true)
+            .decorations(true)
+            .accept_first_mouse(true)
+            .initialization_script(BROWSER_INIT_SCRIPT)
+            .on_page_load(move |window, payload| {
+                let _ = manager_for_load.handle_page_load(
+                    workspace_for_load.clone(),
+                    window.as_ref().clone(),
+                    payload.url().to_string(),
+                    payload.event(),
+                );
+            })
+            .build()?;
+
+            window.set_zoom(zoom_factor)?;
+            window.on_window_event(move |event| {
+                if matches!(event, WindowEvent::Destroyed) {
+                    let _ = manager_for_close
+                        .mark_popout_closed(&workspace_for_close, &popout_for_close);
+                }
+            });
+        }
+
+        if let Some(webview) = app.get_webview(&embedded_label) {
+            if embedded_label != popout_label {
+                let _ = webview.close();
+            }
+        }
+
+        self.instances.lock().unwrap().insert(
+            workspace_id.to_string(),
+            BrowserInstance {
+                label: popout_label.clone(),
+                embedded_label,
+                current_url: current_url.clone(),
+                visible: true,
+                inspect_mode,
+                zoom_factor,
+                preview_chrome: None,
+                popped_out: true,
+            },
+        );
+
+        if inspect_mode {
+            self.set_inspect_mode(workspace_id, true)?;
+        }
+
+        self.emit_popout_state(workspace_id, true)?;
+
+        Ok(BrowserViewState {
+            workspace_id: workspace_id.to_string(),
+            label: popout_label,
+            current_url,
+            visible: true,
+            inspect_mode,
+        })
+    }
+
+    pub fn dock(&self, workspace_id: &str) -> Result<()> {
+        let instance = self
             .instances
             .lock()
             .unwrap()
             .get(workspace_id)
-            .map(|instance| instance.label.clone())
+            .cloned()
             .context("Browser view not registered")?;
 
-        if let Some(webview) = self.app_handle()?.get_webview(&label) {
+        if instance.popped_out {
+            let app = self.app_handle()?;
+            let current_url = app
+                .get_webview_window(&instance.label)
+                .and_then(|window| window.url().ok())
+                .map(|value| value.to_string())
+                .unwrap_or(instance.current_url.clone());
+
+            if let Some(window) = app.get_webview_window(&instance.label) {
+                let _ = window.close();
+            }
+
+            self.instances.lock().unwrap().insert(
+                workspace_id.to_string(),
+                BrowserInstance {
+                    label: instance.embedded_label.clone(),
+                    embedded_label: instance.embedded_label,
+                    current_url,
+                    visible: false,
+                    inspect_mode: instance.inspect_mode,
+                    zoom_factor: instance.zoom_factor,
+                    preview_chrome: None,
+                    popped_out: false,
+                },
+            );
+        }
+
+        self.emit_popout_state(workspace_id, false)?;
+        Ok(())
+    }
+
+    pub fn close(&self, workspace_id: &str) -> Result<()> {
+        let instance = self
+            .instances
+            .lock()
+            .unwrap()
+            .get(workspace_id)
+            .cloned()
+            .context("Browser view not registered")?;
+
+        let app = self.app_handle()?;
+        if instance.popped_out {
+            if let Some(window) = app.get_webview_window(&instance.label) {
+                window.close()?;
+            }
+        } else if let Some(webview) = app.get_webview(&instance.label) {
             webview.close()?;
         }
 
@@ -1597,12 +2119,16 @@ impl BrowserManager {
         Ok(())
     }
 
-    pub fn set_preview_chrome(&self, workspace_id: &str, chrome: Option<BrowserPreviewChrome>) -> Result<()> {
+    pub fn set_preview_chrome(
+        &self,
+        workspace_id: &str,
+        chrome: Option<BrowserPreviewChrome>,
+    ) -> Result<()> {
         let webview = self.webview_for_workspace(workspace_id)?;
         webview.eval(preview_chrome_script(chrome.clone()))?;
 
         if let Some(instance) = self.instances.lock().unwrap().get_mut(workspace_id) {
-          instance.preview_chrome = chrome;
+            instance.preview_chrome = chrome;
         }
 
         Ok(())
@@ -1622,7 +2148,11 @@ impl BrowserManager {
         Ok(())
     }
 
-    pub fn set_apply_mode(&self, workspace_id: &str, style_payload: Option<CapturedStyle>) -> Result<()> {
+    pub fn set_apply_mode(
+        &self,
+        workspace_id: &str,
+        style_payload: Option<CapturedStyle>,
+    ) -> Result<()> {
         let webview = self.webview_for_workspace(workspace_id)?;
         webview.eval(apply_mode_script(style_payload))?;
         Ok(())
@@ -1634,11 +2164,7 @@ impl BrowserManager {
         Ok(())
     }
 
-    pub fn handle_style_captured(
-        &self,
-        webview_label: &str,
-        payload: CapturedStyle,
-    ) -> Result<()> {
+    pub fn handle_style_captured(&self, webview_label: &str, payload: CapturedStyle) -> Result<()> {
         let workspace_id = self.workspace_for_label(webview_label)?;
         self.emit_event(BROWSER_STYLE_CAPTURED_EVENT, &payload)?;
         self.emit_event(
@@ -1674,10 +2200,7 @@ impl BrowserManager {
         payload: StyleApplyPayload,
     ) -> Result<()> {
         let _workspace_id = self.workspace_for_label(webview_label)?;
-        self.emit_event(
-            BROWSER_STYLE_APPLIED_EVENT,
-            &payload,
-        )?;
+        self.emit_event(BROWSER_STYLE_APPLIED_EVENT, &payload)?;
         Ok(())
     }
 
@@ -1750,6 +2273,14 @@ impl BrowserManager {
         Ok(())
     }
 
+    fn navigate_webview_window(&self, window: &WebviewWindow, url: &str) -> Result<()> {
+        let resolved_url = resolve_browser_url(url);
+        let parsed = Url::parse(&resolved_url)
+            .with_context(|| format!("Invalid browser URL: {resolved_url}"))?;
+        window.navigate(parsed)?;
+        Ok(())
+    }
+
     fn webview_for_workspace(&self, workspace_id: &str) -> Result<Webview> {
         let label = self
             .instances
@@ -1762,6 +2293,26 @@ impl BrowserManager {
         self.app_handle()?
             .get_webview(&label)
             .context("Browser webview not found")
+    }
+
+    fn mark_popout_closed(&self, workspace_id: &str, popout_label: &str) -> Result<()> {
+        let mut instances = self.instances.lock().unwrap();
+        let Some(instance) = instances.get_mut(workspace_id) else {
+            return Ok(());
+        };
+
+        if !instance.popped_out || instance.label != popout_label {
+            return Ok(());
+        }
+
+        instance.label = instance.embedded_label.clone();
+        instance.visible = false;
+        instance.popped_out = false;
+        instance.preview_chrome = None;
+        drop(instances);
+
+        self.emit_popout_state(workspace_id, false)?;
+        Ok(())
     }
 
     fn workspace_for_label(&self, label: &str) -> Result<String> {
@@ -1793,6 +2344,20 @@ impl BrowserManager {
         format!("browser-{suffix}")
     }
 
+    fn popout_label_for_workspace(&self, workspace_id: &str) -> String {
+        let suffix = workspace_id
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || matches!(c, '-' | '_') {
+                    c
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>();
+        format!("browser-popout-{suffix}")
+    }
+
     fn main_window(&self, app: &AppHandle) -> Result<Window> {
         app.get_window("main").context("Main window not found")
     }
@@ -1808,6 +2373,16 @@ impl BrowserManager {
     fn emit_event<S: Serialize>(&self, event: &str, payload: &S) -> Result<()> {
         self.app_handle()?.emit(event, payload)?;
         Ok(())
+    }
+
+    fn emit_popout_state(&self, workspace_id: &str, popped_out: bool) -> Result<()> {
+        self.emit_event(
+            BROWSER_POPOUT_STATE_EVENT,
+            &BrowserPopoutStatePayload {
+                workspace_id: workspace_id.to_string(),
+                popped_out,
+            },
+        )
     }
 }
 
@@ -1858,7 +2433,8 @@ fn apply_mode_script(style_payload: Option<CapturedStyle>) -> String {
             )
         }
         None => {
-            "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setApplyMode(null);".to_string()
+            "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setApplyMode(null);"
+                .to_string()
         }
     }
 }
@@ -1869,19 +2445,32 @@ fn undo_style_script() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{browser_urls_match, canonicalize_browser_url, resolve_browser_url, DEFAULT_BROWSER_URL};
+    use super::{
+        browser_urls_match, canonicalize_browser_url, resolve_browser_url, DEFAULT_BROWSER_URL,
+    };
 
     #[test]
     fn canonicalizes_default_url_variants() {
-        let canonical_default = canonicalize_browser_url(DEFAULT_BROWSER_URL).expect("default url should parse");
+        let canonical_default =
+            canonicalize_browser_url(DEFAULT_BROWSER_URL).expect("default url should parse");
 
-        assert_eq!(canonical_default, canonicalize_browser_url("http://localhost:3000/").expect("trailing slash should parse"));
-        assert_eq!(canonical_default, canonicalize_browser_url("about:blank").expect("blank should normalize to default"));
+        assert_eq!(
+            canonical_default,
+            canonicalize_browser_url("http://localhost:3000/")
+                .expect("trailing slash should parse")
+        );
+        assert_eq!(
+            canonical_default,
+            canonicalize_browser_url("about:blank").expect("blank should normalize to default")
+        );
     }
 
     #[test]
     fn matches_equivalent_urls_without_forced_reload() {
-        assert!(browser_urls_match("http://localhost:3000", "http://localhost:3000/"));
+        assert!(browser_urls_match(
+            "http://localhost:3000",
+            "http://localhost:3000/"
+        ));
         assert!(browser_urls_match("about:blank", &resolve_browser_url("")));
     }
 }

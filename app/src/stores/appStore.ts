@@ -41,8 +41,8 @@ interface AppState {
   activeSessionByWorkspace: Record<string, string | null>;
   terminalMouseModesBySession: Record<string, number[]>;
   isLoadingTerminals: boolean;
-  view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings";
-  previousView: "nodejs-check" | "setup" | "workspace" | "settings" | null;
+  view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings" | "designer";
+  previousView: "nodejs-check" | "setup" | "workspace" | "settings" | "designer" | null;
   lastOpenedWorkspaceId: string | null;
   terminalError: string | null;
 
@@ -94,8 +94,8 @@ interface AppState {
   discordRichPresence: boolean;
   nodejsCheckPassed: boolean;
 
-  setView: (view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings") => void;
-  setViewWithPrevious: (view: "docs" | "settings") => void;
+  setView: (view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings" | "designer") => void;
+  setViewWithPrevious: (view: "docs" | "settings" | "designer") => void;
   setCurrentWorkspace: (workspace: WorkspaceConfig | null) => void;
   setSessions: (sessions: TerminalSession[]) => void;
   addSession: (session: TerminalSession) => void;
@@ -328,7 +328,7 @@ export const useAppStore = create<AppState>()(
 
       setView: (view) => set({ view }),
       setViewWithPrevious: (view) => set((state) => ({ 
-        previousView: state.view === "docs" || state.view === "settings" ? state.previousView : state.view as "nodejs-check" | "setup" | "workspace" | "settings",
+        previousView: state.view === "docs" || state.view === "settings" || state.view === "designer" ? state.previousView : state.view as "nodejs-check" | "setup" | "workspace" | "settings" | "designer",
         view 
       })),
       setCurrentWorkspace: (workspace) => set({

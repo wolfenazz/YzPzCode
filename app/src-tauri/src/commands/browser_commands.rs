@@ -2,8 +2,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{State, Webview};
 
 use crate::browser::{
-    BrowserBounds, BrowserManager, BrowserPageStateCommandPayload, BrowserSelectedElementPayload,
-    BrowserPreviewChrome, BrowserSnapshotCommandPayload, BrowserUiElementReference, BrowserViewState, CapturedStyle,
+    BrowserBounds, BrowserManager, BrowserPageStateCommandPayload, BrowserPreviewChrome,
+    BrowserSelectedElementPayload, BrowserSnapshotCommandPayload, BrowserUiElementReference,
+    BrowserViewState, CapturedStyle,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,7 +112,29 @@ pub async fn close_browser_view(
     manager: State<'_, BrowserManager>,
     request: BrowserWorkspaceRequest,
 ) -> Result<(), String> {
-    manager.close(&request.workspace_id).map_err(|e| e.to_string())
+    manager
+        .close(&request.workspace_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn pop_out_browser_view(
+    manager: State<'_, BrowserManager>,
+    request: BrowserNavigationRequest,
+) -> Result<BrowserViewState, String> {
+    manager
+        .pop_out(&request.workspace_id, &request.url)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn dock_browser_view(
+    manager: State<'_, BrowserManager>,
+    request: BrowserWorkspaceRequest,
+) -> Result<(), String> {
+    manager
+        .dock(&request.workspace_id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

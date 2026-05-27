@@ -20,11 +20,12 @@ interface WorkspaceProps {
   isWindows: boolean;
   onDocsClick: () => void;
   onSettingsClick: () => void;
+  onDesignerClick: () => void;
 }
 
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick, onDesignerClick }) => {
   const {
     currentWorkspace,
     openWorkspaces,
@@ -279,6 +280,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onWorkspaceClose={handleWorkspaceClose}
         onNewWorkspace={handleNewWorkspace}
         onDocsClick={onDocsClick}
+        onDesignerClick={onDesignerClick}
         onSettingsClick={onSettingsClick}
         isWindows={isWindows}
         onThemeToggle={toggleTheme}

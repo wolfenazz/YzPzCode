@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const Workspace = lazy(() => import('./components/workspace/Workspace').then(m => ({ default: m.Workspace })));
 const DocsScreen = lazy(() => import('./components/docs/DocsScreen').then(m => ({ default: m.DocsScreen })));
 const SettingsScreen = lazy(() => import('./components/settings/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const DesignerPage = lazy(() => import('./components/designer/DesignerPage').then(m => ({ default: m.DesignerPage })));
 
 const LoadingFallback = () => (
   <div className="absolute inset-0 flex items-center justify-center bg-theme">
@@ -133,6 +134,10 @@ function App() {
     setViewWithPrevious('settings');
   };
 
+  const handleDesignerClick = () => {
+    setViewWithPrevious('designer');
+  };
+
   const handleBackFromDocs = () => {
     if (previousView) {
       setView(previousView);
@@ -142,6 +147,14 @@ function App() {
   };
 
   const handleBackFromSettings = () => {
+    if (previousView) {
+      setView(previousView);
+    } else {
+      setView('setup');
+    }
+  };
+
+  const handleBackFromDesigner = () => {
     if (previousView) {
       setView(previousView);
     } else {
@@ -180,6 +193,7 @@ function App() {
               isWindows={isWindows} 
               onDocsClick={handleDocsClick}
               onSettingsClick={handleSettingsClick}
+              onDesignerClick={handleDesignerClick}
             />
           )}
           {view === 'workspace' && (
@@ -188,6 +202,7 @@ function App() {
                 isWindows={isWindows} 
                 onDocsClick={handleDocsClick}
                 onSettingsClick={handleSettingsClick}
+                onDesignerClick={handleDesignerClick}
               />
             </Suspense>
           )}
@@ -212,6 +227,14 @@ function App() {
               />
             </Suspense>
           )}
+          {view === 'designer' && (
+            <Suspense fallback={<LoadingFallback />}>
+              <DesignerPage
+                isWindows={isWindows}
+                onBack={handleBackFromDesigner}
+              />
+            </Suspense>
+          )}
         </motion.div>
       </AnimatePresence>
       <UpdateNotification />
@@ -219,6 +242,7 @@ function App() {
         theme={theme}
         onThemeToggle={toggleTheme}
         onDocsClick={handleDocsClick}
+        onDesignerClick={handleDesignerClick}
         onNewWorkspace={() => setView('setup')}
       />
       {customCursor && <CustomCursor />}

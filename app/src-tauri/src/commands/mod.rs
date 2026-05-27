@@ -1,5 +1,5 @@
-mod browser_commands;
 mod agent_commands;
+mod browser_commands;
 mod cli_commands;
 mod discord_commands;
 mod external_terminals;
@@ -9,8 +9,8 @@ mod ide_commands;
 mod terminal_commands;
 mod window_commands;
 
-pub use browser_commands::*;
 pub use agent_commands::*;
+pub use browser_commands::*;
 pub use cli_commands::*;
 pub use discord_commands::*;
 pub use external_terminals::*;

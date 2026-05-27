@@ -143,6 +143,11 @@ export interface BrowserViewState {
   inspectMode: boolean;
 }
 
+export interface BrowserPopoutStatePayload {
+  workspaceId: string;
+  poppedOut: boolean;
+}
+
 export type BrowserDeviceId =
   | "responsive"
   | "desktop"
@@ -237,9 +242,29 @@ export interface CapturedStyle {
 export interface CapturedUiElementNode {
   tagName: string;
   role: string | null;
+  id?: string | null;
   className: string | null;
+  attributes?: Record<string, string>;
   textPreview: string;
+  htmlSnippet?: string;
+  rect?: BrowserElementRect;
+  computedStyles?: Record<string, string>;
+  pseudoBefore?: Record<string, string> | null;
+  pseudoAfter?: Record<string, string> | null;
+  layout?: CapturedUiElementLayout;
+  spacing?: CapturedUiElementSpacing;
+  typography?: CapturedUiElementTypography;
+  visuals?: CapturedUiElementVisuals;
+  assets?: CapturedUiElementAsset[];
   childCount: number;
+  capturedChildCount?: number;
+  truncatedChildren?: boolean;
+  captureStats?: {
+    capturedNodeCount: number;
+    maxNodes: number;
+    maxDepth: number;
+    maxChildrenPerNode: number;
+  };
   children: CapturedUiElementNode[];
 }
 

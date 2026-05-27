@@ -1,8 +1,8 @@
-mod session;
 mod managed;
+mod session;
 
-pub use session::PtySession;
 pub use managed::{ManagedCommandManager, ManagedCommandState};
+pub use session::PtySession;
 
 use anyhow::Result;
 use std::collections::HashMap;

@@ -87,7 +87,10 @@ pub async fn launch_external_command(request: LaunchExternalCommandRequest) -> R
     }
 }
 
-#[cfg(any(target_os = "macos", all(not(target_os = "windows"), not(target_os = "macos"))))]
+#[cfg(any(
+    target_os = "macos",
+    all(not(target_os = "windows"), not(target_os = "macos"))
+))]
 fn shell_quote_single(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
@@ -153,7 +156,10 @@ fn launch_external_command_linux(workspace_path: &str, command: &str) -> Result<
             .args(["-e", "bash", "-lc", &shell_command])
             .spawn(),
         "xfce4-terminal" => Command::new("xfce4-terminal")
-            .args(["--command", &format!("bash -lc \"{}\"", shell_command.replace('"', "\\\""))])
+            .args([
+                "--command",
+                &format!("bash -lc \"{}\"", shell_command.replace('"', "\\\"")),
+            ])
             .spawn(),
         _ => Command::new("x-terminal-emulator")
             .args(["-e", "bash", "-lc", &shell_command])

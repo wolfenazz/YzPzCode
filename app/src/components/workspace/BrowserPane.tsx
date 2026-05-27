@@ -8,6 +8,7 @@ import type {
   BrowserDevicePreset,
   BrowserElementSelectedEventPayload,
   BrowserInspectModePayload,
+  BrowserPopoutStatePayload,
   BrowserPreviewChrome,
   BrowserUiIntegrationMode,
   CapturedUiElementReference,
@@ -324,6 +325,10 @@ const formatUiReferencePrompt = (
   targetElement: BrowserSelectedElement | null,
 ): string => {
   const structurePreview = JSON.stringify(reference.structure, null, 2);
+  const captureStats = reference.structure.captureStats;
+  const subtreePreview = captureStats
+    ? `${captureStats.capturedNodeCount} nodes captured, up to depth ${captureStats.maxDepth} and ${captureStats.maxChildrenPerNode} children per node`
+    : `${reference.structure.childCount} direct child elements captured`;
   const assetPreview = reference.assets.length > 0
     ? reference.assets.map((asset) => `${asset.type}: ${asset.sourceUrl}`).join('\n')
     : 'none';
@@ -355,11 +360,13 @@ const formatUiReferencePrompt = (
     ``,
     `Mode: ${mode}`,
     `Important: use the captured element only as a design reference. Do not copy proprietary code or sensitive text verbatim. Recreate it in clean, maintainable project-native code.`,
+    `Important: treat the captured subtree as the full component reference. Recreate the selected component together with its nested child elements, internal layout, media/icons, states, and text hierarchy represented below.`,
     ``,
     `Source reference:`,
     `- Page URL: ${reference.sourceUrl}`,
     `- Page title: ${reference.pageTitle || 'Untitled page'}`,
     `- Component label: ${reference.componentLabel}`,
+    `- Captured subtree: ${subtreePreview}`,
     `- Selector: ${reference.selector}`,
     `- Tag: <${reference.tagName}>`,
     `- Viewport: ${reference.viewport.width} x ${reference.viewport.height}`,
@@ -485,6 +492,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   const loadStartRef = useRef<number | null>(null);
   const lastNavigatedTabRef = useRef<string | null>(null);
   const lastSyncedBoundsKeyRef = useRef<string | null>(null);
+  const isPoppedOutRef = useRef(false);
   const browserStateByWorkspace = useAppStore((state) => state.browserStateByWorkspace);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspace = useAppStore((state) => state.currentWorkspace);
@@ -520,6 +528,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nativeBrowserReady, setNativeBrowserReady] = useState(false);
+  const [isPoppedOut, setIsPoppedOut] = useState(false);
   const [hostSize, setHostSize] = useState({ width: 0, height: 0 });
   const [pageTitle, setPageTitle] = useState('');
   const [historyLength, setHistoryLength] = useState(1);
@@ -537,6 +546,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     setBrowserInspectMode,
     setBrowserZoom,
     setBrowserPreviewChrome,
+    popOutBrowserView,
+    dockBrowserView,
     goBackBrowserView,
     goForwardBrowserView,
     exportBrowserSnapshot,
@@ -650,6 +661,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   }, [ensureBrowserState, workspaceId]);
 
   useEffect(() => {
+    isPoppedOutRef.current = isPoppedOut;
+  }, [isPoppedOut]);
+
+  useEffect(() => {
     if (!browserState) return;
     if (browserState.currentUrl === 'about:blank' || browserState.draftUrl === 'about:blank') {
       setBrowserCurrentUrl(workspaceId, FALLBACK_URL);
@@ -687,6 +702,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   }, []);
 
   const syncBrowserBounds = useCallback(async () => {
+    if (isPoppedOut) return;
+
     const viewport = previewViewportRef.current;
     if (!viewport) return;
 
@@ -724,6 +741,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     }
   }, [
     ensureBrowserView,
+    isPoppedOut,
     resolvedCurrentUrl,
     workspaceId,
   ]);
@@ -767,12 +785,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     viewportMetrics.stageWidth,
     viewportMetrics.viewportHeight,
     viewportMetrics.viewportWidth,
+    isPoppedOut,
   ]);
 
   useEffect(() => {
     return () => {
       setNativeBrowserReady(false);
-      void setBrowserViewVisibility(workspaceId, false).catch(() => undefined);
+      if (!isPoppedOutRef.current) {
+        void setBrowserViewVisibility(workspaceId, false).catch(() => undefined);
+      }
     };
   }, [setBrowserViewVisibility, workspaceId]);
 
@@ -814,6 +835,16 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       listen<BrowserInspectModePayload>('browser-inspect-mode-changed', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
         setBrowserInspectModeState(workspaceId, event.payload.enabled);
+      }),
+      listen<BrowserPopoutStatePayload>('browser-popout-state', (event) => {
+        if (event.payload.workspaceId !== workspaceId) return;
+        setIsPoppedOut(event.payload.poppedOut);
+        if (event.payload.poppedOut) {
+          setNativeBrowserReady(true);
+          return;
+        }
+        lastSyncedBoundsKeyRef.current = null;
+        setNativeBrowserReady(false);
       }),
       listen<BrowserSnapshotPayload>('browser-snapshot-ready', async (event) => {
         const context = browserEventContextRef.current;
@@ -906,7 +937,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   }, [effectiveState.zoomFactor, nativeBrowserReady, setBrowserZoom, workspaceId]);
 
   useEffect(() => {
-    if (!nativeBrowserReady) return;
+    if (!nativeBrowserReady || isPoppedOut) return;
 
     const chrome: BrowserPreviewChrome | null = viewportMetrics.kind === 'responsive'
       ? null
@@ -929,6 +960,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     });
   }, [
     nativeBrowserReady,
+    isPoppedOut,
     setBrowserPreviewChrome,
     effectiveState.deviceOrientation,
     viewportMetrics.kind,
@@ -1098,6 +1130,41 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       setError(err instanceof Error ? err.message : String(err));
     }
   }, [resolvedCurrentUrl]);
+
+  const handleTogglePopout = useCallback(async () => {
+    try {
+      if (isPoppedOut) {
+        await dockBrowserView(workspaceId);
+        setIsPoppedOut(false);
+        setNativeBrowserReady(false);
+        lastSyncedBoundsKeyRef.current = null;
+        setError(null);
+        return;
+      }
+
+      if (!nativeBrowserReady) {
+        await syncBrowserBounds();
+      }
+
+      const state = await popOutBrowserView(workspaceId, resolvedCurrentUrl);
+      setBrowserCurrentUrl(workspaceId, state.currentUrl);
+      setIsPoppedOut(true);
+      setNativeBrowserReady(true);
+      lastSyncedBoundsKeyRef.current = null;
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [
+    dockBrowserView,
+    isPoppedOut,
+    nativeBrowserReady,
+    popOutBrowserView,
+    resolvedCurrentUrl,
+    setBrowserCurrentUrl,
+    syncBrowserBounds,
+    workspaceId,
+  ]);
 
   const handleExportSnapshot = useCallback(async () => {
     if (!currentWorkspace?.path) {
@@ -1432,6 +1499,32 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
                 <Icon icon="material-symbols:open-in-new-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
               <button
+                onClick={() => void handleTogglePopout()}
+                title={isPoppedOut ? 'Dock browser here' : 'Open in app window'}
+                aria-label={isPoppedOut ? 'Dock browser here' : 'Open browser in app window'}
+                aria-pressed={isPoppedOut}
+                className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
+                  isPoppedOut
+                    ? 'border-violet-400/35 bg-violet-500/10 text-violet-300 shadow-[0_0_12px_rgba(167,139,250,0.15)]'
+                    : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600'
+                }`}
+              >
+                <svg
+                  className="h-3.5 w-3.5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <rect x="4.5" y="6.5" width="10" height="10" rx="1.8" />
+                  <path d="M10.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5V13" />
+                  <path d="M13.5 10.5 19.5 4.5" />
+                </svg>
+              </button>
+              <button
                 onClick={() => void handleExportSnapshot()}
                 title="Export snapshot"
                 aria-label="Export page snapshot"
@@ -1671,7 +1764,43 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
             >
               <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px]" />
 
-              {activeDevice.id === 'responsive' ? (
+              {isPoppedOut ? (
+                <div className="absolute inset-0 flex items-center justify-center p-6">
+                  <div className="flex max-w-[320px] flex-col items-center gap-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 px-5 py-4 text-center shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-sm">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-violet-400/25 bg-violet-500/10 text-violet-300">
+                      <Icon icon="material-symbols:select-window-2-outline-rounded" className="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-primary)]">
+                        Detached browser
+                      </div>
+                      <div className="mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]/65">
+                        {pageTitle ? pageTitle.slice(0, 34) : 'active preview'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void handleTogglePopout()}
+                      className="inline-flex h-7 items-center gap-1.5 rounded-md border border-violet-400/25 bg-violet-500/10 px-3 text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200 hover:border-violet-300/45 hover:bg-violet-500/15 transition-colors cursor-pointer"
+                    >
+                      <svg
+                        className="h-3.5 w-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <rect x="4.5" y="6.5" width="10" height="10" rx="1.8" />
+                        <path d="M10.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5V13" />
+                        <path d="M13.5 10.5 19.5 4.5" />
+                      </svg>
+                      Dock
+                    </button>
+                  </div>
+                </div>
+              ) : activeDevice.id === 'responsive' ? (
                 <div
                   ref={previewViewportRef}
                   className="absolute inset-0 overflow-hidden bg-zinc-950/30"
@@ -1697,7 +1826,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
 
             {/* Booting Overlay */}
             <AnimatePresence>
-              {!nativeBrowserReady && (
+              {!nativeBrowserReady && !isPoppedOut && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
