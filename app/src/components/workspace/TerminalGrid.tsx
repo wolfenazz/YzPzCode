@@ -432,8 +432,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
         <button
           onClick={() => setShowNewDialog(true)}
           className={`group/init relative flex items-center gap-2 px-3.5 py-1.5 ${
-            isLight 
-              ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700' 
+            isLight
+              ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
               : 'bg-zinc-900/90 text-zinc-200 border-zinc-700/90 hover:bg-zinc-800/95'
           } border rounded-xl text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 active:scale-95 active:translate-y-0 cursor-pointer shadow-[0_10px_26px_rgba(0,0,0,0.32)] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)]`}
           title="Initialize new TTY"
@@ -444,7 +444,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
             </svg>
           </div>
           <span className="relative">Initialize_TTY</span>
-          
+
           <div className={`absolute inset-0 rounded-lg opacity-0 group-hover/init:opacity-100 transition-opacity duration-500 pointer-events-none ${
             isLight ? 'bg-white/5' : 'bg-white/5'
           }`} />

@@ -110,7 +110,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7h16M4 12h10M4 17h16M17 10l3 2-3 2" />
         </svg>
-        Designer
+        YzPzDesgin
       </button>
 
       <button

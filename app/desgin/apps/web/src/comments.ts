@@ -1,0 +1,428 @@
+import type {
+  ChatCommentAttachment,
+  ChatCommentSelectionKind,
+  ChatMessage,
+  PreviewAnnotationStyle,
+  PreviewCommentMember,
+  PreviewComment,
+  PreviewCommentSelectionKind,
+  PreviewCommentTarget,
+  PreviewVisualMarkKind,
+} from './types';
+
+export interface PreviewCommentSnapshot {
+  filePath: string;
+  elementId: string;
+  selector: string;
+  label: string;
+  text: string;
+  position: { x: number; y: number; width: number; height: number };
+  hoverPoint?: { x: number; y: number };
+  htmlHint: string;
+  style?: PreviewAnnotationStyle;
+  selectionKind?: PreviewCommentSelectionKind;
+  memberCount?: number;
+  podMembers?: PreviewCommentMember[];
+}
+
+export interface CommentOverlayBounds {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+export interface VisualAnnotationTarget {
+  filePath: string;
+  elementId?: string;
+  selector?: string;
+  label?: string;
+  text?: string;
+  position?: { x: number; y: number; width: number; height: number };
+  htmlHint?: string;
+  style?: PreviewAnnotationStyle;
+}
+
+export interface VisualAnnotationAttachmentInput {
+  order: number;
+  idSeed?: string;
+  screenshotPath: string;
+  markKind: PreviewVisualMarkKind;
+  note: string;
+  bounds: { x: number; y: number; width: number; height: number };
+  target?: VisualAnnotationTarget | null;
+}
+
+export function isInternalCommentTargetName(value: string | undefined | null): boolean {
+  const trimmed = String(value ?? '').trim();
+  return /^path-\d+(?:-\d+)*$/.test(trimmed);
+}
+
+export function commentTargetDisplayName(
+  target: {
+    elementId?: string | null;
+    label?: string | null;
+    selectionKind?: ChatCommentSelectionKind | PreviewCommentSelectionKind | null;
+  },
+  fallback = 'Annotation',
+): string {
+  if (target.selectionKind === 'visual') return 'Visual mark';
+  const label = String(target.label ?? '').trim();
+  if (label && !isInternalCommentTargetName(label)) return label;
+  const elementId = String(target.elementId ?? '').trim();
+  if (elementId && !isInternalCommentTargetName(elementId)) return elementId;
+  return fallback;
+}
+
+export function targetFromSnapshot(snapshot: PreviewCommentSnapshot): PreviewCommentTarget {
+  const podMembers = normalizeMembers(snapshot.podMembers);
+  return {
+    filePath: snapshot.filePath,
+    elementId: snapshot.elementId,
+    selector: snapshot.selector,
+    label: snapshot.label,
+    text: trimContextText(snapshot.text),
+    position: normalizePosition(snapshot.position),
+    htmlHint: trimHtmlHint(snapshot.htmlHint),
+    style: normalizeStyle(snapshot.style),
+    selectionKind: snapshot.selectionKind === 'pod' ? 'pod' : 'element',
+    memberCount:
+      snapshot.selectionKind === 'pod'
+        ? (podMembers.length > 0
+            ? podMembers.length
+            : Number.isFinite(snapshot.memberCount)
+              ? Math.round(snapshot.memberCount as number)
+              : 0)
+        : undefined,
+    podMembers: podMembers.length > 0 ? podMembers : undefined,
+  };
+}
+
+export function overlayBoundsFromSnapshot(
+  snapshot: PreviewCommentSnapshot,
+  scale: number,
+): CommentOverlayBounds {
+  const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  const position = normalizePosition(snapshot.position);
+  return {
+    left: position.x * safeScale,
+    top: position.y * safeScale,
+    width: Math.max(1, position.width * safeScale),
+    height: Math.max(1, position.height * safeScale),
+  };
+}
+
+export function liveSnapshotForComment(
+  comment: PreviewComment,
+  snapshots: Map<string, PreviewCommentSnapshot>,
+): PreviewCommentSnapshot | null {
+  const snapshot = snapshots.get(comment.elementId);
+  if (snapshot && snapshot.filePath === comment.filePath) return snapshot;
+  if (!comment.elementId.startsWith('pin-')) return null;
+  return {
+    filePath: comment.filePath,
+    elementId: comment.elementId,
+    selector: comment.selector,
+    label: comment.label,
+    text: trimContextText(comment.text),
+    position: normalizePosition(comment.position),
+    htmlHint: trimHtmlHint(comment.htmlHint),
+    style: normalizeStyle(comment.style),
+    selectionKind: comment.selectionKind === 'pod' ? 'pod' : 'element',
+    memberCount: comment.memberCount,
+    podMembers: normalizeMembers(comment.podMembers),
+  };
+}
+
+export function commentToAttachment(
+  comment: PreviewComment,
+  order: number,
+): ChatCommentAttachment {
+  const podMembers = normalizeMembers(comment.podMembers);
+  return {
+    id: comment.id,
+    order,
+    filePath: comment.filePath,
+    elementId: comment.elementId,
+    selector: comment.selector,
+    label: comment.label,
+    comment: comment.note,
+    currentText: trimContextText(comment.text),
+    pagePosition: normalizePosition(comment.position),
+    htmlHint: trimHtmlHint(comment.htmlHint),
+    style: normalizeStyle(comment.style),
+    selectionKind: comment.selectionKind === 'pod' ? 'pod' : 'element',
+    memberCount:
+      comment.selectionKind === 'pod'
+        ? (podMembers.length > 0
+            ? podMembers.length
+            : typeof comment.memberCount === 'number'
+              ? Math.round(comment.memberCount)
+              : 0)
+        : undefined,
+    podMembers: podMembers.length > 0 ? podMembers : undefined,
+    source: 'saved-comment',
+  };
+}
+
+export function commentsToAttachments(comments: PreviewComment[]): ChatCommentAttachment[] {
+  return comments.map((comment, index) => commentToAttachment(comment, index + 1));
+}
+
+export function buildBoardCommentAttachments(input: {
+  target: PreviewCommentTarget;
+  notes: string[];
+}): ChatCommentAttachment[] {
+  const podMembers = normalizeMembers(input.target.podMembers);
+  const selectionKind = input.target.selectionKind === 'pod' ? 'pod' : 'element';
+  const memberCount =
+    selectionKind === 'pod'
+      ? (podMembers.length > 0
+          ? podMembers.length
+          : typeof input.target.memberCount === 'number'
+            ? Math.round(input.target.memberCount)
+            : 0)
+      : undefined;
+  return input.notes
+    .map((note) => note.trim())
+    .filter(Boolean)
+    .map((note, index) => ({
+      id: `${input.target.elementId}-board-${index + 1}`,
+      order: index + 1,
+      filePath: input.target.filePath,
+      elementId: input.target.elementId,
+      selector: input.target.selector,
+      label: input.target.label,
+      comment: note,
+      currentText: trimContextText(input.target.text),
+      pagePosition: normalizePosition(input.target.position),
+      htmlHint: trimHtmlHint(input.target.htmlHint),
+      style: normalizeStyle(input.target.style),
+      selectionKind,
+      memberCount,
+      podMembers: podMembers.length > 0 ? podMembers : undefined,
+      source: 'board-batch',
+    }));
+}
+
+export function buildVisualAnnotationAttachment(input: VisualAnnotationAttachmentInput): ChatCommentAttachment {
+  const target = input.target ?? null;
+  const intent = visualAnnotationIntent(input.markKind);
+  const visualId = sanitizeVisualAttachmentId(input.idSeed || input.screenshotPath || String(input.order));
+  const elementId = target?.elementId?.trim() || `visual-mark-${visualId}`;
+  const label = target?.label?.trim() || 'Marked screenshot region';
+  const comment = input.note.trim() || intent;
+  return {
+    id: `${elementId}-visual-${visualId}`,
+    order: input.order,
+    filePath: target?.filePath?.trim() || input.screenshotPath,
+    elementId,
+    selector: target?.selector?.trim() || '',
+    label,
+    comment,
+    currentText: trimContextText(target?.text || ''),
+    pagePosition: normalizePosition(target?.position ?? input.bounds),
+    htmlHint: trimHtmlHint(target?.htmlHint || ''),
+    style: normalizeStyle(target?.style),
+    selectionKind: 'visual',
+    screenshotPath: input.screenshotPath,
+    markKind: input.markKind,
+    intent,
+    source: 'board-batch',
+  };
+}
+
+function sanitizeVisualAttachmentId(value: string): string {
+  const id = value.trim().replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
+  return id || 'mark';
+}
+
+export function messageContentWithCommentAttachments(
+  content: string,
+  commentAttachments: ChatCommentAttachment[],
+): string {
+  if (commentAttachments.length === 0) return content;
+  const visibleContent = content.trim() || '(No extra typed instruction.)';
+  return `${visibleContent}${renderCommentAttachmentContext(commentAttachments)}`;
+}
+
+export function historyWithCommentAttachmentContext(
+  history: ChatMessage[],
+  messageId: string,
+): ChatMessage[] {
+  return history.map((message) => {
+    const commentAttachments = message.commentAttachments ?? [];
+    if (message.id !== messageId || message.role !== 'user' || commentAttachments.length === 0) return message;
+    return {
+      ...message,
+      content: messageContentWithCommentAttachments(message.content, commentAttachments),
+    };
+  });
+}
+
+export function mergeAttachedComments(
+  current: PreviewComment[],
+  next: PreviewComment,
+): PreviewComment[] {
+  const byId = new Map(current.map((comment) => [comment.id, comment]));
+  byId.set(next.id, next);
+  return Array.from(byId.values());
+}
+
+export function removeAttachedComment(
+  current: PreviewComment[],
+  commentId: string,
+): PreviewComment[] {
+  return current.filter((comment) => comment.id !== commentId);
+}
+
+export function simplePositionLabel(position: PreviewComment['position']): string {
+  const normalized = normalizePosition(position);
+  return `x${normalized.x} y${normalized.y}`;
+}
+
+export function selectionKindLabel(
+  selectionKind: ChatCommentSelectionKind | undefined,
+  memberCount?: number,
+): string {
+  if (selectionKind === 'visual') return 'Visual mark';
+  if (selectionKind === 'pod') {
+    return memberCount && memberCount > 0 ? `Pod · ${memberCount} items` : 'Pod';
+  }
+  return 'Element';
+}
+
+export function trimContextText(value: string): string {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > 160 ? `${text.slice(0, 157)}...` : text;
+}
+
+export function trimHtmlHint(value: string): string {
+  const text = String(value || '').replace(/\s+/g, ' ').trim();
+  return text.length > 180 ? `${text.slice(0, 177)}...` : text;
+}
+
+function renderCommentAttachmentContext(commentAttachments: ChatCommentAttachment[]): string {
+  const lines = [
+    '',
+    '',
+    '<attached-preview-comments>',
+    'Scope: apply the user request to the attached preview target by default. For visual marks, inspect the screenshot and modify the marked region first. Preserve unrelated elements.',
+  ];
+  commentAttachments.forEach((item) => {
+    const position = normalizePosition(item.pagePosition);
+    const selectionKind =
+      item.selectionKind === 'visual' ? 'visual' : item.selectionKind === 'pod' ? 'pod' : 'element';
+    lines.push(
+      '',
+      `${item.order}. ${item.elementId}`,
+      `targetKind: ${selectionKind}`,
+      `file: ${item.filePath}`,
+      `label: ${item.label || '(unlabeled)'}`,
+      `position: x${position.x} y${position.y} ${position.width}x${position.height}`,
+      `currentText: ${trimContextText(item.currentText || '') || '(empty)'}`,
+      `htmlHint: ${trimHtmlHint(item.htmlHint || '') || '(none)'}`,
+      `computedStyle: ${formatAnnotationStyle(item.style) || '(none)'}`,
+      `comment: ${item.comment}`,
+    );
+    if (selectionKind === 'visual') {
+      lines.push(
+        `screenshot: ${item.screenshotPath || '(missing)'}`,
+        `markKind: ${item.markKind || 'stroke'}`,
+        `intent: ${item.intent || visualAnnotationIntent(item.markKind || 'stroke')}`,
+      );
+      if (item.selector) lines.push(`selector: ${item.selector}`);
+    } else {
+      lines.splice(lines.length - 4, 0, `selector: ${item.selector}`);
+    }
+    if (selectionKind === 'pod') {
+      lines.push(`memberCount: ${item.memberCount || item.podMembers?.length || 0}`);
+      (item.podMembers ?? []).slice(0, 8).forEach((member, memberIndex) => {
+        lines.push(
+          `member.${memberIndex + 1}: ${member.elementId} | ${member.label || '(unlabeled)'} | ${member.selector}`,
+        );
+        const memberStyle = formatAnnotationStyle(member.style);
+        if (memberStyle) lines.push(`member.${memberIndex + 1}.computedStyle: ${memberStyle}`);
+      });
+    }
+  });
+  lines.push('</attached-preview-comments>');
+  return lines.join('\n');
+}
+
+function visualAnnotationIntent(markKind: PreviewVisualMarkKind): string {
+  if (markKind === 'click') {
+    return 'The screenshot has a blue focus box around the picked element; modify that picked part first.';
+  }
+  if (markKind === 'click+stroke') {
+    return 'The screenshot has a blue focus box and red strokes; together they identify the part the user wants changed.';
+  }
+  return 'The screenshot has red strokes that identify the visual region the user wants changed.';
+}
+
+function normalizePosition(input: PreviewComment['position']): PreviewComment['position'] {
+  return {
+    x: finite(input?.x),
+    y: finite(input?.y),
+    width: finite(input?.width),
+    height: finite(input?.height),
+  };
+}
+
+function finite(value: number | undefined): number {
+  return Number.isFinite(value) ? Math.round(value as number) : 0;
+}
+
+function normalizeMembers(input: PreviewCommentMember[] | undefined): PreviewCommentMember[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .map((member) => ({
+      elementId: String(member.elementId || '').trim(),
+      selector: String(member.selector || '').trim(),
+      label: String(member.label || '').trim(),
+      text: trimContextText(String(member.text || '')),
+      position: normalizePosition(member.position),
+      htmlHint: trimHtmlHint(String(member.htmlHint || '')),
+      style: normalizeStyle(member.style),
+    }))
+    .filter((member) => member.elementId && member.selector);
+}
+
+function normalizeStyle(input: unknown): PreviewAnnotationStyle | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const raw = input as Record<string, unknown>;
+  const style: PreviewAnnotationStyle = {};
+  for (const key of ANNOTATION_STYLE_KEYS) {
+    const value = raw[key];
+    if (typeof value !== 'string') continue;
+    const trimmed = value.replace(/\s+/g, ' ').trim();
+    if (trimmed) style[key] = trimmed.slice(0, 120);
+  }
+  return Object.keys(style).length > 0 ? style : undefined;
+}
+
+function formatAnnotationStyle(style: PreviewAnnotationStyle | undefined): string {
+  if (!style) return '';
+  return ANNOTATION_STYLE_KEYS
+    .map((key) => {
+      const value = style[key];
+      return value ? `${key}: ${value}` : null;
+    })
+    .filter((item): item is string => Boolean(item))
+    .join('; ');
+}
+
+const ANNOTATION_STYLE_KEYS = [
+  'color',
+  'backgroundColor',
+  'fontSize',
+  'fontWeight',
+  'lineHeight',
+  'textAlign',
+  'fontFamily',
+  'paddingTop',
+  'paddingRight',
+  'paddingBottom',
+  'paddingLeft',
+  'borderRadius',
+] as const;

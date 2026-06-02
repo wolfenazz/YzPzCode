@@ -6,7 +6,7 @@
 
 <p><strong>Your AI Coding Squad, One Window Away.</strong></p>
 
-<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, and Cursor together in one clean interface.</i></p>
+<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, and Hermes together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, and an AI-powered designer.</i></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=for-the-badge&logo=github&color=yellow)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app)
@@ -33,6 +33,7 @@
 </div>
 
 ---
+
 <p><i>Note: This app is under development, and maybe some features do not work probably. We are keeping updating the app more and more. In the future everything will be work Fully</i></p>
 
 - The Problem
@@ -42,8 +43,9 @@
 | [!] The Old Way | [+] The YzPzCode Way |
 |:--------------:|:-------------------:|
 | Three terminal windows | **One app** |
-| Three different CLIs | **All agents inside** |
+| Three different CLIs | **All 7 AI agents inside** |
 | Alt-tabbing like a maniac | **Side-by-side grid** |
+| Separate browser for devtools | **In-app browser with inspector** |
 | Copy-pasting between them | **Compare instantly** |
 | Losing your mind | **Stay in flow** |
 
@@ -80,7 +82,7 @@
 
 <table>
 <tr>
-<td><b>Multi-Agent Grid</b><br><sub>Run Claude, Gemini, and Codex in synchronized, side-by-side views.</sub></td>
+<td><b>Multi-Agent Grid</b><br><sub>Run Claude, Gemini, Codex, Kilo, and more in synchronized, side-by-side views.</sub></td>
 <td><b>Automated Initialization</b><br><sub>Instantly detect and configure locally installed CLIs.</sub></td>
 <td><b>Workspace Presets</b><br><sub>Save and restore optimal agent combinations for specific workflows.</sub></td>
 <td><b>Native Terminals</b><br><sub>Powered by actual PTY sessions for authentic CLI interaction.</sub></td>
@@ -92,10 +94,22 @@
 <td><b>Git Integration</b><br><sub>Monitor repository status and diff statistics at a glance.</sub></td>
 </tr>
 <tr>
-<td><b>Multi-Tab Editor</b><br><sub>Built-in syntax highlighting and file preview capabilities.</sub></td>
+<td><b>Multi-Tab Editor</b><br><sub>Built-in CodeMirror 6 with syntax highlighting, minimap, and file previews.</sub></td>
 <td><b>IDE Integration</b><br><sub>Seamlessly launch into over 10 supported development environments.</sub></td>
 <td><b>Authentication Tracking</b><br><sub>Monitor credential states across all active CLI tools.</sub></td>
 <td><b>Continuous Delivery</b><br><sub>Automated update mechanisms ensure access to the latest features.</sub></td>
+</tr>
+<tr>
+<td><b>In-App Browser</b><br><sub>Webview-based browser with tabs, zoom, device presets, and snapshot export.</sub></td>
+<td><b>Visual Design Inspector</b><br><sub>Inspect, capture, and apply styles from any webpage.</sub></td>
+<td><b>AI Designer</b><br><sub>Prompt-based UI design generation with live preview and code export.</sub></td>
+<td><b>Discord Rich Presence</b><br><sub>Show your workspace and activity on your Discord profile.</sub></td>
+</tr>
+<tr>
+<td><b>Tool CLI Management</b><br><sub>Detect, install, and auth-check 10 SaaS CLIs (GitHub, Stripe, Supabase, Vercel, and more).</sub></td>
+<td><b>Multi-Workspace</b><br><sub>Multiple open workspaces with tab switching and per-workspace state.</sub></td>
+<td><b>Managed Commands</b><br><sub>Run non-interactive commands with status tracking and PID monitoring.</sub></td>
+<td><b>UI Customization</b><br><sub>8 accent colors, 3 density levels, custom cursor, and animations toggle.</sub></td>
 </tr>
 </table>
 
@@ -107,30 +121,99 @@
 
 <table>
 <tr>
-<td align="center" width="140">
+<td align="center" width="120">
 <img src="app/src/assets/claude.png" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Claude</b><br><code>claude</code><br><sub>Deep reasoning, patient explanations</sub>
 </td>
-<td align="center" width="140">
+<td align="center" width="120">
 <img src="app/src/assets/gemini-cli-logo.svg" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Gemini</b><br><code>gemini</code><br><sub>Fast, multimodal, Google's finest</sub>
 </td>
-<td align="center" width="140">
+<td align="center" width="120">
 <img src="app/src/assets/codex.png" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Codex</b><br><code>codex</code><br><sub>Code generation that works</sub>
 </td>
-<td align="center" width="140">
+<td align="center" width="120">
 <img src="app/src/assets/opencode.png" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Opencode</b><br><code>opencode</code><br><sub>Open-source freedom</sub>
 </td>
-<td align="center" width="140">
+<td align="center" width="120">
 <img src="app/src/assets/cursor-ai.png" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Cursor</b><br><code>cursor</code><br><sub>IDE-level AI assistance</sub>
+</td>
+<td align="center" width="120">
+<img src="app/src/assets/kiloCode.gif" width="48" height="48" style="border-radius:12px"/>
+<br><br><b>Kilo</b><br><code>kilo</code><br><sub>Code agent for any task</sub>
+</td>
+<td align="center" width="120">
+<img src="app/src/assets/Hermes-logo.png" width="48" height="48" style="border-radius:12px"/>
+<br><br><b>Hermes</b><br><code>hermes</code><br><sub>Fast, efficient coding agent</sub>
 </td>
 </tr>
 </table>
 
 </div>
+
+---
+
+## - SaaS Tool CLIs
+
+YzPzCode also manages and auth-checks these 10 tool CLIs:
+
+<div align="center">
+
+<table>
+<tr>
+<td align="center" width="100"><b>GitHub</b><br><code>gh</code></td>
+<td align="center" width="100"><b>Stripe</b><br><code>stripe</code></td>
+<td align="center" width="100"><b>Supabase</b><br><code>supabase</code></td>
+<td align="center" width="100"><b>Valyu</b><br><code>valyu-cli</code></td>
+<td align="center" width="100"><b>PostHog</b><br><code>posthog-cli</code></td>
+</tr>
+<tr>
+<td align="center"><b>ElevenLabs</b><br><code>elevenlabs</code></td>
+<td align="center"><b>Ramp</b><br><code>ramp</code></td>
+<td align="center"><b>GWS</b><br><code>gws</code></td>
+<td align="center"><b>AgentMail</b><br><code>agentmail-cli</code></td>
+<td align="center"><b>Vercel</b><br><code>vercel</code></td>
+</tr>
+</table>
+
+</div>
+
+---
+
+## - In-App Browser & Visual Design Tools
+
+Built directly into the workspace — no more switching windows for web development:
+
+- **Multi-Tab Browser**: Navigate and preview your apps in a webview pane
+- **Device Presets**: Responsive, iPhone 14 Pro, iPad — switch orientation
+- **Zoom Controls**: Fine-tune zoom from 50% to 200%
+- **Snapshot Export**: Capture full page HTML
+- **Pop-Out Mode**: Drag the browser to its own window
+
+### Visual Design Inspector
+- **Inspect Mode**: Hover over any element to see its HTML structure, selectors, and attributes
+- **Pick Style Mode**: Click to capture computed CSS styles (with pseudo-elements) to a clipboard
+- **Pick UI Element Mode**: Deep-capture an entire UI component — structure tree (up to 8 levels deep), layout grid, spacing, typography, colors, box model, assets, and auto-generated design intent analysis
+- **Apply Mode**: Apply captured styles to target elements with undo support and CSS class generation
+
+---
+
+## - AI Designer
+
+Generate complete UI designs from natural language prompts:
+
+- **Prompt-Based Generation**: Describe what you want, get a full design
+- **Multiple Themes**: Choose from curated design themes
+- **Page Types**: Landing pages, dashboards, and more
+- **Live Preview**: See designs in responsive device frames
+- **Customization Panel**: Tweak colors, fonts, and spacing
+- **Element Inspector**: Inspect generated component properties
+- **Code Export**: Export generated HTML/CSS/JS code
+- **Design History**: Browse and restore previous design iterations
+- **Skills Management**: Manage prompt engineering skills for better results
 
 ---
 
@@ -241,8 +324,8 @@ Generates a native installer for your platform. Small, fast, no bloat.
 
 | Layer | Stack |
 |:-----:|-------|
-| **Frontend** | React 19 + TypeScript · Vite · Tailwind CSS v4 · Zustand · xterm.js |
-| **Backend** | Tauri v2 (Rust) · portable-pty · Tokio |
+| **Frontend** | React 19 + TypeScript · Vite 6 · Tailwind CSS v4 · Zustand 5 · xterm.js 6 · CodeMirror 6 · framer-motion |
+| **Backend** | Tauri v2 (Rust) · portable-pty · Tokio · discord-rich-presence · anyhow/serde |
 
 </div>
 
@@ -253,15 +336,19 @@ graph TB
     subgraph Frontend["Frontend — React + TypeScript"]
         UI[User Interface]
         Grid[Terminal Grid]
+        Browser[Browser Pane]
+        Designer[AI Designer]
         Setup[Setup Screen]
         Store[Zustand Store]
         Explorer[File Explorer]
         Editor[File Editor]
+        Settings[Settings Screen]
     end
 
     subgraph Backend["Backend — Rust + Tauri v2"]
         Commands[Tauri Commands]
-        PTY[PTY Manager]
+        PTY[PTY / Terminal Manager]
+        Managed[Managed Command Manager]
         Detector[CLI Detector]
         Installer[CLI Installer]
         Auth[Auth Detector]
@@ -269,6 +356,9 @@ graph TB
         Fs[File System]
         Git[Git Operations]
         Watcher[File Watcher]
+        Agent[Agent Executor]
+        Discord[Discord Presence]
+        BrowserMgr[Browser Manager]
     end
 
     subgraph CLIs["AI CLI Tools"]
@@ -277,19 +367,35 @@ graph TB
         Codex[Codex CLI]
         Opencode[Opencode CLI]
         Cursor[Cursor CLI]
+        Kilo[Kilo CLI]
+        Hermes[Hermes CLI]
+    end
+
+    subgraph Tools["Tool CLIs"]
+        Gh[GitHub CLI]
+        Stripe[Stripe CLI]
+        Supabase[Supabase CLI]
+        Vercel[Vercel CLI]
     end
 
     UI --> Grid
+    UI --> Browser
+    UI --> Designer
     UI --> Setup
     UI --> Explorer
     UI --> Editor
+    UI --> Settings
     Grid --> Store
     Setup --> Store
     Explorer --> Store
     Editor --> Store
+    Browser --> Store
+    Designer --> Store
+    Settings --> Store
     
     Store <-->|Tauri IPC| Commands
     Commands --> PTY
+    Commands --> Managed
     Commands --> Detector
     Commands --> Installer
     Commands --> Auth
@@ -297,12 +403,21 @@ graph TB
     Commands --> Fs
     Commands --> Git
     Commands --> Watcher
+    Commands --> Agent
+    Commands --> Discord
+    Commands --> BrowserMgr
     
     PTY -->|Spawns| Claude
     PTY -->|Spawns| Gemini
     PTY -->|Spawns| Codex
     PTY -->|Spawns| Opencode
     PTY -->|Spawns| Cursor
+    PTY -->|Spawns| Kilo
+    PTY -->|Spawns| Hermes
+    Managed -->|Runs| Gh
+    Managed -->|Runs| Stripe
+    Managed -->|Runs| Supabase
+    Managed -->|Runs| Vercel
 ```
 
 ---
@@ -315,25 +430,70 @@ app/
 │   └── src/
 │       ├── agent/                  # Agent task execution & orchestration
 │       ├── agent_cli/              # CLI detection, installation & launching
-│       │   └── providers/          # Provider-specific implementations
-│       ├── commands/               # Tauri IPC handlers
-│       ├── terminal/               # PTY session management
-│       ├── filesystem/             # File operations, git, watcher
-│       ├── ide/                    # IDE detection & launching
-│       └── utils/                  # Utilities
+│       │   └── providers/          # 17 provider-specific implementations
+│       ├── browser/                # In-app web browser + design inspector
+│       ├── commands/               # Tauri IPC handlers (100+ commands)
+│       ├── terminal/               # PTY sessions + managed command runner
+│       ├── filesystem/             # File ops, git, watcher, validation
+│       ├── ide/                    # IDE detection & launching (10 IDEs)
+│       ├── discord_presence/       # Discord Rich Presence integration
+│       └── utils/                  # Env setup, process helpers
 ├── src/                            # React frontend
 │   ├── components/
 │   │   ├── setup/                  # Setup & configuration screens
-│   │   ├── workspace/              # Terminal grid & sessions
+│   │   ├── workspace/              # Terminal grid, browser, sessions
 │   │   ├── explorer/               # File explorer & git panels
-│   │   ├── editor/                 # Multi-tab file editor
-│   │   ├── common/                 # Shared components
-│   │   └── feedback/               # Feedback modal
+│   │   ├── editor/                 # Multi-tab code editor + file previews
+│   │   ├── designer/               # AI-powered design tools
+│   │   ├── settings/               # 11-section settings panel
+│   │   ├── common/                 # Shared UI components
+│   │   ├── feedback/               # User feedback modal
+│   │   └── docs/                   # Built-in documentation viewer
 │   ├── hooks/                      # Custom React hooks
 │   ├── stores/                     # Zustand state management
 │   └── types/                      # TypeScript definitions
 └── docs/                           # Documentation
 ```
+
+---
+
+## - Features Deep Dive
+
+### Workspace Views
+Switch between three views in any workspace:
+1. **Terminal View** — Multi-pane PTY terminal grid
+2. **Editor View** — CodeMirror 6 with syntax highlighting and file previews
+3. **Browser View** — In-app web browser with dev tools
+
+### Multi-Workspace Tabs
+Open multiple workspaces and switch between them with dedicated tabs. Each workspace maintains its own terminal sessions, open files, browser state, and active view.
+
+### Managed Terminal Commands
+Run non-interactive shell commands inside the app with full status tracking (Starting → Running → Completed/Failed), PID/exit-code monitoring, and real-time output streaming.
+
+### Agent Task Execution
+Describe a task in natural language — the app generates the appropriate shell command using your AI CLI, executes it, and retries up to 3 times on failure.
+
+### Discord Rich Presence
+Show what you're working on in your Discord profile — workspace name, activity details, and current state with timestamps.
+
+### External Terminal Launch
+Launch native OS terminals with any AI CLI pre-configured. Windows terminals are automatically tiled in a grid; macOS Terminal windows get positioned with AppleScript.
+
+### UI Customization
+- **8 Accent Colors**: default, blue, purple, green, orange, red, pink, cyan
+- **3 Density Levels**: compact, comfortable, spacious
+- **Custom Cursor**: Toggle-able animated cursor
+- **Animation Toggle**: Disable animations for accessibility (reduced motion)
+- **Dark/Light Theme**: Full theme support with CSS custom properties
+
+### Auto-Updates
+- Tauri updater integration with stable, beta, and nightly channels
+- Automatic check on launch, configurable auto-download
+- Download progress bar and one-click install with relaunch
+
+### 11 Settings Sections
+Appearance, Terminal, Editor, Agents, Workspace, IDE, Updates, Environment, Data, About, Shortcuts
 
 ---
 
@@ -353,8 +513,6 @@ cd src-tauri && cargo test
 ```
 
 Found a bug? Have an idea? [Open an issue](https://github.com/wolfenazz/YzPzCode/issues) · [Submit a PR](https://github.com/wolfenazz/YzPzCode/pulls)
-
-Check out the [full roadmap](docs/plane.md).
 
 ---
 

@@ -1,0 +1,854 @@
+name: release-beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      enable_mac:
+        description: "Build and publish mac arm64 beta artifacts."
+        required: true
+        type: boolean
+        default: true
+      enable_win:
+        description: "Build and publish Windows x64 beta artifacts."
+        required: true
+        type: boolean
+        default: true
+      enable_mac_intel:
+        description: "Build and publish macOS Intel x64 (unsigned) beta artifacts."
+        required: true
+        type: boolean
+        default: false
+      enable_linux:
+        description: "Build and publish Linux x64 AppImage/checksum to R2 only; no updater feed is published yet."
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: open-design-release-beta
+  cancel-in-progress: false
+
+env:
+  OPEN_DESIGN_TELEMETRY_RELAY_URL: ${{ vars.OPEN_DESIGN_TELEMETRY_RELAY_URL }}
+  # PostHog product-analytics ingest. Both vars must be defined as
+  # repository/organization secrets/vars for official builds to ship with
+  # analytics enabled. PR builds and forks run without these — the daemon's
+  # /api/analytics/config short-circuits to enabled=false in that case and
+  # no events leave the user's machine.
+  POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
+  POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
+  # PostHog Error tracking sourcemap upload. Personal API key (phx_...) and
+  # project ID let tools-pack's web-sourcemaps step ship browser sourcemaps
+  # to PostHog after `next build` and before the .map files are stripped
+  # from the packaged bundle. Missing in PR/fork builds → upload is skipped
+  # and the helper still strips .map to keep source out of the installer.
+  POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+  POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
+
+jobs:
+  metadata:
+    name: Prepare beta metadata
+    if: github.repository == 'nexu-io/open-design'
+    runs-on: ubuntu-latest
+    env:
+      OPEN_DESIGN_BETA_METADATA_URL: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}/beta/latest/metadata.json
+    outputs:
+      asset_version_suffix: ${{ steps.beta.outputs.asset_version_suffix }}
+      base_version: ${{ steps.beta.outputs.base_version }}
+      beta_version: ${{ steps.beta.outputs.beta_version }}
+      branch: ${{ steps.beta.outputs.branch }}
+      commit: ${{ steps.beta.outputs.commit }}
+      release_name: ${{ steps.beta.outputs.release_name }}
+      state_source: ${{ steps.beta.outputs.state_source }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Validate beta publish inputs
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.enable_mac }}" != "true" ] && [ "${{ inputs.enable_win }}" != "true" ] && [ "${{ inputs.enable_mac_intel }}" != "true" ] && [ "${{ inputs.enable_linux }}" != "true" ]; then
+            echo "release-beta requires at least one platform to be enabled" >&2
+            exit 1
+          fi
+
+      - name: Validate R2 release access
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
+          R2_ACCESS_PROBE_NAME: release-beta
+          RELEASE_CHANNEL: beta
+        run: bash .github/scripts/release/r2/check.sh
+
+      - name: Prepare beta release metadata
+        id: beta
+        run: node --experimental-strip-types ./scripts/release-beta.ts
+
+  build_mac:
+    name: Build beta mac arm64
+    needs: metadata
+    if: ${{ inputs.enable_mac }}
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify mac Electron framework symlinks
+        run: |
+          set -euo pipefail
+          electron_dist="$(node -e 'const path = require("node:path"); const { createRequire } = require("node:module"); const requireFromDesktop = createRequire(path.join(process.cwd(), "apps/desktop/package.json")); const electron = requireFromDesktop.resolve("electron"); process.stdout.write(path.join(path.dirname(electron), "dist"));')"
+          framework="$electron_dist/Electron.app/Contents/Frameworks/Electron Framework.framework"
+          for link in \
+            "$framework/Electron Framework" \
+            "$framework/Helpers" \
+            "$framework/Libraries" \
+            "$framework/Resources" \
+            "$framework/Versions/Current"; do
+            if [ ! -L "$link" ]; then
+              echo "Expected Electron framework symlink, got non-symlink: $link" >&2
+              ls -la "$framework" >&2 || true
+              ls -la "$framework/Versions" >&2 || true
+              exit 1
+            fi
+          done
+
+      - name: Prepare Apple signing certificate
+        env:
+          APPLE_SIGNING_CERTIFICATE_BASE64: ${{ secrets.APPLE_SIGNING_CERTIFICATE_BASE64 }}
+          APPLE_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cert_path="$RUNNER_TEMP/open-design-signing.p12"
+          if ! printf '%s' "$APPLE_SIGNING_CERTIFICATE_BASE64" | base64 --decode > "$cert_path" 2>/dev/null; then
+            printf '%s' "$APPLE_SIGNING_CERTIFICATE_BASE64" | base64 -D > "$cert_path"
+          fi
+          {
+            echo "CSC_LINK=$cert_path"
+            echo "CSC_KEY_PASSWORD=$APPLE_SIGNING_CERTIFICATE_PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Build beta mac artifacts
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          tools_pack_dir="$RUNNER_TEMP/tools-pack"
+          build_json_path="$RUNNER_TEMP/mac-tools-pack-build.json"
+          build_log_path="$RUNNER_TEMP/mac-tools-pack-build.log"
+          rm -rf "$tools_pack_dir"
+          : > "$build_log_path"
+          build_args=(
+            exec tools-pack mac build
+            --dir "$tools_pack_dir"
+            --namespace release-beta
+            --portable
+            --app-version "${{ needs.metadata.outputs.beta_version }}"
+            --mac-compression normal
+            --to dmg
+            --json
+            --signed
+          )
+          if build_output="$(pnpm "${build_args[@]}" 2> >(tee -a "$build_log_path" >&2))"; then
+            printf '%s\n' "$build_output" | tee "$build_json_path"
+          else
+            build_status=$?
+            printf '%s\n' "$build_output"
+            exit "$build_status"
+          fi
+
+      - name: Capture mac framework diagnostics
+        if: ${{ failure() }}
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/mac-framework-diagnostics.txt"
+          source_resolve_log="$RUNNER_TEMP/mac-framework-source-resolve.err"
+          source_framework="$(node -e 'const path = require("node:path"); const { createRequire } = require("node:module"); const requireFromDesktop = createRequire(path.join(process.cwd(), "apps/desktop/package.json")); const electron = requireFromDesktop.resolve("electron"); process.stdout.write(path.join(path.dirname(electron), "dist", "Electron.app", "Contents", "Frameworks", "Electron Framework.framework"));' 2>"$source_resolve_log" || true)"
+          built_framework="$RUNNER_TEMP/tools-pack/out/mac/namespaces/release-beta/builder/mac-arm64/Open Design Beta.app/Contents/Frameworks/Electron Framework.framework"
+
+          dump_framework() {
+            local label="$1"
+            local framework="$2"
+            echo "## $label"
+            echo "path=$framework"
+            if [ ! -e "$framework" ] && [ ! -L "$framework" ]; then
+              echo "missing"
+              return 0
+            fi
+            echo "### top-level"
+            ls -la "$framework" || true
+            echo "### symlinks"
+            find "$framework" -maxdepth 4 -type l -print0 | while IFS= read -r -d '' link; do
+              printf '%s -> %s\n' "$link" "$(readlink "$link")"
+            done || true
+            echo "### selected stat"
+            for path in \
+              "$framework" \
+              "$framework/Electron Framework" \
+              "$framework/Versions" \
+              "$framework/Versions/Current" \
+              "$framework/Versions/Current/Electron Framework" \
+              "$framework/Versions/A" \
+              "$framework/Versions/A/Electron Framework" \
+              "$framework/Resources" \
+              "$framework/Versions/A/Resources/Info.plist"; do
+              if [ -e "$path" ] || [ -L "$path" ]; then
+                stat -f '%Sp %HT %N' "$path" || true
+              else
+                echo "missing: $path"
+              fi
+            done
+            echo "### plist"
+            plutil -p "$framework/Versions/A/Resources/Info.plist" 2>&1 || true
+            echo "### codesign display"
+            codesign --display --verbose=4 "$framework/Electron Framework" 2>&1 || true
+            codesign --display --verbose=4 "$framework/Versions/Current/Electron Framework" 2>&1 || true
+            codesign --display --verbose=4 "$framework/Versions/A/Electron Framework" 2>&1 || true
+            codesign --display --verbose=4 "$framework" 2>&1 || true
+          }
+
+          {
+            date -u
+            if [ -n "$source_framework" ]; then
+              dump_framework "source Electron Framework" "$source_framework"
+            else
+              echo "## source Electron Framework"
+              echo "resolve failed"
+              cat "$source_resolve_log" || true
+            fi
+            dump_framework "built Electron Framework" "$built_framework"
+          } > "$output"
+          cat "$output"
+
+      - name: Upload mac build diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-mac-build-diagnostics
+          path: |
+            ${{ runner.temp }}/mac-tools-pack-build.log
+            ${{ runner.temp }}/mac-tools-pack-build.json
+            ${{ runner.temp }}/mac-framework-diagnostics.txt
+          if-no-files-found: warn
+
+      - name: Smoke beta mac packaged runtime
+        working-directory: e2e
+        env:
+          OD_PACKAGED_E2E_BUILD_JSON_PATH: ${{ runner.temp }}/mac-tools-pack-build.json
+          OD_PACKAGED_E2E_BUILD_LOG_PATH: ${{ runner.temp }}/mac-tools-pack-build.log
+          OD_PACKAGED_E2E_MAC: "1"
+          OD_PACKAGED_E2E_NAMESPACE: release-beta
+          OD_PACKAGED_E2E_RELEASE_CHANNEL: beta
+          OD_PACKAGED_E2E_RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          OD_PACKAGED_E2E_REPORT_DIR: ${{ runner.temp }}/release-report/mac
+          OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ runner.temp }}/tools-pack
+        run: |
+          set -euo pipefail
+          pnpm exec tsx scripts/release-smoke.ts mac specs/mac.spec.ts
+
+      - name: Upload mac e2e spec report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-mac-e2e-report
+          path: ${{ runner.temp }}/release-report/mac
+          if-no-files-found: warn
+
+      - name: Prepare beta assets
+        id: assets
+        env:
+          ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          MAC_ARTIFACT_MODE: dmg-only
+          RELEASE_CHANNEL: beta
+          RELEASE_NOTES: Open Design beta ${{ needs.metadata.outputs.beta_version }}${{ needs.metadata.outputs.asset_version_suffix }}
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          TOOLS_PACK_NAMESPACE: release-beta
+        run: bash .github/scripts/release/assets/mac.sh
+
+      - name: Publish beta mac assets to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
+          ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+          MAC_ARTIFACT_MODE: dmg-only
+          RELEASE_CHANNEL: beta
+          RELEASE_PLATFORM: mac
+          RELEASE_SIGNED: "true"
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+        run: node --experimental-strip-types .github/scripts/release/r2/publish-platform.ts
+
+      - name: Upload mac publish manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-mac-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests/mac.json
+
+  build_mac_intel:
+    name: Build beta mac x64
+    needs: metadata
+    if: ${{ inputs.enable_mac_intel }}
+    runs-on: macos-15-intel
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply beta package version
+        run: npm pkg set "version=${{ needs.metadata.outputs.beta_version }}" --prefix apps/packaged
+
+      - name: Build beta mac intel artifacts
+        run: |
+          set -euo pipefail
+          pnpm exec tools-pack mac build \
+            --dir "$RUNNER_TEMP/tools-pack" \
+            --namespace release-beta-intel \
+            --portable \
+            --mac-compression maximum \
+            --to all \
+            --json
+
+      - name: Prepare beta mac intel assets
+        id: assets
+        env:
+          ASSET_VERSION_SUFFIX: .unsigned
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          RELEASE_CHANNEL: beta
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          TOOLS_PACK_NAMESPACE: release-beta-intel
+        run: bash .github/scripts/release/assets/mac-intel.sh
+
+      - name: Publish beta mac intel assets to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
+          ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+          MAC_INTEL_ASSET_SUFFIX: .unsigned
+          RELEASE_CHANNEL: beta
+          RELEASE_PLATFORM: mac-intel
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+        run: node --experimental-strip-types .github/scripts/release/r2/publish-platform.ts
+
+      - name: Upload mac intel publish manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-mac-intel-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests/macIntel.json
+
+  build_win:
+    name: Build beta win x64
+    needs: metadata
+    if: ${{ inputs.enable_win }}
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Compute Windows tools-pack cache key
+        id: win_tools_pack_cache_key
+        shell: pwsh
+        env:
+          WIN_TOOLS_PACK_ORIGIN_KEY: ${{ hashFiles('package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'apps/daemon/**', 'apps/web/**', 'apps/desktop/**', 'apps/packaged/**', 'packages/agui-adapter/**', 'packages/contracts/**', 'packages/plugin-runtime/**', 'packages/sidecar-proto/**', 'packages/sidecar/**', 'packages/platform/**', 'tools/pack/bin/**', 'tools/pack/package.json', 'tools/pack/resources/**', 'tools/pack/src/**', 'tools/pack/tsconfig.json', 'assets/community-pets/**', 'assets/frames/**', 'craft/**', 'design-systems/**', 'design-templates/**', 'plugins/_official/**', 'plugins/registry/**', 'prompt-templates/**', 'skills/**', '.github/workflows/release-beta.yml', '.github/scripts/release/cache/win.ps1') }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WIN_TOOLS_PACK_ORIGIN_KEY)) {
+            throw "Windows tools-pack cache origin key is empty"
+          }
+          $prefix = "tools-pack-win-v7-beta-$env:RUNNER_OS-"
+          "origin=$env:WIN_TOOLS_PACK_ORIGIN_KEY" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "prefix=$prefix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "key=$prefix$env:WIN_TOOLS_PACK_ORIGIN_KEY" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Restore Windows tools-pack cache
+        id: win_tools_pack_cache_restore
+        uses: actions/cache/restore@v5
+        continue-on-error: true
+        with:
+          path: ${{ runner.temp }}/tools-pack-cache
+          key: ${{ steps.win_tools_pack_cache_key.outputs.key }}
+          restore-keys: |
+            ${{ steps.win_tools_pack_cache_key.outputs.prefix }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup NSIS
+        shell: pwsh
+        run: |
+          if ((Get-Command makensis.exe -ErrorAction SilentlyContinue) -or (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe")) {
+            exit 0
+          }
+          choco install nsis -y --no-progress
+
+      - name: Build beta windows artifacts
+        id: win_tools_pack_build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $toolsPackDir = "${{ runner.temp }}/tools-pack"
+          $cacheDir = "${{ runner.temp }}/tools-pack-cache"
+          $buildJsonPath = Join-Path $env:RUNNER_TEMP "windows-tools-pack-build.json"
+          $buildArgs = @(
+            "exec", "tools-pack", "win", "build",
+            "--dir", $toolsPackDir,
+            "--cache-dir", $cacheDir,
+            "--namespace", "release-beta-win",
+            "--portable",
+            "--app-version", "${{ needs.metadata.outputs.beta_version }}",
+            "--to", "all",
+            "--json"
+          )
+          "cache_failed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          try {
+            $buildOutput = pnpm @buildArgs
+            if ($LASTEXITCODE -ne 0) {
+              throw "Windows tools-pack cached build exited with code $LASTEXITCODE"
+            }
+          } catch {
+            Write-Warning "Windows tools-pack cached build failed; removing restored cache and retrying without cache."
+            "cache_failed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue $cacheDir
+            $buildOutput = pnpm exec tools-pack win build `
+              --dir $toolsPackDir `
+              --namespace release-beta-win `
+              --portable `
+              --app-version "${{ needs.metadata.outputs.beta_version }}" `
+              --to all `
+              --json
+            if ($LASTEXITCODE -ne 0) {
+              throw "Windows tools-pack uncached fallback build exited with code $LASTEXITCODE"
+            }
+          }
+          $buildOutput | Set-Content -Path $buildJsonPath
+          $buildOutput
+
+      - name: Delete failed Windows tools-pack cache
+        if: ${{ steps.win_tools_pack_build.outputs.cache_failed == 'true' && steps.win_tools_pack_cache_restore.outputs.cache-matched-key != '' }}
+        shell: pwsh
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $matchedKey = "${{ steps.win_tools_pack_cache_restore.outputs.cache-matched-key }}"
+          $caches = @(gh cache list --key $matchedKey --limit 100 --json id,key,ref | ConvertFrom-Json | Where-Object { $_.key -eq $matchedKey })
+          foreach ($cache in $caches) {
+            gh cache delete $cache.id
+          }
+          "deletedFailedCacheKey=$matchedKey count=$($caches.Count)"
+
+      - name: Smoke beta windows packaged runtime
+        working-directory: e2e
+        env:
+          OD_PACKAGED_E2E_BUILD_JSON_PATH: ${{ runner.temp }}/windows-tools-pack-build.json
+          OD_PACKAGED_E2E_WIN: "1"
+          OD_PACKAGED_E2E_WIN_VERIFY_REINSTALL: "0"
+          OD_PACKAGED_E2E_NAMESPACE: release-beta-win
+          OD_PACKAGED_E2E_RELEASE_CHANNEL: beta
+          OD_PACKAGED_E2E_RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          OD_PACKAGED_E2E_REPORT_DIR: ${{ runner.temp }}/release-report/win
+          OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ runner.temp }}/tools-pack
+        run: |
+          $ErrorActionPreference = "Stop"
+          pnpm exec tsx scripts/release-smoke.ts win specs/win.spec.ts
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Upload windows e2e spec report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-win-e2e-report
+          path: ${{ runner.temp }}/release-report/win
+          if-no-files-found: warn
+
+      - name: Prepare windows beta assets
+        shell: pwsh
+        env:
+          ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          RELEASE_CHANNEL: beta
+          RELEASE_NOTES: Open Design beta ${{ needs.metadata.outputs.beta_version }}.unsigned
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          TOOLS_PACK_NAMESPACE: release-beta-win
+          WINDOWS_ASSET_SUFFIX: .unsigned
+        run: ./.github/scripts/release/assets/win.ps1
+
+      - name: Publish beta windows assets to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
+          ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+          RELEASE_CHANNEL: beta
+          RELEASE_PLATFORM: win
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          WIN_ASSET_SUFFIX: .unsigned
+        run: node --experimental-strip-types .github/scripts/release/r2/publish-platform.ts
+
+      - name: Upload windows publish manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-win-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests/win.json
+
+  build_linux:
+    name: Build beta linux x64
+    needs: metadata
+    if: ${{ inputs.enable_linux }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v5
+        with:
+          version: 10.33.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `--containerized` builds the AppImage inside the electronuserland/builder
+      # Docker image (glibc 2.27 baseline) so the resulting binary runs on older
+      # distros than ubuntu-latest's glibc 2.39. Docker is preinstalled on the
+      # GitHub-hosted ubuntu-latest runner, so no extra setup is required.
+      - name: Build beta linux artifacts
+        run: |
+          set -euo pipefail
+          tools_pack_dir="$RUNNER_TEMP/tools-pack"
+          report_dir="$RUNNER_TEMP/release-report/linux"
+          build_json_path="$report_dir/tools-pack.json"
+          build_log_path="$report_dir/tools-pack.log"
+          rm -rf "$tools_pack_dir"
+          mkdir -p "$report_dir"
+          : > "$build_log_path"
+          build_args=(
+            exec tools-pack linux build
+            --dir "$tools_pack_dir"
+            --namespace release-beta-linux
+            --portable
+            --app-version "${{ needs.metadata.outputs.beta_version }}"
+            --to appimage
+            --containerized
+            --json
+          )
+          if build_output="$(pnpm "${build_args[@]}" 2> >(tee -a "$build_log_path" >&2))"; then
+            printf '%s\n' "$build_output" | tee "$build_json_path"
+            node -e 'const fs = require("node:fs"); JSON.parse(fs.readFileSync(process.argv[1], "utf8"));' "$build_json_path"
+          else
+            build_status=$?
+            printf '%s\n' "$build_output" | tee "$build_json_path"
+            exit "$build_status"
+          fi
+
+      - name: Smoke beta linux AppImage runtime
+        working-directory: e2e
+        env:
+          OD_PACKAGED_E2E_LINUX_APPIMAGE: "1"
+          OD_PACKAGED_E2E_NAMESPACE: release-beta-linux
+          OD_PACKAGED_E2E_SCREENSHOT_PATH: ${{ runner.temp }}/release-report/linux/screenshots/open-design-linux-smoke.png
+          OD_PACKAGED_E2E_TOOLS_PACK_DIR: ${{ runner.temp }}/tools-pack
+        run: |
+          set -euo pipefail
+          report_dir="$RUNNER_TEMP/release-report/linux"
+          mkdir -p "$report_dir/screenshots"
+          cat > "$report_dir/manifest.json" <<EOF
+          {
+            "platform": "linux",
+            "spec": "specs/linux.spec.ts",
+            "namespace": "release-beta-linux",
+            "screenshot": "screenshots/open-design-linux-smoke.png",
+            "githubRunId": "$GITHUB_RUN_ID",
+            "githubRunAttempt": "$GITHUB_RUN_ATTEMPT",
+            "commit": "$GITHUB_SHA"
+          }
+          EOF
+          sudo apt-get update 2>&1 | tee "$report_dir/apt-get-update.log"
+          sudo apt-get install -y xvfb 2>&1 | tee "$report_dir/apt-get-install-xvfb.log"
+          xvfb-run -a pnpm test specs/linux.spec.ts 2>&1 | tee "$report_dir/vitest.log"
+
+      - name: Upload linux e2e spec report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-linux-e2e-report
+          path: ${{ runner.temp }}/release-report/linux
+          if-no-files-found: warn
+
+      - name: Prepare linux beta assets
+        env:
+          LINUX_ASSET_SUFFIX: .unsigned
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+          TOOLS_PACK_NAMESPACE: release-beta-linux
+        run: bash .github/scripts/release/assets/linux.sh
+
+      - name: Publish beta linux assets to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
+          AWS_DEFAULT_REGION: auto
+          AWS_EC2_METADATA_DISABLED: "true"
+          CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
+          CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+          CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
+          ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+          LINUX_ASSET_SUFFIX: .unsigned
+          RELEASE_CHANNEL: beta
+          RELEASE_PLATFORM: linux
+          RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+        run: node --experimental-strip-types .github/scripts/release/r2/publish-platform.ts
+
+      - name: Upload linux publish manifest
+        uses: actions/upload-artifact@v7
+        with:
+          name: open-design-beta-linux-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests/linux.json
+
+  publish:
+    name: Publish beta metadata to R2
+    needs:
+      - metadata
+      - build_mac
+      - build_mac_intel
+      - build_win
+      - build_linux
+    if: >-
+      ${{
+        always() &&
+        !cancelled() &&
+        needs.metadata.result == 'success' &&
+        (inputs.enable_mac || inputs.enable_win || inputs.enable_mac_intel || inputs.enable_linux)
+      }}
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_RELEASES_AK }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_RELEASES_SK }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: "true"
+      CLOUDFLARE_R2_RELEASES_BUCKET: ${{ secrets.CLOUDFLARE_R2_RELEASES_BUCKET }}
+      CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN: ${{ vars.CLOUDFLARE_R2_RELEASES_PUBLIC_ORIGIN }}
+      CLOUDFLARE_R2_RELEASES_URL: ${{ secrets.CLOUDFLARE_R2_RELEASES_URL }}
+      ASSET_VERSION_SUFFIX: ${{ needs.metadata.outputs.asset_version_suffix }}
+      BASE_VERSION: ${{ needs.metadata.outputs.base_version }}
+      BETA_VERSION: ${{ needs.metadata.outputs.beta_version }}
+      BRANCH_NAME: ${{ needs.metadata.outputs.branch }}
+      ENABLE_LINUX: ${{ inputs.enable_linux }}
+      ENABLE_MAC: ${{ inputs.enable_mac }}
+      ENABLE_MAC_INTEL: ${{ inputs.enable_mac_intel }}
+      ENABLE_WIN: ${{ inputs.enable_win }}
+      LINUX_RESULT: ${{ needs.build_linux.result }}
+      MAC_INTEL_RESULT: ${{ needs.build_mac_intel.result }}
+      MAC_RESULT: ${{ needs.build_mac.result }}
+      RELEASE_CHANNEL: beta
+      RELEASE_VERSION: ${{ needs.metadata.outputs.beta_version }}
+      RELEASE_SIGNED: "true"
+      STATE_SOURCE: ${{ needs.metadata.outputs.state_source }}
+      WIN_RESULT: ${{ needs.build_win.result }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Download mac publish manifest
+        if: ${{ inputs.enable_mac && needs.build_mac.result == 'success' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: open-design-beta-mac-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests
+
+      - name: Download mac intel publish manifest
+        if: ${{ inputs.enable_mac_intel && needs.build_mac_intel.result == 'success' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: open-design-beta-mac-intel-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests
+
+      - name: Download windows publish manifest
+        if: ${{ inputs.enable_win && needs.build_win.result == 'success' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: open-design-beta-win-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests
+
+      - name: Download linux publish manifest
+        if: ${{ inputs.enable_linux && needs.build_linux.result == 'success' }}
+        uses: actions/download-artifact@v8
+        with:
+          name: open-design-beta-linux-publish-manifest
+          path: ${{ runner.temp }}/release-platform-manifests
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Publish beta metadata to R2
+        id: r2
+        run: node --experimental-strip-types .github/scripts/release/r2/publish-beta-metadata.ts
+
+      - name: Verify R2 beta metadata
+        env:
+          R2_METADATA_URL: ${{ steps.r2.outputs.version_metadata_url }}
+        run: node --experimental-strip-types .github/scripts/release/r2/verify-beta-metadata.ts
+
+      - name: Publish summary
+        env:
+          R2_METADATA_URL: ${{ steps.r2.outputs.version_metadata_url }}
+        run: node --experimental-strip-types .github/scripts/release/r2/summary-beta.ts >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup workflow artifacts
+        if: ${{ success() && steps.r2.outputs.release_state == 'complete' }}
+        run: bash .github/scripts/release/github/cleanup-artifacts.sh
+
+  runtime_trace:
+    name: Runtime trace
+    needs:
+      - metadata
+      - build_mac
+      - build_mac_intel
+      - build_win
+      - build_linux
+      - publish
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Summarize workflow runtime
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          run_json="$RUNNER_TEMP/run.json"
+          gh run view "$RUN_ID" --repo "$GITHUB_REPOSITORY" --json conclusion,createdAt,databaseId,displayTitle,event,headBranch,jobs,updatedAt,url > "$run_json"
+          jq -r '
+            def parse_ts: sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601;
+            def seconds($start; $end):
+              if ($start and $end) then (($end | parse_ts) - ($start | parse_ts)) else null end;
+            def fmt($seconds):
+              if $seconds == null then "n/a"
+              elif $seconds >= 60 then "\(((($seconds / 60) * 10 | round) / 10))m"
+              else "\(($seconds | round))s"
+              end;
+            def row($cells): "| \($cells | join(" | ")) |";
+
+            .jobs as $jobs |
+            [
+              "## Runtime trace",
+              "",
+              "Run: [\(.displayTitle)](\(.url))",
+              "Event: `\(.event)`",
+              "Branch: `\(.headBranch)`",
+              "Elapsed: \(fmt(seconds(.createdAt; .updatedAt)))",
+              "",
+              "### Jobs",
+              "| Job | Result | Duration | Slowest step |",
+              "| --- | --- | ---: | --- |",
+              (
+                $jobs
+                | sort_by(seconds(.startedAt; .completedAt) // 0)
+                | reverse
+                | .[]
+                | select(.conclusion != "skipped")
+                | (
+                    [(.steps // [])[] | select(.startedAt and .completedAt and .conclusion != "skipped") | {name, duration: seconds(.startedAt; .completedAt)}]
+                    | max_by(.duration // 0)
+                  ) as $slow
+                | row([.name, (.conclusion // .status), fmt(seconds(.startedAt; .completedAt)), "\($slow.name // "n/a") (\(fmt($slow.duration)))"])
+              ),
+              "",
+              "### Slowest steps",
+              "| Step | Job | Duration |",
+              "| --- | --- | ---: |",
+              (
+                [
+                  $jobs[] as $job
+                  | ($job.steps // [])[]
+                  | select(.startedAt and .completedAt and .conclusion != "skipped")
+                  | {job: $job.name, name, duration: seconds(.startedAt; .completedAt)}
+                ]
+                | sort_by(.duration // 0)
+                | reverse
+                | .[0:20][]
+                | row([.name, .job, fmt(.duration)])
+              )
+            ][]
+          ' "$run_json" >> "$GITHUB_STEP_SUMMARY"

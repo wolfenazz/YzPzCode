@@ -1,0 +1,195 @@
+---
+/*
+ * /plugins/ — top-level plugin library hub.
+ *
+ * Replaces the prior `/skills/`, `/templates/`, `/systems/`, `/craft/`
+ * top-level entries with a single library that mirrors how the in-app
+ * Plugins home is organised: artifact-producing entries under
+ * Templates, instruction-only skills under Skills, brand systems under
+ * Systems, craft principles under Craft. Visitors who land here can
+ * mentally map the catalogue to what they will see when they open
+ * Open Design itself.
+ *
+ * Anyone who already knows the slug they want skips the hub entirely
+ * via `/skills/<slug>/`, `/templates/<slug>/` etc. Detail-page URLs
+ * stay where they are; the hub is purely a discovery surface.
+ */
+import Layout from '../../_components/sub-page-layout.astro';
+import { getCraftRecords, getSystemRecords } from '../../_lib/catalog';
+import { getBundledPlugins } from '../../_lib/bundled-plugins';
+import { categorizePlugin, bundledRecordOf } from '../../_lib/plugin-facets';
+import { localeFromPath, localizedHref } from '../../i18n';
+
+const locale = localeFromPath(Astro.url.pathname);
+const href = (path: string) => localizedHref(path, locale);
+
+// Counts come from two sources because the underlying catalog pages
+// each use whichever shape carries the data they render. Templates +
+// Skills read `plugins/_official/` (the daemon's bundled-plugin
+// registry, which is what the in-app Plugins home shows). Systems
+// reads the legacy SystemRecord set so its detail rendering can keep
+// using palette swatches from DESIGN.md — the bundled-plugin manifest
+// doesn't carry palette data. The two design-systems data sources
+// overlap 1:1 so the count stays consistent.
+const [bundled, systems, craft] = await Promise.all([
+  Promise.resolve(getBundledPlugins()),
+  getSystemRecords(locale),
+  getCraftRecords(locale),
+]);
+
+const nonSystems = bundled.filter((p) => p.bucket !== 'design-systems');
+const templatesSet = nonSystems.filter(
+  (p) => categorizePlugin(bundledRecordOf(p)) !== null,
+);
+const skillsSet = nonSystems.filter(
+  (p) => categorizePlugin(bundledRecordOf(p)) === null,
+);
+
+const templatesCount = templatesSet.length;
+const skillsCount = skillsSet.length;
+const systemsCount = systems.length;
+const craftCount = craft.length;
+const totalCount = templatesCount + skillsCount + systemsCount + craftCount;
+
+const title = 'Plugins · Open Design';
+const description =
+  'The Open Design plugin library — runnable templates for prototypes, decks, image and video generators, instruction skills the agent loads mid-task, brand systems, and craft principles. Every entry is a flat file in the open-source repo.';
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: title,
+  description,
+  url: new URL('/plugins/', Astro.site).toString(),
+  isPartOf: {
+    '@type': 'WebSite',
+    name: 'Open Design',
+    url: Astro.site?.toString(),
+  },
+  numberOfItems: totalCount,
+};
+
+const tiles = [
+  {
+    href: href('/plugins/templates/'),
+    title: 'Templates',
+    count: templatesCount,
+    blurb:
+      'Visual, runnable templates — prototypes, slides, image and video generators, motion compositions. Every entry ships an example.html so you can fork, swap data, and ship.',
+  },
+  {
+    href: href('/plugins/skills/'),
+    title: 'Skills',
+    count: skillsCount,
+    blurb:
+      'Instruction skills the agent loads mid-task — copywriting, color theory, creative direction, brainstorming. Pure SKILL.md prose; the output depends on your input.',
+  },
+  {
+    href: href('/plugins/systems/'),
+    title: 'Systems',
+    count: systemsCount,
+    blurb:
+      'Brand-anchored design systems — palette, typography, motion, voice. Snap a project to a system and every plugin output inherits the same identity.',
+  },
+  {
+    href: href('/plugins/craft/'),
+    title: 'Craft',
+    count: craftCount,
+    blurb:
+      'Brand-agnostic craft rules — accessibility, RTL, motion easing, photography ethics. Skills opt in via `od.craft.requires` so a plugin inherits the right rigour automatically.',
+  },
+];
+---
+
+<Layout title={title} description={description} active="plugins" jsonLd={jsonLd}>
+  <header class="catalog-head">
+    <span class="label">Plugin library</span>
+    <h1 class="display">
+      {totalCount} composable pieces<span class="dot">.</span>
+    </h1>
+    <p class="lead">
+      Open Design is built around four kinds of plugin. Templates and Skills are what your agent
+      runs; Systems and Craft are how it stays on-brand and accessible. Pick a section to drill
+      in, or jump straight to a slug if you already know which one you want.
+    </p>
+  </header>
+
+  <section class="plugins-tile-grid" aria-label="Plugin library categories">
+    {tiles.map((tile) => (
+      <a class="plugins-tile" href={tile.href}>
+        <div class="plugins-tile-head">
+          <h2 class="plugins-tile-title">{tile.title}</h2>
+          <span class="plugins-tile-count">{tile.count}</span>
+        </div>
+        <p class="plugins-tile-blurb">{tile.blurb}</p>
+        <span class="plugins-tile-cta">Browse {tile.title.toLowerCase()} →</span>
+      </a>
+    ))}
+  </section>
+</Layout>
+
+<style>
+  .plugins-tile-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    margin: 32px 0 64px;
+  }
+  @media (max-width: 720px) {
+    .plugins-tile-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .plugins-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 28px 28px 24px;
+    border: 1px solid var(--line);
+    background: var(--paper-warm);
+    color: var(--ink);
+    text-decoration: none;
+    transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease;
+  }
+  .plugins-tile:hover {
+    border-color: var(--ink);
+    transform: translateY(-2px);
+    background: rgba(255, 255, 255, 0.4);
+  }
+  .plugins-tile-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 16px;
+  }
+  .plugins-tile-title {
+    margin: 0;
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 32px;
+    letter-spacing: -0.015em;
+    line-height: 1;
+  }
+  .plugins-tile-count {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--ink-mute);
+    font-variant-numeric: tabular-nums;
+  }
+  .plugins-tile-blurb {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--ink-mute);
+  }
+  .plugins-tile-cta {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid var(--line-soft);
+  }
+</style>

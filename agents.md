@@ -1,7 +1,9 @@
 # YzPzCode - AI Agent Development Guide
 
-Tauri v2 desktop app for managing AI CLI tools (Claude, Gemini, Codex, Kilo, OpenCode, Cursor).
-Rust backend + React 19 frontend. Borderless window, custom titlebar, PTY-based terminal grid.
+Tauri v2 desktop app for managing AI CLI tools (Claude, Gemini, Codex, Kilo, OpenCode, Cursor, Hermes)
+and SaaS tool CLIs (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, GWS, AgentMail, Vercel).
+Rust backend + React 19 frontend. Borderless window, custom titlebar, PTY-based terminal grid,
+in-app browser with visual design inspector, AI-powered designer, and multi-workspace management.
 
 ## Development Commands
 
@@ -40,32 +42,36 @@ Version is defined in **3 files** — update all consistently:
 ```
 app/
 ├── src-tauri/src/
-│   ├── agent/              # Task execution, retry logic
-│   ├── agent_cli/          # CLI detection, install, launch
-│   │   └── providers/      # Per-provider (claude, gemini, codex, kilo, opencode, cursor)
-│   ├── commands/           # Tauri IPC handlers (thin wrappers)
-│   ├── terminal/           # PTY session management (TerminalManager)
-│   ├── filesystem/         # File ops, git status/diff, watcher
-│   ├── ide/                # IDE detection & launching (VS Code, JetBrains, etc.)
+│   ├── agent/              # Task execution, retry logic, command generation
+│   ├── agent_cli/          # CLI detection, install, launch, auth
+│   │   └── providers/      # Per-provider (7 AI agents + 10 tool CLIs)
+│   ├── browser/            # In-app webview browser + design inspector bridge
+│   ├── commands/           # Tauri IPC handlers (thin wrappers, 100+ commands)
+│   ├── terminal/           # PTY session management (TerminalManager + ManagedCommandManager)
+│   ├── filesystem/         # File ops, git status/diff, watcher, validation
+│   ├── ide/                # IDE detection & launching (10 IDEs)
+│   ├── discord_presence/   # Discord Rich Presence integration
 │   ├── utils/              # Env setup, process helpers
-│   ├── types.rs            # Shared types (AgentType, WorkspaceConfig, etc.)
+│   ├── types.rs            # Shared types (AgentType, WorkspaceConfig, CliType, etc.)
 │   ├── lib.rs              # App init, plugin setup, state, generate_handler!
 │   └── main.rs             # Entry point
 ├── src/
 │   ├── components/         # React UI (PascalCase.tsx)
-│   │   ├── setup/          # Onboarding/config screens
-│   │   ├── workspace/      # Terminal grid, workspace tabs
-│   │   ├── explorer/       # File tree & git panels
-│   │   ├── editor/         # CodeMirror + file previews (PDF, DOCX, images)
-│   │   ├── common/         # Shared (theme toggle, footer, context menu)
-│   │   ├── settings/       # Settings screen with sections
-│   │   └── feedback/       # Feedback modal
-│   ├── hooks/              # useTerminal, useWorkspace, useFileEditor, etc. (camelCase.ts)
+│   │   ├── setup/          # Onboarding/config screens (15 components)
+│   │   ├── workspace/      # Terminal grid, browser, workspace tabs (20+ components)
+│   │   ├── explorer/       # File tree & git panels (7 components)
+│   │   ├── editor/         # CodeMirror + file previews (10 components)
+│   │   ├── designer/       # AI design generation tools (12 components)
+│   │   ├── settings/       # Settings screen with 11 sections
+│   │   ├── common/         # Shared (theme toggle, footer, context menu, cursor)
+│   │   ├── feedback/       # Feedback modal
+│   │   └── docs/           # Built-in docs viewer
+│   ├── hooks/              # useTerminal, useWorkspace, useFileEditor, useBrowser, etc.
 │   ├── stores/             # Zustand stores (appStore.ts, updaterStore.ts)
 │   ├── types/              # TypeScript interfaces (index.ts)
 │   ├── utils/              # Grid layout, window helpers, project detection
 │   ├── styles.css          # Global styles, CSS vars, theming
-│   ├── App.tsx             # Root component, view routing
+│   ├── App.tsx             # Root component, view routing (6 views)
 │   └── main.tsx            # React entry with ErrorBoundary
 ```
 
@@ -130,7 +136,7 @@ Frontend listens with `listen<T>("event-name", callback)` from `@tauri-apps/api/
 
 **Import Order**
 ```typescript
-// 1. External libs (react, framer-motion, @tauri-apps/*)
+// 1. External libs (react, framer-motion, @tauri-apps/*, @iconify/react)
 // 2. Local components
 // 3. Hooks & stores
 // 4. Types (use `import type` for type-only imports)
@@ -167,10 +173,10 @@ export const useAppStore = create<AppStore>()(
 
 **Styling**
 - Theme via CSS custom properties (see `styles.css`): `--bg-primary`, `--text-primary`, `--border-color`, etc.
-- Accent colors: `--accent` / `--accent-hover` CSS variables
+- Accent colors: `--accent` / `--accent-hover` CSS variables (8 colors: default, blue, purple, green, orange, red, pink, cyan)
 - UI density classes: `compact` / `comfortable` / `spacious`
-- Reduced motion: `reduce-motion` class on body disables animations
-- Dark/light themes toggled via `dark` class on document root
+- Reduced motion: `animations-disabled` class on root disables all animations
+- Dark/light themes toggled via `light-theme` class on root
 
 ## Key Dependencies
 
@@ -180,6 +186,8 @@ export const useAppStore = create<AppStore>()(
 | anyhow, thiserror, serde | Vite 6, Tailwind CSS 4 |
 | reqwest, uuid, notify | Zustand 5, @xterm/xterm 6 |
 | regex, base64, which | CodeMirror 6, framer-motion |
+| discord-rich-presence | @iconify/react, react-arborist |
+| tauri-plugin-opener, dialog, updater, process | pdfjs, xlsx, mammoth |
 
 ## Linting & Quality
 
@@ -188,3 +196,93 @@ export const useAppStore = create<AppStore>()(
 - Frontend: `npx tsc --noEmit` (from `app/`)
 - No unused imports — both `clippy` and `tsc` will flag them
 - No Prettier or ESLint configured — follow existing code patterns
+
+## Feature Reference
+
+### AI Agent CLIs (7)
+Claude, Codex, Gemini, Opencode, Cursor, Kilo, Hermes — each gets a PTY session
+
+### Tool CLIs (10)
+GitHub CLI (`gh`), Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google Workspace (`gws`), AgentMail, Vercel — detected and auth-checked
+
+### In-App Browser
+- Webview-based browser with multi-tab support
+- URL navigation, zoom, device presets (responsive, iPhone, iPad)
+- Orientation switching (portrait/landscape)
+- Snapshot export (full HTML capture)
+- Pop-out to separate window
+
+### Visual Design Inspector
+- **Inspect Mode**: Hover to inspect element HTML/CSS
+- **Pick Style Mode**: Capture computed styles to clipboard
+- **Pick UI Element Mode**: Deep capture of full UI component (structure tree, layout, typography, visuals, design intent)
+- **Apply Mode**: Apply captured styles to target elements
+- Undo stack for style applications
+- CSS class generation for captured styles
+
+### AI Designer
+- Prompt-based UI design generation
+- Multiple themes and page types
+- Design history and iteration management
+- Live preview with responsive device controls
+- Element inspector and customization panel
+- Generated code export (HTML/CSS/JS)
+- Skills management for prompt engineering
+
+### Managed Terminal Commands
+- Run non-interactive commands inside app terminals
+- Status tracking: Idle → Starting → Running → Stopping → Completed/Failed
+- PID and exit code monitoring
+- Real-time output streaming
+
+### Agent Task Execution
+- Natural language → shell command generation via AI CLI
+- Automatic retry (up to 3 attempts)
+- Task status tracking with real-time events
+
+### Discord Rich Presence
+- Shows workspace, activity, and state on Discord profile
+- Enable/disable toggle in settings
+
+### External Terminals
+- Launch native OS terminals with AI CLIs pre-configured
+- Automatic window tiling (Windows console, macOS Terminal, Linux terminals)
+
+### Settings (11 sections)
+Appearance, Terminal, Editor, Agents, Workspace, IDE, Updates, Environment, Data, About, Shortcuts
+
+### Setup Wizard
+- Node.js prerequisite check on first launch
+- Stepper and page view modes
+- Workspace creation with name, directory, layout, agent fleet, IDE selection
+- Workspace templates
+
+### Multi-Workspace
+- Multiple open workspaces with tab switching
+- Per-workspace: sessions, file tabs, browser state, active view
+- Workspace state persistence
+
+### Editor
+- CodeMirror 6 with syntax highlighting, minimap, search/replace
+- Quick Open palette for file search
+- File previews: Markdown, PDF, images, spreadsheets, Word docs
+- Tab management: close, close others, close to right, close saved
+- Auto-save with configurable delay
+
+### Explorer
+- File tree with virtualized rendering (react-arborist)
+- Git status badges and diff statistics
+- Context menu: copy/cut/paste, rename, delete, duplicate, reveal, git stage/unstage
+- File import dialog, recent directories
+
+### UI Customization
+- 8 accent colors
+- 3 UI density levels
+- Custom cursor toggle
+- Animation toggle (accessibility)
+- Dark/light theme
+
+### Auto-Updates
+- Tauri updater integration
+- Update channels: stable, beta, nightly
+- Download progress tracking with auto-install and relaunch

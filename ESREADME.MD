@@ -214,7 +214,7 @@ graph TB
     Setup --> Store
     Explorer --> Store
     Editor --> Store
-    
+
     Store <-->|Tauri IPC| Commands
     Commands --> PTY
     Commands --> Detector
@@ -224,13 +224,13 @@ graph TB
     Commands --> Fs
     Commands --> Git
     Commands --> Watcher
-    
+
     PTY -->|Inicia| Claude
     PTY -->|Inicia| Gemini
     PTY -->|Inicia| Codex
     PTY -->|Inicia| Opencode
     PTY -->|Inicia| Cursor
-    
+
     Detector -->|Comprueba| Claude
     Detector -->|Comprueba| Gemini
     Detector -->|Comprueba| Codex
@@ -253,12 +253,12 @@ sequenceDiagram
     Tauri->>CLI: Comprobar si está instalado
     CLI-->>Tauri: Estado de instalación
     Tauri-->>UI: Estados de CLI
-    
+
     User->>UI: Lanzar espacio de trabajo
     UI->>Tauri: create_terminal_sessions()
     Tauri->>PTY: Crear sesiones PTY
     PTY->>CLI: Iniciar proceso CLI
-    
+
     loop Comunicación en tiempo real
         CLI-->>PTY: Flujo de salida
         PTY-->>Tauri: Eventos del terminal

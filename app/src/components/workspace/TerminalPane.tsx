@@ -577,19 +577,19 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       if (isCtrl && event.key === 'v' && isKeydown) {
         navigator.clipboard.readText().then(async (text) => {
           if (!text) return;
-          
+
           if (text.length > 1024) {
             setPendingPasteText(text);
             setShowPasteConfirm(true);
             return;
           }
-          
+
           const CHUNK_SIZE = 512;
           const DELAY = 2;
-          
+
           try {
             await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
-            
+
             for (let i = 0; i < text.length; i += CHUNK_SIZE) {
               const chunk = text.slice(i, i + CHUNK_SIZE);
               await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
@@ -597,7 +597,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
                 await new Promise(resolve => setTimeout(resolve, DELAY));
               }
             }
-            
+
             await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
           } catch (error) {
             console.error('Failed to paste to terminal:', error);
@@ -862,13 +862,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const executePaste = useCallback(async () => {
     if (!pendingPasteText) return;
     setShowPasteConfirm(false);
-    
+
     const CHUNK_SIZE = 512;
     const DELAY = 2;
-    
+
     try {
       await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
-      
+
       for (let i = 0; i < pendingPasteText.length; i += CHUNK_SIZE) {
         const chunk = pendingPasteText.slice(i, i + CHUNK_SIZE);
         await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
@@ -876,7 +876,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           await new Promise(resolve => setTimeout(resolve, DELAY));
         }
       }
-      
+
       await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
     } catch (error) {
       console.error('Failed to paste to terminal:', error);

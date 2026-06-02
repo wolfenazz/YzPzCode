@@ -191,16 +191,6 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
             </button>
 
             <button
-              onClick={onDesignerClick}
-              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-emerald-500/10 transition-colors duration-150 text-zinc-500 hover:text-emerald-300 cursor-pointer"
-              title="Designer"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7h16M4 12h10M4 17h16M17 10l3 2-3 2" />
-              </svg>
-            </button>
-
-            <button
               onClick={onSidebarToggle}
               className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
               title="Toggle Sidebar (Ctrl+B)"
@@ -313,6 +303,17 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 010 18M12 3a15.3 15.3 0 000 18" />
                 </svg>
                 Browser
+              </button>
+              <button
+                onClick={onDesignerClick}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300 cursor-pointer"
+                title="YzPzDesgin"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5h16M4 19h16M7 8h10v8H7z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m9 12 2 2 4-5" />
+                </svg>
+                Desgin
               </button>
             </div>
           </div>

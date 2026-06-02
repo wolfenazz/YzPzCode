@@ -83,7 +83,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
            }`}></span>
            <span className={`relative inline-flex rounded-full h-2 w-2 ${STATUS_COLORS[session.status]}`}></span>
         </div>
-        
+
         <span className={`text-[10px] font-black tracking-[0.2em] uppercase shrink-0 ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`}>
           TTY::{session.index + 1}
         </span>

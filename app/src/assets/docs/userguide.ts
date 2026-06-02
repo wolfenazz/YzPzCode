@@ -14,23 +14,29 @@ export const userGuideContent = `# YzPzCode User Guide
 10. [Code Editor](#code-editor)
 11. [File Previews](#file-previews)
 12. [Git Integration](#git-integration)
-13. [Quick Actions](#quick-actions)
-14. [Keyboard Shortcuts](#keyboard-shortcuts)
-15. [Common Tasks](#common-tasks)
-16. [Tips for Success](#tips-for-success)
-17. [Troubleshooting](#troubleshooting)
-18. [Platform-Specific Tips](#platform-specific-tips)
-19. [Button Reference](#button-reference)
-20. [Frequently Asked Questions](#frequently-asked-questions)
-21. [Getting More Help](#getting-more-help)
+13. [In-App Browser](#in-app-browser)
+14. [Visual Design Inspector](#visual-design-inspector)
+15. [AI Designer](#ai-designer)
+16. [Settings](#settings)
+17. [Discord Rich Presence](#discord-rich-presence)
+18. [External Terminals](#external-terminals)
+19. [Quick Actions](#quick-actions)
+20. [Keyboard Shortcuts](#keyboard-shortcuts)
+21. [Common Tasks](#common-tasks)
+22. [Tips for Success](#tips-for-success)
+23. [Troubleshooting](#troubleshooting)
+24. [Platform-Specific Tips](#platform-specific-tips)
+25. [Button Reference](#button-reference)
+26. [Frequently Asked Questions](#frequently-asked-questions)
+27. [Getting More Help](#getting-more-help)
 
 ---
 
 ## What is YzPzCode?
 
-YzPzCode is a **multi-terminal AI development environment** — a desktop app that lets you work with multiple AI coding assistants simultaneously, each in their own terminal window, all organized in a beautiful grid layout.
+YzPzCode is a **multi-terminal AI development environment** — a desktop app that lets you work with multiple AI coding assistants simultaneously, each in their own terminal window, all organized in a beautiful grid layout. It also includes an in-app web browser with visual design tools, an AI-powered UI designer, and support for 10 SaaS tool CLIs.
 
-Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, and more) all helping you with your coding projects at the same time, with a built-in file explorer, code editor, and Git integration.
+Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, Kilo, Hermes) and DevOps tools (GitHub, Stripe, Vercel, etc.) all helping you with your coding projects at the same time, with a built-in file explorer, code editor, web browser, and design tools.
 
 **Why use YzPzCode?**
 - **Parallel AI workflows** — Run multiple AI assistants side by side
@@ -38,9 +44,13 @@ Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, an
 - **Built-in file explorer** — Browse, search, and manage your project files
 - **Code editor** — Syntax highlighting, find/replace, auto-save, minimap
 - **Git integration** — Real-time status, diff stats, stage/unstage files
+- **In-app browser** — Webview browser with tabs, zoom, device presets
+- **Visual design inspector** — Inspect, capture, and apply styles from any webpage
+- **AI designer** — Prompt-based UI design generation with code export
 - **Quick Actions** — Auto-detected Dev/Build commands for your project
-- **Project templates** — 50+ scaffolding templates to get started fast
 - **Multi-workspace** — Switch between projects with tabbed workspaces
+- **Tool CLI management** — 10 SaaS tools detected and auth-checked
+- **Discord presence** — Show your activity on Discord
 
 ---
 
@@ -67,16 +77,15 @@ A workspace is like a project folder where you can work on one coding project. Y
 
 YzPzCode works with popular AI coding tools. You'll need to install at least one before you can use it:
 
-| Tool | What it does | How to get it |
-|------|-------------|---------------|
-| **Claude Code** | Anthropic's AI coding assistant | [Install Claude Code](https://docs.anthropic.com/claude/reference/claude-cli) |
-| **Codex CLI** | OpenAI's code generator | Check your provider's website |
-| **Gemini CLI** | Google's AI assistant | [Install Gemini CLI](https://ai.google.dev/gemini-api/docs/cli) |
-| **OpenCode CLI** | Open-source coding assistant | Check the OpenCode documentation |
-| **Cursor CLI** | AI-powered coding | [Install Cursor](https://cursor.sh/docs) |
-| **Kilo Code** | AI coding assistant | Check the Kilo Code documentation |
-
-**Don't worry about technical details** — just visit the link and follow the simple install instructions.
+| Tool | CLI Command | What it does |
+|------|-------------|-------------|
+| **Claude** | \`claude\` | General coding assistant |
+| **Codex** | \`codex\` | Code generator |
+| **Gemini** | \`gemini\` | Google's AI assistant |
+| **Cursor** | \`cursor\` | AI-powered coding IDE |
+| **Kilo** | \`kilo\` | Code agent for any task |
+| **Hermes** | \`hermes\` | Fast coding agent |
+| **OpenCode** | \`opencode\` | Open-source AI coding |
 
 ### Sign In
 
@@ -86,20 +95,6 @@ After installing an AI tool, you'll need to sign in:
 - Follow the on-screen instructions
 
 > **Tip:** You only need to do this once for each tool.
-
-### Check Prerequisites
-
-YzPzCode can check for required development tools:
-
-| Prerequisite | Why it's needed |
-|-------------|----------------|
-| **Node.js** | Required for most AI CLI tools |
-| **npm** | Package manager for Node.js |
-| **Git** | Version control (required for Git features) |
-| **Bun** | Alternative package manager (optional) |
-| **pnpm** | Alternative package manager (optional) |
-
-The **Prerequisites Panel** in the setup screen shows which tools are installed and their versions.
 
 ---
 
@@ -113,726 +108,591 @@ The **Prerequisites Panel** in the setup screen shows which tools are installed 
 
 2. **Choose a folder**
    - Click "Browse" to pick the folder where your project is
-   - Recent directories are shown for quick access
    - This is where your AI assistants will work
 
 3. **Pick a layout**
-   - Choose how many terminal windows you want:
+   - Choose how many terminal windows you want
    - **1 Terminal**: Simple, focused work
-   - **2-3 Terminals**: Good for most projects
-   - **4-6 Terminals**: For complex projects
-   - **External Mode**: Opens terminals in your OS terminal
+   - **2-4 Terminals**: Good for most projects
+   - **6-8 Terminals**: For complex projects
 
-### Step 2: (Optional) Initialize a Project
+4. **Select IDEs (optional)**
+   - Choose which IDEs to associate with the workspace
+   - Launch IDEs directly from YzPzCode
 
-Use the **Initialize Workspace** section to scaffold a new project from 50+ templates:
-
-| Category | Templates |
-|----------|-----------|
-| **Frontend** | React, Next.js, Vue, Angular, Svelte, Astro |
-| **Mobile** | Expo, Flutter, React Native, Ionic |
-| **Desktop** | Tauri, Electron |
-| **Backend** | Express, NestJS, Fastify, Hono, Django, FastAPI, Flask, Rails, Laravel, Spring Boot, Gin |
-| **Rust** | Cargo projects |
-| **.NET** | C# projects |
-| **More** | Remix, Gatsby, Solid, Qwik, tRPC, Nx, Turborepo, Prisma, Supabase, Vitest, Playwright, Storybook |
-
-Select a template and an embedded terminal will run the initialization commands for you.
-
-### Step 3: Add AI Assistants
+### Step 2: Add AI Assistants
 
 1. Find the "Agent Fleet" section
-2. Turn on the AI tools you want to use
+2. Turn on the AI tools you want to use (Claude, Codex, Gemini, etc.)
 3. Use the \`+\` and \`-\` buttons to set how many windows each tool gets
-4. Click **Distribute Evenly** to spread agents across all terminals
-5. Click **Auto-Fill from Installed** to automatically assign installed tools
 
 **Example:** If you have 4 terminals and turn on Claude (2) and Codex (1), you'll have 1 empty terminal left for regular commands.
 
-### Step 4: (Optional) Select an IDE
+### Step 3: Start Working
 
-YzPzCode can detect and launch your installed IDEs:
-
-| IDE | Platform |
-|-----|----------|
-| **VS Code** | All platforms |
-| **Visual Studio** | Windows, macOS |
-| **Cursor** | All platforms |
-| **Zed** | macOS, Linux |
-| **WebStorm** | All platforms |
-| **IntelliJ** | All platforms |
-| **Sublime Text** | All platforms |
-| **Windsurf** | All platforms |
-| **Perplexity** | All platforms |
-| **Antigravity** | All platforms |
-
-### Step 5: Start Working
-
-1. Click the **[ Execute ]** button
-2. Wait for your workspace to load (a few seconds)
-3. Start typing commands in each terminal window
+1. Click the **Execute** button to create your workspace
+2. You'll see your terminal grid with your AI assistants ready to go
+3. Type commands in each terminal like you normally would
+4. Use the **view switcher** to switch between Terminal, Editor, and Browser views
 
 ---
 
 ## Understanding the Screens
 
-### The Setup Screen
+### Screen Types
 
-The Setup Screen is your starting point for creating new workspaces:
+YzPzCode has 6 main screens:
 
-| Section | What it does |
-|---------|--------------|
-| **Workspace Configuration** | Name your project, pick the folder, and choose a layout |
-| **Workspace Template Picker** | Choose from built-in templates or save your own custom templates |
-| **Initialize Workspace** | Scaffold a new project from 50+ templates with an embedded terminal |
-| **Terminal Layout** | Choose how many terminal windows you want (1-6 or external) |
-| **Agent Fleet** | Turn on AI tools and assign them to terminal slots |
-| **IDE Selection** | Detect and select installed IDEs to launch with your workspace |
-| **CLI Tools Table** | See which AI tools are installed on your computer |
-| **Prerequisites Panel** | Check for Node.js, npm, Git, Bun, and pnpm |
+1. **Node.js Check Screen** — Appears on first launch to check prerequisites
+2. **Setup Screen** — Where you create and configure workspaces
+3. **Workspace Screen** — The main working area with terminals, editor, and browser
+4. **Docs Screen** — Built-in user documentation
+5. **Settings Screen** — Application configuration
+6. **Designer Screen** — AI-powered UI design generation
 
-#### Workspace Template Picker
+### View Switcher
 
-Save time by using templates:
-- **Built-in templates**: React, Rust, Python, Full-Stack, Quick Edit, Custom
-- **Custom templates**: Save your own workspace configurations for reuse
-- **Manage templates**: Edit or delete saved templates
+Within each Workspace Screen, you can switch between 3 views:
+1. **Terminal View** — Multi-pane PTY terminal grid
+2. **Editor View** — Code editor with file tabs
+3. **Browser View** — In-app web browser
 
-#### Agent Fleet Controls
+---
 
-| Control | What it does |
-|---------|--------------|
-| **Toggle switches** | Turn AI tools on or off |
-| **+/- buttons** | Increase or decrease the number of terminal slots for each tool |
-| **Distribute Evenly** | Spread all enabled agents equally across available slots |
-| **Auto-Fill from Installed** | Automatically assign all detected installed tools |
-| **Utilization Bar** | Visual progress showing how many slots are assigned |
+## The Setup Screen
+
+The Setup Screen has these main areas:
+
+| Section | What You Do |
+|---------|-------------|
+| **Workspace Name** | Give your project a name |
+| **Directory** | Pick your project folder |
+| **Layout** | Choose how many terminals (1/2/4/6/8) |
+| **Agent Fleet** | Assign AI tools to terminals |
+| **CLI Tools** | See what's installed |
+| **IDE Selection** | Choose IDEs to launch |
+
+### Setup View Modes
+
+You can switch between two modes:
+- **Page Mode**: All settings on one page
+- **Stepper Mode**: Step-by-step guided setup
 
 ---
 
 ## The Workspace Screen
 
-After you create a workspace, you'll see the main workspace view:
+The Workspace Screen is your main working area. It has:
 
-| Element | What it does |
-|---------|--------------|
-| **Workspace Tabs** | Switch between different open workspaces |
-| **New Workspace Button** | Create a new workspace without closing the current one |
-| **Docs Button** | Open this documentation |
-| **Sidebar Toggle** | Show/hide the file explorer |
-| **View Toggle** | Switch between Terminal and Editor views |
-| **Shortcuts Button** | View all keyboard shortcuts |
-| **Theme Toggle** | Switch between dark and light mode |
-| **Terminal Grid** | Your terminal windows arranged in a resizable grid |
-| **File Explorer** | Browse and manage your project files |
-| **Code Editor** | Edit code with syntax highlighting and auto-save |
-| **Status Bar** | Version info, feedback button |
+### Workspace Header
+
+The header shows:
+- **Workspace Tabs** — Switch between open workspaces
+- **View Buttons** — Terminal, Editor, Browser view switcher
+- **Theme Toggle** — Dark/light mode
+- **Quick Actions** — Project-specific commands
+- **Window Controls** — Minimize, maximize, close
 
 ### Multi-Workspace Support
 
-You can have multiple workspaces open at the same time:
-- Each workspace has its own set of terminal sessions
-- Each workspace tracks its own open files and active view
-- Switch between workspaces using the tabs at the top
-- Close a workspace with the **[ × ]** button on its tab
+You can open multiple workspaces at once. Each workspace has its own:
+- Terminal sessions
+- Open files and editor state
+- Browser tabs and navigation history
+- Active view selection
 
 ---
 
 ## Terminal Grid & Panes
 
-### Terminal Grid
+### The Grid
 
-The terminal grid is where your AI assistants live:
+Terminals are arranged in a grid:
 
-- **Resizable** — Drag the dividers between rows and columns to resize panes
-- **Draggable** — Drag terminal panes to reorder them
-- **Auto-layout** — Grid dimensions are calculated based on the number of sessions
-- **Spawn slots** — Click empty slots to add new terminals
-- **Session count** — Footer shows the number of active sessions and layout info
+| Layout | Sessions | Grid Size |
+|--------|----------|-----------|
+| 1 Terminal | 1 session | 1×1 |
+| 2 Terminals | 2 sessions | 2×1 |
+| 4 Terminals | 4 sessions | 2×2 |
+| 6 Terminals | 6 sessions | 3×2 |
+| 8 Terminals | 8 sessions | 4×2 |
 
 ### Terminal Panes
 
-Each terminal pane includes:
+Each terminal pane shows:
+- **Title Bar**: Shows TTY number, agent assignment, status indicator
+- **Status Indicator**: Green dot for active, yellow for running, red for error
+- **Terminal**: Full xterm.js terminal emulation
 
-| Element | What it does |
-|---------|--------------|
-| **TTY Number** | The terminal session number |
-| **Agent Badge** | Shows which AI tool is assigned (or "Shell" for empty) |
-| **Quick Actions** | Dev/Build buttons based on detected project type |
-| **Search Toggle** | Search within terminal output |
-| **Refresh** | Restart the terminal session |
-| **Close** | Close this terminal pane |
+### Using Terminals
 
-### Adding New Terminals
-
-Click the **+** button or an empty spawn slot to add a new terminal:
-- Choose an **agent type** (Claude, Codex, Gemini, etc.) or **Shell**
-- Select a **shell** (bash, zsh, cmd, PowerShell, etc.)
-- The new terminal appears in the next available slot
-
-### Terminal Features
-
-- **Auto-launch** — AI CLI tools automatically launch when the terminal opens
-- **Copy/Paste** — \`Ctrl+C\` copies selection, \`Ctrl+V\` pastes
-- **Large paste confirmation** — Warns before pasting large text (>1KB)
-- **Web links** — Clickable URLs in terminal output
-- **Unicode support** — Full Unicode 11 character support
-- **Auto-fit** — Terminals automatically resize to fit their pane
+- **Click**: Focus a terminal
+- **Type**: Enter commands
+- **Drag**: Reorder terminal panes with drag and drop
+- **Right-click**: Context menu with agent launch options
 
 ---
 
 ## File Explorer
 
-The file explorer is your project's file tree, accessible from the sidebar:
+The file explorer opens on the left side of the workspace.
 
 ### Features
 
-| Feature | How to use |
-|---------|------------|
-| **Lazy loading** | Directories load on demand as you expand them |
-| **Search/filter** | Type to filter the file tree |
-| **Drag-and-drop** | Move files and folders by dragging |
-| **Inline rename** | Right-click → Rename, or press F2 |
-| **New file/folder** | Right-click → New File or New Folder |
-| **Delete** | Right-click → Delete |
-| **Reveal in file manager** | Right-click → Reveal in File Manager |
-| **Copy/Cut/Paste** | Right-click → Copy, Cut, or Paste |
-| **Copy path** | Right-click → Copy Path, Copy Relative Path, or Copy as Import Path |
-| **Open in terminal** | Right-click → Open in Terminal |
-| **Duplicate** | Right-click → Duplicate |
-| **External file import** | Drag files from your OS file manager into the explorer |
-| **Git status badges** | Colored badges show file changes (added/modified/deleted/untracked) |
+- **Tree View**: Click folders to expand, files to open
+- **Git Badges**: Color-coded indicators:
+  - **Green** (M): Modified
+  - **Yellow** (A): Added
+  - **Red** (D): Deleted
+  - **Gray** (?): Untracked
+- **File Icons**: Language-aware icons for recognized file types
+- **Context Menu**: Right-click for:
+  - Copy, Cut, Paste
+  - Rename, Delete
+  - Duplicate
+  - Reveal in File Manager
+  - Git Stage / Git Unstage
+- **Drag & Drop**: Move files by dragging
+- **Import**: Import files into the workspace
 
-### Explorer Context Menu
+### Quick Open
 
-Right-click on any file or folder for these options:
-
-| Option | What it does |
-|--------|--------------|
-| **New File** | Create a new file in this directory |
-| **New Folder** | Create a new folder in this directory |
-| **Rename** | Rename the selected item |
-| **Delete** | Delete the selected item |
-| **Reveal in File Manager** | Open your OS file manager at this location |
-| **Refresh** | Reload the file tree |
-| **Copy** | Copy the file for pasting elsewhere |
-| **Cut** | Cut the file for moving |
-| **Copy Path** | Copy the full file path |
-| **Copy Relative Path** | Copy the path relative to the workspace root |
-| **Copy as Import Path** | Copy the path formatted as an import statement |
-| **Open in Terminal** | Open a terminal at this directory |
-| **Duplicate** | Create a copy of the file |
+Press **Ctrl+P** to quickly search and open any file in your workspace.
 
 ---
 
 ## Code Editor
 
-The code editor provides a full-featured editing experience:
+### Opening Files
+
+Double-click a file in the explorer or use Quick Open (Ctrl+P).
+
+### Multi-Tab Editing
+
+- Files open as tabs at the top of the editor
+- **Dirty indicator**: A dot appears on unsaved files
+- **Tab context menu**: Right-click a tab to:
+  - Close
+  - Close Others
+  - Close to the Right
+  - Close Saved Files
+
+### Editor Features
+
+- **Syntax highlighting** for JS, TS, Python, Rust, Java, C++, HTML, CSS, JSON, Markdown
+- **Minimap** on the right side for quick navigation
+- **Find and Replace** (Ctrl+F)
+- **Word Wrap** toggle
+- **Bracket colorization** for matching brackets
+- **Line numbers** with on/off/relative modes
+- **Auto-save** with configurable delay
+
+### File Previews
+
+YzPzCode can preview:
+- **Markdown files** (.md) — Rendered markdown preview
+- **PDF files** (.pdf) — Embedded PDF viewer
+- **Images** (.png, .jpg, .gif, .svg) — Image viewer
+- **Spreadsheets** (.xlsx, .csv) — Table viewer
+- **Word documents** (.docx) — Document viewer
+
+---
+
+## In-App Browser
+
+The browser runs inside your workspace. Open it by clicking the Browser view button.
 
 ### Features
 
-| Feature | Shortcut | Description |
-|---------|----------|-------------|
-| **Syntax highlighting** | Auto | Supports JS, TS, Rust, Python, HTML, CSS, JSON, Markdown, Java, C++ and more |
-| **Find** | \`Ctrl+F\` | Search within the file |
-| **Find & Replace** | \`Ctrl+H\` | Search and replace text |
-| **Go to Line** | \`Ctrl+G\` | Jump to a specific line number |
-| **Save** | \`Ctrl+S\` | Save the current file |
-| **Auto-save** | Toggleable | Automatically saves every 2 seconds |
-| **Word wrap** | Toggleable | Wrap long lines |
-| **Minimap** | Toggleable | Show a minimap of the file |
-| **Find next** | \`F3\` | Find the next match |
-| **Find previous** | \`Shift+F3\` | Find the previous match |
-
-### Editor Tabs
-
-Open files appear as tabs at the top of the editor:
-
-- **Drag to reorder** — Drag tabs to rearrange them
-- **Right-click menu** — Close, Close Others, Close to Right, Close All, Close Saved
-- **Dirty indicator** — Shows when a file has unsaved changes
-- **Close** — Click the **[ × ]** on a tab to close it
-
-### Quick Open
-
-Press \`Ctrl+P\` to open the Quick Open palette:
-- **Fuzzy search** — Type any part of a filename to find it
-- **Keyboard navigation** — Use arrow keys and Enter to select
-- **Highlighted matches** — Matching characters are highlighted in results
+- **URL Bar**: Type any URL and press Enter
+- **Multi-Tab**: Open multiple browser tabs
+- **Navigation**: Back/Forward buttons
+- **Zoom**: Adjust from 50% to 200%
+- **Device Presets**:
+  - **Responsive** (default)
+  - **iPhone 14 Pro** (393×852)
+  - **iPad** (820×1180)
+- **Orientation**: Switch between portrait and landscape
+- **Snapshot**: Export the full page HTML
+- **Pop-Out**: Open the browser in a separate window
 
 ---
 
-## File Previews
+## Visual Design Inspector
 
-YzPzCode can preview many file types without leaving the app:
+The browser includes powerful design tools. Access them from the browser toolbar.
 
-| File Type | Extensions | Preview |
-|-----------|-----------|---------|
-| **Code** | .js, .ts, .tsx, .rs, .py, .html, .css, .json, .md, .java, .cpp, and more | Syntax-highlighted editor |
-| **Markdown** | .md, .markdown | Toggle between source and rendered preview |
-| **Images** | .png, .jpg, .jpeg, .gif, .webp, .bmp, .ico, .avif, .tiff | Image viewer |
-| **PDF** | .pdf | PDF viewer |
-| **Documents** | .docx, .doc | Document viewer |
-| **Spreadsheets** | .xlsx, .xls, .csv | Spreadsheet viewer |
+### Inspect Mode
 
-### Large File Handling
+- **What it does**: Hover over any element to see its HTML, classes, ID, and CSS selectors
+- **How to use**: Click the Inspect button, then hover over elements
+- **Exit**: Press Escape or click the Inspect button again
 
-- Files larger than **10MB** show a warning before opening
-- **Deleted files** can be recovered from Git history
-- **Binary files** are detected and shown as previews instead of raw content
+### Pick Style Mode
+
+- **What it does**: Click an element to capture its computed CSS styles (including \`::before\` and \`::after\`)
+- **How to use**: Click the Pick Style button, then click an element
+- **Result**: Styles are saved to the Style Clipboard for later use
+
+### Pick UI Element Mode
+
+- **What it does**: Deep-capture an entire UI component with structure tree, layout, typography, visuals, and design intent
+- **How to use**: Click Pick UI Element, then click a component
+- **Result**: Full reference saved to the UI Reference Clipboard
+- **Captured data**: Structure tree (up to 8 levels), layout grid, spacing, fonts, colors, shadows, assets, hover selectors, and auto-generated design analysis
+
+### Apply Mode
+
+- **What it does**: Apply captured styles to target elements
+- **How to use**: Select a style from the clipboard, click Apply, then click an element
+- **Preview**: Hover to preview before applying
+- **Undo**: Use the undo button to revert applications
+- **CSS Classes**: Generated CSS classes are injected into the page
 
 ---
 
-## Git Integration
+## AI Designer
 
-YzPzCode provides real-time Git integration:
+Generate complete UI designs from natural language prompts.
 
-### Git Changes Panel
+### Opening the Designer
 
-Located in the file explorer sidebar:
+Click the **Designer** button in the workspace header or the global context menu.
 
-| Feature | Description |
-|---------|-------------|
-| **Collapsible** | Expand/collapse to show or hide changes |
-| **Per-file changes** | Shows each changed file with its change type |
-| **Line stats** | Shows lines added (+) and deleted (-) per file |
-| **Visual diff bars** | Color-coded bars show the extent of changes |
-| **Stage/Unstage** | Stage or unstage individual files |
-| **Change type badges** | Color-coded: green=added, yellow=modified, red=deleted, blue=untracked |
+### Generating a Design
 
-### Git Status Badges
+1. **Enter a prompt** — Describe what you want (e.g., "A modern SaaS landing page with hero")
+2. **Select a theme** — Choose from curated themes
+3. **Choose page type** — Landing page, dashboard, etc.
+4. **Click Generate**
 
-Files in the explorer show colored badges:
+### Working with Designs
 
-| Color | Change Type |
-|-------|-------------|
-| **Green** | Added (new file) |
-| **Yellow** | Modified (changed file) |
-| **Red** | Deleted (removed file) |
-| **Blue** | Untracked (new, not staged) |
+- **Live Preview**: See the design in responsive device frames
+- **Customization Panel**: Tweak colors, fonts, spacing
+- **Element Inspector**: Inspect generated components
+- **Design History**: Browse and restore previous iterations
+- **Skills Manager**: Manage prompt engineering skills
 
-### Auto-Refresh
+### Export
 
-The file watcher automatically refreshes Git status when files change:
-- **Debounced** — Refreshes 300ms after changes stop
-- **Real-time** — No manual refresh needed
+Export your design as HTML, CSS, and JavaScript.
+
+---
+
+## Settings
+
+Press **Ctrl+,** or use the context menu to open Settings. There are 11 sections:
+
+### 1. Appearance
+
+- **Theme**: Dark or Light
+- **Accent Color**: Choose from 8 colors (default, blue, purple, green, orange, red, pink, cyan)
+- **UI Density**: Compact, Comfortable, or Spacious
+- **Animations**: Toggle on/off for accessibility
+- **Custom Cursor**: Toggle animated cursor
+
+### 2. Terminal
+
+- Font family, font size
+- Cursor style (block, underline, bar) and blink
+- Scrollback size (default: 10,000 lines)
+- Copy on select, paste on right-click
+- Terminal bell, opacity, word wrap
+
+### 3. Editor
+
+- Font family, font size, tab size
+- Word wrap, line numbers, bracket colorization
+- Format on save, trim whitespace
+
+### 4. Agents
+
+- See which AI agents and tool CLIs are installed
+- Get install commands for missing CLIs
+- Set agent timeout
+
+### 5. Workspace
+
+- Auto-save toggle and delay
+- Minimap toggle
+- Confirm before closing unsaved files
+- Save workspace state
+- Default layout template and directory
+- Launch IDE on workspace creation
+
+### 6. IDE
+
+- Detect installed IDEs
+- Supported: VS Code, Cursor, Zed, Visual Studio, WebStorm, IntelliJ, Sublime Text, Windsurf, Perplexity, Antigravity
+
+### 7. Updates
+
+- Auto-check for updates
+- Auto-download updates
+- Update channel: Stable, Beta, Nightly
+- Manual check for updates
+- Download progress with auto-install and relaunch
+
+### 8. Environment
+
+Check prerequisites: Node.js, npm, git, bun, pnpm, Docker
+
+### 9. Data
+
+Clear application data and reset settings.
+
+### 10. About
+
+Version and OS information.
+
+### 11. Shortcuts
+
+Keyboard shortcuts reference.
+
+---
+
+## Discord Rich Presence
+
+Show what you're working on in your Discord profile.
+
+### Enabling
+
+Go to **Settings → Appearance** and toggle **Discord Rich Presence**.
+
+### What Shows on Discord
+
+- **Workspace name** or "No workspace open"
+- **Activity details** or "Idle"
+- **Elapsed time** since current activity started
+- YzPzCode branding
+
+---
+
+## External Terminals
+
+Launch native OS terminal windows with AI CLIs pre-configured.
+
+### How It Works
+
+- Windows: Opens CMD windows with auto-tiling
+- macOS: Opens Terminal.app windows with positioned bounds
+- Linux: Opens detected terminal (gnome-terminal, konsole, etc.) with wmctrl tiling
+
+### Use Cases
+
+- Running long-lived processes outside the app
+- Opening additional terminals beyond the grid
+- Quick access to a full OS terminal in your workspace directory
 
 ---
 
 ## Quick Actions
 
-Quick Actions are smart buttons that appear in each terminal header:
+Quick Actions appear in the workspace header and provide:
 
-| Button | What it does |
-|--------|--------------|
-| **Dev** | Injects the development command for your project type |
-| **Build** | Injects the build command for your project type |
-
-### Project Auto-Detection
-
-YzPzCode automatically detects your project type and suggests the right commands:
-
-| Detected Project | Dev Command | Build Command |
-|-----------------|-------------|---------------|
-| **Next.js** | \`npm run dev\` | \`npm run build\` |
-| **React/Vite** | \`npm run dev\` | \`npm run build\` |
-| **Rust** | \`cargo run\` | \`cargo build\` |
-| **Go** | \`go run .\` | \`go build\` |
-| **Flutter** | \`flutter run\` | \`flutter build\` |
-| **Python** | \`python main.py\` | - |
-| **.NET** | \`dotnet run\` | \`dotnet build\` |
-| **Rails** | \`rails server\` | - |
-| **PHP** | \`php -S localhost:8000\` | - |
-| **Make** | \`make run\` | \`make\` |
-| **And more...** | Auto-detected | Auto-detected |
+- **Build commands** — Auto-detected from your project
+- **Dev commands** — Common development tasks
+- **One-click execution** — Run commands in the active terminal
 
 ---
 
 ## Keyboard Shortcuts
 
-### Global Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| \`Ctrl+B\` | Toggle file explorer sidebar |
-| \`Ctrl+E\` | Toggle between Terminal and Editor views |
-| \`Ctrl+W\` | Close active file tab |
-| \`Ctrl+P\` | Open Quick Open file palette |
-| \`Ctrl+K\` | Focus documentation search |
-| \`F11\` | Toggle fullscreen |
-| \`Ctrl+Tab\` | Switch workspace tab |
-| \`Esc\` | Close search, modals, and dialogs |
-
-### Editor Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| \`Ctrl+F\` | Find in file |
-| \`Ctrl+H\` | Find and replace |
-| \`Ctrl+G\` | Go to line |
-| \`Ctrl+S\` | Save file |
-| \`F3\` | Find next match |
-| \`Shift+F3\` | Find previous match |
-
-### Terminal Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| \`Ctrl+C\` | Copy selection |
-| \`Ctrl+V\` | Paste (with large paste confirmation) |
-| \`Ctrl+L\` | Clear terminal |
-| \`Ctrl+F\` | Search terminal output |
-
-### Documentation Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| \`Ctrl+K\` | Focus search |
-| \`Esc\` | Clear search |
-| \`1-9\` | Navigate to search result number |
+| Action | Shortcut |
+|--------|----------|
+| Open Settings | Ctrl+, |
+| Quick Open File | Ctrl+P |
+| Find in File | Ctrl+F |
+| Copy | Ctrl+C (with text selected) |
+| Paste | Ctrl+V |
+| Clear Terminal | Ctrl+L (shell dependent) |
+| Escape | Exit inspect/pick modes |
+| Switch View | Click view buttons in header |
 
 ---
 
 ## Common Tasks
 
-### Create a New Workspace
+### Opening a File
 
-1. Click the **[ + ]** button at the top of the screen
-2. Fill in the workspace name and folder
-3. Choose your layout and AI tools
-4. Click **[ Execute ]**
+1. Click the file explorer toggle to show the panel
+2. Navigate to your file and click it
+3. The file opens in the editor
 
-### Open an Existing Workspace
+### Checking Git Status
 
-1. Click the workspace tab at the top
-2. Or click the **[ + ]** button and select the same folder
+1. Click the Git icon in the explorer panel
+2. See all modified, added, and deleted files
+3. Click on files to see diff statistics
 
-### Switch Between Workspaces
+### Launching an IDE
 
-- Click on any tab at the top of the screen
-- Each workspace is saved separately, so your work won't be lost
-- Use \`Ctrl+Tab\` to cycle through workspace tabs
+1. Open **Settings → IDE**
+2. Ensure your IDE is detected
+3. Configure IDE launch on workspace creation
 
-### Close a Workspace
+### Inspecting a Web Page
 
-- Click the **[ × ]** next to the workspace tab
-- This closes the workspace and all its terminals
+1. Switch to **Browser View**
+2. Navigate to the page you want to inspect
+3. Click **Inspect Mode** in the browser toolbar
+4. Hover over elements to see their HTML structure
 
-### Start Fresh
+### Capturing a Design Reference
 
-- Click the **[ Terminate ]** button
-- This closes the current workspace and takes you back to the setup screen
+1. In the browser, click **Pick UI Element Mode**
+2. Click on a UI component (card, nav bar, hero section, etc.)
+3. The full design reference is captured with structure, styles, typography, and colors
+4. Use the reference in the AI Designer for consistent designs
 
-### Add a New Terminal
+### Creating a Design with AI
 
-1. Click the **+** button in the terminal grid
-2. Choose an agent type or Shell
-3. Select a shell (bash, zsh, cmd, PowerShell, etc.)
-
-### Open a File
-
-- Click a file in the **File Explorer**
-- Or press \`Ctrl+P\` and search by name
-- Or drag a file from your OS into the explorer
-
-### Edit a File
-
-1. Open the file (click in explorer or Ctrl+P)
-2. Switch to **Editor view** with \`Ctrl+E\` or the view toggle
-3. Edit the file — it auto-saves every 2 seconds
-4. Press \`Ctrl+S\` to manually save
-
-### Launch an IDE
-
-1. Select IDEs in the setup screen before creating a workspace
-2. Or use the IDE detection to find installed IDEs
-3. YzPzCode will launch the IDE with your workspace directory
+1. Click the **Designer** button
+2. Describe your desired design
+3. Select a theme and page type
+4. Generate, customize, and export
 
 ---
 
 ## Tips for Success
 
-### For Beginners
+### Best Practices
 
-- Start with **2 terminals** and 1 AI tool
-- Create a separate workspace for each project
-- Use the same AI tool across all terminals at first
-- Use the **Quick Actions** buttons to run common commands
+- **Name workspaces clearly** — Use project names you'll recognize
+- **Match layout to work** — Start with 2-4 terminals, expand as needed
+- **Use dedicated workspaces** — Different projects get different workspaces
+- **Check CLI status** — Make sure your AI tools are installed and authenticated
+- **Save often** — Enable auto-save for worry-free editing
+- **Use the browser** — Preview your work without leaving the app
+- **Capture references** — Use Pick UI Element to build a library of design references
 
-### For Better Performance
+### Workflow Ideas
 
-- Don't open too many workspaces at once
-- Start with fewer terminals if the app feels slow
-- Close workspaces you're not using
-- Close other resource-intensive apps when using many terminals
-
-### For Organized Work
-
-- Use descriptive workspace names (e.g., "website-backend", "app-frontend")
-- Keep related projects in separate workspaces
-- Use different AI tools for different tasks:
-  - **Claude** for general coding and explaining code
-  - **Codex** for generating new code
-  - **Gemini** for working with images and documents
-  - **Cursor** for AI-powered coding workflows
-  - **OpenCode** for open-source coding assistance
-  - **Kilo** for lightweight coding tasks
-
-### Power User Tips
-
-- **Save custom templates** for projects you create frequently
-- **Use Quick Open** (\`Ctrl+P\`) to navigate large projects fast
-- **Drag-and-drop files** from your OS into the explorer to import them
-- **Use the Git panel** to stage/unstage files without leaving the app
-- **Toggle the minimap** for large files to navigate quickly
-- **Use external terminal mode** if you prefer your OS terminal
+- **Frontend dev**: Browser view + Claude + Codex + Editor
+- **Backend API**: Gemini + multiple terminal sessions + Git integration
+- **Design work**: AI Designer + browser preview + style capture
+- **DevOps**: Tool CLIs (Vercel, Supabase, Stripe) + managed commands
 
 ---
 
 ## Troubleshooting
 
-### Common Problems
+### CLI Tools Not Detected
 
-**Problem: "Tool Not Installed"**
+**Try these:**
+1. Click the refresh icon to re-detect
+2. Check the CLI is in your system PATH
+3. Restart YzPzCode
 
-**Solution:**
-1. Check if you installed the AI tool
-2. Try signing in to the tool
-3. Click the refresh button in the setup screen
-4. Check the **Prerequisites Panel** for missing dependencies
+### Terminals Won't Start
 
-**Problem: Workspace won't create**
+**Try these:**
+1. Close and reopen the workspace
+2. Check the directory exists and is accessible
+3. Restart the app
 
-**Solution:**
-1. Make sure you filled in all the fields
-2. Check that the folder exists on your computer
-3. Try closing and reopening the app
-4. Check for validation errors at the bottom of the setup screen
+### Browser Shows Blank
 
-**Problem: Terminals are stuck on "Initializing"**
+**Try these:**
+1. Check the URL is valid
+2. Navigate to a different URL
+3. Close and reopen the browser tab
 
-**Solution:**
-1. Close the workspace
-2. Try creating it again
-3. Restart the app if it keeps happening
-4. Check that the assigned AI tool is properly authenticated
+### Designer Not Working
 
-**Problem: AI commands don't work**
+**Try these:**
+1. Make sure an AI CLI (like Claude) is installed
+2. Make your prompt more descriptive
+3. Try a different theme
 
-**Solution:**
-1. Make sure you're signed in to the AI tool
-2. Check your internet connection
-3. Try the tool's own documentation for help
-4. Use the **Auth Modal** to see authentication instructions
+### App Feels Slow
 
-**Problem: File won't open in editor**
-
-**Solution:**
-1. Check if the file is binary (binary files show as previews)
-2. For files >10MB, confirm the warning prompt
-3. For deleted files, the editor will try to recover from Git history
-
-**Problem: Git status not updating**
-
-**Solution:**
-1. The file watcher auto-refreshes — wait a moment
-2. Try refreshing the file explorer
-3. Make sure Git is installed and the folder is a Git repository
-
-**Problem: Custom cursor is annoying**
-
-**Solution:**
-1. The custom cursor can be toggled off in settings
-2. Your preference is saved between sessions
+**Try these:**
+1. Reduce the number of terminal sessions
+2. Close unused workspaces
+3. Disable animations in Settings
 
 ---
 
 ## Platform-Specific Tips
 
-### Windows Users
+### Windows
 
-**Opening the App:**
-- If you see a Windows SmartScreen warning, click "More info" → "Run anyway"
-- Windows 10 users may see a compatibility warning — the app works best on Windows 11
+- Terminals use CMD by default
+- External terminals open with auto-tiling (grid layout)
+- Use winget for CLI installations
 
-**Best Performance:**
-- Close other apps when using many terminals
-- Use Windows Terminal as your default shell for the best experience
+### macOS
 
-### macOS Users
+- macOS may require right-click to open (not code-signed yet)
+- Terminal.app used for external terminals
+- Use Homebrew for CLI installations
 
-**Opening the App:**
-- If macOS says the app is "damaged", right-click the app and select "Open"
-- You might need to allow the app in System Preferences > Security & Privacy
+### Linux
 
-**Best Performance:**
-- Close other apps when using many terminals
-- Use the latest version of macOS (10.15 or newer)
-
-### Linux Users
-
-**Best Performance:**
-- Close other resource-intensive apps
-- Use a lighter desktop environment if the app feels slow
-- Make sure your system is up to date
+- Terminal detection: gnome-terminal, konsole, xfce4-terminal
+- wmctrl required for external terminal tiling
+- Standard package managers for CLI installations
 
 ---
 
 ## Button Reference
 
-### Setup Screen Buttons
-
-| Button | What it does |
-|--------|--------------|
-| **[ Execute ]** | Creates your workspace and starts all terminal sessions |
-| **[ Cancel ]** | Cancels workspace creation and returns to the previous state |
-| **[ Browse ]** | Opens a folder picker to choose your project folder |
-| **Refresh icon** (↻) | Re-checks for newly installed AI tools |
-| **Toggle switches** | Turn AI tools on or off in the Agent Fleet |
-| **Distribute Evenly** | Spreads all enabled agents equally across terminal slots |
-| **Auto-Fill from Installed** | Automatically assigns all detected installed tools |
-
-### Workspace Screen Buttons
-
-| Button | What it does |
-|--------|--------------|
-| **[ + ]** | Creates a new workspace |
-| **[ × ]** (on tabs) | Closes that workspace |
-| **[ Docs ]** | Opens this documentation |
-| **[ Sidebar ]** | Toggles the file explorer sidebar |
-| **[ View ]** | Switches between Terminal and Editor views |
-| **[ Shortcuts ]** | Shows all keyboard shortcuts |
-| **[ Terminate ]** | Closes current workspace and goes back to setup |
-| **Theme button** (☀️/🌙) | Switches between light and dark mode |
-| **[ Minimize ]** | Minimizes the app window (Windows) |
-| **[ Maximize ]** | Maximizes the app window (Windows) |
-| **[ Close ]** | Closes the app window (Windows) |
-
-### Terminal Buttons
-
-| Button | What it does |
-|--------|--------------|
-| **[ Dev ]** | Injects the development command (auto-detected) |
-| **[ Build ]** | Injects the build command (auto-detected) |
-| **[ Search ]** | Toggle search within terminal output |
-| **[ Refresh ]** | Restart the terminal session |
-| **[ Close ]** | Close this terminal pane |
-| **[ Install ]** | Install the AI tool (if not installed) |
-| **[ Authenticate ]** | Show authentication instructions |
-
-### Explorer Buttons
-
-| Button | What it does |
-|--------|--------------|
-| **[ + ]** | New file or folder |
-| **[ Search ]** | Filter the file tree |
-| **[ Refresh ]** | Reload the file tree |
-
-### Editor Buttons
-
-| Button | What it does |
-|--------|--------------|
-| **[ Save ]** | Save the current file (\`Ctrl+S\`) |
-| **[ Find ]** | Open find bar (\`Ctrl+F\`) |
-| **[ Replace ]** | Open find/replace bar (\`Ctrl+H\`) |
-| **[ Go to Line ]** | Jump to a line (\`Ctrl+G\`) |
-| **[ Word Wrap ]** | Toggle word wrap |
-| **[ Minimap ]** | Toggle minimap |
-
-### Global Context Menu
-
-Right-click anywhere in the app for quick actions:
-
-| Option | What it does |
-|--------|--------------|
-| **New Workspace** | Create a new workspace |
-| **Documentation** | Open this documentation |
-| **Copy** | Copy selected text |
-| **Paste** | Paste from clipboard |
-| **Toggle Theme** | Switch between dark and light mode |
+| Button | Where | What It Does |
+|--------|-------|-------------|
+| Execute | Setup Screen | Create workspace |
+| Browse | Setup Screen | Choose project folder |
+| + | Workspace Header | New workspace |
+| × | Workspace Tab | Close workspace |
+| Theme | Header | Dark/Light toggle |
+| Docs | Header | Open documentation |
+| Designer | Header | Open AI Designer |
+| Settings | Context Menu | Open settings |
+| Terminal/Editor/Browser | Header | Switch workspace view |
+| Refresh | Agent Fleet | Re-detect CLIs |
 
 ---
 
 ## Frequently Asked Questions
 
-**Q: Do I need to know how to code?**
-A: Yes, YzPzCode is designed for people who write code or are learning to code.
+### Do I need to install Node.js?
 
-**Q: Can I use multiple AI tools at once?**
-A: Yes! You can mix different AI tools in the same workspace, each in their own terminal.
+Yes. YzPzCode checks for Node.js on first launch and will prompt you to install it if missing.
 
-**Q: Will my code be saved?**
-A: Yes, your code is saved in the project folder you selected. YzPzCode just helps you work on it. Auto-save is enabled by default (every 2 seconds).
+### How many AI assistants can I use at once?
 
-**Q: Is my data private?**
-A: Your code stays on your computer. However, when you use AI tools, they process your code according to their own privacy policies. Check each AI tool's privacy policy for details.
+Up to 8 terminals in the grid, each can run a different AI CLI or shell.
 
-**Q: Can I use this without internet?**
-A: No, AI tools need an internet connection to work. However, the file explorer, editor, and Git features work offline.
+### Can I use YzPzCode without AI tools?
 
-**Q: How many workspaces can I have?**
-A: As many as you want! Just keep in mind that each workspace uses computer resources.
+Yes. Unassigned terminals run as regular shell sessions in your workspace directory.
 
-**Q: Can I customize the terminal size?**
-A: Yes! Drag the dividers between terminal panes to resize them. You can also drag panes to reorder them.
+### How do I update YzPzCode?
 
-**Q: What file types can I edit?**
-A: Any text file. The editor supports syntax highlighting for JavaScript, TypeScript, Rust, Python, HTML, CSS, JSON, Markdown, Java, C++, and more.
-
-**Q: Can I preview images and documents?**
-A: Yes! YzPzCode can preview images (PNG, JPG, GIF, WebP, etc.), PDFs, Word documents (.docx), and spreadsheets (.xlsx, .csv).
-
-**Q: How does Git integration work?**
-A: YzPzCode automatically detects Git status for your workspace, shows changed files with colored badges, and lets you stage/unstage files from the explorer.
-
-**Q: Can I drag files from my OS into the app?**
-A: Yes! Drag files from your file manager into the file explorer to import them into your workspace.
-
-**Q: What are Quick Actions?**
-A: Quick Actions are smart Dev/Build buttons that appear in each terminal header. YzPzCode auto-detects your project type and injects the right commands.
-
-**Q: Can I save my workspace configuration?**
-A: Yes! Use the Template Picker to save custom templates for reuse.
-
-**Q: How do I find a file quickly?**
-A: Press \`Ctrl+P\` to open the Quick Open palette and type any part of the filename.
+Check **Settings → Updates** for available updates. Configure update channel (Stable, Beta, Nightly).
 
 ---
 
 ## Getting More Help
 
-If you're still having trouble:
+If you can't find what you need:
 
-1. **Check the error message** - Read what the screen says carefully
-2. **Try the simple fixes** - Close and reopen the app, or restart your computer
-3. **Visit the AI tool's website** - Each AI tool (Claude, Codex, etc.) has its own help documentation
-4. **Use the feedback button** - Found in the status bar at the bottom of the app
-5. **Check for updates** - YzPzCode will notify you when a new version is available
-
-### Feedback
-
-To send feedback:
-1. Click the **Feedback** button in the status bar
-2. Write your message (required)
-3. Optionally add your name and contact info
-4. Press \`Ctrl+Enter\` or click **Send**
+1. Check the console for error messages
+2. Look at the \`AGENTS.md\` file for development information
+3. Open an issue on GitHub
 
 ---
 
-## You're All Set!
+## Next Steps
 
-Now you know how to:
+Now that you know the basics:
 
-✅ Install and configure AI coding tools
-✅ Create workspaces for your projects
-✅ Work with multiple AI assistants at once
-✅ Navigate and edit files with the built-in editor
-✅ Use Git integration for version control
-✅ Preview images, documents, and spreadsheets
-✅ Use Quick Actions for common commands
-✅ Switch between different projects
-✅ Customize your terminal layout
-✅ Troubleshoot common problems
+- Explore different agent combinations
+- Try the in-app browser and visual design tools
+- Use the AI Designer for rapid prototyping
+- Set up Discord Rich Presence
+- Customize your workspace experience
 
-**Happy coding with your AI assistants!**
+Happy coding with AI agents! 🚀
 `;

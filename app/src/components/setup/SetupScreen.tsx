@@ -165,12 +165,12 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
           <button
             onClick={onDesignerClick}
             className="group/designer flex items-center gap-1.5 px-4 h-full border-r border-theme hover:bg-theme-hover transition-colors duration-150 text-zinc-500 hover:text-emerald-300 cursor-pointer"
-            title="Designer"
+            title="YzPzDesgin"
           >
             <svg className="w-3.5 h-3.5 transition-all duration-300 group-hover/designer:-translate-y-0.5 group-hover/designer:scale-110 group-hover/designer:drop-shadow-[0_0_6px_rgba(34,197,94,0.45)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7h16M4 12h10M4 17h16M17 10l3 2-3 2" />
             </svg>
-            <span className="text-[9px] font-mono tracking-[0.15em] hidden sm:inline uppercase text-zinc-500 transition-all duration-300 group-hover/designer:text-emerald-300 group-hover/designer:tracking-[0.25em]">designer</span>
+            <span className="text-[9px] font-mono tracking-[0.15em] hidden sm:inline uppercase text-zinc-500 transition-all duration-300 group-hover/designer:text-emerald-300 group-hover/designer:tracking-[0.25em]">desgin</span>
           </button>
         </div>
 
