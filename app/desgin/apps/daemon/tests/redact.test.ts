@@ -36,7 +36,11 @@ describe('redactSecrets', () => {
     expect(redactSecrets('AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE')).toBe(
       'AWS_ACCESS_KEY_ID=[REDACTED:aws_access_key]',
     );
-    expect(redactSecrets('GMAPS=AIzaSyD-Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1')).toBe(
+    // Construct the Google API key fixture at runtime so the literal
+    // AIza... string never lands in source where GitHub's secret scanner
+    // would flag it. The regex sees the full token at test time.
+    const gmapsFixture = ['AIzaSyD-', 'Aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1'].join('');
+    expect(redactSecrets(`GMAPS=${gmapsFixture}`)).toBe(
       'GMAPS=[REDACTED:google_api_key]',
     );
   });
