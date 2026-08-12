@@ -78,6 +78,10 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS runners cap Node's default heap at ~2GB, which is exhausted by the
+          # Monaco bundle during `vite build` (FATAL ERROR: heap out of memory, exit 134).
+          # Raise the limit only on macOS; other platforms already pass with their default.
+          NODE_OPTIONS: ${{ matrix.platform == 'macos-latest' && '--max-old-space-size=8192' || '' }}
         with:
           projectPath: app
           tagName: ${{ github.ref_name }}
