@@ -281,6 +281,40 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
     window.addEventListener('mouseup', handleUp);
   }, [activeRowColSizes, activeColRowSizes, activeColSizes, activeRowSizes, independentGridResize, getPointerPercent, rows, cols]);
 
+  // Double-clicking a divider resets the split it controls back to equal sizes.
+  // lineIndex is the row for column dividers, and the column for row dividers.
+  const handleDividerReset = useCallback((axis: 'col' | 'row', lineIndex?: number) => {
+    if (axis === 'col') {
+      if (independentGridResize) {
+        const r = lineIndex ?? 0;
+        setRowColSizes((prev) => {
+          const base =
+            prev && prev.length === rows && prev.every((rowArr) => rowArr.length === cols)
+              ? prev.map((rowArr) => [...rowArr])
+              : Array.from({ length: rows }, () => makeEqualSizes(cols));
+          base[r] = makeEqualSizes(cols);
+          return base;
+        });
+      } else {
+        setColSizes(makeEqualSizes(cols));
+      }
+    } else {
+      if (independentGridResize) {
+        const c = lineIndex ?? 0;
+        setColRowSizes((prev) => {
+          const base =
+            prev && prev.length === cols && prev.every((colArr) => colArr.length === rows)
+              ? prev.map((colArr) => [...colArr])
+              : Array.from({ length: cols }, () => makeEqualSizes(rows));
+          base[c] = makeEqualSizes(rows);
+          return base;
+        });
+      } else {
+        setRowSizes(makeEqualSizes(rows));
+      }
+    }
+  }, [independentGridResize, rows, cols]);
+
   if (isLoading) {
     return (
       <div className="h-full flex items-center justify-center font-mono text-zinc-500">
@@ -412,6 +446,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
                   <div
                     key={`vdiv-${r}-${ci}`}
                     onMouseDown={(e) => handleDividerDrag(e, 'col', ci, r)}
+                    onDoubleClick={() => handleDividerReset('col', r)}
+                    title="Double-click to reset to equal widths"
                     className="absolute cursor-col-resize z-10 group/divider"
                     style={{
                       left: `calc(${leftPct}% + ${ci * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
@@ -438,6 +474,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
                   <div
                     key={`hdiv-${c}-${ri}`}
                     onMouseDown={(e) => handleDividerDrag(e, 'row', ri, c)}
+                    onDoubleClick={() => handleDividerReset('row', c)}
+                    title="Double-click to reset to equal heights"
                     className="absolute cursor-row-resize z-10 group/divider"
                     style={{
                       top: `calc(${topPct}% + ${ri * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
@@ -462,6 +500,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
               <div
                 key={`vdiv-classic-${ci}`}
                 onMouseDown={(e) => handleDividerDrag(e, 'col', ci)}
+                onDoubleClick={() => handleDividerReset('col')}
+                title="Double-click to reset to equal widths"
                 className="absolute cursor-col-resize z-10 group/divider"
                 style={{
                   left: `calc(${leftPct}% + ${ci * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
@@ -483,6 +523,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
               <div
                 key={`hdiv-classic-${ri}`}
                 onMouseDown={(e) => handleDividerDrag(e, 'row', ri)}
+                onDoubleClick={() => handleDividerReset('row')}
+                title="Double-click to reset to equal heights"
                 className="absolute cursor-row-resize z-10 group/divider"
                 style={{
                   top: `calc(${topPct}% + ${ri * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,

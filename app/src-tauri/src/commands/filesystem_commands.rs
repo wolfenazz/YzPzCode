@@ -122,3 +122,8 @@ pub async fn import_files(
     filesystem::operations::import_entries(&source_paths, &destination_dir)
         .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn copy_entry(source_path: String, destination_dir: String) -> Result<String, String> {
+    filesystem::operations::copy_entry(&source_path, &destination_dir).map_err(|e| e.to_string())
+}

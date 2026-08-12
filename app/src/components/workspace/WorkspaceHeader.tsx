@@ -60,35 +60,43 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[9999] font-mono animate-fade-in" 
+      className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-[9999] font-mono animate-fade-in"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Keyboard shortcuts"
-        className="bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden animate-scale-in"
+        className="relative max-w-lg w-full mx-4 overflow-hidden rounded-xl border border-theme bg-theme-card shadow-[0_32px_80px_-16px_rgba(0,0,0,0.75),0_8px_24px_-8px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.03),0_0_64px_-24px_var(--accent-glow)] animate-scale-in"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 bg-zinc-900/40">
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
+        <div className="absolute inset-x-0 top-[1px] h-[3px] bg-gradient-to-r from-transparent via-[var(--accent-glow)] to-transparent opacity-50" />
+
+        <div className="relative flex items-center justify-between px-6 py-4 border-b border-theme bg-theme-main/50">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-              <svg className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth="2" />
-                <path strokeLinecap="round" strokeWidth="2" d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />
+            <div className="flex items-center gap-1.5 pr-3 border-r border-theme">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ff5f56] opacity-70 shadow-[0_0_6px_rgba(255,95,86,0.5)]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#ffbd2e] opacity-70 shadow-[0_0_6px_rgba(255,189,46,0.5)]" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#27c93f] opacity-70 shadow-[0_0_6px_rgba(39,201,63,0.5)]" />
+            </div>
+            <div className="w-8 h-8 rounded-lg bg-theme-hover border border-[var(--accent-border)] flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_14px_-2px_var(--accent-glow)]">
+              <svg className="w-4 h-4 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="2" y="6" width="20" height="12" rx="2" strokeWidth={1.5} />
+                <path strokeLinecap="round" strokeWidth={1.5} d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8" />
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-zinc-100 tracking-widest uppercase">Command System</h3>
-              <p className="text-[10px] text-zinc-500 uppercase tracking-tighter">Keyboard Shortcut Mappings</p>
+              <h3 className="text-sm font-bold text-theme-main tracking-widest uppercase">Command System</h3>
+              <p className="text-[10px] text-[var(--accent-text)] uppercase tracking-tighter">Keyboard Shortcut Mappings</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-500 hover:text-zinc-300 transition-all duration-200"
+            className="p-2 hover:bg-theme-hover hover:border-[var(--accent-border)] rounded-lg border border-transparent text-[var(--text-secondary)] hover:text-[var(--accent)] transition-all duration-200 cursor-pointer"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -97,22 +105,26 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
           {SHORTCUTS.map((group) => (
             <div key={group.category} className="space-y-3">
               <div className="flex items-center gap-2 px-1">
-                <div className="h-px flex-1 bg-zinc-800"></div>
-                <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">{group.category}</h4>
-                <div className="h-px w-4 bg-zinc-800"></div>
+                <span className="text-[var(--accent)] font-bold">//</span>
+                <div className="h-px flex-1 bg-gradient-to-r from-[var(--accent-border)] via-[var(--bg-tertiary)] to-transparent"></div>
+                <h4 className="text-[10px] font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">{group.category}</h4>
+                <div className="h-px w-4 bg-theme"></div>
               </div>
               <div className="grid grid-cols-1 gap-2">
                 {group.items.map((shortcut, i) => (
-                  <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-transparent hover:border-zinc-800 hover:bg-zinc-900/30 transition-all duration-200 group">
-                    <span className="text-xs text-zinc-400 group-hover:text-zinc-200 transition-colors">{shortcut.action}</span>
+                  <div key={i} className="group flex items-center justify-between px-3 py-2.5 rounded-lg border border-transparent hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/40 transition-all duration-200">
+                    <span className="flex items-center gap-2.5">
+                      <span className="text-[var(--accent)] text-[10px] opacity-0 group-hover:opacity-100 transition-opacity duration-150">›</span>
+                      <span className="text-xs text-theme-secondary group-hover:text-theme-main transition-colors duration-150">{shortcut.action}</span>
+                    </span>
                     <div className="flex items-center gap-1.5">
                       {shortcut.keys.map((key, j) => (
                         <React.Fragment key={j}>
-                          <kbd className="min-w-[24px] h-6 flex items-center justify-center px-2 text-[10px] font-bold text-zinc-300 bg-zinc-900 border border-zinc-700 rounded-md shadow-[0_2px_0_0_rgba(0,0,0,0.4)]">
+                          <kbd className="min-w-[24px] h-6 flex items-center justify-center px-2 text-[10px] font-bold text-theme-main bg-theme-hover border border-theme rounded-md shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_2px_0_0_var(--accent-border),0_3px_6px_-2px_rgba(0,0,0,0.6)] group-hover:border-[var(--accent-border)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_2px_0_0_var(--accent),0_0_10px_-2px_var(--accent-glow)] transition-all duration-200">
                             {key}
                           </kbd>
                           {j < shortcut.keys.length - 1 && (
-                            <span className="text-zinc-700 text-xs font-bold">+</span>
+                            <span className="text-[var(--accent-text)] text-xs font-bold">+</span>
                           )}
                         </React.Fragment>
                       ))}
@@ -124,10 +136,11 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
           ))}
         </div>
 
-        <div className="px-6 py-4 border-t border-zinc-800 bg-zinc-900/20">
-          <div className="flex items-center justify-center gap-2 text-[10px] text-zinc-600 uppercase tracking-widest">
-            <span>Press</span>
-            <kbd className="px-2 py-0.5 text-zinc-400 bg-zinc-800 border border-zinc-700 rounded text-[9px] font-bold">ESC</kbd>
+        <div className="px-6 py-4 border-t border-theme bg-theme-main/40">
+          <div className="flex items-center justify-center gap-2 text-[10px] text-[var(--text-secondary)] uppercase tracking-widest">
+            <span className="text-[var(--accent)] font-bold">$</span>
+            <span>press</span>
+            <kbd className="px-2 py-0.5 text-[var(--accent)] bg-theme-hover border border-[var(--accent-border)] rounded text-[9px] font-bold shadow-[0_0_10px_-2px_var(--accent-glow)]">ESC</kbd>
             <span>to terminate process</span>
           </div>
         </div>

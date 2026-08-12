@@ -12,7 +12,7 @@ import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useAppStore } from '../../stores/appStore';
 import '@xterm/xterm/css/xterm.css';
 
-import { TerminalHeader } from './TerminalHeader';
+import { TerminalHeader, isAgentType } from './TerminalHeader';
 import { CliStatusBadge } from './CliStatusBadge';
 import { AuthModal } from './AuthModal';
 
@@ -171,8 +171,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const lineTrackingReliableRef = useRef(true);
   const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
-  const terminalMouseAlwaysOn = useAppStore((state) => state.terminalMouseAlwaysOn);
   const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
+  const activeSessionId = useAppStore((state) => state.activeSessionId);
+  const setActiveSession = useAppStore((state) => state.setActiveSession);
+  const isActive = activeSessionId === session.id;
 
   // Resize coalescing: we only send the latest size to the PTY, debounced, so
   // rapid ResizeObserver/window resize events don't flood ConPTY with resizes.
@@ -189,11 +191,14 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   // Refs mirroring store settings so the xterm lifecycle effect (which only
   // re-runs per session) can read the latest values without being re-created.
-  const mouseAlwaysOnRef = useRef(terminalMouseAlwaysOn);
+  // AI agent sessions always keep mouse tracking locked on; shell/tool sessions
+  // use the per-session toggle state.
+  const isAiAgent = !!session.agent && isAgentType(session.agent);
+  const mouseAlwaysOnRef = useRef(isAiAgent);
   const pasteOnRightClickRef = useRef(terminalPasteOnRightClick);
   useEffect(() => {
-    mouseAlwaysOnRef.current = terminalMouseAlwaysOn;
-  }, [terminalMouseAlwaysOn]);
+    mouseAlwaysOnRef.current = isAiAgent;
+  }, [isAiAgent]);
   useEffect(() => {
     pasteOnRightClickRef.current = terminalPasteOnRightClick;
   }, [terminalPasteOnRightClick]);
@@ -1092,15 +1097,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, []);
 
   return (
-    <div className="h-full flex flex-col overflow-hidden font-mono border border-zinc-700/60 bg-zinc-950">
+    <div
+      className={`h-full flex flex-col overflow-hidden font-mono bg-zinc-950 transition-colors duration-200 ${
+        isActive ? 'border border-accent shadow-[0_0_12px_var(--accent-glow)]' : 'border border-zinc-700/60'
+      }`}
+      onMouseDown={() => setActiveSession(session.id)}
+    >
       <TerminalHeader
         session={session}
+        isActive={isActive}
         onRefreshCli={handleRefreshCli}
         isRefreshing={isRefreshing}
         onClose={onClose}
         mouseTrackingEnabled={mouseTrackingEnabled}
         onToggleMouseTracking={handleToggleMouseTracking}
-        mouseAlwaysOn={terminalMouseAlwaysOn}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}

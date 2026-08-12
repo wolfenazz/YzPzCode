@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TreeNodeData } from '../../hooks/useFileTree';
+import type { ExplorerClipboard } from './TreeNode';
 
 interface ContextMenuState {
   x: number;
@@ -24,6 +25,8 @@ interface ExplorerContextMenuProps {
   onOpenInTerminal: (node: TreeNodeData) => void;
   onDuplicate: (node: TreeNodeData) => void;
   onCopyAsImportPath: (node: TreeNodeData) => void;
+  onPaste: (node: TreeNodeData | null) => void;
+  clipboard: ExplorerClipboard;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -32,21 +35,31 @@ const MenuItem: React.FC<{
   shortcut?: string;
   onClick: () => void;
   danger?: boolean;
-}> = memo(({ label, shortcut, onClick, danger }) => (
+  disabled?: boolean;
+}> = memo(({ label, shortcut, onClick, danger, disabled }) => (
   <button
     role="menuitem"
-    className={`w-full flex items-center justify-between px-3 py-1.5 text-[11px] cursor-pointer transition-colors duration-75 ${
-      danger
-        ? 'text-rose-400 hover:bg-rose-500/10'
-        : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'
+    disabled={disabled}
+    className={`w-full flex items-center justify-between px-3 py-[5px] text-[11px] cursor-pointer transition-colors duration-75 ${
+      disabled
+        ? 'text-zinc-700 cursor-default'
+        : danger
+          ? 'text-rose-400 hover:bg-rose-500/10'
+          : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'
     }`}
     onClick={onClick}
   >
     <span>{label}</span>
     {shortcut && (
-      <span className="text-zinc-500 dark:text-zinc-600 text-[10px] ml-6">{shortcut}</span>
+      <span className={`text-[9px] ml-6 ${disabled ? 'text-zinc-800' : 'text-zinc-600'}`}>
+        {shortcut}
+      </span>
     )}
   </button>
+));
+
+const MenuSeparator: React.FC = memo(() => (
+  <div className="my-1 h-px bg-zinc-800/80 mx-2" />
 ));
 
 const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
@@ -65,6 +78,8 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
   onOpenInTerminal,
   onDuplicate,
   onCopyAsImportPath,
+  onPaste,
+  clipboard,
   containerRef,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -118,7 +133,7 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
 
   const handleNewFile = useCallback(() => {
     if (!menu) return;
-    const parentPath = menu.node?.isDir ? menu.node.path : menu.node ? null : null;
+    const parentPath = menu.node?.isDir ? menu.node.path : null;
     onNewFile(parentPath);
     onClose();
   }, [menu, onNewFile, onClose]);
@@ -165,6 +180,12 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
     onClose();
   }, [menu, onCut, onClose]);
 
+  const handlePaste = useCallback(() => {
+    if (!menu) return;
+    onPaste(menu.node);
+    onClose();
+  }, [menu, onPaste, onClose]);
+
   const handleCopyPath = useCallback(() => {
     if (!menu?.node) return;
     onCopyPath(menu.node);
@@ -196,95 +217,64 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
   }, [menu, onCopyAsImportPath, onClose]);
 
   const isDir = menu?.node?.isDir ?? false;
-
   const hasNode = !!menu?.node;
+  const hasClipboard = !!clipboard;
 
   return (
     <AnimatePresence>
       {menu && (
         <motion.div
           ref={menuRef}
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.97 }}
           animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 0.1, ease: 'easeOut' }}
-          className="absolute z-50 bg-theme-card backdrop-blur-md border border-theme rounded-lg shadow-2xl py-1 min-w-[200px] overflow-hidden"
+          exit={{ opacity: 0, scale: 0.97 }}
+          transition={{ duration: 0.08, ease: 'easeOut' }}
+          className="absolute z-50 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/70 rounded-md shadow-2xl py-1 min-w-[230px] overflow-hidden"
           role="menu"
           onContextMenu={(e) => e.preventDefault()}
         >
           {(isDir || !hasNode) && (
             <>
-              <MenuItem
-                label="New File"
-                onClick={handleNewFile}
-              />
-              <MenuItem
-                label="New Folder"
-                onClick={handleNewFolder}
-              />
+              <MenuItem label="New File..." onClick={handleNewFile} />
+              <MenuItem label="New Folder..." onClick={handleNewFolder} />
+              {(hasNode || hasClipboard) && <MenuSeparator />}
             </>
           )}
           {hasNode && (
             <>
-              {(isDir || !hasNode) && (
-                <div className="my-1 border-t border-theme mx-2" />
-              )}
               {isDir && (
-                <MenuItem
-                  label="Open in Terminal"
-                  onClick={handleOpenInTerminal}
-                />
+                <MenuItem label="Open in Terminal" onClick={handleOpenInTerminal} />
               )}
+              <MenuItem label="Copy" shortcut="Ctrl+C" onClick={handleCopy} />
+              <MenuItem label="Cut" shortcut="Ctrl+X" onClick={handleCut} />
               <MenuItem
-                label="Copy"
-                shortcut="Ctrl+C"
-                onClick={handleCopy}
+                label="Paste"
+                shortcut="Ctrl+V"
+                onClick={handlePaste}
+                disabled={!hasClipboard}
               />
-              <MenuItem
-                label="Cut"
-                shortcut="Ctrl+X"
-                onClick={handleCut}
-              />
-              <MenuItem
-                label="Duplicate"
-                onClick={handleDuplicate}
-              />
-              <div className="my-1 border-t border-theme mx-2" />
-              <MenuItem
-                label="Copy Path"
-                shortcut="Ctrl+Shift+C"
-                onClick={handleCopyPath}
-              />
-              <MenuItem
-                label="Copy Relative Path"
-                shortcut="Ctrl+Alt+C"
-                onClick={handleCopyRelativePath}
-              />
-              <MenuItem
-                label="Copy as Import Path"
-                onClick={handleCopyAsImportPath}
-              />
-              <div className="my-1 border-t border-theme mx-2" />
-              <MenuItem
-                label="Rename"
-                shortcut="F2"
-                onClick={handleRename}
-              />
-              <MenuItem
-                label="Delete"
-                shortcut="Del"
-                onClick={handleDelete}
-                danger
-              />
-              <div className="my-1 border-t border-theme mx-2" />
-              <MenuItem
-                label="Reveal in File Manager"
-                onClick={handleReveal}
-              />
+              <MenuItem label="Duplicate" onClick={handleDuplicate} />
+              <MenuSeparator />
+              <MenuItem label="Copy Path" shortcut="Ctrl+Shift+C" onClick={handleCopyPath} />
+              <MenuItem label="Copy Relative Path" shortcut="Ctrl+Alt+C" onClick={handleCopyRelativePath} />
+              <MenuItem label="Copy as Import Path" onClick={handleCopyAsImportPath} />
+              <MenuSeparator />
+              <MenuItem label="Rename" shortcut="F2" onClick={handleRename} />
+              <MenuItem label="Delete" shortcut="Del" onClick={handleDelete} danger />
+              <MenuSeparator />
+              <MenuItem label="Reveal in File Manager" onClick={handleReveal} />
             </>
           )}
-          {!hasNode && (
-            <div className="my-1 border-t border-theme mx-2" />
+          {!hasNode && hasClipboard && (
+            <>
+              <MenuItem
+                label="Paste"
+                shortcut="Ctrl+V"
+                onClick={handlePaste}
+                disabled={!hasClipboard}
+              />
+              <MenuSeparator />
+            </>
           )}
           <MenuItem label="Refresh" onClick={handleRefresh} />
         </motion.div>

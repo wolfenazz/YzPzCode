@@ -212,6 +212,7 @@ pub fn run() {
             commands::git_unstage_file,
             commands::get_available_shells,
             commands::import_files,
+            commands::copy_entry,
             commands::enable_discord_presence,
             commands::disable_discord_presence,
             commands::is_discord_presence_enabled,

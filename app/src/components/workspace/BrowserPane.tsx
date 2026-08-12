@@ -1146,6 +1146,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     setBrowserTargetSession(workspaceId, sessionId);
   }, [setBrowserTargetSession, workspaceId]);
 
+  const handleInspectorDraftChange = useCallback((html: string) => {
+    setBrowserPrompt(workspaceId, html);
+  }, [setBrowserPrompt, workspaceId]);
+
   const handleInspectorClear = useCallback(() => {
     clearBrowserSelection(workspaceId);
   }, [clearBrowserSelection, workspaceId]);
@@ -2133,8 +2137,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               targetSessionId={effectiveState.targetSessionId}
               sessionOptions={sessionOptions}
               isSubmitting={isSubmitting}
+              initialHtml={effectiveState.prompt}
               onSend={handleInspectorSend}
               onTargetSessionChange={handleInspectorTargetSessionChange}
+              onDraftChange={handleInspectorDraftChange}
               onClear={handleInspectorClear}
             />
           )}

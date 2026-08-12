@@ -6,12 +6,20 @@ import { FileIcon } from './FileIcon';
 import { GitStatusBadge } from './GitStatusBadge';
 import type { FileEntry } from '../../types';
 
+export type ExplorerClipboard = {
+  operation: 'copy' | 'cut';
+  path: string;
+  name: string;
+  isDir: boolean;
+} | null;
+
 interface ExplorerContextValue {
   onFileClick: (entry: FileEntry) => void;
   gitStatuses: { path: string; change: 'added' | 'modified' | 'deleted' | 'untracked' }[];
   activeFilePath: string | null;
   onContextMenu: (e: React.MouseEvent, nodeData: TreeNodeData) => void;
   externalDropTarget: string | null;
+  clipboard: ExplorerClipboard;
 }
 
 export const ExplorerContext = React.createContext<ExplorerContextValue>({
@@ -20,6 +28,7 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
   activeFilePath: null,
   onContextMenu: () => {},
   externalDropTarget: null,
+  clipboard: null,
 });
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
@@ -28,7 +37,7 @@ const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
     viewBox="0 0 20 20"
     fill="currentColor"
     animate={{ rotate: isOpen ? 90 : 0 }}
-    transition={{ duration: 0.15, ease: 'easeOut' }}
+    transition={{ duration: 0.12, ease: 'easeOut' }}
   >
     <path
       fillRule="evenodd"
@@ -43,10 +52,7 @@ const IndentGuides: React.FC<{ level: number }> = memo(({ level }) => {
   return (
     <div className="flex shrink-0" aria-hidden="true">
       {Array.from({ length: level }).map((_, i) => (
-        <div
-          key={i}
-          className="w-[14px] border-l border-theme/30"
-        />
+        <div key={i} className="w-[14px] border-l border-zinc-800/60" />
       ))}
     </div>
   );
@@ -89,7 +95,7 @@ const EditInput: React.FC<{
     <input
       ref={inputRef}
       defaultValue={value}
-      className="flex-1 bg-zinc-800 text-xs text-zinc-200 px-1 py-0 outline-none border border-zinc-600 rounded-sm min-w-0"
+      className="flex-1 bg-theme-card text-xs text-theme-main px-1 py-0 outline-none border border-zinc-600 rounded-sm min-w-0"
       onKeyDown={handleKeyDown}
       onBlur={(e) => {
         e.stopPropagation();
@@ -106,12 +112,14 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   dragHandle,
 }) => {
   const ctx = useContext(ExplorerContext);
-  const { onFileClick, gitStatuses, activeFilePath, onContextMenu, externalDropTarget } = ctx;
+  const { onFileClick, gitStatuses, activeFilePath, onContextMenu, externalDropTarget, clipboard } = ctx;
   const data = node.data;
   const isActive = activeFilePath === data.id;
+  const isCut = clipboard?.operation === 'cut' && clipboard.path === data.id;
   const gitChange = gitStatuses.find((g) => g.path === data.id)?.change;
   const willReceiveDrop = node.willReceiveDrop;
   const isExternalTarget = externalDropTarget === data.id && data.isDir;
+  const isSelected = node.isSelected;
 
   const [autoExpandTimer, setAutoExpandTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
@@ -179,35 +187,39 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
 
   const dropHighlight = willReceiveDrop || isExternalTarget;
 
+  const rowClass = isActive
+    ? 'bg-zinc-800/90 text-zinc-100'
+    : isSelected
+      ? 'bg-zinc-800/50 text-zinc-200'
+      : dropHighlight
+        ? 'bg-blue-500/10 text-blue-200'
+        : 'text-zinc-400 hover:bg-theme-hover/70 hover:text-zinc-200';
+
   return (
     <div
       ref={dragHandle}
       role="treeitem"
       aria-expanded={data.isDir ? node.isOpen : undefined}
+      aria-selected={isSelected}
       data-file-path={data.path}
       data-is-dir={data.isDir ? 'true' : undefined}
       style={{
         ...style,
         paddingLeft: 0,
       }}
-      className={`flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-100 rounded-sm mx-1 relative ${
-        isActive
-          ? 'bg-zinc-800 text-zinc-100'
-          : dropHighlight
-            ? 'bg-blue-500/15 text-blue-300 ring-1 ring-inset ring-blue-500/50'
-            : 'text-zinc-400 hover:bg-theme-hover hover:text-theme-main'
-      }`}
+      className={`flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-75 relative ${
+        isCut ? 'opacity-45' : ''
+      } ${rowClass}`}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
       {dropHighlight && data.isDir && (
         <motion.div
-          className="absolute inset-0 rounded-sm border-2 border-blue-500/60 pointer-events-none"
+          className="absolute inset-y-0 left-0 right-0 border-2 border-blue-500/50 pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          style={{ margin: '0 4px' }}
+          transition={{ duration: 0.12 }}
         />
       )}
       <IndentGuides level={node.level} />
@@ -234,7 +246,15 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
             onCancel={handleCancelEdit}
           />
         ) : (
-          <span className="truncate text-xs flex-1">{data.name}</span>
+          <span className={`truncate text-xs flex-1 ${isCut ? 'line-through decoration-zinc-500/60' : ''}`}>
+            {data.name}
+          </span>
+        )}
+
+        {isCut && !node.isEditing && (
+          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500/70 shrink-0">
+            cut
+          </span>
         )}
 
         {gitChange && !node.isEditing && <GitStatusBadge change={gitChange} />}

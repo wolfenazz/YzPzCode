@@ -15,8 +15,10 @@ interface ElementInspectorPanelProps {
   targetSessionId: string | null;
   sessionOptions: SessionOption[];
   isSubmitting: boolean;
+  initialHtml: string;
   onSend: (plainText: string) => Promise<void> | void;
   onTargetSessionChange: (sessionId: string | null) => void;
+  onDraftChange: (html: string) => void;
   onClear: () => void;
 }
 
@@ -35,18 +37,16 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   targetSessionId,
   sessionOptions,
   isSubmitting,
+  initialHtml,
   onSend,
   onTargetSessionChange,
+  onDraftChange,
   onClear,
 }: ElementInspectorPanelProps) {
   const [showFullInfo, setShowFullInfo] = useState(false);
-  const [draftHtml, setDraftHtml] = useState('');
-  const [resetToken, setResetToken] = useState(0);
 
   useEffect(() => {
     setShowFullInfo(false);
-    setDraftHtml('');
-    setResetToken((token) => token + 1);
   }, [element]);
 
   const attributeEntries = useMemo(() => Object.entries(element.attributes), [element.attributes]);
@@ -56,22 +56,21 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
     [element.selectors, showFullInfo],
   );
 
-  const charCount = useMemo(() => htmlToPlainText(draftHtml).length, [draftHtml]);
+  const charCount = useMemo(() => htmlToPlainText(initialHtml).length, [initialHtml]);
 
   const handleSend = useCallback(
     async (plainText?: string) => {
       if (isSubmitting) return;
-      const text = (plainText ?? htmlToPlainText(draftHtml)).trim();
+      const text = (plainText ?? htmlToPlainText(initialHtml)).trim();
       if (!text) return;
       try {
         await onSend(text);
-        setDraftHtml('');
-        setResetToken((token) => token + 1);
+        onDraftChange('');
       } catch {
         // keep the draft so the user can retry
       }
     },
-    [draftHtml, isSubmitting, onSend],
+    [initialHtml, isSubmitting, onDraftChange, onSend],
   );
 
   const handleCopyHtml = useCallback(() => {
@@ -280,10 +279,9 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
           </div>
           <div className="p-3">
             <RichPromptEditor
-              key={resetToken}
-              initialHtml={draftHtml}
+              initialHtml={initialHtml}
               placeholder="Describe the change — e.g. tighten the spacing and improve the CTA hierarchy…"
-              onChange={setDraftHtml}
+              onChange={onDraftChange}
               onSubmit={handleSend}
               submitting={isSubmitting}
             />

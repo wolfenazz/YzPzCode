@@ -184,6 +184,17 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
     Ok(())
 }
 
+pub fn copy_entry(source_path: &str, destination_dir: &str) -> Result<String> {
+    validate_no_path_traversal(source_path)?;
+    let mut imported = import_entries(&[source_path.to_string()], destination_dir)?;
+    imported.pop().ok_or_else(|| {
+        anyhow::anyhow!(
+            "Could not copy entry (source does not exist): {}",
+            source_path
+        )
+    })
+}
+
 pub fn import_entries(source_paths: &[String], destination_dir: &str) -> Result<Vec<String>> {
     validate_no_path_traversal(destination_dir)?;
     let dest_dir = Path::new(destination_dir);

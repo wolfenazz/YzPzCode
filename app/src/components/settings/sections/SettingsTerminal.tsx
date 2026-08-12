@@ -39,8 +39,6 @@ export const SettingsTerminal: React.FC = () => {
     setTerminalOpacity,
     terminalWordWrap,
     setTerminalWordWrap,
-    terminalMouseAlwaysOn,
-    setTerminalMouseAlwaysOn,
     independentGridResize,
     setIndependentGridResize,
   } = useAppStore();
@@ -181,13 +179,6 @@ export const SettingsTerminal: React.FC = () => {
               onToggle={() => setTerminalBellEnabled(!terminalBellEnabled)}
               label="Bell Notifications"
               description="Visual notification on command complete"
-            />
-
-            <SettingsToggle
-              enabled={terminalMouseAlwaysOn}
-              onToggle={() => setTerminalMouseAlwaysOn(!terminalMouseAlwaysOn)}
-              label="Always-On Mouse Mode"
-              description="Keep mouse tracking (1000/1002/1006) enabled so AI agents like opencode, kilo and claude accept mouse events. Prevents apps from turning it off, including when switching views."
             />
 
             <SettingsToggle

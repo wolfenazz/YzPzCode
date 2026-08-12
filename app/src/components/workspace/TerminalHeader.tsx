@@ -34,7 +34,7 @@ const TOOL_ICON_MAP: Record<ToolCliType, { icon: string; color: string }> = {
   vercel: { icon: 'simple-icons:vercel', color: '#ffffff' },
 };
 
-const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGOS;
+export const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGOS;
 
 const STATUS_COLORS = {
   idle: 'bg-zinc-600',
@@ -51,7 +51,7 @@ interface TerminalHeaderProps {
   dragListeners?: Record<string, unknown>;
   mouseTrackingEnabled?: boolean;
   onToggleMouseTracking?: () => void;
-  mouseAlwaysOn?: boolean;
+  isActive?: boolean;
 }
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
@@ -63,9 +63,12 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   dragListeners,
   mouseTrackingEnabled = false,
   onToggleMouseTracking,
-  mouseAlwaysOn = false,
+  isActive = false,
 }) => {
-  const mouseOn = mouseTrackingEnabled || mouseAlwaysOn;
+  // AI agent terminals (opencode, kilo, claude, ...) always keep mouse
+  // tracking on — no toggle shown, so the button stays hidden there.
+  const isAiAgent = !!session.agent && isAgentType(session.agent);
+  const mouseOn = mouseTrackingEnabled;
 
   return (
     <div
@@ -74,14 +77,14 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
     >
       <div className="flex items-center gap-3 min-w-0 overflow-hidden">
         <div className="relative flex h-2 w-2 shrink-0">
-           <span className={`animate-ping absolute inline-flex h-full w-full opacity-40 ${
-             session.status === 'running' ? 'bg-emerald-400' : session.status === 'error' ? 'bg-rose-400' : 'bg-zinc-400'
+           <span className={`relative inline-flex h-2 w-2 transition-colors duration-200 ${
+             isActive ? 'bg-accent shadow-[0_0_6px_var(--accent-glow)]' : STATUS_COLORS[session.status]
            }`}></span>
-           <span className={`relative inline-flex h-2 w-2 ${STATUS_COLORS[session.status]}`}></span>
         </div>
 
-        <span className="text-[10px] font-black tracking-[0.2em] uppercase shrink-0 text-zinc-500">
-          TTY::{session.index + 1}
+        <span className="text-xs font-black tracking-[0.2em] uppercase shrink-0">
+          <span className="text-zinc-500">TTY::</span>
+          <span className="text-accent">{session.index + 1}</span>
         </span>
 
         <div className="h-3 w-px bg-zinc-700/50 mx-1" />
@@ -131,27 +134,27 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       </div>
 
       <div className="flex items-center shrink-0 gap-1 ml-2">
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleMouseTracking?.();
-          }}
-          className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
-            mouseOn
-              ? 'bg-emerald-950/45 border-emerald-800 text-emerald-400'
-              : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
-          }`}
-          title={mouseAlwaysOn
-            ? 'Mouse mode locked on (Always-On Mouse enabled in Settings)'
-            : mouseTrackingEnabled
+        {!isAiAgent && (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleMouseTracking?.();
+            }}
+            className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+              mouseOn
+                ? 'bg-emerald-950/45 border-emerald-800 text-emerald-400'
+                : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
+            }`}
+            title={mouseOn
               ? 'Mouse mode enabled (click to disable)'
               : 'Mouse mode disabled (click to enable manually)'}
-        >
-          Mouse {mouseOn ? (mouseAlwaysOn ? 'Locked' : 'On') : 'Off'}
-        </button>
+          >
+            Mouse {mouseOn ? 'On' : 'Off'}
+          </button>
+        )}
         <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} />
         <div className="h-3 w-px bg-zinc-700/50" />
         {session.agent && (
