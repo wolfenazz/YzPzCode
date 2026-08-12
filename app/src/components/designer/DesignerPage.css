@@ -1,21 +1,21 @@
 .od-designer {
   color-scheme: dark;
-  --bg: #09090b;
-  --bg-app: #09090b;
-  --bg-panel: #0c0c0f;
-  --bg-subtle: #111217;
-  --bg-muted: #18181b;
-  --border: #27272a;
-  --border-strong: #3f3f46;
-  --border-soft: #1f2026;
-  --text: #d4d4d8;
-  --text-strong: #fafafa;
-  --text-muted: #a1a1aa;
-  --text-soft: #71717a;
-  --text-faint: #52525b;
-  --accent: #10b981;
-  --accent-strong: #34d399;
-  --accent-tint: rgba(16, 185, 129, 0.1);
+  --bg: #262626;
+  --bg-app: #262626;
+  --bg-panel: #2e2e2e;
+  --bg-subtle: #333332;
+  --bg-muted: #1b1b1b;
+  --border: #3e3e38;
+  --border-strong: #51504a;
+  --border-soft: #333332;
+  --text: #c3c1ba;
+  --text-strong: #faf8f1;
+  --text-muted: #b7b5a6;
+  --text-soft: #8f8b80;
+  --text-faint: #6e6a60;
+  --accent: #d87757;
+  --accent-strong: #e08a6c;
+  --accent-tint: rgba(216, 119, 87, 0.1);
   --cyan: #22d3ee;
   --cyan-bg: rgba(34, 211, 238, 0.09);
   --green: #10b981;
@@ -24,15 +24,15 @@
   --red-bg: rgba(244, 63, 94, 0.1);
   --amber: #f59e0b;
   --amber-bg: rgba(245, 158, 11, 0.1);
-  --blue: #38bdf8;
-  --blue-bg: rgba(56, 189, 248, 0.09);
+  --blue: #1b7ede;
+  --blue-bg: rgba(27, 126, 222, 0.09);
   --radius-sm: 6px;
   --radius: 8px;
   --radius-lg: 12px;
   --shadow-xs: 0 1px 0 rgba(255, 255, 255, 0.03);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(39, 39, 42, 0.7);
+  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(62, 62, 56, 0.7);
   --serif: "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace;
   --sans: "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace;
   --mono: "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace;
@@ -45,8 +45,8 @@
   overflow: hidden;
   color: var(--text);
   background:
-    linear-gradient(rgba(39, 39, 42, 0.18) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(39, 39, 42, 0.16) 1px, transparent 1px),
+    linear-gradient(rgba(62, 62, 56, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 62, 56, 0.16) 1px, transparent 1px),
     var(--bg-app);
   background-size: 32px 32px, 32px 32px, auto;
   font-family: var(--sans);
@@ -77,8 +77,8 @@
   min-width: 0;
   height: 38px;
   padding: 0 0 0 8px;
-  border-bottom: 1px solid rgba(39, 39, 42, 0.9);
-  background: linear-gradient(180deg, rgba(28, 28, 34, 0.94), rgba(17, 17, 21, 0.88));
+  border-bottom: 1px solid rgba(62, 62, 56, 0.9);
+  background: linear-gradient(180deg, rgba(46, 46, 46, 0.94), rgba(38, 38, 38, 0.88));
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   user-select: none;
 }
@@ -190,8 +190,8 @@
   min-height: 0;
   overflow: hidden;
   background:
-    linear-gradient(rgba(39, 39, 42, 0.18) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(39, 39, 42, 0.16) 1px, transparent 1px),
+    linear-gradient(rgba(62, 62, 56, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 62, 56, 0.16) 1px, transparent 1px),
     var(--bg);
   background-size: 32px 32px;
 }
@@ -295,8 +295,8 @@
   overflow-y: auto;
   background:
     linear-gradient(180deg, rgba(9, 9, 11, 0.72), rgba(9, 9, 11, 0.98)),
-    linear-gradient(rgba(39, 39, 42, 0.16) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(39, 39, 42, 0.12) 1px, transparent 1px),
+    linear-gradient(rgba(62, 62, 56, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 62, 56, 0.12) 1px, transparent 1px),
     var(--bg);
   background-size: auto, 32px 32px, 32px 32px, auto;
   --entry-topbar-h: 44px;
@@ -629,7 +629,7 @@
   flex-direction: column;
   gap: 12px;
   width: 100%;
-  border: 1px solid rgba(39, 39, 42, 0.9);
+  border: 1px solid rgba(62, 62, 56, 0.9);
   border-radius: var(--radius-lg);
   background: rgba(12, 12, 15, 0.74);
   box-shadow: var(--shadow-sm);
@@ -757,7 +757,7 @@
   border-right: 1px solid var(--border);
   background:
     radial-gradient(circle at 18% 12%, rgba(16, 185, 129, 0.07), transparent 30%),
-    #070707;
+    #1b1b1b;
   overflow: auto;
 }
 

@@ -20,58 +20,32 @@ interface TerminalPaneProps {
   session: TerminalSession;
   onResize?: (cols: number, rows: number) => void;
   onClose?: () => void;
-  theme?: 'dark' | 'light';
   dragListeners?: Record<string, unknown>;
 }
 
 const DARK_TERMINAL_THEME = {
-  background: '#09090b',
-  foreground: '#e4e4e7',
-  cursor: '#a1a1aa',
-  cursorAccent: '#09090b',
-  selectionBackground: '#27272a',
-  selectionForeground: '#e4e4e7',
-  black: '#000000',
-  red: '#cd3131',
+  background: '#262626',
+  foreground: '#c3c1ba',
+  cursor: '#d87757',
+  cursorAccent: '#262626',
+  selectionBackground: '#3e3e38',
+  selectionForeground: '#faf8f1',
+  black: '#1b1b1b',
+  red: '#f14444',
   green: '#0dbc79',
   yellow: '#e5e510',
-  blue: '#52525b', /* Neutralized */
+  blue: '#1b7ede',
   magenta: '#bc3fbc',
   cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
+  white: '#e4e4e4',
+  brightBlack: '#51504a',
   brightRed: '#f14c4c',
   brightGreen: '#23d18b',
   brightYellow: '#f5f543',
-  brightBlue: '#71717a', /* Neutralized */
+  brightBlue: '#38bdf8',
   brightMagenta: '#d670d6',
   brightCyan: '#29b8db',
-  brightWhite: '#e5e5e5',
-};
-
-const LIGHT_TERMINAL_THEME = {
-  background: '#18181b', /* zinc-900 */
-  foreground: '#f4f4f5', /* zinc-100 */
-  cursor: '#a1a1aa',
-  cursorAccent: '#18181b',
-  selectionBackground: '#3f3f46',
-  selectionForeground: '#ffffff',
-  black: '#000000',
-  red: '#cd3131',
-  green: '#0dbc79',
-  yellow: '#e5e510',
-  blue: '#71717a',
-  magenta: '#bc3fbc',
-  cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
-  brightRed: '#f14c4c',
-  brightGreen: '#23d18b',
-  brightYellow: '#f5f543',
-  brightBlue: '#a1a1aa',
-  brightMagenta: '#d670d6',
-  brightCyan: '#29b8db',
-  brightWhite: '#ffffff',
+  brightWhite: '#faf8f1',
 };
 
 const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
@@ -155,11 +129,23 @@ const getTerminalCellPixels = (term: XTerm): { width: number; height: number } =
   return fallback;
 };
 
+type ShellKind = 'cmd' | 'powershell' | 'unix';
+
+/**
+ * Determine the running shell kind from the session shell path so paste and
+ * mouse behaviour can be matched to what the shell actually supports.
+ */
+const detectShellKind = (shell: string): ShellKind => {
+  const s = shell.toLowerCase();
+  if (s.includes('cmd') || s.includes('command.com')) return 'cmd';
+  if (s.includes('powershell') || s.includes('pwsh')) return 'powershell';
+  return 'unix';
+};
+
 export const TerminalPane: React.FC<TerminalPaneProps> = ({
   session,
   onResize,
   onClose,
-  theme: themeProp,
   dragListeners,
 }) => {
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -185,10 +171,55 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const lineTrackingReliableRef = useRef(true);
   const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
+  const terminalMouseAlwaysOn = useAppStore((state) => state.terminalMouseAlwaysOn);
+  const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
 
-  const theme = themeProp || 'dark';
-  const isLight = theme === 'light';
-  const isWindowsHost = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
+  // Resize coalescing: we only send the latest size to the PTY, debounced, so
+  // rapid ResizeObserver/window resize events don't flood ConPTY with resizes.
+  const resizePendingRef = useRef<{ cols: number; rows: number; pixelWidth: number; pixelHeight: number } | null>(null);
+  const resizeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resizeInFlightRef = useRef(false);
+  // Tracks the last size we told the PTY about so identical refits (font load,
+  // repeated ResizeObserver fires, mount-time fits) become no-ops instead of
+  // resize storms that make running agents reflow "chunky".
+  const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
+  // Tracks whether the terminal container is currently zero-sized (hidden view
+  // switch). Used to force a full repaint when it becomes visible again.
+  const terminalHiddenRef = useRef(false);
+
+  // Refs mirroring store settings so the xterm lifecycle effect (which only
+  // re-runs per session) can read the latest values without being re-created.
+  const mouseAlwaysOnRef = useRef(terminalMouseAlwaysOn);
+  const pasteOnRightClickRef = useRef(terminalPasteOnRightClick);
+  useEffect(() => {
+    mouseAlwaysOnRef.current = terminalMouseAlwaysOn;
+  }, [terminalMouseAlwaysOn]);
+  useEffect(() => {
+    pasteOnRightClickRef.current = terminalPasteOnRightClick;
+  }, [terminalPasteOnRightClick]);
+
+  const terminalFontFamily = useAppStore((s) => s.terminalFontFamily);
+  const terminalFontSize = useAppStore((s) => s.terminalFontSize);
+  const terminalCursorStyle = useAppStore((s) => s.terminalCursorStyle);
+  const terminalCursorBlink = useAppStore((s) => s.terminalCursorBlink);
+  const terminalScrollbackSize = useAppStore((s) => s.terminalScrollbackSize);
+
+  const terminalPrefsRef = useRef({
+    fontFamily: terminalFontFamily,
+    fontSize: terminalFontSize,
+    cursorStyle: terminalCursorStyle,
+    cursorBlink: terminalCursorBlink,
+    scrollback: terminalScrollbackSize,
+  });
+  useEffect(() => {
+    terminalPrefsRef.current = {
+      fontFamily: terminalFontFamily,
+      fontSize: terminalFontSize,
+      cursorStyle: terminalCursorStyle,
+      cursorBlink: terminalCursorBlink,
+      scrollback: terminalScrollbackSize,
+    };
+  }, [terminalFontFamily, terminalFontSize, terminalCursorStyle, terminalCursorBlink, terminalScrollbackSize]);
 
   const { cliStatuses, installCli, installProgress, detectCli } = useAgentCli();
   const { launchCli, stopCli, checkAuth, getAuthInstructions, getLaunchState, getLaunchStateSync, getAuthInfoSync } = useCliLauncher();
@@ -198,39 +229,99 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const launchState: CliLaunchState | null | undefined = session.agent ? getLaunchStateSync(session.id) : undefined;
   const authInfo: AuthInfo | null | undefined = session.agent ? getAuthInfoSync(session.agent) : undefined;
 
-  const terminalTheme = isLight ? LIGHT_TERMINAL_THEME : DARK_TERMINAL_THEME;
+  const terminalTheme = DARK_TERMINAL_THEME;
   const managedCommandActive =
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
     managedCommandState?.status === 'Stopping';
 
-  const handleFitAndResize = useCallback(() => {
+  const sendResize = useCallback(async (dims: { cols: number; rows: number; pixelWidth: number; pixelHeight: number }) => {
+    resizeInFlightRef.current = true;
+    try {
+      await invoke('resize_terminal', {
+        sessionId: session.id,
+        cols: dims.cols,
+        rows: dims.rows,
+        pixelWidth: dims.pixelWidth,
+        pixelHeight: dims.pixelHeight,
+      });
+    } catch (e) {
+      console.error('Failed to resize terminal:', e);
+    } finally {
+      resizeInFlightRef.current = false;
+      // Flush any newer size that arrived while this request was in flight,
+      // so the PTY always ends up with the latest dimensions.
+      const pending = resizePendingRef.current;
+      if (pending) {
+        resizePendingRef.current = null;
+        void sendResize(pending);
+      }
+    }
+  }, [session.id]);
+
+  const handleFitAndResize = useCallback((forceRepaint = false) => {
     if (!fitAddonRef.current || !xtermRef.current) return;
+    const container = terminalRef.current;
+    if (!container) return;
+
+    // Skip when hidden or zero-sized (view switch, collapsed layout). Sending
+    // a 0x0 PTY resize corrupts the window size TUI apps see and causes
+    // chunky rendering glitches.
+    const rect = container.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
 
     try {
       fitAddonRef.current.fit();
-      const dims = xtermRef.current.rows !== undefined ? {
-        cols: xtermRef.current.cols,
-        rows: xtermRef.current.rows,
-      } : null;
+      const xterm = xtermRef.current;
+      const cols = xterm.cols;
+      const rows = xterm.rows;
+      if (cols < 2 || rows < 2) return;
 
-      if (dims) {
-        const cell = getTerminalCellPixels(xtermRef.current);
+      const last = lastSentSizeRef.current;
+      const sizeChanged = !last || last.cols !== cols || last.rows !== rows;
 
-        invoke('resize_terminal', {
-          sessionId: session.id,
-          cols: dims.cols,
-          rows: dims.rows,
-          pixelWidth: Math.round(dims.cols * cell.width),
-          pixelHeight: Math.round(dims.rows * cell.height)
-        }).catch(console.error);
+      if (sizeChanged) {
+        lastSentSizeRef.current = { cols, rows };
 
-        onResize?.(dims.cols, dims.rows);
+        // Round UP so ConPTY never derives fewer rows/cols than xterm actually
+        // renders — rounding down is what made running agents reflow "chunky".
+        const cell = getTerminalCellPixels(xterm);
+        const pixelWidth = Math.max(1, Math.ceil(cols * cell.width));
+        const pixelHeight = Math.max(1, Math.ceil(rows * cell.height));
+
+        onResize?.(cols, rows);
+
+        resizePendingRef.current = { cols, rows, pixelWidth, pixelHeight };
+        if (resizeTimerRef.current) {
+          clearTimeout(resizeTimerRef.current);
+        }
+        resizeTimerRef.current = setTimeout(() => {
+          const pending = resizePendingRef.current;
+          resizePendingRef.current = null;
+          if (!pending) return;
+          if (resizeInFlightRef.current) {
+            // Hand back to the in-flight request's finally to avoid a parallel
+            // second request racing the first.
+            resizePendingRef.current = pending;
+            return;
+          }
+          void sendResize(pending);
+        }, 120);
+      }
+
+      // After a real size change (or when the terminal just became visible
+      // again after a view switch) force a full repaint so the canvas never
+      // shows stale rows from the previous size.
+      if (sizeChanged || forceRepaint) {
+        requestAnimationFrame(() => {
+          const t = xtermRef.current;
+          if (t && t.rows > 0) t.refresh(0, t.rows - 1);
+        });
       }
     } catch (e) {
       console.error('Error fitting terminal:', e);
     }
-  }, [session.id, onResize]);
+  }, [session.id, onResize, sendResize]);
 
   const handleSearch = useCallback((direction: 'next' | 'prev') => {
     if (!searchAddonRef.current || !searchQuery) return;
@@ -287,8 +378,22 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const term = xtermRef.current;
     if (!term) return;
 
-    term.write(buildMouseModeSequence(normalizedModes, 'h'));
-  }, [syncMouseModes]);
+    const sequence = buildMouseModeSequence(normalizedModes, 'h');
+    term.write(sequence);
+
+    // Send to the PTY as well so the running program actually has mouse
+    // reporting enabled after reconnects — writing only to the xterm display
+    // made the UI claim "Mouse On" while the backend app had it off.
+    invoke('write_to_terminal', { sessionId: session.id, input: sequence }).catch(console.error);
+  }, [session.id, syncMouseModes]);
+
+  const forceEnableMouse = useCallback(() => {
+    const modes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
+    syncMouseModes(modes);
+    const sequence = buildMouseModeSequence(modes, 'h');
+    xtermRef.current?.write(sequence);
+    invoke('write_to_terminal', { sessionId: session.id, input: sequence }).catch(console.error);
+  }, [session.id, syncMouseModes]);
 
   const handleRefreshCli = useCallback(async () => {
     if (!session.agent || isRefreshing) return;
@@ -321,6 +426,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     // Match CSI private mode set/reset such as: ESC[?1000h, ESC[?1002;1006l, CSI ? 1006 h
     const regex = /(?:\x1b\[|\x9b)\?([0-9;]+)([hl])/g;
     let match: RegExpExecArray | null = regex.exec(output);
+    let needsReenable = false;
 
     while (match) {
       const [, params, op] = match;
@@ -332,6 +438,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             mouseModesRef.current.add(code);
           } else {
             mouseModesRef.current.delete(code);
+            // Always-On Mouse is locked: ignore the app's disable and re-send
+            // the enable sequence to the PTY so TUI agents never lose mouse.
+            if (mouseAlwaysOnRef.current) {
+              mouseModesRef.current.add(code);
+              needsReenable = true;
+            }
           }
         }
       }
@@ -340,9 +452,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
 
     syncMouseModes(mouseModesRef.current);
-  }, [syncMouseModes]);
+
+    if (needsReenable) {
+      forceEnableMouse();
+    }
+  }, [syncMouseModes, forceEnableMouse]);
 
   const handleToggleMouseTracking = useCallback(async () => {
+    // In Always-On mode the toggle acts as a "re-lock" — mouse can never be
+    // disabled from the header.
+    if (mouseAlwaysOnRef.current) {
+      forceEnableMouse();
+      return;
+    }
+
     const enableModes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
     const disableModes = normalizeMouseModes(mouseModesRef.current);
     const enableSequence = buildMouseModeSequence(enableModes, 'h');
@@ -364,7 +487,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     } catch (error) {
       console.error('Failed to toggle mouse tracking:', error);
     }
-  }, [session.id, mouseTrackingEnabled, syncMouseModes]);
+  }, [session.id, mouseTrackingEnabled, syncMouseModes, forceEnableMouse]);
 
   const startManagedCommand = useCallback(async (command: string) => {
     await invoke('run_managed_terminal_command', {
@@ -377,24 +500,79 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     });
   }, [session.cwd, session.id, session.workspaceId]);
 
+  /**
+   * Shell-aware paste. CMD (cmd.exe) does NOT support bracketed paste — the
+   * \x1b[200~ markers would be typed literally and break multi-line pastes.
+   * For CMD we normalize line endings and execute each line immediately, just
+   * like native CMD paste. PowerShell / Unix shells get bracketed paste with
+   * normalized \n endings.
+   */
+  const pasteToTerminal = useCallback(async (text: string) => {
+    if (!text) return;
+
+    const shellKind = detectShellKind(session.shell);
+    const CHUNK_SIZE = 512;
+    const DELAY = 2;
+
+    if (shellKind === 'cmd') {
+      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+      const lines = normalized.split('\n');
+      const endsWithNewline = normalized.endsWith('\n');
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isLast = i === lines.length - 1;
+        const submit = !isLast || endsWithNewline;
+
+        for (let j = 0; j < line.length; j += CHUNK_SIZE) {
+          const chunk = line.slice(j, j + CHUNK_SIZE);
+          await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
+          if (j + CHUNK_SIZE < line.length) {
+            await new Promise((resolve) => setTimeout(resolve, DELAY));
+          }
+        }
+
+        if (submit) {
+          await invoke('write_to_terminal', { sessionId: session.id, input: '\r' });
+          await new Promise((resolve) => setTimeout(resolve, DELAY));
+        }
+      }
+      return;
+    }
+
+    // PowerShell / bash / zsh: bracketed paste keeps multi-line input safe.
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
+    for (let i = 0; i < normalized.length; i += CHUNK_SIZE) {
+      const chunk = normalized.slice(i, i + CHUNK_SIZE);
+      await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
+      if (i + CHUNK_SIZE < normalized.length) {
+        await new Promise((resolve) => setTimeout(resolve, DELAY));
+      }
+    }
+    await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
+  }, [session.id]);
+
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
     const terminalElement = terminalRef.current;
 
+    const terminalPrefs = terminalPrefsRef.current;
     const xterm = new XTerm({
       theme: terminalTheme,
-      fontFamily: 'Cascadia Mono',
-      fontSize: 14,
+      fontFamily: terminalPrefs.fontFamily,
+      fontSize: terminalPrefs.fontSize,
       fontWeight: '400',
       lineHeight: 1,
       letterSpacing: 0,
       customGlyphs: true,
       rescaleOverlappingGlyphs: true,
       minimumContrastRatio: 1,
-      cursorBlink: true,
-      cursorStyle: 'block',
+      cursorBlink: terminalPrefs.cursorBlink,
+      cursorStyle: terminalPrefs.cursorStyle,
       allowProposedApi: true,
-      scrollback: 10000,
+      scrollback: terminalPrefs.scrollback,
       convertEol: false,
       allowTransparency: false,
       disableStdin: false,
@@ -402,7 +580,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       macOptionClickForcesSelection: false,
       scrollOnUserInput: true,
       smoothScrollDuration: 0,
-      windowsPty: isWindowsHost ? { backend: 'conpty', buildNumber: 19000 } : undefined,
     });
 
     const fitAddon = new FitAddon();
@@ -430,6 +607,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       replayMouseModes(savedMouseModes);
     }
 
+    // Always-On Mouse: after the terminal is up, force-enable mouse tracking
+    // on the PTY so agents like opencode/kilo accept mouse events from the
+    // very start.
+    if (mouseAlwaysOnRef.current) {
+      setTimeout(() => {
+        forceEnableMouse();
+      }, 150);
+    }
+
     const handlePasteCapture = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
@@ -443,24 +629,38 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       e.stopPropagation();
     };
 
+    const handleContextMenu = (e: MouseEvent) => {
+      // Right-click paste when enabled; otherwise let the app's global menu show.
+      if (!pasteOnRightClickRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      navigator.clipboard.readText().then((text) => {
+        if (text) void pasteToTerminal(text);
+      }).catch(console.error);
+    };
+
     terminalElement.addEventListener('paste', handlePasteCapture, { capture: true });
     terminalElement.addEventListener('mousedown', handleMouseDownFocus);
     terminalElement.addEventListener('wheel', handleWheel, { passive: true });
+    terminalElement.addEventListener('contextmenu', handleContextMenu);
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
     searchAddonRef.current = searchAddon;
     terminalReadyRef.current = true;
 
+    // Initial fit: wait for layout to settle (double rAF), then fit. The
+    // ResizeObserver and font-ready fit handle any later size changes, and the
+    // unchanged-dims guard makes redundant fits cheap no-ops.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        handleFitAndResize();
+      });
+    });
+    // Fallback in case the pane is still inside a mount transition at rAF time.
     setTimeout(() => {
       handleFitAndResize();
-    }, 50);
-    setTimeout(() => {
-      handleFitAndResize();
-    }, 250);
-    setTimeout(() => {
-      handleFitAndResize();
-    }, 900);
+    }, 300);
 
     const fontsApi = (document as Document & { fonts?: FontFaceSet }).fonts;
     const onFontsDone = () => {
@@ -584,24 +784,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             return;
           }
 
-          const CHUNK_SIZE = 512;
-          const DELAY = 2;
-
-          try {
-            await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
-
-            for (let i = 0; i < text.length; i += CHUNK_SIZE) {
-              const chunk = text.slice(i, i + CHUNK_SIZE);
-              await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
-              if (i + CHUNK_SIZE < text.length) {
-                await new Promise(resolve => setTimeout(resolve, DELAY));
-              }
-            }
-
-            await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
-          } catch (error) {
-            console.error('Failed to paste to terminal:', error);
-          }
+          await pasteToTerminal(text);
         }).catch(console.error);
         return false;
       }
@@ -631,6 +814,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       if (inputFlushTimer) {
         clearTimeout(inputFlushTimer);
       }
+      if (resizeTimerRef.current) {
+        clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
+      resizePendingRef.current = null;
       lineBufferRef.current = '';
       lineTrackingReliableRef.current = true;
       if (fontsApi) {
@@ -639,17 +827,28 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       terminalElement.removeEventListener('paste', handlePasteCapture, true);
       terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
       terminalElement.removeEventListener('wheel', handleWheel);
+      terminalElement.removeEventListener('contextmenu', handleContextMenu);
       xterm.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, isWindowsHost, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand]);
+  }, [session.id, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand, forceEnableMouse, pasteToTerminal]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
     xtermRef.current.options.theme = terminalTheme;
-  }, [theme]);
+  }, [terminalTheme]);
+
+  useEffect(() => {
+    const term = xtermRef.current;
+    if (!term) return;
+    term.options.fontFamily = terminalFontFamily;
+    term.options.fontSize = terminalFontSize;
+    term.options.cursorBlink = terminalCursorBlink;
+    term.options.cursorStyle = terminalCursorStyle;
+    handleFitAndResize();
+  }, [terminalFontFamily, terminalFontSize, terminalCursorBlink, terminalCursorStyle, handleFitAndResize]);
 
   useEffect(() => {
     let mounted = true;
@@ -727,22 +926,29 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     terminalReadyRef.current = false;
     firstOutputFitDoneRef.current = false;
     launchAttemptsRef.current = 0;
+    lastSentSizeRef.current = null;
+    terminalHiddenRef.current = false;
     mouseModesRef.current = new Set(savedMouseModes);
     setMouseTrackingEnabled(savedMouseModes.length > 0);
     if (launchTimeoutRef.current) {
       clearTimeout(launchTimeoutRef.current);
       launchTimeoutRef.current = null;
     }
-  }, [session.id, isWindowsHost, savedMouseModes]);
+  }, [session.id, savedMouseModes]);
 
   useEffect(() => {
     mouseModesRef.current = new Set(savedMouseModes);
     setMouseTrackingEnabled(savedMouseModes.length > 0);
 
+    if (mouseAlwaysOnRef.current) {
+      forceEnableMouse();
+      return;
+    }
+
     if (savedMouseModes.length > 0 && xtermRef.current) {
       replayMouseModes(savedMouseModes);
     }
-  }, [savedMouseModes, replayMouseModes]);
+  }, [savedMouseModes, replayMouseModes, forceEnableMouse]);
 
   useEffect(() => {
     if (!session.agent) return;
@@ -811,11 +1017,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   useEffect(() => {
     const handleResize = () => {
+      const container = terminalRef.current;
+      const rect = container?.getBoundingClientRect();
+      const isHidden = !rect || rect.width < 2 || rect.height < 2;
+      // When the container comes back from display:none (view switch), force a
+      // full repaint even if the pixel size is unchanged — the canvas may have
+      // stale rows from before it was hidden.
+      const becameVisible = terminalHiddenRef.current && !isHidden;
+      terminalHiddenRef.current = isHidden;
+
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }
       resizeTimeoutRef.current = setTimeout(() => {
-        handleFitAndResize();
+        handleFitAndResize(becameVisible);
       }, 100);
     };
 
@@ -863,26 +1078,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     if (!pendingPasteText) return;
     setShowPasteConfirm(false);
 
-    const CHUNK_SIZE = 512;
-    const DELAY = 2;
-
     try {
-      await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
-
-      for (let i = 0; i < pendingPasteText.length; i += CHUNK_SIZE) {
-        const chunk = pendingPasteText.slice(i, i + CHUNK_SIZE);
-        await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
-        if (i + CHUNK_SIZE < pendingPasteText.length) {
-          await new Promise(resolve => setTimeout(resolve, DELAY));
-        }
-      }
-
-      await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
+      await pasteToTerminal(pendingPasteText);
     } catch (error) {
       console.error('Failed to paste to terminal:', error);
     }
     setPendingPasteText('');
-  }, [pendingPasteText, session.id]);
+  }, [pendingPasteText, pasteToTerminal]);
 
   const cancelPaste = useCallback(() => {
     setShowPasteConfirm(false);
@@ -890,27 +1092,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, []);
 
   return (
-    <div
-      className={`h-full flex flex-col overflow-hidden font-mono border border-zinc-700/60 ${
-        isLight
-          ? 'bg-zinc-900'
-          : 'bg-zinc-950'
-      }`}
-    >
+    <div className="h-full flex flex-col overflow-hidden font-mono border border-zinc-700/60 bg-zinc-950">
       <TerminalHeader
         session={session}
-        theme={theme}
         onRefreshCli={handleRefreshCli}
         isRefreshing={isRefreshing}
         onClose={onClose}
         mouseTrackingEnabled={mouseTrackingEnabled}
         onToggleMouseTracking={handleToggleMouseTracking}
+        mouseAlwaysOn={terminalMouseAlwaysOn}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}
             launchState={launchState}
             authInfo={authInfo}
-            theme={theme}
             onAuthenticate={handleAuthenticate}
             onRetryInstall={handleRetryInstall}
             installing={installing}
@@ -920,10 +1115,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       />
 
       {showSearch && (
-        <div className={`flex items-center gap-2 px-3 py-1.5 border-b ${
-          isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-900 border-zinc-800'
-        }`}>
-          <svg className={`w-3.5 h-3.5 ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-zinc-900 border-zinc-800">
+          <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -938,14 +1131,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
               }
             }}
             placeholder="Search..."
-            className={`flex-1 bg-transparent text-xs outline-none ${
-              isLight ? 'text-zinc-200 placeholder-zinc-500' : 'text-zinc-300 placeholder-zinc-600'
-            }`}
+            className="flex-1 bg-transparent text-xs outline-none text-zinc-300 placeholder-zinc-600"
             autoFocus
           />
           <button
             onClick={() => handleSearch('prev')}
-            className={`p-1 transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
+            className="p-1 transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500"
             title="Previous match"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -954,7 +1145,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           </button>
           <button
             onClick={() => handleSearch('next')}
-            className={`p-1 transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
+            className="p-1 transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500"
             title="Next match"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -963,7 +1154,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           </button>
           <button
             onClick={handleClearSearch}
-            className={`p-1 transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
+            className="p-1 transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500"
             title="Close search"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -975,7 +1166,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
       <div
         ref={terminalRef}
-        className={`flex-1 overflow-hidden min-h-0 p-[3px] ${isLight ? 'bg-[#18181b]' : 'bg-[#09090b]'}`}
+        className="flex-1 overflow-hidden min-h-0 p-[3px] bg-[#262626]"
         style={{
           pointerEvents: 'auto',
           touchAction: 'auto',
@@ -989,32 +1180,27 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           agent={session.agent}
           onClose={() => setShowAuthModal(false)}
           getAuthInstructions={getAuthInstructions}
-          theme={theme}
         />
       )}
 
       {showPasteConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className={`w-80 border border-zinc-700/70 p-5 ${
-            isLight ? 'bg-zinc-900 border-zinc-700' : 'bg-zinc-950 border-zinc-800'
-          }`}>
+          <div className="w-80 border border-zinc-700/70 p-5 bg-zinc-950 border-zinc-800">
             <div className="flex items-center gap-2 mb-3">
               <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
               </svg>
-              <span className={`text-xs font-bold uppercase tracking-wider ${isLight ? 'text-zinc-200' : 'text-zinc-200'}`}>
+              <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">
                 Large Paste Detected
               </span>
             </div>
-            <p className={`text-[10px] leading-relaxed mb-4 ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`}>
+            <p className="text-[10px] leading-relaxed mb-4 text-zinc-500">
               You are about to paste {(pendingPasteText.length / 1024).toFixed(1)} KB of text into the terminal. This may take a moment.
             </p>
             <div className="flex gap-2">
               <button
                 onClick={cancelPaste}
-                className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                  isLight ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
-                }`}
+                className="flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
               >
                 Cancel
               </button>

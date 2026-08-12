@@ -1,19 +1,108 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+/* ── Claude Theme — Warm Zinc Scale (Tailwind v4) ─────────────────────
+   Remaps the default zinc palette to the warm Claude neutrals so every
+   zinc-* utility across the app inherits the warm terracotta-adjacent
+   gray ramp (source: shadcn "claude" theme). */
+@theme {
+  --color-zinc-50: #faf8f1;
+  --color-zinc-100: #f5f2e9;
+  --color-zinc-200: #ece7da;
+  --color-zinc-300: #d9d8d0;
+  --color-zinc-400: #b4b1a3;
+  --color-zinc-500: #8f8b80;
+  --color-zinc-600: #6e6a60;
+  --color-zinc-700: #51504a;
+  --color-zinc-800: #3e3e38;
+  --color-zinc-900: #303030;
+  --color-zinc-950: #262626;
+}
+
+/* ── shadcn/ui Semantic Tokens (Tailwind v4) ───────────────────────────
+   Maps shadcn utility colors (bg-background, text-foreground, bg-primary,
+   border-border, ring-ring, ...) to the CSS vars defined in :root (dark)
+   below, so any shadcn component renders on the Claude
+   palette. --color-accent maps to the app's own --accent (terracotta) so
+   the accent system is preserved. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: #ffffff;
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
 
 :root {
-  --bg-primary: #09090b;
-  --bg-secondary: #0c0c0e;
-  --bg-tertiary: #18181b;
-  --border-primary: #27272a;
-  --text-primary: #fafafa;
-  --text-secondary: #a1a1aa;
+  --bg-primary: #262626;
+  --bg-secondary: #303030;
+  --bg-tertiary: #383838;
+  --border-primary: #3e3e38;
+  --text-primary: #faf8f1;
+  --text-secondary: #b7b5a6;
 
-  /* Accent color system */
-  --accent: #a1a1aa;
-  --accent-light: rgba(161, 161, 170, 0.15);
-  --accent-glow: rgba(161, 161, 170, 0.3);
-  --accent-border: rgba(161, 161, 170, 0.2);
-  --accent-text: rgba(161, 161, 170, 0.7);
+  /* Accent color system (Claude terracotta) */
+  --accent: #d87757;
+  --accent-light: rgba(216, 119, 87, 0.15);
+  --accent-glow: rgba(216, 119, 87, 0.3);
+  --accent-border: rgba(216, 119, 87, 0.2);
+  --accent-text: rgba(216, 119, 87, 0.7);
+
+  /* shadcn/ui semantic tokens — Claude palette (dark)
+     --accent / --accent-foreground intentionally NOT redefined here: the app's
+     own --accent (terracotta) is preserved and --color-accent maps to it. */
+  --background: #262626;
+  --foreground: #c3c1ba;
+  --card: #262626;
+  --card-foreground: #faf8f1;
+  --popover: #303030;
+  --popover-foreground: #e4e4e4;
+  --primary: #d87757;
+  --primary-foreground: #ffffff;
+  --secondary: #faf8f1;
+  --secondary-foreground: #303030;
+  --muted: #1b1b1b;
+  --muted-foreground: #b7b5a6;
+  --destructive: #f14444;
+  --destructive-foreground: #ffffff;
+  --border: #3e3e38;
+  --input: #51504a;
+  --ring: #1b7ede;
+  --sidebar: #1f1f1f;
+  --sidebar-foreground: #c3c1ba;
+  --sidebar-primary: #353535;
+  --sidebar-primary-foreground: #fcfcfc;
+  --sidebar-accent: #0f0f0f;
+  --sidebar-accent-foreground: #c3c1ba;
+  --sidebar-border: #ebebeb;
+  --sidebar-ring: #b4b4b4;
+  --radius: 0.5rem;
 
   font-family: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
   line-height: 1.5;
@@ -24,15 +113,6 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-.light-theme {
-  --bg-primary: #17191d;
-  --bg-secondary: #1c1f25;
-  --bg-tertiary: #23272e;
-  --border-primary: #353b46;
-  --text-primary: #f3f4f6;
-  --text-secondary: #a1a8b3;
 }
 
 body {
@@ -264,35 +344,35 @@ html.animations-disabled *::after {
 
 /* ── Theme Color Variables ───────────────────────────────────────────── */
 .markdown-dark {
-  --md-text: #d4d4d8;
-  --md-h1: #fafafa;
-  --md-h1-border: #27272a;
-  --md-h2: #fafafa;
-  --md-h2-border: #27272a;
-  --md-h3: #e4e4e7;
-  --md-h4: #a1a1aa;
-  --md-link: #a1a1aa;
-  --md-link-hover: #fafafa;
-  --md-strong: #fafafa;
-  --md-bq-border: #3f3f46;
-  --md-bq-text: #a1a1aa;
-  --md-code-bg: #18181b;
-  --md-code-border: #27272a;
-  --md-code-text: #d4d4d8;
-  --md-pre-bg: #0c0c0e;
-  --md-pre-border: #27272a;
-  --md-th-bg: #18181b;
-  --md-th-text: #e4e4e7;
-  --md-td-border: #27272a;
-  --md-hr-border: #27272a;
-  --hljs-text: #d4d4d8;
+  --md-text: #c3c1ba;
+  --md-h1: #faf8f1;
+  --md-h1-border: #3e3e38;
+  --md-h2: #faf8f1;
+  --md-h2-border: #3e3e38;
+  --md-h3: #dcd8cc;
+  --md-h4: #b7b5a6;
+  --md-link: #d87757;
+  --md-link-hover: #faf8f1;
+  --md-strong: #faf8f1;
+  --md-bq-border: #51504a;
+  --md-bq-text: #b7b5a6;
+  --md-code-bg: #303030;
+  --md-code-border: #3e3e38;
+  --md-code-text: #c3c1ba;
+  --md-pre-bg: #1f1f1f;
+  --md-pre-border: #3e3e38;
+  --md-th-bg: #303030;
+  --md-th-text: #dcd8cc;
+  --md-td-border: #3e3e38;
+  --md-hr-border: #3e3e38;
+  --hljs-text: #c3c1ba;
   --hljs-keyword: #c084fc;
   --hljs-string: #34d399;
   --hljs-number: #fbbf24;
-  --hljs-comment: #6b7280;
+  --hljs-comment: #6e6a60;
   --hljs-function: #60a5fa;
   --hljs-title: #60a5fa;
-  --hljs-params: #d4d4d8;
+  --hljs-params: #c3c1ba;
   --hljs-built_in: #f97316;
   --hljs-literal: #fb923c;
   --hljs-type: #22d3ee;
@@ -300,54 +380,12 @@ html.animations-disabled *::after {
   --hljs-selector-tag: #c084fc;
   --hljs-selector-class: #fbbf24;
   --hljs-selector-id: #60a5fa;
-  --hljs-variable: #d4d4d8;
-  --hljs-meta: #6b7280;
-}
-
-.markdown-light {
-  --md-text: #a1a1aa;
-  --md-h1: #f4f4f5;
-  --md-h1-border: #3f3f46;
-  --md-h2: #f4f4f5;
-  --md-h2-border: #3f3f46;
-  --md-h3: #e4e4e7;
-  --md-h4: #71717a;
-  --md-link: #d4d4d8;
-  --md-link-hover: #ffffff;
-  --md-strong: #f4f4f5;
-  --md-bq-border: #52525b;
-  --md-bq-text: #71717a;
-  --md-code-bg: #18181b;
-  --md-code-border: #3f3f46;
-  --md-code-text: #f4f4f5;
-  --md-pre-bg: #09090b;
-  --md-pre-border: #3f3f46;
-  --md-th-bg: #27272a;
-  --md-th-text: #f4f4f5;
-  --md-td-border: #3f3f46;
-  --md-hr-border: #3f3f46;
-  --hljs-text: #3f3f46;
-  --hljs-keyword: #7c3aed;
-  --hljs-string: #059669;
-  --hljs-number: #d97706;
-  --hljs-comment: #9ca3af;
-  --hljs-function: #2563eb;
-  --hljs-title: #2563eb;
-  --hljs-params: #3f3f46;
-  --hljs-built_in: #ea580c;
-  --hljs-literal: #ea580c;
-  --hljs-type: #0891b2;
-  --hljs-attr: #7c3aed;
-  --hljs-selector-tag: #7c3aed;
-  --hljs-selector-class: #d97706;
-  --hljs-selector-id: #2563eb;
-  --hljs-variable: #3f3f46;
-  --hljs-meta: #9ca3af;
+  --hljs-variable: #c3c1ba;
+  --hljs-meta: #6e6a60;
 }
 
 /* Blockquote variant colors (same for both themes) */
-.markdown-dark,
-.markdown-light {
+.markdown-dark {
   --bkq-tip: #22c55e;
   --bkq-tip-bg: rgba(34, 197, 94, 0.1);
   --bkq-warning: #f59e0b;
@@ -360,48 +398,29 @@ html.animations-disabled *::after {
 
 .docx-preview-dark,
 .docx-content-dark {
-  --docx-text: #d4d4d8;
-  --docx-h1: #fafafa;
-  --docx-h1-border: #27272a;
-  --docx-h2: #fafafa;
-  --docx-h2-border: #27272a;
-  --docx-h3: #e4e4e7;
-  --docx-h4: #a1a1aa;
-  --docx-strong: #fafafa;
-  --docx-em: #a1a1aa;
-  --docx-table-border: #27272a;
-  --docx-th-bg: #18181b;
-  --docx-th-text: #e4e4e7;
-}
-
-.docx-preview-light,
-.docx-content-light {
-  --docx-text: #3f3f46;
-  --docx-h1: #18181b;
-  --docx-h1-border: #e4e4e7;
-  --docx-h2: #18181b;
-  --docx-h2-border: #e4e4e7;
-  --docx-h3: #27272a;
-  --docx-h4: #52525b;
-  --docx-strong: #18181b;
-  --docx-em: #71717a;
-  --docx-table-border: #e4e4e7;
-  --docx-th-bg: #f4f4f5;
-  --docx-th-text: #27272a;
+  --docx-text: #c3c1ba;
+  --docx-h1: #faf8f1;
+  --docx-h1-border: #3e3e38;
+  --docx-h2: #faf8f1;
+  --docx-h2-border: #3e3e38;
+  --docx-h3: #dcd8cc;
+  --docx-h4: #b7b5a6;
+  --docx-strong: #faf8f1;
+  --docx-em: #b7b5a6;
+  --docx-table-border: #3e3e38;
+  --docx-th-bg: #303030;
+  --docx-th-text: #dcd8cc;
 }
 
 /* ── Markdown & DOCX Preview — Shared Styles ─────────────────────────── */
-.markdown-dark,
-.markdown-light {
+.markdown-dark {
   color: var(--md-text);
   line-height: 1.7;
   font-size: 13px;
 }
 
 .markdown-dark h1,
-.markdown-light h1,
-.docx-content-dark h1,
-.docx-content-light h1 {
+.docx-content-dark h1 {
   font-size: 1.8em;
   font-weight: 700;
   color: var(--md-h1, var(--docx-h1));
@@ -411,9 +430,7 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark h2,
-.markdown-light h2,
-.docx-content-dark h2,
-.docx-content-light h2 {
+.docx-content-dark h2 {
   font-size: 1.4em;
   font-weight: 600;
   color: var(--md-h2, var(--docx-h2));
@@ -423,9 +440,7 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark h3,
-.markdown-light h3,
-.docx-content-dark h3,
-.docx-content-light h3 {
+.docx-content-dark h3 {
   font-size: 1.2em;
   font-weight: 600;
   color: var(--md-h3, var(--docx-h3));
@@ -433,9 +448,7 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark h4, .markdown-dark h5, .markdown-dark h6,
-.markdown-light h4, .markdown-light h5, .markdown-light h6,
-.docx-content-dark h4, .docx-content-dark h5, .docx-content-dark h6,
-.docx-content-light h4, .docx-content-light h5, .docx-content-light h6 {
+.docx-content-dark h4, .docx-content-dark h5, .docx-content-dark h6 {
   font-size: 1em;
   font-weight: 600;
   color: var(--md-h4, var(--docx-h4));
@@ -443,34 +456,27 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark p,
-.markdown-light p,
-.docx-content-dark p,
-.docx-content-light p {
+.docx-content-dark p {
   margin: 0.6em 0;
 }
 
 .markdown-dark strong,
-.markdown-light strong,
-.docx-content-dark strong,
-.docx-content-light strong {
+.docx-content-dark strong {
   color: var(--md-strong, var(--docx-strong));
   font-weight: 600;
 }
 
-.markdown-dark a,
-.markdown-light a {
+.markdown-dark a {
   color: var(--md-link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
-.markdown-dark a:hover,
-.markdown-light a:hover {
+.markdown-dark a:hover {
   color: var(--md-link-hover);
 }
 
-.markdown-dark blockquote,
-.markdown-light blockquote {
+.markdown-dark blockquote {
   border-left: 3px solid var(--md-bq-border);
   padding-left: 1em;
   margin: 0.6em 0;
@@ -478,28 +484,22 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark ul, .markdown-dark ol,
-.markdown-light ul, .markdown-light ol,
-.docx-content-dark ul, .docx-content-dark ol,
-.docx-content-light ul, .docx-content-light ol {
+.docx-content-dark ul, .docx-content-dark ol {
   padding-left: 1.5em;
   margin: 0.5em 0;
 }
 
 .markdown-dark li,
-.markdown-light li,
-.docx-content-dark li,
-.docx-content-light li {
+.docx-content-dark li {
   margin: 0.2em 0;
 }
 
-.markdown-dark li input[type="checkbox"],
-.markdown-light li input[type="checkbox"] {
+.markdown-dark li input[type="checkbox"] {
   margin-right: 0.4em;
   accent-color: #22c55e;
 }
 
-.markdown-dark .md-code-block,
-.markdown-light .md-code-block {
+.markdown-dark .md-code-block {
   background: var(--md-pre-bg);
   border: 1px solid var(--md-pre-border);
   border-radius: 4px;
@@ -510,8 +510,7 @@ html.animations-disabled *::after {
   line-height: 1.6;
 }
 
-.markdown-dark code:not(.hljs),
-.markdown-light code:not(.hljs) {
+.markdown-dark code:not(.hljs) {
   background: var(--md-code-bg);
   border: 1px solid var(--md-code-border);
   border-radius: 3px;
@@ -521,73 +520,63 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark table,
-.markdown-light table,
-.docx-content-dark .docx-table,
-.docx-content-light .docx-table {
+.docx-content-dark .docx-table {
   border-collapse: collapse;
   width: 100%;
   margin: 0.8em 0;
 }
 
 .markdown-dark th, .markdown-dark td,
-.markdown-light th, .markdown-light td,
-.docx-content-dark .docx-table th, .docx-content-dark .docx-table td,
-.docx-content-light .docx-table th, .docx-content-light .docx-table td {
+.docx-content-dark .docx-table th, .docx-content-dark .docx-table td {
   border: 1px solid var(--md-td-border, var(--docx-table-border));
   padding: 0.4em 0.8em;
   text-align: left;
 }
 
 .markdown-dark th,
-.markdown-light th,
-.docx-content-dark .docx-table th,
-.docx-content-light .docx-table th {
+.docx-content-dark .docx-table th {
   background: var(--md-th-bg, var(--docx-th-bg));
   font-weight: 600;
   color: var(--md-th-text, var(--docx-th-text));
 }
 
-.markdown-dark hr,
-.markdown-light hr {
+.markdown-dark hr {
   border: none;
   border-top: 1px solid var(--md-hr-border);
   margin: 1.2em 0;
 }
 
-.markdown-dark img,
-.markdown-light img {
+.markdown-dark img {
   max-width: 100%;
   border-radius: 4px;
 }
 
-.docx-content-dark em,
-.docx-content-light em {
+.docx-content-dark em {
   color: var(--docx-em);
 }
 
 /* ── Highlight.js — Shared Overrides ─────────────────────────────────── */
-.markdown-dark .hljs,
-.markdown-light .hljs {
+.markdown-dark .hljs {
   background: transparent;
   color: var(--hljs-text);
 }
 
-.markdown-dark .hljs-keyword, .markdown-light .hljs-keyword { color: var(--hljs-keyword); }
-.markdown-dark .hljs-string, .markdown-light .hljs-string { color: var(--hljs-string); }
-.markdown-dark .hljs-number, .markdown-light .hljs-number { color: var(--hljs-number); }
-.markdown-dark .hljs-comment, .markdown-light .hljs-comment { color: var(--hljs-comment); font-style: italic; }
-.markdown-dark .hljs-function, .markdown-light .hljs-function { color: var(--hljs-function); }
-.markdown-dark .hljs-title, .markdown-light .hljs-title { color: var(--hljs-title); }
-.markdown-dark .hljs-params, .markdown-light .hljs-params { color: var(--hljs-params); }
-.markdown-dark .hljs-built_in, .markdown-light .hljs-built_in { color: var(--hljs-built_in); }
-.markdown-dark .hljs-literal, .markdown-light .hljs-literal { color: var(--hljs-literal); }
-.markdown-dark .hljs-type, .markdown-light .hljs-type { color: var(--hljs-type); }
-.markdown-dark .hljs-attr, .markdown-light .hljs-attr { color: var(--hljs-attr); }
-.markdown-dark .hljs-selector-tag, .markdown-light .hljs-selector-tag { color: var(--hljs-selector-tag); }
-.markdown-dark .hljs-selector-class, .markdown-light .hljs-selector-class { color: var(--hljs-selector-class); }
-.markdown-dark .hljs-selector-id, .markdown-light .hljs-selector-id { color: var(--hljs-selector-id); }
-.markdown-dark .hljs-variable, .markdown-light .hljs-variable { color: var(--hljs-variable); }
-.markdown-dark .hljs-meta, .markdown-light .hljs-meta { color: var(--hljs-meta); }
+.markdown-dark .hljs-keyword { color: var(--hljs-keyword); }
+.markdown-dark .hljs-string { color: var(--hljs-string); }
+.markdown-dark .hljs-number { color: var(--hljs-number); }
+.markdown-dark .hljs-comment { color: var(--hljs-comment); font-style: italic; }
+.markdown-dark .hljs-function { color: var(--hljs-function); }
+.markdown-dark .hljs-title { color: var(--hljs-title); }
+.markdown-dark .hljs-params { color: var(--hljs-params); }
+.markdown-dark .hljs-built_in { color: var(--hljs-built_in); }
+.markdown-dark .hljs-literal { color: var(--hljs-literal); }
+.markdown-dark .hljs-type { color: var(--hljs-type); }
+.markdown-dark .hljs-attr { color: var(--hljs-attr); }
+.markdown-dark .hljs-selector-tag { color: var(--hljs-selector-tag); }
+.markdown-dark .hljs-selector-class { color: var(--hljs-selector-class); }
+.markdown-dark .hljs-selector-id { color: var(--hljs-selector-id); }
+.markdown-dark .hljs-variable { color: var(--hljs-variable); }
+.markdown-dark .hljs-meta { color: var(--hljs-meta); }
 
 /* ── DOCX Preview — Theme-Specific ───────────────────────────────────── */
 .docx-preview-dark {
@@ -596,37 +585,18 @@ html.animations-disabled *::after {
   font-size: 13px;
 }
 
-.docx-preview-light {
-  color: var(--docx-text);
-  line-height: 1.7;
-  font-size: 13px;
-  background-color: #f4f4f5;
-}
-
 /* ── Spreadsheet ─────────────────────────────────────────────────────── */
 .spreadsheet-dark td,
 .spreadsheet-dark th {
   border-color: var(--border-primary);
 }
 
-.spreadsheet-light td,
-.spreadsheet-light th {
-  border-color: #e4e4e7;
-}
-
 /* ── Setup Background ────────────────────────────────────────────────── */
 .setup-bg {
-  background-color: #0a0a0d;
+  background-color: #262626;
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(18, 18, 24, 0.8) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(48, 48, 48, 0.8) 0%, transparent 70%),
     radial-gradient(ellipse 120% 100% at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.3) 100%);
-}
-
-.light-theme .setup-bg {
-  background-color: #f0f0f2;
-  background-image:
-    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(255, 255, 255, 0.6) 0%, transparent 70%),
-    radial-gradient(ellipse 120% 100% at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.03) 100%);
 }
 
 /* ── Enhanced Markdown Preview ───────────────────────────────────────────── */
@@ -650,7 +620,7 @@ html.animations-disabled *::after {
   opacity: 0;
   transition: opacity 0.2s, background-color 0.2s;
   background-color: rgba(255, 255, 255, 0.1);
-  color: #a1a1aa;
+  color: #b7b5a6;
 }
 
 .md-code-wrapper:hover .md-copy-btn {
@@ -659,22 +629,12 @@ html.animations-disabled *::after {
 
 .markdown-dark .md-copy-btn {
   background-color: rgba(255, 255, 255, 0.08);
-  color: #71717a;
+  color: #8f8b80;
 }
 
 .markdown-dark .md-copy-btn:hover {
   background-color: rgba(255, 255, 255, 0.15);
-  color: #d4d4d8;
-}
-
-.markdown-light .md-copy-btn {
-  background-color: rgba(0, 0, 0, 0.06);
-  color: #52525b;
-}
-
-.markdown-light .md-copy-btn:hover {
-  background-color: rgba(0, 0, 0, 0.12);
-  color: #18181b;
+  color: #faf8f1;
 }
 
 .md-image {
@@ -691,7 +651,7 @@ html.animations-disabled *::after {
 .md-image figcaption {
   text-align: center;
   font-size: 0.85em;
-  color: #71717a;
+  color: #85837d;
   margin-top: 0.5em;
   font-style: italic;
 }
@@ -708,14 +668,11 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark .md-table th,
-.markdown-light .md-table th,
-.markdown-dark .md-table td,
-.markdown-light .md-table td {
+.markdown-dark .md-table td {
   padding: 10px 14px;
 }
 
-.markdown-dark .md-table th,
-.markdown-light .md-table th {
+.markdown-dark .md-table th {
   font-weight: 600;
 }
 
@@ -738,57 +695,33 @@ html.animations-disabled *::after {
   background-color: var(--md-th-bg);
 }
 
-.markdown-light .md-table th,
-.markdown-light .md-table td {
-  border: 1px solid var(--md-td-border);
-}
-
-.markdown-light .md-table th {
-  background-color: var(--md-th-bg);
-  color: var(--md-th-text);
-}
-
-.markdown-light .md-table td {
-  background-color: #fafafa;
-  color: #3f3f46;
-}
-
-.markdown-light .md-table tr:hover td {
-  background-color: var(--md-th-bg);
-}
-
 .md-blockquote {
   margin: 1.5em 0;
   padding: 1em 1.5em;
-  border-left: 4px solid #52525b;
+  border-left: 4px solid #6e6a60;
   border-radius: 0 6px 6px 0;
 }
 
-.markdown-dark .md-blockquote,
-.markdown-light .md-blockquote {
+.markdown-dark .md-blockquote {
   background-color: var(--md-th-bg);
 }
 
-.markdown-dark .md-blockquote-tip,
-.markdown-light .md-blockquote-tip {
+.markdown-dark .md-blockquote-tip {
   border-left-color: var(--bkq-tip);
   background-color: var(--bkq-tip-bg);
 }
 
-.markdown-dark .md-blockquote-warning,
-.markdown-light .md-blockquote-warning {
+.markdown-dark .md-blockquote-warning {
   border-left-color: var(--bkq-warning);
   background-color: var(--bkq-warning-bg);
 }
 
-.markdown-dark .md-blockquote-error,
-.markdown-light .md-blockquote-error {
+.markdown-dark .md-blockquote-error {
   border-left-color: var(--bkq-error);
   background-color: var(--bkq-error-bg);
 }
 
-.markdown-dark .md-blockquote-info,
-.markdown-light .md-blockquote-info {
+.markdown-dark .md-blockquote-info {
   border-left-color: var(--bkq-info);
   background-color: var(--bkq-info-bg);
 }
@@ -828,7 +761,7 @@ html.animations-disabled *::after {
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent;
+  scrollbar-color: #51504a transparent;
 }
 
 *::-webkit-scrollbar {
@@ -841,28 +774,16 @@ html.animations-disabled *::after {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #51504a;
   border-radius: 3px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
+  background: #6e6a60;
 }
 
 *::-webkit-scrollbar-corner {
   background: transparent;
-}
-
-.light-theme *::-webkit-scrollbar-thumb {
-  background: #a1a1aa;
-}
-
-.light-theme *::-webkit-scrollbar-thumb:hover {
-  background: #71717a;
-}
-
-.light-theme * {
-  scrollbar-color: #a1a1aa transparent;
 }
 
 /* ── Terminal (xterm.js) ─────────────────────────────────────────────── */
@@ -876,6 +797,10 @@ html.animations-disabled *::after {
   overflow-y: auto !important;
   scroll-behavior: auto !important;
   overscroll-behavior: contain;
+  /* xterm.css hardcodes background-color:#000 on the viewport; make it transparent
+     so leftover space below fitted rows shows the container background (which
+     matches the terminal theme bg) instead of a black strip at the bottom. */
+  background-color: transparent !important;
 }
 
 .xterm .xterm-screen {
@@ -889,9 +814,12 @@ html.animations-disabled *::after {
   font-feature-settings: "liga" 0, "calt" 0 !important;
 }
 
-/* xterm scroll bar styling for both normal and alt screen */
+/* xterm scroll bar styling for both normal and alt screen.
+   Auto-hides like native Windows Terminal / CMD: invisible until the user
+   hovers the terminal or drags the scrollbar itself, so it never reads as a
+   "slider" cluttering the terminal while agents stream output. */
 .xterm .xterm-viewport::-webkit-scrollbar {
-  width: 6px !important;
+  width: 8px !important;
 }
 
 .xterm .xterm-viewport::-webkit-scrollbar-track {
@@ -899,12 +827,26 @@ html.animations-disabled *::after {
 }
 
 .xterm .xterm-viewport::-webkit-scrollbar-thumb {
-  background: rgba(63, 63, 70, 0.5) !important;
+  background: transparent !important;
   border-radius: 3px !important;
 }
 
-.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: rgba(82, 82, 91, 0.7) !important;
+.xterm .xterm-viewport:hover::-webkit-scrollbar-thumb,
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
+  background: rgba(81, 80, 74, 0.55) !important;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
+  background: rgba(110, 106, 96, 0.75) !important;
+}
+
+.xterm .xterm-viewport {
+  scrollbar-color: transparent transparent;
+}
+
+.xterm .xterm-viewport:hover {
+  scrollbar-color: rgba(81, 80, 74, 0.55) transparent;
 }
 
 /* ── Custom Crosshair Cursor ──────────────────────────────────────────── */
@@ -920,4 +862,47 @@ html.has-custom-cursor *,
 html.has-custom-cursor *::before,
 html.has-custom-cursor *::after {
   cursor: none !important;
+}
+
+/* ── Rich Prompt Editor ─────────────────────────────────────────────── */
+.rich-prompt-editor {
+  position: relative;
+}
+
+.rich-prompt-editor:empty::before {
+  content: attr(data-placeholder);
+  position: absolute;
+  color: #6e6a60;
+  pointer-events: none;
+}
+
+.rich-prompt-editor code {
+  background: rgba(216, 119, 87, 0.12);
+  border: 1px solid #51504a;
+  border-radius: 2px;
+  padding: 0 0.25em;
+  font-size: 0.9em;
+}
+
+.rich-prompt-editor blockquote {
+  border-left: 2px solid #6e6a60;
+  padding-left: 0.75em;
+  margin: 0.25em 0;
+  color: #b7b5a6;
+}
+
+.rich-prompt-editor ul,
+.rich-prompt-editor ol {
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.rich-prompt-editor li {
+  margin: 0.1em 0;
+}
+
+.rich-prompt-editor a {
+  color: #1b7ede;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

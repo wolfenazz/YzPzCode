@@ -4,12 +4,12 @@ import { useAppStore } from '../../../stores/appStore';
 import { SettingsToggle } from '../../common/SettingsToggle';
 
 const ACCENT_COLORS = [
-  { name: 'Default', value: 'default', color: '#a1a1aa' },
-  { name: 'Blue', value: 'blue', color: '#3b82f6' },
+  { name: 'Claude', value: 'default', color: '#d87757' },
+  { name: 'Claude Blue', value: 'blue', color: '#1b7ede' },
   { name: 'Purple', value: 'purple', color: '#8b5cf6' },
   { name: 'Green', value: 'green', color: '#10b981' },
   { name: 'Orange', value: 'orange', color: '#f97316' },
-  { name: 'Red', value: 'red', color: '#ef4444' },
+  { name: 'Red', value: 'red', color: '#f14444' },
   { name: 'Pink', value: 'pink', color: '#ec4899' },
   { name: 'Cyan', value: 'cyan', color: '#06b6d4' },
 ];
@@ -26,8 +26,6 @@ const Divider = () => (
 
 export const SettingsAppearance: React.FC = () => {
   const {
-    theme,
-    toggleTheme,
     customCursor,
     setCustomCursor,
     accentColor,
@@ -64,20 +62,7 @@ export const SettingsAppearance: React.FC = () => {
         <p className="text-[10px] text-zinc-600 font-mono">Customize the look and feel of YzPzCode</p>
       </div>
 
-      <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-          Theme
-        </h3>
-
-        <SettingsToggle
-          enabled={theme === 'light'}
-          onToggle={toggleTheme}
-          label="Color Theme"
-          description={`Currently using ${theme} mode`}
-        />
-      </div>
-
-      <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Accent Color
         </h3>
@@ -90,7 +75,7 @@ export const SettingsAppearance: React.FC = () => {
               onClick={() => setAccentColor(color.value)}
               className={`group relative w-8 h-8 rounded-full transition-all duration-200 cursor-pointer ${
                 accentColor === color.value
-                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[#0a0a0f] scale-110'
+                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[#262626] scale-110'
                   : 'hover:scale-105'
               }`}
               title={color.name}
@@ -111,7 +96,7 @@ export const SettingsAppearance: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           UI Density
         </h3>
@@ -125,7 +110,7 @@ export const SettingsAppearance: React.FC = () => {
               className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                 uiDensity === density.value
                   ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                  : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-[#1a1a2e]/60'
+                  : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-[#3e3e38]/60'
               }`}
             >
               {density.label}
@@ -134,7 +119,7 @@ export const SettingsAppearance: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Preferences
         </h3>
@@ -183,7 +168,7 @@ export const SettingsAppearance: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     setupViewMode === mode
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-[#1a1a2e]/60'
+                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-[#3e3e38]/60'
                   }`}
                 >
                   {mode === 'page' ? 'Page' : 'Stepper'}

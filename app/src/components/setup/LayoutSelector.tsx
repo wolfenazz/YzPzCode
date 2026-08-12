@@ -29,7 +29,7 @@ const MiniTerminal: React.FC<{ index: number }> = ({ index }) => (
       <span className="w-0.5 h-0.5 bg-zinc-500 rounded-full" />
       <span className="text-[4px] text-zinc-600 font-mono tracking-wider uppercase">tty{index + 1}</span>
     </div>
-    <div className="flex-1 bg-[#09090b] relative min-h-0 p-0.5">
+    <div className="flex-1 bg-[#262626] relative min-h-0 p-0.5">
       <div className="absolute left-0.5 top-0.5 right-0.5 h-1.5 flex flex-col gap-px">
         <div className="h-px bg-zinc-800/30 w-full" />
         <div className="flex items-center">

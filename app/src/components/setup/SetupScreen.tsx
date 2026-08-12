@@ -6,7 +6,6 @@ import { useWorkspace } from '../../hooks/useWorkspace';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { WorkspaceTab } from '../workspace/WorkspaceTab';
-import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import { AppFooter } from '../common/AppFooter';
 import logo from '../../assets/YzPzCodeLogo.png';
 
@@ -17,7 +16,7 @@ interface SetupScreenProps {
 }
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
-  const { setView, theme, toggleTheme, openWorkspaces, switchWorkspace, sessionsByWorkspace, closeWorkspace, selectedIdes, ideStatuses, setupViewMode } = useAppStore();
+  const { setView, openWorkspaces, switchWorkspace, sessionsByWorkspace, closeWorkspace, selectedIdes, ideStatuses, setupViewMode } = useAppStore();
   const {
     selectedPath,
     workspaceName,
@@ -133,7 +132,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
   };
 
   return (
-    <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
+    <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
       {/* ── TopBar ───────────────────────────────────────────────────────── */}
       <header
         data-tauri-drag-region
@@ -195,7 +194,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         <div className="flex items-center h-full titlebar-nodrag">
           <button
             onClick={onSettingsClick}
-            className="group/settings flex items-center justify-center w-10 h-full border-l border-theme text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer group"
+            className="group/settings flex items-center justify-center w-10 h-full border-l border-theme text-zinc-500 hover:text-theme-main transition-colors duration-150 cursor-pointer group"
           >
             <svg className="w-4 h-4 transition-all duration-500 group-hover/settings:rotate-180 group-hover/settings:scale-110 group-hover/settings:drop-shadow-[0_0_8px_rgba(161,161,170,0.3)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -203,16 +202,12 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
             </svg>
           </button>
 
-          <div className="flex items-center h-full border-l border-theme">
-            <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
-          </div>
-
           {/* Custom window controls — Windows only */}
           {isWindows && (
             <div className="flex h-full border-l border-theme">
               <button
                 onClick={minimizeWindow}
-                className="group/min w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-all duration-150 cursor-pointer"
+                className="group/min w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-all duration-150 cursor-pointer"
                 title="Minimize"
               >
                 <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/min:translate-y-[2px] group-hover/min:scale-125" viewBox="0 0 12 12">
@@ -221,7 +216,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               </button>
               <button
                 onClick={maximizeWindow}
-                className="group/max w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-all duration-150 cursor-pointer"
+                className="group/max w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-all duration-150 cursor-pointer"
                 title="Maximize"
               >
                 <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/max:scale-125 group-hover/max:drop-shadow-[0_0_4px_rgba(161,161,170,0.4)]" viewBox="0 0 12 12">
@@ -272,7 +267,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               </div>
               <button
                 onClick={() => setWarningDismissed(true)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors duration-150 p-1 cursor-pointer"
+                className="text-zinc-500 hover:text-theme-main transition-colors duration-150 p-1 cursor-pointer"
                 title="Dismiss"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,7 +287,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               </div>
               <button
                 onClick={() => setCreateError(null)}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors duration-150 p-1 cursor-pointer"
+                className="text-zinc-500 hover:text-theme-main transition-colors duration-150 p-1 cursor-pointer"
                 title="Dismiss"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -52,7 +52,7 @@ export const SettingsUpdates: React.FC = () => {
       </div>
 
       <div className="space-y-6">
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Current Version</h3>
 
           <div className="flex items-center justify-between">
@@ -63,7 +63,7 @@ export const SettingsUpdates: React.FC = () => {
             <button
               onClick={() => checkForUpdates(true)}
               disabled={checking || downloading}
-              className="px-4 py-2 rounded-md bg-[#1a1a2e] text-zinc-400 hover:text-zinc-200 hover:bg-[#252540] border border-[#1a1a2e] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-md bg-[#3e3e38] text-zinc-400 hover:text-zinc-200 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {checking ? 'Checking...' : 'Check for Updates'}
             </button>
@@ -109,7 +109,7 @@ export const SettingsUpdates: React.FC = () => {
           )}
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Preferences</h3>
 
           <div className="space-y-3">
@@ -129,7 +129,7 @@ export const SettingsUpdates: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Update Channel</h3>
 
           <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export const SettingsUpdates: React.FC = () => {
                 className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                   updateChannel === channel
                     ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                    : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-[#1a1a2e]'
+                    : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-[#3e3e38]'
                 }`}
               >
                 {channel}

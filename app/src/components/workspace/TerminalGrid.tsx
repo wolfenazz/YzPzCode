@@ -22,7 +22,6 @@ import { useAppStore } from '../../stores/appStore';
 interface TerminalGridProps {
   sessions: TerminalSession[];
   isLoading?: boolean;
-  theme: 'dark' | 'light';
 }
 
 function getGridDimensions(count: number): { cols: number; rows: number } {
@@ -42,8 +41,10 @@ const MIN_SIZE = 12;
 const DIVIDER = 3;
 const GAP_PX = 8;
 
-export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading, theme }) => {
+export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading }) => {
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [rowColSizes, setRowColSizes] = useState<number[][] | null>(null);
+  const [colRowSizes, setColRowSizes] = useState<number[][] | null>(null);
   const [colSizes, setColSizes] = useState<number[] | null>(null);
   const [rowSizes, setRowSizes] = useState<number[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -51,15 +52,17 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
   const dragRef = useRef<{
     axis: 'col' | 'row';
     index: number;
+    row: number;
+    col: number;
     startPos: number;
     startSizes: number[];
   } | null>(null);
 
-  const isLight = theme === 'light';
   const addSession = useAppStore((s) => s.addSession);
   const removeSession = useAppStore((s) => s.removeSession);
   const reorderSessions = useAppStore((s) => s.reorderSessions);
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
+  const independentGridResize = useAppStore((s) => s.independentGridResize);
 
   const sorted = useMemo(() => [...sessions].sort((a, b) => a.index - b.index), [sessions]);
   const { cols, rows } = getGridDimensions(sorted.length);
@@ -72,6 +75,36 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
     })
   );
 
+  const activeRowColSizes = useMemo(() => {
+    if (
+      rowColSizes &&
+      rowColSizes.length === rows &&
+      rowColSizes.every((rowArr) => rowArr.length === cols)
+    ) {
+      return rowColSizes.map((rowArr) => {
+        const total = rowArr.reduce((a, b) => a + b, 0);
+        return rowArr.map((s) => (s / total) * 100);
+      });
+    }
+    return Array.from({ length: rows }, () => makeEqualSizes(cols));
+  }, [rowColSizes, rows, cols]);
+
+  const activeColRowSizes = useMemo(() => {
+    if (
+      colRowSizes &&
+      colRowSizes.length === cols &&
+      colRowSizes.every((colArr) => colArr.length === rows)
+    ) {
+      return colRowSizes.map((colArr) => {
+        const total = colArr.reduce((a, b) => a + b, 0);
+        return colArr.map((s) => (s / total) * 100);
+      });
+    }
+    return Array.from({ length: cols }, () => makeEqualSizes(rows));
+  }, [colRowSizes, cols, rows]);
+
+  // Classic global sizes: one column split applied to every row, and one row
+  // split applied to every column.
   const activeColSizes = useMemo(() => {
     if (colSizes && colSizes.length === cols) {
       const total = colSizes.reduce((a, b) => a + b, 0);
@@ -88,8 +121,17 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
     return makeEqualSizes(rows);
   }, [rowSizes, rows]);
 
-  const gridTemplateColumns = activeColSizes.map((s) => `${s}%`).join(' ');
-  const gridTemplateRows = activeRowSizes.map((s) => `${s}%`).join(' ');
+  // Effective per-cell sizes. Independent mode gives every row/column its own
+  // split; classic mode applies the same global sizes to every row/column.
+  const cellRowColSizes = useMemo(() => {
+    if (independentGridResize) return activeRowColSizes;
+    return Array.from({ length: rows }, () => activeColSizes);
+  }, [independentGridResize, activeRowColSizes, activeColSizes, rows]);
+
+  const cellColRowSizes = useMemo(() => {
+    if (independentGridResize) return activeColRowSizes;
+    return Array.from({ length: cols }, () => activeRowSizes);
+  }, [independentGridResize, activeColRowSizes, activeRowSizes, cols]);
 
   const handleAddTerminal = useCallback(async (agent: CliType | null, shell: string | null) => {
     if (!currentWorkspace) return;
@@ -105,6 +147,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
         },
       });
       addSession(newSession);
+      setRowColSizes(null);
+      setColRowSizes(null);
       setColSizes(null);
       setRowSizes(null);
     } catch (err) {
@@ -119,6 +163,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
       console.error('Failed to kill session:', err);
     }
     removeSession(sessionId);
+    setRowColSizes(null);
+    setColRowSizes(null);
     setColSizes(null);
     setRowSizes(null);
   }, [removeSession]);
@@ -158,20 +204,28 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
   const handleDividerDrag = useCallback((
     e: React.MouseEvent,
     axis: 'col' | 'row',
-    dividerIndex: number
+    dividerIndex: number,
+    lineIndex?: number
   ) => {
     e.preventDefault();
-    const sizes = axis === 'col' ? activeColSizes : activeRowSizes;
+    // lineIndex is the row for column dividers, and the column for row dividers.
+    const r = axis === 'col' ? (lineIndex ?? 0) : 0;
+    const c = axis === 'row' ? (lineIndex ?? 0) : 0;
+    const sizes = axis === 'col'
+      ? (independentGridResize ? activeRowColSizes[r] : activeColSizes)
+      : (independentGridResize ? activeColRowSizes[c] : activeRowSizes);
     dragRef.current = {
       axis,
       index: dividerIndex,
+      row: axis === 'col' ? r : -1,
+      col: axis === 'row' ? c : -1,
       startPos: getPointerPercent(e.nativeEvent, axis),
       startSizes: [...sizes],
     };
 
     const handleMove = (ev: MouseEvent) => {
       if (!dragRef.current) return;
-      const { axis: a, index: idx, startPos: sp, startSizes: ss } = dragRef.current;
+      const { axis: a, index: idx, row, col, startPos: sp, startSizes: ss } = dragRef.current;
       const pos = getPointerPercent(ev, a);
       const diff = pos - sp;
       const newSizes = [...ss];
@@ -180,8 +234,37 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
       newSizes[idx] = newA;
       newSizes[idx + 1] = pairTotal - newA;
 
-      if (a === 'col') setColSizes(newSizes);
-      else setRowSizes(newSizes);
+      if (a === 'col') {
+        if (independentGridResize) {
+          // Resize only the columns of the dragged row, never other rows.
+          setRowColSizes((prev) => {
+            const base =
+              prev && prev.length === rows && prev.every((rowArr) => rowArr.length === cols)
+                ? prev.map((rowArr) => [...rowArr])
+                : Array.from({ length: rows }, () => makeEqualSizes(cols));
+            base[row] = newSizes;
+            return base;
+          });
+        } else {
+          // Classic mode: resize the column across every row.
+          setColSizes(newSizes);
+        }
+      } else {
+        if (independentGridResize) {
+          // Resize only the rows of the dragged column, never other columns.
+          setColRowSizes((prev) => {
+            const base =
+              prev && prev.length === cols && prev.every((colArr) => colArr.length === rows)
+                ? prev.map((colArr) => [...colArr])
+                : Array.from({ length: cols }, () => makeEqualSizes(rows));
+            base[col] = newSizes;
+            return base;
+          });
+        } else {
+          // Classic mode: resize the row across every column.
+          setRowSizes(newSizes);
+        }
+      }
     };
 
     const handleUp = () => {
@@ -196,14 +279,14 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
     document.body.style.userSelect = 'none';
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
-  }, [activeColSizes, activeRowSizes, getPointerPercent]);
+  }, [activeRowColSizes, activeColRowSizes, activeColSizes, activeRowSizes, independentGridResize, getPointerPercent, rows, cols]);
 
   if (isLoading) {
     return (
-      <div className={`h-full flex items-center justify-center font-mono ${isLight ? 'text-zinc-500' : 'text-zinc-500'}`}>
+      <div className="h-full flex items-center justify-center font-mono text-zinc-500">
         <div className="flex flex-col items-center gap-4">
           <div className="relative w-12 h-12">
-            <div className={`absolute inset-0 border-2 rounded-full shadow-inner ${isLight ? 'border-zinc-300' : 'border-zinc-800'}`} />
+            <div className="absolute inset-0 border-2 rounded-full shadow-inner border-zinc-800" />
             <div className="absolute inset-0 border-2 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_10px_rgba(16,185,129,0.2)]" />
           </div>
           <div className="text-[10px] uppercase tracking-widest opacity-60 animate-pulse">
@@ -216,21 +299,17 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
 
   if (sessions.length === 0) {
     return (
-      <div className={`h-full flex flex-col items-center justify-center font-mono ${isLight ? 'text-zinc-500' : 'text-zinc-500'}`}>
+      <div className="h-full flex flex-col items-center justify-center font-mono text-zinc-500">
         <div className="text-center space-y-4">
-          <svg className={`w-12 h-12 mx-auto ${isLight ? 'text-zinc-300' : 'text-zinc-800'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-12 h-12 mx-auto text-zinc-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <div className={`text-[10px] uppercase tracking-widest font-bold ${isLight ? 'text-zinc-400' : 'text-zinc-600'}`}>
+          <div className="text-[10px] uppercase tracking-widest font-bold text-zinc-600">
             No terminal sessions
           </div>
           <button
             onClick={() => setShowNewDialog(true)}
-            className={`px-6 py-2.5 border text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer ${
-              isLight
-                ? 'border-zinc-300 text-zinc-600 hover:border-zinc-400 hover:text-zinc-700'
-                : 'border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-200'
-            }`}
+            className="px-6 py-2.5 border text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-200"
           >
             + New Terminal
           </button>
@@ -239,7 +318,6 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           <NewTerminalDialog
             onClose={() => setShowNewDialog(false)}
             onSelect={handleAddTerminal}
-            theme={theme}
           />
         )}
       </div>
@@ -264,147 +342,184 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
             right: GAP_PX,
             bottom: GAP_PX,
             left: GAP_PX,
-            display: 'grid',
-            gridTemplateColumns,
-            gridTemplateRows,
-            gap: `${GAP_PX}px`,
           }}
         >
           {sorted.map((session, idx) => {
-            const col = idx % cols;
-            const row = Math.floor(idx / cols);
+            const r = Math.floor(idx / cols);
+            const c = idx % cols;
+            const leftPct = cellRowColSizes[r].slice(0, c).reduce((a, b) => a + b, 0);
+            const topPct = cellColRowSizes[c].slice(0, r).reduce((a, b) => a + b, 0);
             return (
               <div
                 key={session.id}
-                className="relative overflow-hidden"
-                style={{ gridRow: row + 1, gridColumn: col + 1 }}
+                className="absolute overflow-hidden"
+                style={{
+                  left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
+                  top: `calc(${topPct}% + ${r * GAP_PX}px)`,
+                  width: `${cellRowColSizes[r][c]}%`,
+                  height: `${cellColRowSizes[c][r]}%`,
+                }}
               >
                 <SortableTerminalPane
                   session={session}
                   onClose={() => handleRemoveTerminal(session.id)}
-                  theme={theme}
                 />
               </div>
             );
           })}
-          {sorted.length < cellCount && (
-            <div
-              className={`relative overflow-hidden border bg-zinc-950/30 border-zinc-800`}
-              style={{ gridRow: Math.floor(sorted.length / cols) + 1, gridColumn: (sorted.length % cols) + 1 }}
-            >
-              <div
-                className={`h-full flex items-center justify-center cursor-pointer transition-all duration-300 group/empty ${
-                  isLight
-                    ? 'bg-zinc-800/20 hover:bg-zinc-800/40'
-                    : 'bg-zinc-900/20 hover:bg-zinc-900/40'
-                }`}
-                onClick={() => setShowNewDialog(true)}
-                title="Spawn Terminal"
-              >
-                <div className="flex flex-col items-center gap-4 transition-all duration-300 group-hover/empty:scale-110">
-                  <div className={`w-12 h-12 flex items-center justify-center border-2 transition-all duration-300 ${
-                    isLight
-                      ? 'border-zinc-600 text-zinc-400 group-hover/empty:border-zinc-400 group-hover/empty:bg-zinc-800/50'
-                      : 'border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/35 group-hover/empty:text-zinc-300'
-                  }`}>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
+
+          {sorted.length < cellCount &&
+            (() => {
+              const r = Math.floor(sorted.length / cols);
+              const c = sorted.length % cols;
+              const leftPct = cellRowColSizes[r].slice(0, c).reduce((a, b) => a + b, 0);
+              const topPct = cellColRowSizes[c].slice(0, r).reduce((a, b) => a + b, 0);
+              return (
+                <div
+                  className={`absolute overflow-hidden border bg-zinc-950/30 border-zinc-800`}
+                  style={{
+                    left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
+                    top: `calc(${topPct}% + ${r * GAP_PX}px)`,
+                    width: `${cellRowColSizes[r][c]}%`,
+                    height: `${cellColRowSizes[c][r]}%`,
+                  }}
+                >
+                  <div
+                    className="h-full flex items-center justify-center cursor-pointer transition-all duration-300 group/empty bg-zinc-900/20 hover:bg-zinc-900/40"
+                    onClick={() => setShowNewDialog(true)}
+                    title="Spawn Terminal"
+                  >
+                    <div className="flex flex-col items-center gap-4 transition-all duration-300 group-hover/empty:scale-110">
+                      <div className="w-12 h-12 flex items-center justify-center border-2 transition-all duration-300 border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/35 group-hover/empty:text-zinc-300">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      </div>
+                      <span className="text-[10px] uppercase font-black tracking-[0.3em] transition-colors duration-300 text-zinc-700 group-hover/empty:text-zinc-400">Spawn_TTY</span>
+                    </div>
                   </div>
-                  <span className={`text-[10px] uppercase font-black tracking-[0.3em] transition-colors duration-300 ${
-                    isLight ? 'text-zinc-500 group-hover/empty:text-zinc-300' : 'text-zinc-700 group-hover/empty:text-zinc-400'
-                  }`}>Spawn_TTY</span>
                 </div>
+              );
+            })()}
+
+          {/* Vertical dividers (independent): one segment per row, confined to that row's band */}
+          {independentGridResize && cols > 1 &&
+            Array.from({ length: rows }).flatMap((_, r) =>
+              Array.from({ length: cols - 1 }).map((_, ci) => {
+                const leftPct = activeRowColSizes[r].slice(0, ci + 1).reduce((a, b) => a + b, 0);
+                const topPct = activeColRowSizes[ci].slice(0, r).reduce((a, b) => a + b, 0);
+                return (
+                  <div
+                    key={`vdiv-${r}-${ci}`}
+                    onMouseDown={(e) => handleDividerDrag(e, 'col', ci, r)}
+                    className="absolute cursor-col-resize z-10 group/divider"
+                    style={{
+                      left: `calc(${leftPct}% + ${ci * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
+                      width: `${DIVIDER}px`,
+                      top: `calc(${topPct}% + ${r * GAP_PX}px)`,
+                      height: `${activeColRowSizes[ci][r]}%`,
+                      // Only capture pointer events when hovering the divider
+                      pointerEvents: 'auto',
+                    }}
+                  >
+                    <div className="w-1 h-full transition-all duration-300 mx-auto bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70" />
+                  </div>
+                );
+              })
+            )}
+
+          {/* Horizontal dividers (independent): one segment per column, confined to that column's band */}
+          {independentGridResize && rows > 1 &&
+            Array.from({ length: cols }).flatMap((_, c) =>
+              Array.from({ length: rows - 1 }).map((_, ri) => {
+                const topPct = activeColRowSizes[c].slice(0, ri + 1).reduce((a, b) => a + b, 0);
+                const leftPct = activeRowColSizes[ri].slice(0, c).reduce((a, b) => a + b, 0);
+                return (
+                  <div
+                    key={`hdiv-${c}-${ri}`}
+                    onMouseDown={(e) => handleDividerDrag(e, 'row', ri, c)}
+                    className="absolute cursor-row-resize z-10 group/divider"
+                    style={{
+                      top: `calc(${topPct}% + ${ri * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
+                      height: `${DIVIDER}px`,
+                      left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
+                      width: `${activeRowColSizes[ri][c]}%`,
+                      // Only capture pointer events when hovering the divider
+                      pointerEvents: 'auto',
+                    }}
+                  >
+                    <div className="h-1 w-full transition-all duration-300 my-auto bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70" />
+                  </div>
+                );
+              })
+            )}
+
+          {/* Classic dividers (global resize): one full-height line per column
+              and one full-width line per row, matching the original behavior */}
+          {!independentGridResize && cols > 1 && Array.from({ length: cols - 1 }).map((_, ci) => {
+            const leftPct = cellRowColSizes[0].slice(0, ci + 1).reduce((a, b) => a + b, 0);
+            return (
+              <div
+                key={`vdiv-classic-${ci}`}
+                onMouseDown={(e) => handleDividerDrag(e, 'col', ci)}
+                className="absolute cursor-col-resize z-10 group/divider"
+                style={{
+                  left: `calc(${leftPct}% + ${ci * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
+                  width: `${DIVIDER}px`,
+                  top: 0,
+                  bottom: 0,
+                  // Only capture pointer events when hovering the divider
+                  pointerEvents: 'auto',
+                }}
+              >
+                <div className="w-1 h-full transition-all duration-300 mx-auto bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70" />
               </div>
-            </div>
-          )}
+            );
+          })}
+
+          {!independentGridResize && rows > 1 && Array.from({ length: rows - 1 }).map((_, ri) => {
+            const topPct = cellColRowSizes[0].slice(0, ri + 1).reduce((a, b) => a + b, 0);
+            return (
+              <div
+                key={`hdiv-classic-${ri}`}
+                onMouseDown={(e) => handleDividerDrag(e, 'row', ri)}
+                className="absolute cursor-row-resize z-10 group/divider"
+                style={{
+                  top: `calc(${topPct}% + ${ri * GAP_PX}px + ${(GAP_PX - DIVIDER) / 2}px)`,
+                  height: `${DIVIDER}px`,
+                  left: 0,
+                  right: 0,
+                  // Only capture pointer events when hovering the divider
+                  pointerEvents: 'auto',
+                }}
+              >
+                <div className="h-1 w-full transition-all duration-300 my-auto bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70" />
+              </div>
+            );
+          })}
         </div>
       </SortableContext>
 
       <DragOverlay dropAnimation={null}>
         {activeSession ? (
-          <div className={`border border-zinc-700 overflow-hidden ${
-            isLight ? 'bg-zinc-900/90 border-zinc-600' : 'bg-zinc-950/90 border-zinc-700'
-          }`}>
-            <div className={`flex items-center gap-3 px-3 py-2 ${
-              isLight ? 'bg-zinc-800/90' : 'bg-zinc-900/90'
-            }`}>
-              <span className={`text-[10px] font-black tracking-[0.2em] uppercase ${
-                isLight ? 'text-zinc-300' : 'text-zinc-400'
-              }`}>
+          <div className="border border-zinc-700 overflow-hidden bg-zinc-950/90 border-zinc-700">
+            <div className="flex items-center gap-3 px-3 py-2 bg-zinc-900/90">
+              <span className="text-[10px] font-black tracking-[0.2em] uppercase text-zinc-400">
                 TTY::{activeSession.index + 1}
               </span>
               {activeSession.agent && (
-                <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 border ${
-                  isLight ? 'bg-zinc-800 border-zinc-700 text-zinc-300' : 'bg-zinc-950 border-zinc-800 text-zinc-400'
-                }`}>
+                <span className="text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 border bg-zinc-950 border-zinc-800 text-zinc-400">
                   {activeSession.agent}
                 </span>
               )}
             </div>
-            <div className={`h-24 flex items-center justify-center ${
-              isLight ? 'bg-zinc-900/80 text-zinc-600' : 'bg-zinc-950/80 text-zinc-700'
-            }`}>
+            <div className="h-24 flex items-center justify-center bg-zinc-950/80 text-zinc-700">
               <span className="text-[10px] uppercase tracking-widest font-bold">Moving...</span>
             </div>
           </div>
         ) : null}
       </DragOverlay>
     </DndContext>
-  );
-
-  const renderGridDividers = () => (
-    <>
-      {cols > 1 && Array.from({ length: cols - 1 }).map((_, ci) => {
-        const leftPercent = activeColSizes.slice(0, ci + 1).reduce((a, b) => a + b, 0);
-        return (
-          <div
-            key={`col-${ci}`}
-            onMouseDown={(e) => handleDividerDrag(e, 'col', ci)}
-            className="absolute cursor-col-resize z-10 group/divider"
-            style={{
-              left: `calc(${leftPercent}% - ${DIVIDER / 2}px)`,
-              width: `${DIVIDER}px`,
-              top: GAP_PX,
-              bottom: GAP_PX,
-              // Only capture pointer events when hovering the divider
-              pointerEvents: 'auto',
-            }}
-          >
-            <div className={`w-1 h-full transition-all duration-300 mx-auto ${
-              isLight
-                ? 'bg-transparent group-hover/divider:bg-zinc-500/60'
-                : 'bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70'
-            }`} />
-          </div>
-        );
-      })}
-
-      {rows > 1 && Array.from({ length: rows - 1 }).map((_, ri) => {
-        const topPercent = activeRowSizes.slice(0, ri + 1).reduce((a, b) => a + b, 0);
-        return (
-          <div
-            key={`row-${ri}`}
-            onMouseDown={(e) => handleDividerDrag(e, 'row', ri)}
-            className="absolute cursor-row-resize z-10 group/divider"
-            style={{
-              top: `calc(${topPercent}% - ${DIVIDER / 2}px)`,
-              height: `${DIVIDER}px`,
-              left: GAP_PX,
-              right: GAP_PX,
-              // Only capture pointer events when hovering the divider
-              pointerEvents: 'auto',
-            }}
-          >
-            <div className={`h-1 w-full transition-all duration-300 my-auto ${
-              isLight
-                ? 'bg-transparent group-hover/divider:bg-zinc-500/60'
-                : 'bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70'
-            }`} />
-          </div>
-        );
-      })}
-    </>
   );
 
   return (
@@ -414,48 +529,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
         className="flex-1 min-h-0 relative"
       >
         {renderGridContent()}
-        {renderGridDividers()}
-      </div>
-
-      <div className="flex items-center justify-between px-3 py-2 shrink-0 border-t border-zinc-800/80 bg-zinc-950">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black tracking-[0.22em] text-zinc-500 uppercase">Sessions</span>
-            <span className="text-[10px] font-bold text-zinc-200">{sorted.length}</span>
-          </div>
-          <div className="h-3 w-px bg-zinc-700/70 mx-1" />
-          <div className="flex items-center gap-2">
-            <span className="text-[9px] font-black tracking-[0.22em] text-zinc-500 uppercase">Layout</span>
-            <span className="text-[10px] font-bold text-zinc-200">{cols}x{rows}</span>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowNewDialog(true)}
-          className={`group/init relative flex items-center gap-2 px-3.5 py-1.5 ${
-            isLight
-              ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
-              : 'bg-zinc-900/90 text-zinc-200 border-zinc-700/90 hover:bg-zinc-800/95'
-          } border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer`}
-          title="Initialize new TTY"
-        >
-          <div className="relative flex items-center justify-center">
-            <svg className="w-3 h-3 transition-transform duration-500 group-hover/init:rotate-[360deg]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </div>
-          <span className="relative">Initialize_TTY</span>
-
-          <div className={`absolute inset-0 opacity-0 group-hover/init:opacity-100 transition-opacity duration-500 pointer-events-none ${
-            isLight ? 'bg-white/5' : 'bg-white/5'
-          }`} />
-        </button>
       </div>
 
       {showNewDialog && (
         <NewTerminalDialog
           onClose={() => setShowNewDialog(false)}
           onSelect={handleAddTerminal}
-          theme={theme}
         />
       )}
     </div>

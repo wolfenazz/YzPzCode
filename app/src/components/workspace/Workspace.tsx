@@ -33,8 +33,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     sessionsByWorkspace,
     clearCurrentWorkspace,
     markWorkspaceOpened,
-    theme,
-    toggleTheme,
     closeWorkspace,
     switchWorkspace,
     setView,
@@ -281,8 +279,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onDocsClick={onDocsClick}
         onSettingsClick={onSettingsClick}
         isWindows={isWindows}
-        onThemeToggle={toggleTheme}
-        theme={theme}
 
         onMinimizeWindow={minimizeWindow}
         onMaximizeWindow={maximizeWindow}
@@ -292,7 +288,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         activeView={activeView}
       />
 
-      <main className="flex-1 overflow-hidden bg-[radial-gradient(1200px_600px_at_18%_-10%,rgba(255,255,255,0.05),transparent),radial-gradient(900px_500px_at_90%_120%,rgba(16,185,129,0.08),transparent),#09090b]">
+      <main className="flex-1 overflow-hidden bg-[radial-gradient(1200px_600px_at_18%_-10%,rgba(255,255,255,0.05),transparent),radial-gradient(900px_500px_at_90%_120%,rgba(16,185,129,0.08),transparent),#262626]">
         {currentWorkspace ? (
           <div className="h-full flex items-stretch">
             <AnimatePresence initial={false}>
@@ -323,27 +319,47 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               )}
             </AnimatePresence>
             <div className="flex-1 min-w-0 overflow-hidden relative">
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.div
-                  key={activeView}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                  className="h-full w-full"
-                >
-                  {activeView === "terminal" ? (
-                    <div className="h-full p-1.5">
-                      <div className="h-full border border-zinc-800 bg-zinc-950/40 overflow-hidden">
-                        <TerminalGrid sessions={sessions} isLoading={isLoading} theme={theme} />
-                      </div>
-                    </div>
-                  ) : activeView === "browser" ? (
-                    <BrowserPane workspaceId={currentWorkspace.id} sessions={sessions} theme={theme} />
-                  ) : (
+              {/*
+                The terminal grid stays MOUNTED across view switches (hidden
+                via CSS instead of unmounted) so xterm instances, scrollback,
+                mouse-tracking state and running agents survive TTY<->Browser
+                <->Editor switching. Re-mounting terminals on every switch was
+                the root cause of mouse mode turning off and resize glitches.
+              */}
+              <div
+                className={activeView === "terminal" ? "h-full w-full" : "hidden"}
+                aria-hidden={activeView !== "terminal"}
+              >
+                <div className="h-full w-full overflow-hidden">
+                  <TerminalGrid sessions={sessions} isLoading={isLoading} />
+                </div>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {activeView === "browser" && currentWorkspace && (
+                  <motion.div
+                    key="browser"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    className="absolute inset-0"
+                  >
+                    <BrowserPane workspaceId={currentWorkspace.id} sessions={sessions} />
+                  </motion.div>
+                )}
+                {activeView === "editor" && (
+                  <motion.div
+                    key="editor"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+                    className="absolute inset-0"
+                  >
                     <FileEditor />
-                  )}
-                </motion.div>
+                  </motion.div>
+                )}
               </AnimatePresence>
             </div>
           </div>
@@ -376,7 +392,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       {showQuickOpen && currentWorkspace && (
         <QuickOpenPalette
           workspacePath={currentWorkspace.path}
-          theme={theme}
           onSelect={handleQuickOpenSelect}
           onClose={() => setShowQuickOpen(false)}
         />

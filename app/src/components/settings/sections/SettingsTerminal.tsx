@@ -39,6 +39,10 @@ export const SettingsTerminal: React.FC = () => {
     setTerminalOpacity,
     terminalWordWrap,
     setTerminalWordWrap,
+    terminalMouseAlwaysOn,
+    setTerminalMouseAlwaysOn,
+    independentGridResize,
+    setIndependentGridResize,
   } = useAppStore();
 
   return (
@@ -53,7 +57,7 @@ export const SettingsTerminal: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Font
           </h3>
@@ -68,7 +72,7 @@ export const SettingsTerminal: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
                     terminalFontFamily === font
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-zinc-600'
+                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                   style={{ fontFamily: font }}
                 >
@@ -91,7 +95,7 @@ export const SettingsTerminal: React.FC = () => {
           />
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Cursor
           </h3>
@@ -106,7 +110,7 @@ export const SettingsTerminal: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     terminalCursorStyle === style.value
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#080810]/40 text-zinc-500 border border-[#1a1a2e]/30 hover:text-zinc-300 hover:border-zinc-600'
+                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
                   }`}
                 >
                   {style.label}
@@ -125,7 +129,7 @@ export const SettingsTerminal: React.FC = () => {
           />
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Behavior
           </h3>
@@ -180,10 +184,24 @@ export const SettingsTerminal: React.FC = () => {
             />
 
             <SettingsToggle
+              enabled={terminalMouseAlwaysOn}
+              onToggle={() => setTerminalMouseAlwaysOn(!terminalMouseAlwaysOn)}
+              label="Always-On Mouse Mode"
+              description="Keep mouse tracking (1000/1002/1006) enabled so AI agents like opencode, kilo and claude accept mouse events. Prevents apps from turning it off, including when switching views."
+            />
+
+            <SettingsToggle
               enabled={terminalWordWrap}
               onToggle={() => setTerminalWordWrap(!terminalWordWrap)}
               label="Word Wrap"
               description="Wrap long lines in terminal output"
+            />
+
+            <SettingsToggle
+              enabled={independentGridResize}
+              onToggle={() => setIndependentGridResize(!independentGridResize)}
+              label="Independent Grid Resize"
+              description="Resize dividers affect only the terminals in the same row/column. Turn off for the classic global resize."
             />
           </div>
         </div>

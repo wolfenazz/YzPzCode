@@ -288,7 +288,7 @@ impl PtySession {
 
         let writer = pair.master.take_writer()?;
 
-        let (output_tx, output_rx) = mpsc::sync_channel(256);
+        let (output_tx, output_rx) = mpsc::sync_channel(8192);
 
         let kill_flag = Arc::new(AtomicBool::new(false));
         let kill_flag_clone = kill_flag.clone();
@@ -337,7 +337,7 @@ impl PtySession {
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
-        const CHUNK_SIZE: usize = 512;
+        const CHUNK_SIZE: usize = 2048;
         if data.len() <= CHUNK_SIZE {
             self.writer.write_all(data)?;
             self.writer.flush()?;
@@ -352,6 +352,14 @@ impl PtySession {
     }
 
     pub fn resize(&self, cols: u16, rows: u16, pixel_width: u16, pixel_height: u16) -> Result<()> {
+        // Clamp dimensions to sane minimums. Zero/one-sized PTY resizes (e.g.
+        // while a terminal is hidden during a view switch) corrupt the window
+        // size reported to full-screen TUI apps and cause rendering glitches.
+        let cols = cols.max(2);
+        let rows = rows.max(2);
+        let pixel_width = pixel_width.max(1);
+        let pixel_height = pixel_height.max(1);
+
         self.pair.master.resize(PtySize {
             rows,
             cols,

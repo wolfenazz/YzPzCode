@@ -7,10 +7,9 @@ import { TerminalPane } from './TerminalPane';
 interface SortableTerminalPaneProps {
   session: TerminalSession;
   onClose: () => void;
-  theme: 'dark' | 'light';
 }
 
-export const SortableTerminalPane: React.FC<SortableTerminalPaneProps> = ({ session, onClose, theme }) => {
+export const SortableTerminalPane: React.FC<SortableTerminalPaneProps> = ({ session, onClose }) => {
   const {
     attributes,
     listeners,
@@ -38,7 +37,6 @@ export const SortableTerminalPane: React.FC<SortableTerminalPaneProps> = ({ sess
       <TerminalPane
         session={session}
         onClose={onClose}
-        theme={theme}
         dragListeners={listeners}
       />
     </div>

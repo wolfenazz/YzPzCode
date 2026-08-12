@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { fileURLToPath, URL } from "node:url";
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -6,6 +7,11 @@ export default defineConfig(async () => ({
   clearScreen: false,
   // Use relative paths so Tauri's custom protocol (tauri.localhost) loads assets correctly
   base: './',
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     port: 8745,
     strictPort: true,
@@ -36,6 +42,7 @@ export default defineConfig(async () => ({
             '@codemirror/lang-json', '@codemirror/lang-markdown', '@codemirror/lang-java',
             '@codemirror/lang-cpp', '@replit/codemirror-minimap'
           ],
+          monaco: ['monaco-editor', '@monaco-editor/react'],
           pdfjs: ['pdfjs-dist'],
           xlsx: ['xlsx'],
           mammoth: ['mammoth'],

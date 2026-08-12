@@ -4,7 +4,6 @@ import hljs from 'highlight.js';
 
 interface MarkdownPreviewProps {
   content: string;
-  theme: 'dark' | 'light';
 }
 
 const marked = new Marked({
@@ -41,7 +40,7 @@ function useDebouncedValue<T>(value: T, delay: number): T {
   return debouncedValue;
 }
 
-const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, theme }) => {
+const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content }) => {
   const debouncedContent = useDebouncedValue(content, 300);
 
   const html = useMemo(() => {
@@ -53,7 +52,7 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, theme }
   }, [debouncedContent]);
 
   return (
-    <div className={`markdown-preview absolute inset-0 overflow-y-auto overflow-x-hidden p-6 ${theme === 'light' ? 'markdown-light' : 'markdown-dark'}`}>
+    <div className="markdown-preview absolute inset-0 overflow-y-auto overflow-x-hidden p-6 markdown-dark">
       <div dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );

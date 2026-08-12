@@ -90,45 +90,45 @@ export const SettingsData: React.FC = () => {
       </div>
 
       <div className="space-y-6">
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Storage Usage</h3>
 
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-[#080810]/50 border border-[#1a1a2e]/30 rounded-lg p-4">
+            <div className="bg-[#1f1f1f]/50 border border-[#3e3e38]/30 rounded-lg p-4">
               <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono mb-1">Local Storage</p>
               <p className="text-lg text-zinc-200 font-mono font-bold">{getStorageUsage()} KB</p>
             </div>
-            <div className="bg-[#080810]/50 border border-[#1a1a2e]/30 rounded-lg p-4">
+            <div className="bg-[#1f1f1f]/50 border border-[#3e3e38]/30 rounded-lg p-4">
               <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono mb-1">Workspaces</p>
               <p className="text-lg text-zinc-200 font-mono font-bold">{workspaceList.length}</p>
             </div>
-            <div className="bg-[#080810]/50 border border-[#1a1a2e]/30 rounded-lg p-4">
+            <div className="bg-[#1f1f1f]/50 border border-[#3e3e38]/30 rounded-lg p-4">
               <p className="text-[10px] text-zinc-600 uppercase tracking-wider font-mono mb-1">Open</p>
               <p className="text-lg text-zinc-200 font-mono font-bold">{openWorkspaces.length}</p>
             </div>
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Import / Export</h3>
 
           <div className="flex items-center gap-3">
             <button
               onClick={handleExportSettings}
-              className="px-4 py-2 rounded-md bg-[#1a1a2e] text-zinc-400 hover:text-zinc-200 hover:bg-[#252540] border border-[#1a1a2e] transition-colors cursor-pointer text-[10px] font-mono uppercase"
+              className="px-4 py-2 rounded-md bg-[#3e3e38] text-zinc-400 hover:text-zinc-200 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[10px] font-mono uppercase"
             >
               Export Settings
             </button>
             <button
               onClick={handleImportSettings}
-              className="px-4 py-2 rounded-md bg-[#1a1a2e] text-zinc-400 hover:text-zinc-200 hover:bg-[#252540] border border-[#1a1a2e] transition-colors cursor-pointer text-[10px] font-mono uppercase"
+              className="px-4 py-2 rounded-md bg-[#3e3e38] text-zinc-400 hover:text-zinc-200 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[10px] font-mono uppercase"
             >
               Import Settings
             </button>
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Clear Data</h3>
 
           <div className="space-y-3">
@@ -168,7 +168,7 @@ export const SettingsData: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setShowConfirmWorkspaces(false)}
-                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-[#1a1a2e] text-zinc-500 hover:bg-[#252540] transition-colors cursor-pointer"
+                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-[#3e3e38] text-zinc-500 hover:bg-[#303030] transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -176,7 +176,7 @@ export const SettingsData: React.FC = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-between pt-3 border-t border-[#1a1a2e]/50">
+            <div className="flex items-center justify-between pt-3 border-t border-[#3e3e38]/50">
               <div>
                 <p className="text-xs text-rose-400/80 font-mono">Reset All Settings</p>
                 <p className="text-[10px] text-zinc-600 font-mono mt-0.5">This will clear all data and reload the app</p>
@@ -199,7 +199,7 @@ export const SettingsData: React.FC = () => {
                   </button>
                   <button
                     onClick={() => setShowConfirmReset(false)}
-                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-[#1a1a2e] text-zinc-500 hover:bg-[#252540] transition-colors cursor-pointer"
+                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-[#3e3e38] text-zinc-500 hover:bg-[#303030] transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
 interface ContextMenuProps {
-  theme: 'dark' | 'light';
-  onThemeToggle: () => void;
   onDocsClick: () => void;
   onNewWorkspace: () => void;
 }
@@ -13,8 +11,6 @@ interface Position {
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({
-  theme,
-  onThemeToggle,
   onDocsClick,
   onNewWorkspace,
 }) => {
@@ -142,26 +138,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         </svg>
         Paste
         <span className="ml-auto text-[9px] text-zinc-700">Ctrl+V</span>
-      </button>
-
-      <div role="separator" className="my-1 mx-2 border-t border-theme" />
-
-      <button
-        role="menuitem"
-        onClick={() => handleAction(onThemeToggle)}
-        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] text-zinc-400 hover:text-theme-main hover:bg-theme-hover transition-colors duration-100 text-left cursor-pointer"
-      >
-        {theme === 'dark' ? (
-          <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-          </svg>
-        ) : (
-          <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <circle cx="12" cy="12" r="4" strokeWidth={1.5} />
-            <path strokeLinecap="round" strokeWidth={1.5} d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-          </svg>
-        )}
-        Toggle Theme
       </button>
 
       <div role="separator" className="my-1 mx-2 border-t border-theme" />

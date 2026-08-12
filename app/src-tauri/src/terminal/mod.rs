@@ -14,8 +14,8 @@ use tauri::{AppHandle, Emitter};
 
 use crate::types::{AgentType, TerminalSession};
 
-const EMIT_BATCH_INTERVAL_MS: u64 = 16;
-const MAX_BATCH_SIZE: usize = 64 * 1024;
+const EMIT_BATCH_INTERVAL_MS: u64 = 8;
+const MAX_BATCH_SIZE: usize = 512 * 1024;
 
 pub(crate) fn spawn_output_reader(
     app_clone: AppHandle,
@@ -24,7 +24,59 @@ pub(crate) fn spawn_output_reader(
 ) {
     thread::spawn(move || {
         let mut buffer = Vec::with_capacity(MAX_BATCH_SIZE);
+        // Carries the trailing bytes of a multi-byte UTF-8 sequence that were
+        // cut off at a batch boundary so the next batch can reassemble them.
+        // Native terminals reassemble UTF-8 across reads; without this a split
+        // sequence (e.g. box-drawing glyphs rendered heavily by TUI agents)
+        // gets decoded as U+FFFD replacement characters -> "glitching text".
+        let mut utf8_carry: Vec<u8> = Vec::with_capacity(4);
         let mut last_emit = Instant::now();
+
+        // Emits `buffer` to the frontend, first carrying any incomplete
+        // trailing UTF-8 sequence into `utf8_carry` so the next batch can
+        // complete it instead of mangling it into replacement glyphs.
+        let flush = |buffer: &mut Vec<u8>, utf8_carry: &mut Vec<u8>, sid: &str| {
+            if buffer.is_empty() && utf8_carry.is_empty() {
+                return;
+            }
+            // Prepend any incomplete sequence carried from the previous batch.
+            let mut combined = Vec::with_capacity(buffer.len() + utf8_carry.len());
+            combined.append(utf8_carry);
+            combined.extend_from_slice(buffer);
+
+            let valid_len = match std::str::from_utf8(&combined) {
+                Ok(_) => combined.len(),
+                Err(err) => {
+                    let valid = err.valid_up_to();
+                    match err.error_len() {
+                        // Truncated/incomplete sequence at the end of the
+                        // batch: carry the tail (at most 3 bytes) forward so
+                        // the next batch can complete it.
+                        None => {
+                            *utf8_carry = combined[valid..].to_vec();
+                            valid
+                        }
+                        // Genuinely invalid byte(s). If they sit at the very
+                        // end (<= 3 bytes) treat them as a possible incomplete
+                        // tail; otherwise decode the whole batch lossily.
+                        Some(_) => {
+                            let trailing = combined.len() - valid;
+                            if valid > 0 && trailing <= 3 {
+                                *utf8_carry = combined[valid..].to_vec();
+                                valid
+                            } else {
+                                utf8_carry.clear();
+                                combined.len()
+                            }
+                        }
+                    }
+                }
+            };
+
+            let output = String::from_utf8_lossy(&combined[..valid_len]).into_owned();
+            let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
+            buffer.clear();
+        };
 
         loop {
             match output_rx.recv_timeout(Duration::from_millis(EMIT_BATCH_INTERVAL_MS)) {
@@ -35,23 +87,23 @@ pub(crate) fn spawn_output_reader(
                         || last_emit.elapsed().as_millis() >= EMIT_BATCH_INTERVAL_MS as u128)
                         && !buffer.is_empty()
                     {
-                        let output = String::from_utf8_lossy(&buffer).into_owned();
-                        let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
-                        buffer.clear();
+                        flush(&mut buffer, &mut utf8_carry, &sid);
                         last_emit = Instant::now();
                     }
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     if !buffer.is_empty() {
-                        let output = String::from_utf8_lossy(&buffer).into_owned();
-                        let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
-                        buffer.clear();
+                        flush(&mut buffer, &mut utf8_carry, &sid);
                         last_emit = Instant::now();
                     }
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     if !buffer.is_empty() {
-                        let output = String::from_utf8_lossy(&buffer).into_owned();
+                        flush(&mut buffer, &mut utf8_carry, &sid);
+                    }
+                    // Flush any final incomplete sequence lossily.
+                    if !utf8_carry.is_empty() {
+                        let output = String::from_utf8_lossy(&utf8_carry).into_owned();
                         let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
                     }
                     break;

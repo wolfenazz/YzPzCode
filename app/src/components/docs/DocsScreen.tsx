@@ -13,8 +13,6 @@ interface TocItem {
 interface DocsScreenProps {
   isWindows: boolean;
   onBack: () => void;
-  theme: 'dark' | 'light';
-  onThemeToggle: () => void;
 }
 
 const BookIcon = () => (
@@ -56,8 +54,6 @@ const XIcon = () => (
 export const DocsScreen: React.FC<DocsScreenProps> = ({
   isWindows,
   onBack,
-  theme,
-  onThemeToggle,
 }) => {
   const [activeSection, setActiveSection] = useState<string>('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -257,7 +253,7 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
   }, [content, tocItems]);
 
   return (
-    <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
+    <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
       <header
         data-tauri-drag-region
         className={`relative z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors flex-shrink-0 ${isWindows ? 'titlebar-drag active:cursor-grabbing' : ''}`}
@@ -364,34 +360,18 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
         </button>
 
         <div className="flex items-center h-full gap-0 titlebar-nodrag">
-          <button
-            onClick={onThemeToggle}
-            className="flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover transition-colors text-theme-secondary hover:text-theme-main"
-            title="Switch Theme"
-          >
-            {theme === 'dark' ? (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-              </svg>
-            ) : (
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 18v1m9-9h1M3 9h1m12.728-4.272l-.707.707M6.343 17.657l-.707.707M16.95 16.95l.707.707M7.05 7.05l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
-              </svg>
-            )}
-          </button>
-
           {isWindows && (
             <div className="flex h-full border-l border-theme">
               <button
                 onClick={minimizeWindow}
-                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors"
+                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors"
                 title="Minimize"
               >
                 <svg className="w-3 h-3" viewBox="0 0 12 12"><rect fill="currentColor" width="10" height="1" x="1" y="6" /></svg>
               </button>
               <button
                 onClick={maximizeWindow}
-                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-colors"
+                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors"
                 title="Maximize"
               >
                 <svg className="w-3 h-3" viewBox="0 0 12 12"><rect fill="none" stroke="currentColor" width="9" height="9" x="1.5" y="1.5" strokeWidth="1" /></svg>

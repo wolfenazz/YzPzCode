@@ -14,14 +14,12 @@ const SEARCH_DEBOUNCE_MS = 150;
 
 interface FindReplaceBarProps {
   view: EditorView | null;
-  theme: 'dark' | 'light';
   onClose: () => void;
   showReplaceInitially?: boolean;
 }
 
 export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
   view,
-  theme,
   onClose,
   showReplaceInitially = false,
 }) => {
@@ -46,7 +44,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
 
   const searchInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
-  const isDark = theme === 'dark';
+  const isDark = true;
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -236,7 +234,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
   const fieldCls = `flex items-center flex-1 gap-1.5 px-2.5 py-1 rounded-md border transition-colors ${
     isDark
       ? 'bg-zinc-950/80 border-zinc-700/80 focus-within:border-zinc-500'
-      : 'bg-[#15181c] border-zinc-700/70 focus-within:border-zinc-500'
+      : 'bg-[#2e2e2e] border-zinc-700/70 focus-within:border-zinc-500'
   }`;
 
   const iconBtnCls = (active: boolean) =>
@@ -244,10 +242,10 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
       active
         ? isDark
           ? 'bg-zinc-700/80 text-zinc-100 shadow-sm'
-          : 'bg-[#262930] text-zinc-100 shadow-sm'
+          : 'bg-[#303030] text-zinc-100 shadow-sm'
         : isDark
           ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-          : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
+          : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#2e2e2e]'
     }`;
 
   const actionBtnCls = (disabled: boolean) =>
@@ -256,19 +254,19 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
         ? 'opacity-40 cursor-not-allowed'
         : isDark
           ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 border border-zinc-700/60'
-          : 'bg-[#23262c] text-zinc-300 hover:bg-[#2b2f36] hover:text-zinc-100 border border-zinc-700/60'
+          : 'bg-[#303030] text-zinc-300 hover:bg-[#2b2f36] hover:text-zinc-100 border border-zinc-700/60'
     }`;
 
   const navBtnCls = `p-1 rounded-md transition-colors duration-100 cursor-pointer ${
     isDark
       ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'
-      : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
+      : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#2e2e2e]'
   }`;
 
   const closeBtnCls = `p-1 rounded-md transition-colors duration-100 cursor-pointer ${
     isDark
       ? 'text-zinc-600 hover:text-zinc-300 hover:bg-zinc-800'
-      : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
+      : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#2e2e2e]'
   }`;
 
   const matchLabel = (() => {
@@ -290,7 +288,7 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
       className={`absolute top-2 right-2 z-50 w-[440px] rounded-lg border overflow-hidden shadow-2xl ${
         isDark
           ? 'bg-zinc-900/95 border-zinc-700/60 shadow-black/50 backdrop-blur-sm'
-          : 'bg-[#1b1e23]/95 border-zinc-700/70 shadow-black/40 backdrop-blur-sm'
+          : 'bg-[#2e2e2e]/95 border-zinc-700/70 shadow-black/40 backdrop-blur-sm'
       }`}
       onClick={(e) => e.stopPropagation()}
     >
@@ -303,10 +301,10 @@ export const FindReplaceBar: React.FC<FindReplaceBarProps> = ({
             showReplace
               ? isDark
                 ? 'text-zinc-300 bg-zinc-800 rotate-180'
-                : 'text-zinc-200 bg-[#23262c] rotate-180'
+                : 'text-zinc-200 bg-[#303030] rotate-180'
               : isDark
                 ? 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800'
-                : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#22252b]'
+                : 'text-zinc-500 hover:text-zinc-100 hover:bg-[#2e2e2e]'
           }`}
           title={showReplace ? 'Hide Replace' : 'Show Replace (Ctrl+H)'}
           aria-label={showReplace ? 'Hide replace' : 'Show replace'}

@@ -21,12 +21,12 @@ const LoadingFallback = () => (
 );
 
 const ACCENT_COLOR_MAP: Record<string, string> = {
-  default: '#a1a1aa',
-  blue: '#3b82f6',
+  default: '#d87757',  // Claude terracotta (new default)
+  blue: '#1b7ede',     // Claude blue (ring color)
   purple: '#8b5cf6',
   green: '#10b981',
   orange: '#f97316',
-  red: '#ef4444',
+  red: '#f14444',
   pink: '#ec4899',
   cyan: '#06b6d4',
 };
@@ -37,8 +37,6 @@ function App() {
     previousView,
     setView, 
     setViewWithPrevious,
-    theme,
-    toggleTheme,
     customCursor,
     accentColor,
     uiDensity,
@@ -60,7 +58,8 @@ function App() {
   }, [customCursor]);
 
   useEffect(() => {
-    const hex = ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
+    const palette = ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
+    const hex = palette;
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
@@ -158,13 +157,13 @@ function App() {
   };
 
   return (
-    <div className={`min-h-screen ${theme === 'light' ? 'light-theme' : ''} overflow-hidden`}>
+    <div className="min-h-screen overflow-hidden">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={view}
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.02 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
           className="h-screen w-screen overflow-hidden"
         >
@@ -192,8 +191,6 @@ function App() {
               <DocsScreen
                 isWindows={isWindows}
                 onBack={handleBackFromDocs}
-                theme={theme}
-                onThemeToggle={toggleTheme}
               />
             </Suspense>
           )}
@@ -212,8 +209,6 @@ function App() {
       </AnimatePresence>
       <UpdateNotification />
       <ContextMenu
-        theme={theme}
-        onThemeToggle={toggleTheme}
         onDocsClick={handleDocsClick}
         onNewWorkspace={() => setView('setup')}
       />

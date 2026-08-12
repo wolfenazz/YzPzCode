@@ -5,7 +5,6 @@ import { FileIcon } from '../explorer/FileIcon';
 
 interface QuickOpenPaletteProps {
   workspacePath: string;
-  theme: 'dark' | 'light';
   onSelect: (entry: FileEntry) => void;
   onClose: () => void;
 }
@@ -34,14 +33,14 @@ function fuzzyMatch(query: string, text: string): { match: boolean; score: numbe
   return { match: qi === q.length, score, indices };
 }
 
-function HighlightedText({ text, indices, theme }: { text: string; indices: Set<number>; theme: 'dark' | 'light' }) {
+function HighlightedText({ text, indices }: { text: string; indices: Set<number> }) {
   const parts: React.ReactNode[] = [];
   let last = 0;
   for (let i = 0; i < text.length; i++) {
     if (indices.has(i)) {
       if (last < i) parts.push(<span key={`t-${i}`}>{text.slice(last, i)}</span>);
       parts.push(
-        <span key={`m-${i}`} className={theme === 'light' ? 'text-blue-600 font-semibold' : 'text-blue-400 font-semibold'}>
+        <span key={`m-${i}`} className="text-blue-400 font-semibold">
           {text[i]}
         </span>
       );
@@ -54,7 +53,6 @@ function HighlightedText({ text, indices, theme }: { text: string; indices: Set<
 
 export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
   workspacePath,
-  theme,
   onSelect,
   onClose,
 }) => {
@@ -155,15 +153,11 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
         role="dialog"
         aria-modal="true"
         aria-label="Quick open file"
-        className={`w-full max-w-lg mx-4 rounded-xl shadow-2xl border overflow-hidden animate-scale-in ${
-          theme === 'light'
-            ? 'bg-[#1b1e23] border-zinc-700/70'
-            : 'bg-zinc-950 border-zinc-800'
-        }`}
+        className="w-full max-w-lg mx-4 rounded-xl shadow-2xl border overflow-hidden animate-scale-in bg-zinc-950 border-zinc-800"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`flex items-center gap-2 px-4 py-3 border-b ${theme === 'light' ? 'border-zinc-700/70' : 'border-zinc-800'}`}>
-          <svg className={`w-4 h-4 shrink-0 ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
+          <svg className="w-4 h-4 shrink-0 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -173,7 +167,7 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Search files by name..."
-            className={`flex-1 bg-transparent text-sm outline-none ${theme === 'light' ? 'text-zinc-100 placeholder:text-zinc-500' : 'text-zinc-200 placeholder:text-zinc-600'}`}
+            className="flex-1 bg-transparent text-sm outline-none text-zinc-200 placeholder:text-zinc-600"
             aria-label="Search files"
           />
           {loading && (
@@ -189,7 +183,7 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
           className={`max-h-[300px] overflow-y-auto custom-scrollbar ${filtered.length === 0 ? 'py-6' : ''}`}
         >
           {filtered.length === 0 && !loading && (
-            <div className={`text-center text-[10px] uppercase tracking-widest py-4 ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-600'}`}>
+            <div className="text-center text-[10px] uppercase tracking-widest py-4 text-zinc-600">
               {query ? 'No matching files' : 'No files found'}
             </div>
           )}
@@ -206,12 +200,8 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
                 data-selected={idx === selectedIndex}
                 className={`flex items-center gap-2 px-4 py-2 cursor-pointer transition-colors ${
                   idx === selectedIndex
-                    ? theme === 'light'
-                      ? 'bg-[#23262c]'
-                      : 'bg-zinc-800/80'
-                    : theme === 'light'
-                      ? 'hover:bg-[#1f2228]'
-                      : 'hover:bg-zinc-900/50'
+                    ? 'bg-zinc-800/80'
+                    : 'hover:bg-zinc-900/50'
                 }`}
                 onClick={() => handleSelect(entry)}
                 onMouseEnter={() => setSelectedIndex(idx)}
@@ -222,11 +212,11 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
                   className="w-4 h-4 shrink-0"
                   name={entry.name}
                 />
-                <span className={`text-xs truncate ${theme === 'light' ? 'text-zinc-100' : 'text-zinc-200'}`}>
-                  <HighlightedText text={entry.name} indices={indices} theme={theme} />
+                <span className="text-xs truncate text-zinc-200">
+                  <HighlightedText text={entry.name} indices={indices} />
                 </span>
                 {dirPath && (
-                  <span className={`text-[10px] truncate ml-auto pl-2 ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-600'}`}>
+                  <span className="text-[10px] truncate ml-auto pl-2 text-zinc-600">
                     {dirPath}
                   </span>
                 )}
@@ -235,9 +225,7 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
           })}
         </div>
 
-        <div className={`flex items-center justify-between px-4 py-2 border-t text-[9px] uppercase tracking-wider ${
-          theme === 'light' ? 'border-zinc-700/70 text-zinc-500' : 'border-zinc-800 text-zinc-600'
-        }`}>
+        <div className="flex items-center justify-between px-4 py-2 border-t text-[9px] uppercase tracking-wider border-zinc-800 text-zinc-600">
           <span>{filtered.length} file{filtered.length !== 1 ? 's' : ''}</span>
           <span>↑↓ navigate · Enter open · Esc close</span>
         </div>

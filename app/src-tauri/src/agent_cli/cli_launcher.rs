@@ -60,23 +60,18 @@ impl CliLauncher {
 
         let binary_name = crate::agent_cli::CliLauncher::get_binary_name(agent);
 
+        // The PTY session is spawned with a fully-populated PATH (see
+        // terminal::session::PtySession::create), so the agent binary resolves
+        // exactly like it would in a native shell window. Launch it with the
+        // plain binary name — no environment setup prefix required.
         #[cfg(target_os = "windows")]
-        let launch_command = format!(
-            "$env:PATH = \"$env:PATH;$env:APPDATA\\npm;$env:LOCALAPPDATA\\npm;$env:NPM_CONFIG_PREFIX\\bin;$env:USERPROFILE\\.npm-global\\bin\"; {} \r\n",
-            binary_name
-        );
+        let launch_command = format!("{}\r\n", binary_name);
 
         #[cfg(target_os = "macos")]
-        let launch_command = format!(
-            "export PATH=\"$PATH:$(npm config get --global prefix 2>/dev/null || echo '')/bin:$HOME/.npm-global/bin:/usr/local/bin:/opt/homebrew/bin\" && {} \n",
-            binary_name
-        );
+        let launch_command = format!("{}\n", binary_name);
 
         #[cfg(target_os = "linux")]
-        let launch_command = format!(
-            "export PATH=\"$PATH:$(npm config get --global prefix 2>/dev/null || echo '')/bin:$HOME/.npm-global/bin:/usr/local/bin\" && {} \n",
-            binary_name
-        );
+        let launch_command = format!("{}\n", binary_name);
 
         let state = CliLaunchState {
             session_id: session_id.to_string(),

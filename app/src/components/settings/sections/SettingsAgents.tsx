@@ -117,13 +117,13 @@ export const SettingsAgents: React.FC = () => {
           <button
             onClick={() => { detectAllClis(); }}
             disabled={loading}
-            className="ml-auto px-3 py-1 rounded-md bg-[#1a1a2e] text-zinc-500 hover:text-zinc-300 hover:bg-[#252540] border border-[#1a1a2e] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-auto px-3 py-1 rounded-md bg-[#3e3e38] text-zinc-500 hover:text-zinc-300 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Detecting...' : 'Re-detect'}
           </button>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <div className="flex items-center gap-3">
             <span className="text-[10px] text-zinc-500 font-mono shrink-0">
               {installedCount}/{cliTools.length}
@@ -147,7 +147,7 @@ export const SettingsAgents: React.FC = () => {
               return (
                 <div
                   key={tool.agent}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#0a0a0f]/40 border border-[#1a1a2e]/30 hover:border-[var(--accent-border)] hover:bg-[#0a0a0f]/80 transition-colors duration-200"
+                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#262626]/40 border border-[#3e3e38]/30 hover:border-[var(--accent-border)] hover:bg-[#262626]/80 transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3">
                     {AGENT_ICONS[tool.agent] && (
@@ -230,13 +230,13 @@ export const SettingsAgents: React.FC = () => {
           <button
             onClick={() => { detectAllToolClis(); }}
             disabled={toolLoading}
-            className="ml-auto px-3 py-1 rounded-md bg-[#1a1a2e] text-zinc-500 hover:text-zinc-300 hover:bg-[#252540] border border-[#1a1a2e] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-auto px-3 py-1 rounded-md bg-[#3e3e38] text-zinc-500 hover:text-zinc-300 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {toolLoading ? 'Detecting...' : 'Re-detect'}
           </button>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <div className="flex items-center gap-3">
             <span className="text-[10px] text-zinc-500 font-mono shrink-0">
               {installedToolCount}/{toolClis.length}
@@ -262,7 +262,7 @@ export const SettingsAgents: React.FC = () => {
               return (
                 <div
                   key={tool.tool}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#0a0a0f]/40 border border-[#1a1a2e]/30 hover:border-zinc-700 hover:bg-[#0a0a0f]/80 transition-colors duration-200"
+                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#262626]/40 border border-[#3e3e38]/30 hover:border-zinc-700 hover:bg-[#262626]/80 transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-5 h-5 flex items-center justify-center shrink-0">
@@ -319,7 +319,7 @@ export const SettingsAgents: React.FC = () => {
       </div>
 
       {/* Timeout */}
-      <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Timeout
         </h3>

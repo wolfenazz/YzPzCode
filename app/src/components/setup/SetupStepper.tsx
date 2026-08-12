@@ -341,10 +341,10 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                     className="text-[10px] font-mono tracking-wide"
                     animate={{
                       color: isActive
-                        ? '#e4e4e7'
+                        ? '#dcd8cc'
                         : isComplete || isSkipped
-                          ? '#52525b'
-                          : '#3f3f46',
+                          ? '#6e6a60'
+                          : '#51504a',
                     }}
                     transition={{ duration: 0.2 }}
                   >

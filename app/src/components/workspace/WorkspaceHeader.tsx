@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { WorkspaceConfig, WorkspaceView } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
-import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import logo from '../../assets/YzPzCodeLogo.png';
 
 interface WorkspaceHeaderProps {
@@ -20,8 +19,6 @@ interface WorkspaceHeaderProps {
   onSidebarToggle: () => void;
   onViewChange: (view: WorkspaceView) => void;
   activeView: WorkspaceView;
-  onThemeToggle: () => void;
-  theme: 'dark' | 'light';
 }
 
 const SHORTCUTS = [
@@ -155,8 +152,6 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onSidebarToggle,
   onViewChange,
   activeView,
-  onThemeToggle,
-  theme,
 }) => {
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
 
@@ -164,23 +159,24 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
     <>
       <header 
         data-tauri-drag-region
-        className="relative z-[100] flex items-center h-12 bg-[linear-gradient(180deg,rgba(28,28,34,0.92),rgba(17,17,21,0.86))] backdrop-blur-xl border-b border-zinc-800/90 shadow-[0_10px_30px_rgba(0,0,0,0.35)] select-none titlebar-drag flex-shrink-0"
+        className="relative z-[100] flex items-center h-10 bg-[var(--bg-secondary)] border-b border-[var(--border-primary)] select-none titlebar-drag flex-shrink-0"
       >
         {/* Left: Branding & Core Navigation */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center gap-2.5 px-4 h-full border-r border-zinc-800/80 bg-black/20 group cursor-default">
-            <img src={logo} alt="YzPzCode" className="h-5 w-auto opacity-75 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300" />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-semibold tracking-tight text-zinc-100">YZPZ</span>
-              <span className="text-[9px] text-zinc-600">/</span>
-              <span className="text-[10px] font-mono text-zinc-400 tracking-wide">code</span>
+          <div className="flex items-center gap-2 px-3.5 h-full border-r border-[var(--border-primary)] cursor-default">
+            <span className="text-[11px] font-mono font-bold text-[var(--text-secondary)]">$</span>
+            <img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-70" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold tracking-tight text-[var(--text-primary)]">YZPZ</span>
+              <span className="text-[10px] text-[var(--text-secondary)]/60">/</span>
+              <span className="text-[10px] font-mono text-[var(--text-secondary)] tracking-wide">code</span>
             </div>
           </div>
 
           <div className="flex items-center h-full px-1.5 gap-1">
             <button
               onClick={onDocsClick}
-              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
+              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors duration-100 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               title="Documentation"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -190,7 +186,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={onSidebarToggle}
-              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
+              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors duration-100 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               title="Toggle Sidebar (Ctrl+B)"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -220,7 +216,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={onNewWorkspace}
-              className="flex items-center gap-1.5 h-8.5 px-3 rounded-lg border border-zinc-800/90 bg-zinc-900/50 hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-400 hover:text-zinc-100 cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-1.5 h-6.5 px-2.5 rounded-md border border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] transition-colors duration-100 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer whitespace-nowrap"
               title="New Session"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -233,13 +229,13 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
         {/* Right: Tools & Window Controls */}
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center h-full border-l border-zinc-800/80 pl-1.5 gap-1">
+          <div className="flex items-center h-full border-l border-[var(--border-primary)] pl-1.5 gap-1">
             <button
               onClick={onSettingsClick}
-              className="group/settings flex items-center justify-center w-8.5 h-8.5 rounded-lg transition-colors duration-150 text-zinc-500 hover:text-zinc-100 hover:bg-zinc-800/80 cursor-pointer"
+              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors duration-100 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               title="Settings (Ctrl+,)"
             >
-              <svg className="w-4 h-4 transition-transform duration-500 group-hover/settings:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
@@ -247,7 +243,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
             <button
               onClick={() => setIsShortcutOpen(true)}
-              className="flex items-center justify-center w-8.5 h-8.5 rounded-lg hover:bg-zinc-800/80 transition-colors duration-150 text-zinc-500 hover:text-zinc-100 cursor-pointer"
+              className="flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors duration-100 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
               title="Shortcuts"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -256,47 +252,45 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
               </svg>
             </button>
 
-            <ThemeToggleButton theme={theme} onToggle={onThemeToggle} />
-
-            <div className="flex items-center rounded-xl border border-zinc-800/90 bg-zinc-950/70 p-1">
+            <div className="flex items-center h-6 rounded-md border border-[var(--border-primary)] bg-[var(--border-primary)] gap-px overflow-hidden">
               <button
                 onClick={() => onViewChange('terminal')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 h-full text-[9px] font-bold uppercase tracking-[0.14em] transition-colors duration-100 cursor-pointer ${
                   activeView === 'terminal'
-                    ? 'bg-zinc-200 text-zinc-900'
-                    : 'text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-100'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Terminal"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 TTY
               </button>
               <button
                 onClick={() => onViewChange('editor')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 h-full text-[9px] font-bold uppercase tracking-[0.14em] transition-colors duration-100 cursor-pointer ${
                   activeView === 'editor'
-                    ? 'bg-zinc-200 text-zinc-900'
-                    : 'text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-100'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Editor"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                 </svg>
                 Code
               </button>
               <button
                 onClick={() => onViewChange('browser')}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 h-full text-[9px] font-bold uppercase tracking-[0.14em] transition-colors duration-100 cursor-pointer ${
                   activeView === 'browser'
-                    ? 'bg-emerald-300 text-zinc-950'
-                    : 'text-zinc-500 hover:bg-zinc-800/80 hover:text-zinc-100'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }`}
                 title="Built-in browser"
               >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 010 18M12 3a15.3 15.3 0 000 18" />
                 </svg>
@@ -306,10 +300,10 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           </div>
 
           {isWindows && (
-            <div className="flex h-full border-l border-zinc-800/80 ml-1.5">
+            <div className="flex h-full border-l border-[var(--border-primary)] ml-1.5">
               <button
                 onClick={onMinimizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
                 title="Minimize"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
@@ -318,7 +312,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
               </button>
               <button
                 onClick={onMaximizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-zinc-800/70 text-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
                 title="Maximize"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
@@ -327,7 +321,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
               </button>
               <button
                 onClick={onCloseWindow}
-                className="w-[48px] h-full flex items-center justify-center hover:bg-[#c42b1c] text-zinc-500 hover:text-white transition-colors duration-150 cursor-pointer"
+                className="w-[48px] h-full flex items-center justify-center hover:bg-[#c42b1c] text-[var(--text-secondary)] hover:text-white transition-colors duration-100 cursor-pointer"
                 title="Close"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">

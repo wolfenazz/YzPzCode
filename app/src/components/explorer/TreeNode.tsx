@@ -195,7 +195,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
           ? 'bg-zinc-800 text-zinc-100'
           : dropHighlight
             ? 'bg-blue-500/15 text-blue-300 ring-1 ring-inset ring-blue-500/50'
-            : 'text-zinc-400 hover:bg-white/[0.04] hover:text-zinc-200'
+            : 'text-zinc-400 hover:bg-theme-hover hover:text-theme-main'
       }`}
       onClick={handleClick}
       onContextMenu={handleContextMenu}

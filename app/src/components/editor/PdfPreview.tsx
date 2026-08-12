@@ -10,10 +10,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 interface PdfPreviewProps {
   filePath: string;
   fileName: string;
-  theme: 'dark' | 'light';
 }
 
-const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme }) => {
+const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -67,9 +66,7 @@ const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme 
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      canvas.style.boxShadow = theme === 'dark'
-        ? '0 2px 12px rgba(0,0,0,0.5)'
-        : '0 2px 12px rgba(0,0,0,0.15)';
+      canvas.style.boxShadow = '0 2px 12px rgba(0,0,0,0.5)';
       canvas.style.borderRadius = '2px';
 
       const task = page.render({ canvas, viewport });
@@ -96,7 +93,7 @@ const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme 
         try { renderTaskRef.current.cancel(); } catch {}
       }
     };
-  }, [pdfDoc, currentPage, scale, theme]);
+  }, [pdfDoc, currentPage, scale]);
 
   const goToPage = useCallback((page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
@@ -107,7 +104,7 @@ const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme 
 
   if (error) {
     return (
-      <div className={`absolute inset-0 flex items-center justify-center ${theme === 'light' ? 'bg-zinc-100' : 'bg-zinc-950'}`}>
+      <div className={`absolute inset-0 flex items-center justify-center ${'bg-zinc-950'}`}>
         <div className="flex flex-col items-center gap-3 text-zinc-500">
           <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -119,10 +116,10 @@ const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme 
   }
 
   return (
-    <div className={`absolute inset-0 flex flex-col overflow-hidden ${theme === 'light' ? 'bg-zinc-100' : 'bg-zinc-950'}`}>
-      <div className={`flex items-center justify-between px-3 py-1.5 border-b shrink-0 ${theme === 'light' ? 'border-zinc-300' : 'border-zinc-800/60'}`}>
+    <div className={`absolute inset-0 flex flex-col overflow-hidden ${'bg-zinc-950'}`}>
+      <div className={`flex items-center justify-between px-3 py-1.5 border-b shrink-0 ${'border-zinc-800/60'}`}>
         <div className="flex items-center gap-3">
-          <span className={`text-[10px] ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-600'} font-mono tracking-wider`}>
+          <span className={`text-[10px] ${'text-zinc-600'} font-mono tracking-wider`}>
             {fileName}
           </span>
           {loading && (
@@ -137,42 +134,42 @@ const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme 
             <button
               onClick={() => goToPage(currentPage - 1)}
               disabled={currentPage <= 1}
-              className={`p-1 rounded transition-colors cursor-pointer disabled:opacity-30 ${theme === 'light' ? 'hover:bg-zinc-200 text-zinc-500' : 'hover:bg-zinc-800 text-zinc-500'}`}
+              className={`p-1 rounded transition-colors cursor-pointer disabled:opacity-30 ${'hover:bg-zinc-800 text-zinc-500'}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className={`text-[10px] min-w-[50px] text-center font-mono ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] min-w-[50px] text-center font-mono ${'text-zinc-600'}`}>
               {currentPage} / {totalPages}
             </span>
             <button
               onClick={() => goToPage(currentPage + 1)}
               disabled={currentPage >= totalPages}
-              className={`p-1 rounded transition-colors cursor-pointer disabled:opacity-30 ${theme === 'light' ? 'hover:bg-zinc-200 text-zinc-500' : 'hover:bg-zinc-800 text-zinc-500'}`}
+              className={`p-1 rounded transition-colors cursor-pointer disabled:opacity-30 ${'hover:bg-zinc-800 text-zinc-500'}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
-          <div className={`w-px h-3 ${theme === 'light' ? 'bg-zinc-300' : 'bg-zinc-700'}`} />
+          <div className={`w-px h-3 ${'bg-zinc-700'}`} />
           <div className="flex items-center gap-1">
             <button
               onClick={zoomOut}
-              className={`p-1 rounded transition-colors cursor-pointer ${theme === 'light' ? 'hover:bg-zinc-200 text-zinc-500' : 'hover:bg-zinc-800 text-zinc-500'}`}
+              className={`p-1 rounded transition-colors cursor-pointer ${'hover:bg-zinc-800 text-zinc-500'}`}
               title="Zoom out"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
               </svg>
             </button>
-            <span className={`text-[10px] min-w-[40px] text-center font-mono ${theme === 'light' ? 'text-zinc-500' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] min-w-[40px] text-center font-mono ${'text-zinc-600'}`}>
               {Math.round(scale * 100)}%
             </span>
             <button
               onClick={zoomIn}
-              className={`p-1 rounded transition-colors cursor-pointer ${theme === 'light' ? 'hover:bg-zinc-200 text-zinc-500' : 'hover:bg-zinc-800 text-zinc-500'}`}
+              className={`p-1 rounded transition-colors cursor-pointer ${'hover:bg-zinc-800 text-zinc-500'}`}
               title="Zoom in"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,7 +180,7 @@ const PdfPreviewInner: React.FC<PdfPreviewProps> = ({ filePath, fileName, theme 
         </div>
       </div>
 
-      <div className={`flex-1 overflow-auto p-4 ${theme === 'light' ? 'bg-zinc-200/50' : 'bg-zinc-950'}`}>
+      <div className={`flex-1 overflow-auto p-4 ${'bg-zinc-950'}`}>
         <div ref={containerRef} className="flex justify-center min-w-fit mx-auto" />
       </div>
     </div>

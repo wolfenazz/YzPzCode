@@ -431,7 +431,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="p-1 hover:bg-theme-hover rounded-md cursor-pointer text-zinc-500 hover:text-zinc-300"
+              className="p-1 hover:bg-theme-hover rounded-md cursor-pointer text-zinc-500 hover:text-theme-main"
             >
               <svg
                 className="w-3 h-3"

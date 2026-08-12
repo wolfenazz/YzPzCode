@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAppStore } from '../../stores/appStore';
 import { AppFooter } from '../common/AppFooter';
-import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import { SettingsAppearance } from './sections/SettingsAppearance';
 import { SettingsTerminal } from './sections/SettingsTerminal';
 import { SettingsEditor } from './sections/SettingsEditor';
@@ -148,7 +146,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   onMaximizeWindow,
   onCloseWindow,
 }) => {
-  const { theme, toggleTheme } = useAppStore();
   const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
 
   useEffect(() => {
@@ -194,15 +191,15 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const activeIndex = SECTIONS.findIndex((s) => s.id === activeSection) + 1;
 
   return (
-    <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
+    <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
       <header
         data-tauri-drag-region
-        className="relative z-50 flex items-center h-11 bg-[#0a0a0f]/90 backdrop-blur-xl border-b border-[var(--accent-border)] select-none titlebar-drag flex-shrink-0"
+        className="relative z-50 flex items-center h-11 bg-theme-main/90 backdrop-blur-xl border-b border-[var(--accent-border)] select-none titlebar-drag flex-shrink-0"
       >
         <div className="flex items-center h-full titlebar-nodrag">
           <button
             onClick={onBack}
-            className="group/back flex items-center gap-1.5 px-4 h-full border-r border-white/[0.04] hover:bg-white/[0.03] transition-all duration-150 text-zinc-500 hover:text-[var(--accent)] cursor-pointer"
+            className="group/back flex items-center gap-1.5 px-4 h-full border-r border-theme hover:bg-theme-hover transition-all duration-150 text-zinc-500 hover:text-[var(--accent)] cursor-pointer"
             title="Back (Esc)"
           >
             <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -211,7 +208,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             <span className="text-[9px] font-mono tracking-[0.15em] uppercase">esc</span>
           </button>
 
-          <div className="flex items-center gap-2.5 px-4 h-full border-r border-white/[0.04] cursor-default">
+          <div className="flex items-center gap-2.5 px-4 h-full border-r border-theme cursor-default">
             <img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-60" />
             <div className="flex items-center gap-1.5 font-mono">
               <span className="text-zinc-600 text-[10px]">~</span>
@@ -232,15 +229,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         </div>
 
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center h-full border-l border-white/[0.04]">
-            <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
-          </div>
-
           {isWindows && (
-            <div className="flex h-full border-l border-white/[0.04]">
+            <div className="flex h-full border-l border-theme">
               <button
                 onClick={onMinimizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors duration-150 cursor-pointer"
                 title="Minimize"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
@@ -249,7 +242,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
               </button>
               <button
                 onClick={onMaximizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-white/[0.04] text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer"
+                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors duration-150 cursor-pointer"
                 title="Maximize"
               >
                 <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
@@ -271,7 +264,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        <nav className="w-48 flex-shrink-0 bg-[#080810]/60 border-r border-white/[0.03] overflow-y-auto custom-scrollbar">
+        <nav className="w-48 flex-shrink-0 bg-[#1f1f1f]/60 border-r border-white/[0.03] overflow-y-auto custom-scrollbar">
           <div className="py-4 px-3">
             <div className="mb-4 px-2">
               <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-[0.2em]">Configuration</p>
@@ -304,9 +297,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </nav>
 
-        <main className="flex-1 bg-[#06060b] overflow-y-auto custom-scrollbar">
+        <main className="flex-1 bg-[#262626] overflow-y-auto custom-scrollbar">
           <div className="max-w-3xl mx-auto">
-            <div className="sticky top-0 z-10 bg-[#06060b]/80 backdrop-blur-md px-8 pt-6 pb-4 border-b border-white/[0.03]">
+            <div className="sticky top-0 z-10 bg-[#262626]/80 backdrop-blur-md px-8 pt-6 pb-4 border-b border-white/[0.03]">
               <div className="flex items-center gap-2 font-mono">
                 <span className="text-[var(--accent)]/40 text-[10px]">&gt;</span>
                 <span className="text-[10px] text-zinc-600">settings</span>

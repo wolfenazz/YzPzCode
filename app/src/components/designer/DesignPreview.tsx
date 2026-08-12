@@ -41,7 +41,7 @@ export const DesignPreview: React.FC<DesignPreviewProps> = ({ design, previewDev
   }
 
   return (
-    <div className="h-full overflow-auto bg-[radial-gradient(circle_at_20%_0%,rgba(34,197,94,0.08),transparent_28%),#070707] p-4">
+    <div className="h-full overflow-auto bg-[radial-gradient(circle_at_20%_0%,rgba(34,197,94,0.08),transparent_28%),#1b1b1b] p-4">
       <div className="flex min-h-full items-center justify-center">
         <div
           className={`${deviceFrameClass[previewDevice]} overflow-hidden rounded-lg border border-zinc-800 bg-black shadow-[0_30px_80px_rgba(0,0,0,0.5)] ${

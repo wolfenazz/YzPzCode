@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useUpdaterStore } from '../../stores/updaterStore';
 import { useAppStore } from '../../stores/appStore';
 import { FeedbackModal } from '../feedback/FeedbackModal';
+import { TerminalStatusBar } from '../workspace/TerminalStatusBar';
 import discordLogo from '../../assets/discordLOGO.png';
 import instagramLogo from '../../assets/Instagramlogo.png';
 
@@ -192,6 +193,7 @@ export const AppFooter: React.FC = () => {
 
           {/* Right: Actions & Version */}
           <div className="flex items-center gap-2">
+            <TerminalStatusBar />
             <div className="flex items-center border border-theme rounded-sm overflow-hidden">
               {checking && (
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800/30">
@@ -237,7 +239,7 @@ export const AppFooter: React.FC = () => {
               {!checking && !downloading && !updateAvailable && !upToDate && (
                 <button
                   onClick={() => checkForUpdates(true)}
-                  className="px-2 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 transition-colors duration-150 cursor-pointer"
+                  className="px-2 py-1 text-zinc-500 hover:text-theme-main hover:bg-theme-hover transition-colors duration-150 cursor-pointer"
                 >
                   check_updates
                 </button>
@@ -245,7 +247,7 @@ export const AppFooter: React.FC = () => {
 
               <button
                 onClick={() => setIsFeedbackOpen(true)}
-                className="px-2 py-1 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 transition-colors duration-150 border-l border-theme cursor-pointer"
+                className="px-2 py-1 text-zinc-500 hover:text-theme-main hover:bg-theme-hover transition-colors duration-150 border-l border-theme cursor-pointer"
               >
                 feedback
               </button>
@@ -255,7 +257,7 @@ export const AppFooter: React.FC = () => {
                 className={`px-2 py-1 transition-colors duration-150 border-l border-theme cursor-pointer ${
                   customCursor
                     ? 'text-green-500/70 hover:text-green-400 hover:bg-green-500/10'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30'
+                    : 'text-zinc-500 hover:text-theme-main hover:bg-theme-hover'
                 }`}
                 title={customCursor ? 'Disable custom cursor' : 'Enable custom cursor'}
               >
@@ -278,7 +280,7 @@ export const AppFooter: React.FC = () => {
               href="https://github.com/wolfenazz/YzPzCode"
               target="_blank"
               rel="noopener noreferrer"
-              className="p-1.5 text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/30 rounded transition-colors duration-150"
+              className="p-1.5 text-zinc-500 hover:text-theme-main hover:bg-theme-hover rounded transition-colors duration-150"
               title="GitHub Repository"
             >
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">

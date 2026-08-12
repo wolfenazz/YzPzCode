@@ -123,9 +123,9 @@ export const SettingsAbout: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-lg bg-[#080810]/60 border border-[#1a1a2e]/30 flex items-center justify-center p-1.5">
+            <div className="w-16 h-16 rounded-lg bg-[#1f1f1f]/60 border border-[#3e3e38]/30 flex items-center justify-center p-1.5">
               <img src={logo} alt="YzPzCode" className="w-16 h-16 object-contain" />
             </div>
             <div>
@@ -140,7 +140,7 @@ export const SettingsAbout: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Built By
           </h3>
@@ -149,7 +149,7 @@ export const SettingsAbout: React.FC = () => {
             {AUTHORS.map((author) => (
               <div
                 key={author.name}
-                className="flex items-center justify-between px-4 py-3 bg-[#080810]/30 border border-[#1a1a2e]/20 rounded-lg hover:border-[var(--accent-border)] transition-colors duration-150"
+                className="flex items-center justify-between px-4 py-3 bg-[#1f1f1f]/30 border border-[#3e3e38]/20 rounded-lg hover:border-[var(--accent-border)] transition-colors duration-150"
               >
                 <p className="text-xs text-zinc-300 font-medium">{author.name}</p>
                 <p className="text-[10px] text-zinc-500">{author.role}</p>
@@ -158,7 +158,7 @@ export const SettingsAbout: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Tech Stack
           </h3>
@@ -167,7 +167,7 @@ export const SettingsAbout: React.FC = () => {
             {TECH_STACK.map((tech) => (
               <div
                 key={tech.name}
-                className="flex items-center gap-2.5 px-3 py-2.5 bg-[#080810]/30 border border-[#1a1a2e]/20 rounded-lg"
+                className="flex items-center gap-2.5 px-3 py-2.5 bg-[#1f1f1f]/30 border border-[#3e3e38]/20 rounded-lg"
               >
                 <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
                   {tech.icon}
@@ -181,7 +181,7 @@ export const SettingsAbout: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Links
           </h3>
@@ -191,7 +191,7 @@ export const SettingsAbout: React.FC = () => {
               href="https://github.com/wolfenazz/YzPzCode"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between px-4 py-3 bg-[#080810]/30 border border-[#1a1a2e]/20 rounded-lg hover:border-[var(--accent-border)] transition-all duration-150 group"
+              className="flex items-center justify-between px-4 py-3 bg-[#1f1f1f]/30 border border-[#3e3e38]/20 rounded-lg hover:border-[var(--accent-border)] transition-all duration-150 group"
             >
               <div className="flex items-center gap-3">
                 <GitHubIcon />
@@ -206,7 +206,7 @@ export const SettingsAbout: React.FC = () => {
               href="https://github.com/wolfenazz/YzPzCode/issues"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between px-4 py-3 bg-[#080810]/30 border border-[#1a1a2e]/20 rounded-lg hover:border-[var(--accent-border)] transition-all duration-150 group"
+              className="flex items-center justify-between px-4 py-3 bg-[#1f1f1f]/30 border border-[#3e3e38]/20 rounded-lg hover:border-[var(--accent-border)] transition-all duration-150 group"
             >
               <div className="flex items-center gap-3">
                 <svg className="w-4 h-4 text-zinc-500 group-hover:text-[var(--accent)] opacity-60 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -221,7 +221,7 @@ export const SettingsAbout: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-3">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-3">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             License
           </h3>

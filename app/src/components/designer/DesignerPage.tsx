@@ -309,7 +309,7 @@ const WORKFLOW_CARDS: WorkflowCard[] = [
     description: 'Document-like artifact template tuned for clean typography and export fidelity.',
     category: 'template',
     mode: 'Template',
-    accent: '#94a3b8',
+    accent: '#b7b5a6',
     tags: ['Document', 'Finance', 'PDF'],
   },
   {
@@ -329,7 +329,7 @@ const DESIGN_SYSTEMS: DesignSystemCard[] = [
     title: 'Linear app',
     category: 'Product system',
     summary: 'Precise grayscale surfaces, restrained contrast, and focused productivity patterns.',
-    swatches: ['#0f1115', '#f7f8fa', '#5e6ad2', '#d8dbe7'],
+    swatches: ['#1f1f1f', '#f7f8fa', '#5e6ad2', '#d8dbe7'],
   },
   {
     id: 'stripe',
@@ -343,7 +343,7 @@ const DESIGN_SYSTEMS: DesignSystemCard[] = [
     title: 'Apple',
     category: 'Platform',
     summary: 'Highly polished product staging, airy typography, and detail-led visual storytelling.',
-    swatches: ['#f5f5f7', '#1d1d1f', '#0071e3', '#86868b'],
+    swatches: ['#f5f5f7', '#2e2e2e', '#0071e3', '#86868b'],
   },
   {
     id: 'openai',
@@ -357,7 +357,7 @@ const DESIGN_SYSTEMS: DesignSystemCard[] = [
     title: 'Raycast',
     category: 'Developer tools',
     summary: 'Command-forward UI, vivid red accents, compact cards, and fast scanning.',
-    swatches: ['#ff6363', '#111113', '#ffffff', '#2f3137'],
+    swatches: ['#ff6363', '#111113', '#ffffff', '#3e3e38'],
   },
   {
     id: 'neon',
@@ -371,7 +371,7 @@ const DESIGN_SYSTEMS: DesignSystemCard[] = [
     title: 'Notion',
     category: 'Knowledge',
     summary: 'Document-first layout, simple controls, neutral surfaces, and editorial density.',
-    swatches: ['#ffffff', '#191919', '#f1f1ef', '#787774'],
+    swatches: ['#ffffff', '#262626', '#f1f1ef', '#787774'],
   },
   {
     id: 'figma',
@@ -572,8 +572,6 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
   const sessionsByWorkspace = useAppStore((state) => state.sessionsByWorkspace);
   const addSession = useAppStore((state) => state.addSession);
   const setActiveSessionForWorkspace = useAppStore((state) => state.setActiveSessionForWorkspace);
-  const theme = useAppStore((state) => state.theme);
-  const toggleTheme = useAppStore((state) => state.toggleTheme);
 
   const workspacePath = currentWorkspace?.path ?? openWorkspaces[0]?.path ?? null;
   const workspaceId = currentWorkspace?.id ?? openWorkspaces[0]?.id ?? null;
@@ -821,7 +819,7 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
   };
 
   return (
-    <div className="od-designer" data-theme={theme === 'light' ? 'light' : 'dark'}>
+    <div className="od-designer" data-theme="dark">
       <header data-tauri-drag-region className="od-window-bar titlebar-drag">
         <div className="od-window-left titlebar-nodrag">
           <button type="button" className="od-window-back" onClick={onBack} title="Back" aria-label="Back">
@@ -838,9 +836,6 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
         </div>
 
         <div className="od-window-actions titlebar-nodrag">
-          <button type="button" className="od-icon-button" onClick={toggleTheme} title="Toggle theme" aria-label="Toggle theme">
-            <Icon name="moon" size={15} />
-          </button>
           {isWindows && (
             <div className="od-win-controls">
               <button type="button" onClick={minimizeWindow} title="Minimize" aria-label="Minimize">
@@ -1631,7 +1626,7 @@ interface YzPzDesginMarkProps {
 
 const YzPzDesginMark: React.FC<YzPzDesginMarkProps> = ({ size = 28 }) => (
   <svg className="od-mark" width={size} height={size} viewBox="0 0 444 444" fill="none" aria-hidden="true">
-    <rect width="444" height="444" rx="88" fill="#09090B" />
+    <rect width="444" height="444" rx="88" fill="#262626" />
     <rect x="58" y="70" width="328" height="304" rx="44" fill="#0F1115" stroke="#27272A" strokeWidth="18" />
     <path d="M100 144H344" stroke="#10B981" strokeWidth="24" strokeLinecap="round" />
     <path d="M125 218L178 270L125 322" stroke="#F4F4F5" strokeWidth="30" strokeLinecap="round" strokeLinejoin="round" />

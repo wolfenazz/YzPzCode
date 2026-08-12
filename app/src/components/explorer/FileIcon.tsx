@@ -22,8 +22,8 @@ const EXTENSION_COLORS: Record<string, string> = {
   css: '#a855f7',
   scss: '#a855f7',
   sass: '#a855f7',
-  json: '#a1a1aa',
-  md: '#e4e4e7',
+  json: '#b7b5a6',
+  md: '#dcd8cc',
   toml: '#f97316',
   yaml: '#ef4444',
   yml: '#ef4444',
@@ -54,7 +54,7 @@ const EXTENSION_COLORS: Record<string, string> = {
   xlsx: '#22c55e',
   xls: '#22c55e',
   env: '#eab308',
-  lock: '#a1a1aa',
+  lock: '#b7b5a6',
 };
 
 const FOLDER_CLOSED_SVG = (
@@ -119,7 +119,7 @@ const MaterialIcon: React.FC<{
   }, []);
 
   if (hasError) {
-    return <FileSvgIcon color="#a1a1aa" className={className} />;
+    return <FileSvgIcon color="#b7b5a6" className={className} />;
   }
 
   return (
@@ -160,8 +160,8 @@ const FileIconInner: React.FC<FileIconProps> = ({
   }
 
   const color = extension
-    ? EXTENSION_COLORS[extension.toLowerCase()] ?? '#a1a1aa'
-    : '#a1a1aa';
+    ? EXTENSION_COLORS[extension.toLowerCase()] ?? '#b7b5a6'
+    : '#b7b5a6';
   return <FileSvgIcon color={color} className={className} />;
 };
 

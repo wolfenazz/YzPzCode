@@ -44,7 +44,6 @@ const STATUS_COLORS = {
 
 interface TerminalHeaderProps {
   session: TerminalSession;
-  theme: 'dark' | 'light';
   onRefreshCli: () => void;
   isRefreshing: boolean;
   onClose?: () => void;
@@ -52,11 +51,11 @@ interface TerminalHeaderProps {
   dragListeners?: Record<string, unknown>;
   mouseTrackingEnabled?: boolean;
   onToggleMouseTracking?: () => void;
+  mouseAlwaysOn?: boolean;
 }
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   session,
-  theme,
   onRefreshCli,
   isRefreshing,
   onClose,
@@ -64,16 +63,13 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   dragListeners,
   mouseTrackingEnabled = false,
   onToggleMouseTracking,
+  mouseAlwaysOn = false,
 }) => {
-  const isLight = theme === 'light';
+  const mouseOn = mouseTrackingEnabled || mouseAlwaysOn;
 
   return (
     <div
-      className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing ${
-        isLight
-          ? 'bg-zinc-800 border-b border-zinc-700/80'
-          : 'bg-zinc-900 border-b border-zinc-800/80'
-      }`}
+      className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing bg-zinc-900 border-b border-zinc-800/80`}
       {...dragListeners}
     >
       <div className="flex items-center gap-3 min-w-0 overflow-hidden">
@@ -84,7 +80,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
            <span className={`relative inline-flex h-2 w-2 ${STATUS_COLORS[session.status]}`}></span>
         </div>
 
-        <span className={`text-[10px] font-black tracking-[0.2em] uppercase shrink-0 ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`}>
+        <span className="text-[10px] font-black tracking-[0.2em] uppercase shrink-0 text-zinc-500">
           TTY::{session.index + 1}
         </span>
 
@@ -92,9 +88,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
 
         {session.agent ? (
           <div className="flex items-center gap-2 min-w-0">
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 shrink-0 border transition-all duration-300 ${
-              isLight ? 'bg-zinc-800/90 border-zinc-700' : 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700 group/agent'
-            }`}>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 shrink-0 border transition-all duration-300 bg-zinc-950/90 border-zinc-800 hover:border-zinc-700 group/agent">
               {isAgentType(session.agent) ? (
                 session.agent === 'claude' ? (
                   <Icon
@@ -106,12 +100,9 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                   <img
                     src={AGENT_LOGOS[session.agent]}
                     alt={session.agent}
-                    className={`w-3 h-3 object-contain transition-transform group-hover/agent:scale-110 ${session.agent === 'opencode' || session.agent === 'cursor' || session.agent === 'codex'
-                        ? isLight
+                    className={`w-3 h-3 object-contain transition-transform group-hover/agent:scale-110 ${
+                        session.agent === 'opencode' || session.agent === 'cursor' || session.agent === 'codex'
                           ? 'invert brightness-[3.5] contrast-[1.5]'
-                          : 'invert brightness-[3.5] contrast-[1.5]'
-                        : isLight
-                          ? 'brightness-[2.2] contrast-[1.2]'
                           : 'brightness-[2.2] contrast-[1.2]'
                       }`}
                   />
@@ -123,22 +114,18 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                   className="w-3 h-3"
                 />
               )}
-              <span className={`text-[9px] uppercase font-black tracking-widest truncate max-w-[80px] ${
-                isLight ? 'text-zinc-300' : 'text-zinc-400'
-              }`}>{session.agent}</span>
+              <span className="text-[9px] uppercase font-black tracking-widest truncate max-w-[80px] text-zinc-400">{session.agent}</span>
             </div>
             <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
               {cliStatusBadge}
             </div>
           </div>
         ) : (
-          <div className={`flex items-center gap-1.5 px-2 py-0.5 shrink-0 border ${
-            isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-950 border-zinc-800'
-          }`}>
-            <svg className={`w-3 h-3 ${isLight ? 'text-zinc-500' : 'text-zinc-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 shrink-0 border bg-zinc-950 border-zinc-800">
+            <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <span className={`text-[9px] font-black uppercase tracking-widest ${isLight ? 'text-zinc-500' : 'text-zinc-600'}`}>CORE::SHELL</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">CORE::SHELL</span>
           </div>
         )}
       </div>
@@ -153,29 +140,25 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             onToggleMouseTracking?.();
           }}
           className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
-            mouseTrackingEnabled
-              ? (isLight
-                  ? 'bg-emerald-900/45 border-emerald-700 text-emerald-300'
-                  : 'bg-emerald-950/45 border-emerald-800 text-emerald-400')
-              : (isLight
-                  ? 'bg-rose-900/35 border-rose-700 text-rose-300 hover:bg-rose-900/50'
-                  : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50')
+            mouseOn
+              ? 'bg-emerald-950/45 border-emerald-800 text-emerald-400'
+              : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
           }`}
-          title={mouseTrackingEnabled ? 'Mouse mode enabled (click to disable)' : 'Mouse mode disabled (click to enable manually)'}
+          title={mouseAlwaysOn
+            ? 'Mouse mode locked on (Always-On Mouse enabled in Settings)'
+            : mouseTrackingEnabled
+              ? 'Mouse mode enabled (click to disable)'
+              : 'Mouse mode disabled (click to enable manually)'}
         >
-          Mouse {mouseTrackingEnabled ? 'On' : 'Off'}
+          Mouse {mouseOn ? (mouseAlwaysOn ? 'Locked' : 'On') : 'Off'}
         </button>
-        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} theme={theme} />
+        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} />
         <div className="h-3 w-px bg-zinc-700/50" />
         {session.agent && (
           <button
             onClick={onRefreshCli}
             disabled={isRefreshing}
-            className={`flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
-              isLight
-                ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700'
-                : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50'
-            }`}
+            className="flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
             title="Restart CLI"
           >
             <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,11 +169,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className={`flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer ${
-              isLight
-                ? 'text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30'
-                : 'text-zinc-600 hover:text-rose-400 hover:bg-rose-950/30'
-            }`}
+            className="flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer text-zinc-600 hover:text-rose-400 hover:bg-rose-950/30"
             title="Terminate process"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

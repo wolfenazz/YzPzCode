@@ -33,7 +33,7 @@ export const SettingsShortcuts: React.FC = () => {
 
       <div className="space-y-6">
         {SHORTCUTS.map((group) => (
-          <div key={group.category} className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+          <div key={group.category} className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
             <div className="flex items-center gap-2">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--accent-border)]"></div>
               <h3 className="text-[10px] font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">{group.category}</h3>
@@ -41,16 +41,16 @@ export const SettingsShortcuts: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 gap-2">
               {group.items.map((shortcut, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-transparent hover:border-[#1a1a2e]/60 hover:bg-[#080810]/40 transition-all duration-200">
+                <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-transparent hover:border-[#3e3e38]/60 hover:bg-[#1f1f1f]/40 transition-all duration-200">
                   <span className="text-xs text-zinc-400 font-mono">{shortcut.action}</span>
                   <div className="flex items-center gap-1.5">
                     {shortcut.keys.map((key, j) => (
                       <React.Fragment key={j}>
-                        <kbd className="min-w-[24px] h-6 flex items-center justify-center px-2 text-[10px] font-mono font-bold text-zinc-300 bg-[#080810] border border-[#1a1a2e] rounded-md shadow-[0_2px_0_0_#0a0a0f]">
+                        <kbd className="min-w-[24px] h-6 flex items-center justify-center px-2 text-[10px] font-mono font-bold text-zinc-300 bg-[#1f1f1f] border border-[#3e3e38] rounded-md shadow-[0_2px_0_0_#262626]">
                           {key}
                         </kbd>
                         {j < shortcut.keys.length - 1 && (
-                          <span className="text-[#1a1a2e] text-xs font-bold">+</span>
+                          <span className="text-[#3e3e38] text-xs font-bold">+</span>
                         )}
                       </React.Fragment>
                     ))}

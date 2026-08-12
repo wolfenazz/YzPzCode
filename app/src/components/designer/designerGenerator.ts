@@ -155,7 +155,7 @@ export const DESIGNER_THEMES: DesignerThemeOption[] = [
     description: 'Serious admin surface with navigation, filters, charts, and tables.',
     accent: '#93c5fd',
     background: '#0f141d',
-    foreground: '#e5e7eb',
+    foreground: '#dcd8cc',
   },
   {
     id: 'soft-gradient',

@@ -68,20 +68,20 @@ export const SettingsEnvironment: React.FC = () => {
       </div>
 
       <div className="space-y-6">
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Node.js</h3>
             <button
               onClick={checkAll}
               disabled={checking}
-              className="px-4 py-2 rounded-md bg-[#1a1a2e] text-zinc-400 hover:text-zinc-200 hover:bg-[#252540] border border-[#1a1a2e] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-md bg-[#3e3e38] text-zinc-400 hover:text-zinc-200 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {checking ? 'Checking...' : 'Re-check'}
             </button>
           </div>
 
           {nodejsStatus && (
-            <div className="flex items-center justify-between py-2.5 px-3 rounded-md bg-[#080810]/60">
+            <div className="flex items-center justify-between py-2.5 px-3 rounded-md bg-[#1f1f1f]/60">
               <div className="flex items-center gap-2.5">
                 {nodejsStatus.installed && nodejsStatus.meetsMinimum ? (
                   <svg className="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
@@ -148,7 +148,7 @@ export const SettingsEnvironment: React.FC = () => {
           )}
         </div>
 
-        <div className="bg-[#0a0a0f]/60 border border-[#1a1a2e]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">All Prerequisites</h3>
             {prerequisites.length > 0 && (
@@ -166,7 +166,7 @@ export const SettingsEnvironment: React.FC = () => {
                 const isOk = prereq.installed && prereq.meetsMinimum;
                 const key = prereq.prerequisiteType;
                 return (
-                  <div key={prereq.prerequisiteType} className="flex items-center justify-between py-2 px-3 rounded-md bg-[#080810]/60">
+                  <div key={prereq.prerequisiteType} className="flex items-center justify-between py-2 px-3 rounded-md bg-[#1f1f1f]/60">
                     <div className="flex items-center gap-2.5">
                       {isOk ? (
                         <svg className="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">

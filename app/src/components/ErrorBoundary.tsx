@@ -26,10 +26,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: 20, color: '#fafafa', backgroundColor: '#09090b', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ padding: 20, color: '#faf8f1', backgroundColor: '#262626', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ maxWidth: 480, textAlign: 'center' }}>
             <h1 style={{ color: '#f87171', fontSize: 14, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16 }}>Something went wrong</h1>
-            <pre style={{ color: '#a1a1aa', whiteSpace: 'pre-wrap', fontSize: 12, marginBottom: 24 }}>
+            <pre style={{ color: '#b7b5a6', whiteSpace: 'pre-wrap', fontSize: 12, marginBottom: 24 }}>
               {this.state.error?.toString()}
             </pre>
             <button

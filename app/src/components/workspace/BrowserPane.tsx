@@ -27,11 +27,11 @@ import { BrowserTabBar } from './BrowserTabBar';
 import { StyleClipboardPanel } from './StyleClipboardPanel';
 import { UiReferenceClipboardPanel } from './UiReferenceClipboardPanel';
 import { ApplyModeToolbar } from './ApplyModeToolbar';
+import { ElementInspectorPanel } from './ElementInspectorPanel';
 
 interface BrowserPaneProps {
   workspaceId: string;
   sessions: TerminalSession[];
-  theme: 'dark' | 'light';
 }
 
 const FALLBACK_URL = 'https://www.google.com';
@@ -54,6 +54,18 @@ const normalizeBrowserUrl = (value: string): string => {
   if (!trimmed || trimmed === 'about:blank') return FALLBACK_URL;
   if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed)) return trimmed;
   return `http://${trimmed}`;
+};
+
+const browserUrlsEqual = (left: string, right: string): boolean => {
+  const normalize = (value: string): string => {
+    const url = normalizeBrowserUrl(value);
+    try {
+      return new URL(url).toString();
+    } catch {
+      return url;
+    }
+  };
+  return normalize(left) === normalize(right);
 };
 
 const clampZoom = (value: number): number => Math.min(2, Math.max(0.5, Math.round(value * 100) / 100));
@@ -486,7 +498,7 @@ const getViewportMetrics = (
   };
 };
 
-export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions, theme: _theme }) => {
+export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions }) => {
   const previewShellRef = useRef<HTMLDivElement>(null);
   const previewViewportRef = useRef<HTMLDivElement>(null);
   const loadStartRef = useRef<number | null>(null);
@@ -602,6 +614,11 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     return targetableSessions[0]?.id ?? null;
   }, [activeSessionId, targetableSessions]);
 
+  const sessionOptions = useMemo(
+    () => targetableSessions.map((session) => ({ id: session.id, label: sessionDisplayName(session) })),
+    [targetableSessions],
+  );
+
   const activeDevice = useMemo(
     () => BROWSER_DEVICE_OPTIONS.find((device) => device.id === effectiveState.deviceId) ?? BROWSER_DEVICE_OPTIONS[0],
     [effectiveState.deviceId],
@@ -663,6 +680,11 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   useEffect(() => {
     isPoppedOutRef.current = isPoppedOut;
   }, [isPoppedOut]);
+
+  useEffect(() => {
+    lastNavigatedTabRef.current =
+      useAppStore.getState().browserStateByWorkspace[workspaceId]?.activeTabId ?? null;
+  }, [workspaceId]);
 
   useEffect(() => {
     if (!browserState) return;
@@ -977,6 +999,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     if (!activeTab) return;
 
     lastNavigatedTabRef.current = activeTabId;
+
+    if (browserUrlsEqual(activeTab.url, browserState?.currentUrl ?? '')) return;
+
     void navigateBrowserView(workspaceId, activeTab.url);
     setBrowserDraftUrl(workspaceId, activeTab.url);
   }, [
@@ -1073,23 +1098,23 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     }
   }, [goForwardBrowserView, workspaceId]);
 
-  const handleSubmitPrompt = useCallback(async () => {
+  const handleInspectorSend = useCallback(async (promptText: string) => {
     if (!effectiveState.selectedElement) return;
 
     const targetSessionId = effectiveState.targetSessionId ?? defaultSessionId;
     if (!targetSessionId) {
       setError('No terminal session is available for prompt handoff.');
-      return;
+      throw new Error('No terminal session is available for prompt handoff.');
     }
 
-    if (!effectiveState.prompt.trim()) {
+    if (!promptText.trim()) {
       setError('Enter a prompt before sending it to a terminal agent.');
-      return;
+      throw new Error('Enter a prompt before sending it to a terminal agent.');
     }
 
     const formattedPrompt = formatElementPrompt(
       effectiveState.selectedElement,
-      effectiveState.prompt,
+      promptText,
       activeDevice.label,
       effectiveState.zoomFactor,
     );
@@ -1100,14 +1125,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
       setBrowserPrompt(workspaceId, '');
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      throw new Error(message);
     } finally {
       setIsSubmitting(false);
     }
   }, [
     activeDevice.label,
     defaultSessionId,
-    effectiveState.prompt,
     effectiveState.selectedElement,
     effectiveState.targetSessionId,
     effectiveState.zoomFactor,
@@ -1115,6 +1141,14 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
     workspaceId,
     writeToTerminal,
   ]);
+
+  const handleInspectorTargetSessionChange = useCallback((sessionId: string | null) => {
+    setBrowserTargetSession(workspaceId, sessionId);
+  }, [setBrowserTargetSession, workspaceId]);
+
+  const handleInspectorClear = useCallback(() => {
+    clearBrowserSelection(workspaceId);
+  }, [clearBrowserSelection, workspaceId]);
 
   const handleCopyUrl = useCallback(() => {
     const currentUrl = resolvedCurrentUrl;
@@ -1328,10 +1362,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
   }, [removeBrowserTab, workspaceId]);
 
   const selectedElement = effectiveState.selectedElement;
-  const selectedElementSelectors = selectedElement?.selectors.slice(0, 3) ?? [];
   const selectedElementTitle = selectedElement?.pageTitle || pageTitle || 'Untitled page';
-  const selectedElementSummary = selectedElement?.textContent || 'No visible text in this element.';
-  const selectedElementAttributeCount = selectedElement ? Object.keys(selectedElement.attributes).length : 0;
   const activeUiReference = effectiveState.uiReferenceClipboard.find(
     (reference) => reference.id === effectiveState.activeUiReferenceId,
   ) ?? effectiveState.uiReferenceClipboard[0] ?? null;
@@ -2095,201 +2126,18 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions,
           </AnimatePresence>
 
           {/* ── Element Inspector Panel ────────────────────────────────── */}
-          <AnimatePresence>
-            {selectedElement && (
-              <motion.aside
-                initial={{ opacity: 0, x: 14 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 14 }}
-                transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                className="w-[380px] shrink-0 border-l border-[var(--border-primary)] bg-[var(--bg-secondary)] overflow-y-auto"
-              >
-                <div className="flex items-center justify-between px-3 py-2.5 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 backdrop-blur-sm sticky top-0 z-10">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-primary)]">
-                      element inspector
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => clearBrowserSelection(workspaceId)}
-                    className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
-                    aria-label="Clear selection"
-                  >
-                    <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                </div>
-
-                <div className="p-3 space-y-3">
-                  {/* Element Summary Card */}
-                  <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="flex h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.6)]" />
-                          <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--accent)]">focused node</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-1.5">
-                            <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                              <Icon icon="material-symbols:code-rounded" className="h-2.5 w-2.5" aria-hidden="true" />
-                              tag
-                            </div>
-                            <div className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)]">
-                              {selectedElement.tagName}
-                              {selectedElement.id ? `#${selectedElement.id}` : ''}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-1.5">
-                            <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                              <Icon icon="material-symbols:language-rounded" className="h-2.5 w-2.5" aria-hidden="true" />
-                              page
-                            </div>
-                            <div className="mt-0.5 max-w-[100px] truncate text-[11px] font-medium text-[var(--text-primary)]">
-                              {selectedElementTitle}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-1.5">
-                            <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                              <Icon icon="material-symbols:crop-free-rounded" className="h-2.5 w-2.5" aria-hidden="true" />
-                              bounds
-                            </div>
-                            <div className="mt-0.5 text-[11px] font-semibold text-[var(--text-primary)]">
-                              {selectedElement.rect.width} × {selectedElement.rect.height}
-                            </div>
-                          </div>
-                        </div>
-                        <p className="mt-2.5 max-h-[4.5rem] overflow-hidden text-[11px] leading-5 text-[var(--accent)]/80">
-                          {selectedElementSummary}
-                        </p>
-                      </div>
-                      <div className="shrink-0 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-2 text-center">
-                        <div className="text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">sel</div>
-                        <div className="mt-0.5 text-lg font-bold text-[var(--text-primary)]">{selectedElement.selectors.length}</div>
-                        <div className="mt-0.5 text-[9px] font-medium uppercase tracking-[0.12em] text-[var(--accent)]/60">
-                          {selectedElementAttributeCount} attrs
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-3 gap-2">
-                      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-1.5">
-                        <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                          <Icon icon="material-symbols:aspect-ratio-outline-rounded" className="h-2.5 w-2.5" aria-hidden="true" />
-                          viewport
-                        </div>
-                        <div className="mt-0.5 text-[11px] font-semibold text-[var(--text-primary)]">
-                          {selectedElement.viewport.width}×{selectedElement.viewport.height}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-1.5">
-                        <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                          <Icon icon="material-symbols:link-rounded" className="h-2.5 w-2.5" aria-hidden="true" />
-                          url
-                        </div>
-                        <div className="mt-0.5 truncate text-[11px] font-medium text-[var(--text-primary)]">
-                          {selectedElement.pageUrl.replace(/^https?:\/\//, '')}
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-1.5">
-                        <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                          <Icon icon="material-symbols:send-rounded" className="h-2.5 w-2.5" aria-hidden="true" />
-                          status
-                        </div>
-                        <div className="mt-0.5 text-[11px] font-semibold text-emerald-400/80">
-                          ready
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Selectors */}
-                  <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 p-3">
-                    <div className="flex items-center justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-1.5">
-                        <Icon icon="material-symbols:layers-outline-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-primary)]">selectors</span>
-                      </div>
-                      <span className="rounded-full border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]">
-                        {selectedElementAttributeCount} attrs
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {selectedElementSelectors.map((selector, index) => (
-                        <div key={selector} className="flex items-start gap-2.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2.5 py-2">
-                          <span className="flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[8px] font-bold uppercase tracking-[0.12em] text-[var(--accent)]">
-                            {index === 0 ? 'P' : `F${index}`}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <div className="text-[9px] font-medium uppercase tracking-[0.15em] text-[var(--accent)]/60">
-                              {index === 0 ? 'primary selector' : `fallback ${index}`}
-                            </div>
-                            <div className="mt-0.5 break-all text-[10px] leading-4 text-[var(--text-primary)]">
-                              {selector}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Destination Agent */}
-                  <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 p-3">
-                    <div className="flex items-center justify-between gap-2 mb-2">
-                      <div className="flex items-center gap-1.5">
-                        <Icon icon="material-symbols:terminal-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-primary)]">target agent</span>
-                      </div>
-                      <span className="text-[9px] font-medium text-[var(--accent)]/60">
-                        {targetableSessions.length} avail
-                      </span>
-                    </div>
-                    <select
-                      value={effectiveState.targetSessionId ?? ''}
-                      onChange={(event) => setBrowserTargetSession(workspaceId, event.target.value || null)}
-                      className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/80 px-3 py-2 text-[11px] font-medium text-[var(--text-primary)] outline-none transition-colors focus:border-emerald-500/30 focus:ring-1 focus:ring-emerald-500/10"
-                    >
-                      {targetableSessions.map((session) => (
-                        <option key={session.id} value={session.id} className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
-                          {sessionDisplayName(session)}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1.5 text-[9px] leading-4 text-[var(--accent)]/50">
-                      handoff goes directly into the chosen terminal context
-                    </p>
-                  </div>
-
-                  {/* Instruction */}
-                  <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 p-3">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <Icon icon="material-symbols:edit-note-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
-                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-primary)]">instruction</span>
-                    </div>
-                    <textarea
-                      value={effectiveState.prompt}
-                      onChange={(event) => setBrowserPrompt(workspaceId, event.target.value)}
-                      className="min-h-[160px] w-full resize-none rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/80 px-3 py-2.5 text-[11px] leading-5 text-[var(--text-primary)] outline-none placeholder:text-zinc-600 transition-colors focus:border-sky-400/30 focus:ring-1 focus:ring-sky-400/10"
-                      placeholder="tighten the spacing, improve the CTA hierarchy, and keep the same visual language."
-                    />
-                  </div>
-
-                  {/* Send Button */}
-                  <motion.button
-                    onClick={() => void handleSubmitPrompt()}
-                    disabled={isSubmitting || targetableSessions.length === 0}
-                    whileHover={!isSubmitting ? { scale: 1.01, y: -1 } : {}}
-                    whileTap={!isSubmitting ? { scale: 0.98, y: 0 } : {}}
-                    className="group relative w-full inline-flex items-center justify-center gap-2.5 overflow-hidden rounded-lg border border-emerald-500/25 bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-sky-500/12 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.22em] text-emerald-200 shadow-[0_0_24px_rgba(16,185,129,0.12),0_4px_12px_rgba(0,0,0,0.25)] hover:border-emerald-400/40 hover:from-emerald-500/22 hover:to-sky-500/18 hover:text-emerald-100 hover:shadow-[0_0_34px_rgba(16,185,129,0.2),0_6px_16px_rgba(0,0,0,0.3)] disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:shadow-none transition-all duration-200 cursor-pointer"
-                  >
-                    <span className="absolute inset-0 rounded-lg bg-[radial-gradient(circle_at_50%_0%,rgba(16,185,129,0.15),transparent_60%)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    <Icon icon="material-symbols:send-rounded" className="relative h-4 w-4" aria-hidden="true" />
-                    <span className="relative">{isSubmitting ? 'sending...' : 'send to agent'}</span>
-                  </motion.button>
-                </div>
-              </motion.aside>
-            )}
-          </AnimatePresence>
+          {selectedElement && (
+            <ElementInspectorPanel
+              element={selectedElement}
+              pageTitle={selectedElementTitle}
+              targetSessionId={effectiveState.targetSessionId}
+              sessionOptions={sessionOptions}
+              isSubmitting={isSubmitting}
+              onSend={handleInspectorSend}
+              onTargetSessionChange={handleInspectorTargetSessionChange}
+              onClear={handleInspectorClear}
+            />
+          )}
         </div>
       </div>
     </div>

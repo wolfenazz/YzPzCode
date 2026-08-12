@@ -13,7 +13,6 @@ interface EditorTabsProps {
   onCloseAll: () => void;
   onCloseSaved: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
-  theme: 'dark' | 'light';
 }
 
 const getExtension = (name: string): string | null => {
@@ -32,7 +31,6 @@ const EditorTabsInner: React.FC<EditorTabsProps> = ({
   onCloseAll,
   onCloseSaved,
   onReorder,
-  theme,
 }) => {
   if (openFiles.length === 0) return null;
 
@@ -42,7 +40,6 @@ const EditorTabsInner: React.FC<EditorTabsProps> = ({
     <TabBar
       openFiles={openFiles}
       activeFilePath={activeFilePath}
-      theme={theme}
       hasDirty={hasDirty}
       onTabClick={onTabClick}
       onTabClose={onTabClose}
@@ -60,7 +57,6 @@ export const EditorTabs = memo(EditorTabsInner);
 interface TabBarProps {
   openFiles: FileTab[];
   activeFilePath: string | null;
-  theme: 'dark' | 'light';
   hasDirty: boolean;
   onTabClick: (path: string) => void;
   onTabClose: (path: string) => void;
@@ -74,7 +70,6 @@ interface TabBarProps {
 const TabBar: React.FC<TabBarProps> = ({
   openFiles,
   activeFilePath,
-  theme,
   hasDirty,
   onTabClick,
   onTabClose,
@@ -125,7 +120,7 @@ const TabBar: React.FC<TabBarProps> = ({
   return (
     <div
       role="tablist"
-      className={`flex items-center overflow-x-auto shrink-0 relative ${theme === 'light' ? 'bg-[#17191d] border-b border-zinc-700/60' : 'bg-zinc-950 border-b border-zinc-800'}`}
+      className="flex items-center overflow-x-auto shrink-0 relative bg-zinc-950 border-b border-zinc-800"
       onContextMenu={handleBarContextMenu}
     >
       {openFiles.map((file, index) => {
@@ -170,18 +165,12 @@ const TabBar: React.FC<TabBarProps> = ({
               isDragging ? 'opacity-40' : ''
             } ${
               isDragOver
-                ? theme === 'light'
-                  ? 'border-l-2 border-l-blue-500 bg-[#23262c]'
-                  : 'border-l-2 border-l-blue-500 bg-blue-950/30'
+                ? 'border-l-2 border-l-blue-500 bg-blue-950/30'
                 : ''
             } ${
               isActive
-                ? theme === 'light'
-                  ? 'bg-[#1f2228] text-zinc-100 border-zinc-700/60'
-                  : 'bg-zinc-900 text-zinc-200 border-zinc-800/60'
-                : theme === 'light'
-                  ? 'bg-[#14161a] text-zinc-400 hover:bg-[#1d2026] hover:text-zinc-100 border-zinc-700/60'
-                  : 'bg-zinc-950 text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-400 border-zinc-800/60'
+                ? 'bg-zinc-900 text-zinc-200 border-zinc-800/60'
+                : 'bg-zinc-950 text-zinc-500 hover:bg-zinc-900/60 hover:text-zinc-400 border-zinc-800/60'
             }`}
             onClick={() => onTabClick(file.path)}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabClick(file.path); } }}
@@ -195,7 +184,7 @@ const TabBar: React.FC<TabBarProps> = ({
             <span className="text-[11px] truncate" title={file.path}>{file.name}</span>
 
             {file.isDirty && (
-              <span className={`w-2 h-2 rounded-full shrink-0 group-hover:hidden ${theme === 'light' ? 'bg-zinc-500' : 'bg-zinc-400'}`} />
+              <span className="w-2 h-2 rounded-full shrink-0 group-hover:hidden bg-zinc-400" />
             )}
 
             <button
@@ -215,7 +204,7 @@ const TabBar: React.FC<TabBarProps> = ({
             </button>
 
             {isActive && (
-              <div className={`absolute bottom-0 left-0 right-0 h-[1px] ${theme === 'light' ? 'bg-emerald-600' : 'bg-emerald-500'}`} />
+              <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-emerald-500" />
             )}
           </div>
         );

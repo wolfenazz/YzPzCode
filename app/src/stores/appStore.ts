@@ -54,7 +54,7 @@ interface AppState {
   authInfos: Record<CliType, AuthInfo | null>;
   toolCliStatuses: Record<ToolCliType, ToolCliInfo | null>;
   toolAuthInfos: Record<ToolCliType, ToolAuthInfo | null>;
-  theme: "dark" | "light";
+  theme: "dark";
   selectedIdes: IdeType[];
   ideStatuses: Record<IdeType, IdeInfo | null>;
   autoSave: boolean;
@@ -74,6 +74,8 @@ interface AppState {
   terminalBellEnabled: boolean;
   terminalOpacity: number;
   terminalWordWrap: boolean;
+  terminalMouseAlwaysOn: boolean;
+  independentGridResize: boolean;
   editorFontFamily: string;
   editorFontSize: number;
   editorTabSize: number;
@@ -111,7 +113,6 @@ interface AppState {
   markWorkspaceOpened: (workspaceId: string) => void;
   reorderSessions: (fromIndex: number, toIndex: number) => void;
   clearCurrentWorkspace: () => void;
-  toggleTheme: () => void;
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveDelay: (delay: number) => void;
   setShowMinimap: (show: boolean) => void;
@@ -129,6 +130,8 @@ interface AppState {
   setTerminalBellEnabled: (enabled: boolean) => void;
   setTerminalOpacity: (opacity: number) => void;
   setTerminalWordWrap: (enabled: boolean) => void;
+  setTerminalMouseAlwaysOn: (enabled: boolean) => void;
+  setIndependentGridResize: (enabled: boolean) => void;
   setEditorFontFamily: (font: string) => void;
   setEditorFontSize: (size: number) => void;
   setEditorTabSize: (size: number) => void;
@@ -295,6 +298,8 @@ export const useAppStore = create<AppState>()(
       terminalBellEnabled: true,
       terminalOpacity: 100,
       terminalWordWrap: false,
+      terminalMouseAlwaysOn: true,
+      independentGridResize: true,
       editorFontFamily: "JetBrains Mono",
       editorFontSize: 14,
       editorTabSize: 2,
@@ -459,7 +464,6 @@ export const useAppStore = create<AppState>()(
           cliLaunchStates: {},
         }),
 
-      toggleTheme: () => set((state) => ({ theme: state.theme === "dark" ? "light" : "dark" })),
       setAutoSave: (enabled) => set({ autoSave: enabled }),
       setAutoSaveDelay: (delay) => set({ autoSaveDelay: delay }),
       setShowMinimap: (show) => set({ showMinimap: show }),
@@ -477,6 +481,8 @@ export const useAppStore = create<AppState>()(
       setTerminalBellEnabled: (enabled) => set({ terminalBellEnabled: enabled }),
       setTerminalOpacity: (opacity) => set({ terminalOpacity: opacity }),
       setTerminalWordWrap: (enabled) => set({ terminalWordWrap: enabled }),
+      setTerminalMouseAlwaysOn: (enabled) => set({ terminalMouseAlwaysOn: enabled }),
+      setIndependentGridResize: (enabled) => set({ independentGridResize: enabled }),
       setEditorFontFamily: (font) => set({ editorFontFamily: font }),
       setEditorFontSize: (size) => set({ editorFontSize: size }),
       setEditorTabSize: (size) => set({ editorTabSize: size }),
@@ -1299,7 +1305,6 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => {
         const base = {
           cliStatuses: state.cliStatuses,
-          theme: state.theme,
           selectedIdes: state.selectedIdes,
           autoSave: state.autoSave,
           autoSaveDelay: state.autoSaveDelay,
@@ -1318,6 +1323,8 @@ export const useAppStore = create<AppState>()(
           terminalBellEnabled: state.terminalBellEnabled,
           terminalOpacity: state.terminalOpacity,
           terminalWordWrap: state.terminalWordWrap,
+          terminalMouseAlwaysOn: state.terminalMouseAlwaysOn,
+          independentGridResize: state.independentGridResize,
           editorFontFamily: state.editorFontFamily,
           editorFontSize: state.editorFontSize,
           editorTabSize: state.editorTabSize,

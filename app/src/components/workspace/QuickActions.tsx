@@ -8,18 +8,15 @@ interface QuickActionsProps {
   sessionId: string;
   workspaceId: string;
   cwd: string;
-  theme: 'dark' | 'light';
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   sessionId,
   workspaceId,
   cwd,
-  theme,
 }) => {
   const [actions, setActions] = useState<ProjectActions | null>(null);
   const [managedState, setManagedState] = useState<ManagedTerminalCommandState | null>(null);
-  const isLight = theme === 'light';
 
   useEffect(() => {
     let mounted = true;
@@ -89,18 +86,12 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
     }
   };
 
-  const btnBase = `flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer border shrink-0 ${
-    isLight
-      ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-emerald-400 hover:border-emerald-800 hover:bg-emerald-950/40'
-      : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-emerald-400 hover:border-emerald-900 hover:bg-emerald-950/30'
-  }`;
+  const btnBase = `flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer border shrink-0 bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-emerald-400 hover:border-emerald-900 hover:bg-emerald-950/30`;
 
   return (
     <div className="flex items-center gap-1">
       <span
-        className={`text-[8px] font-bold uppercase tracking-widest ${
-          isLight ? 'text-zinc-600' : 'text-zinc-700'
-        }`}
+        className={`text-[8px] font-bold uppercase tracking-widest text-zinc-700`}
       >
         {actions.label}
       </span>
@@ -146,11 +137,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       )}
       {managedBusy && (
         <button
-          className={`${btnBase} ${
-            isLight
-              ? 'hover:text-rose-300 hover:border-rose-700 hover:bg-rose-950/35'
-              : 'hover:text-rose-400 hover:border-rose-900 hover:bg-rose-950/25'
-          }`}
+          className={`${btnBase} hover:text-rose-400 hover:border-rose-900 hover:bg-rose-950/25`}
           onClick={stopManagedCommand}
           title={managedState?.command ? `Stop: ${managedState.command}` : 'Stop managed command'}
         >

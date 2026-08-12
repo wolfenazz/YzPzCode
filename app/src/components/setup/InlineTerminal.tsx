@@ -15,28 +15,28 @@ interface InlineTerminalProps {
 }
 
 const TERMINAL_THEME = {
-  background: '#09090b',
-  foreground: '#e4e4e7',
-  cursor: '#a1a1aa',
-  cursorAccent: '#09090b',
-  selectionBackground: '#27272a',
-  selectionForeground: '#e4e4e7',
-  black: '#000000',
-  red: '#cd3131',
+  background: '#262626',
+  foreground: '#c3c1ba',
+  cursor: '#d87757',
+  cursorAccent: '#262626',
+  selectionBackground: '#3e3e38',
+  selectionForeground: '#faf8f1',
+  black: '#1b1b1b',
+  red: '#f14444',
   green: '#0dbc79',
   yellow: '#e5e510',
-  blue: '#52525b',
+  blue: '#1b7ede',
   magenta: '#bc3fbc',
   cyan: '#11a8cd',
-  white: '#e5e5e5',
-  brightBlack: '#666666',
+  white: '#e4e4e4',
+  brightBlack: '#51504a',
   brightRed: '#f14c4c',
   brightGreen: '#23d18b',
   brightYellow: '#f5f543',
-  brightBlue: '#71717a',
+  brightBlue: '#38bdf8',
   brightMagenta: '#d670d6',
   brightCyan: '#29b8db',
-  brightWhite: '#e5e5e5',
+  brightWhite: '#faf8f1',
 };
 
 const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
@@ -77,7 +77,6 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
   const sessionIdRef = useRef<string | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const isWindowsHost = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
   const handleClose = useCallback(async () => {
     if (isClosing) return;
@@ -138,7 +137,6 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
           macOptionClickForcesSelection: false,
           scrollOnUserInput: true,
           smoothScrollDuration: 0,
-          windowsPty: isWindowsHost ? { backend: 'conpty', buildNumber: 19000 } : undefined,
         });
 
         const fitAddon = new FitAddon();
@@ -382,7 +380,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
       <div
         ref={terminalRef}
-        className="w-full bg-[#09090b]"
+        className="w-full bg-[#262626]"
         style={{ height: '320px', touchAction: 'none' }}
       />
     </div>

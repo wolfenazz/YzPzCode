@@ -1,0 +1,45 @@
+# Mission: Replace code editor with Monaco Editor (VS Code engine) - pro, professional, identical to VS Code
+
+User direction: "Search for the best code editor online and implement it to make it
+more professional and look exactly like VS Code."
+Best choice: **Monaco Editor** (`monaco-editor` + `@monaco-editor/react`) — the actual
+editor engine that powers VS Code. Delivers the exact VS Code look & feel:
+minimap, breadcrumbs, command palette, IntelliSense, multi-cursor, find/replace,
+bracket colorization, 10+ languages, dark+/light+ themes.
+
+## M1: shadcn/ui foundation setup | status: in_progress
+### T1.1: Path alias config | agent:Worker | verified
+- [x] S1.1.1: Add `@/*` path alias to app/tsconfig.json | verified: baseUrl+paths present; build passes
+- [x] S1.1.2: Add `@` resolve alias to app/vite.config.ts | verified: fileURLToPath alias; 1595 modules resolve
+### T1.2: shadcn config + utils | agent:Worker | depends:T1.1 | verified
+- [x] S1.2.1: Create app/components.json (new-york style, neutral base, cssVariables) | verified: valid schema
+- [x] S1.2.2: Create app/src/lib/utils.ts with cn() | verified: typed cn(); clsx+tailwind-merge present
+### T1.3: shadcn CSS variables | agent:Worker | depends:T1.2 | status: in_progress
+- [ ] S1.3.1: Add shadcn @theme vars to styles.css mapped to Claude palette (dark + light) | FAILED: no @theme block / no --color-* tokens found in styles.css (rg: NO_SHADCN_TOKENS_FOUND)
+- [x] S1.3.2: Add required deps: class-variance-authority, clsx, tailwind-merge, lucide-react, tw-animate-css | verified: package.json + tw-animate-css import present
+
+## M2: Research + Monaco integration setup | status: in_progress
+### T2.1: Research Monaco + Vite + Tauri config | agent:Planner
+- [ ] S2.1.1: Determine worker setup for Monaco in Vite 6 (getWorker / ?worker imports) | size:M
+- [ ] S2.1.2: Confirm language support + theme (vs-dark/vs vs app dark/light) | size:S
+- [ ] S2.1.3: Cache findings to .opencode/docs/monaco-vite-tauri.md | size:S
+### T2.2: Install + configure Monaco | agent:Worker | depends:T2.1
+- [ ] S2.2.1: npm install monaco-editor @monaco-editor/react | size:S
+- [ ] S2.2.2: Create src/lib/monaco.ts (MonacoEnvironment worker config for Vite) | size:M
+- [ ] S2.2.3: Update vite.config.ts manualChunks with monaco chunk | size:S
+
+## M3: Rewrite FileEditor with Monaco (VS Code look) | status: pending
+### T3.1: Monaco editor component | agent:Worker | depends:T2.2
+- [ ] S3.1.1: Create MonacoCodeEditor.tsx - VS Code chrome (tab bar, breadcrumbs, minimap, activity bar?) | size:L
+- [ ] S3.1.2: Preserve ALL features: minimap, find/replace, word wrap, line numbers (on/off/relative), bracket colorization, format-on-save, auto-save, dirty tracking | size:L
+- [ ] S3.1.3: All languages: JS/TS/Python/Rust/HTML/CSS/JSON/Markdown/Java/C++ (+ more) | size:M
+- [ ] S3.1.4: Theme integration: dark+/light+ vs app theme, settings (font family/size, tab size) from appStore | size:M
+### T3.2: Keep previews + tabs + quick-open working | agent:Worker | depends:T3.1
+- [ ] S3.2.1: Keep Markdown/PDF/Image/Spreadsheet/Docx previews working for non-code files | size:M
+- [ ] S3.2.2: EditorTabs + QuickOpenPalette + FindReplaceBar continue to work with Monaco | size:M
+
+## M4: Verification | status: pending
+### T4.1: Review Block | agent:Reviewer | depends:T3.2
+- [ ] S4.1.1: `npx tsc --noEmit` - zero type errors | size:M
+- [ ] S4.1.2: `npm run build` passes (Vite build with Monaco workers) | size:M
+- [ ] S4.1.3: Diff review: no regressions in editor functionality (save, dirty state, tabs, previews) | size:M

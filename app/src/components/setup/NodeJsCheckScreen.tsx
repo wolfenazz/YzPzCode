@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { PrerequisiteStatus } from '../../types';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow, initWindowPlatform } from '../../utils/window';
-import { ThemeToggleButton } from '../common/ThemeToggleButton';
 import { AppFooter } from '../common/AppFooter';
 import logo from '../../assets/YzPzCodeLogo.png';
 
@@ -14,7 +13,7 @@ interface NodeJsCheckScreenProps {
 type CheckState = 'checking' | 'not-installed' | 'rechecking' | 'install-failed' | 'installed';
 
 export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady }) => {
-  const { theme, toggleTheme, setNodeJsCheckPassed } = useAppStore();
+  const { setNodeJsCheckPassed } = useAppStore();
   const [checkState, setCheckState] = useState<CheckState>('checking');
   const [nodejsInfo, setNodejsInfo] = useState<PrerequisiteStatus | null>(null);
   const [isWindows, setIsWindows] = useState(false);
@@ -72,7 +71,7 @@ export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady })
   };
 
   return (
-    <div className={`h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden ${theme === 'light' ? 'light-theme' : ''}`}>
+    <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
       <header
         data-tauri-drag-region
         className="relative z-50 flex items-center h-11 bg-theme-card/60 backdrop-blur-md border-b border-theme select-none titlebar-drag overflow-visible flex-shrink-0"
@@ -97,15 +96,11 @@ export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady })
         </div>
 
         <div className="flex items-center h-full titlebar-nodrag">
-          <div className="flex items-center h-full border-l border-theme">
-            <ThemeToggleButton theme={theme} onToggle={toggleTheme} />
-          </div>
-
           {isWindows && (
             <div className="flex h-full border-l border-theme">
               <button
                 onClick={minimizeWindow}
-                className="group/min w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-all duration-150 cursor-pointer"
+                className="group/min w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-all duration-150 cursor-pointer"
                 title="Minimize"
               >
                 <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/min:translate-y-[2px] group-hover/min:scale-125" viewBox="0 0 12 12">
@@ -114,7 +109,7 @@ export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady })
               </button>
               <button
                 onClick={maximizeWindow}
-                className="group/max w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-zinc-200 transition-all duration-150 cursor-pointer"
+                className="group/max w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-all duration-150 cursor-pointer"
                 title="Maximize"
               >
                 <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/max:scale-125 group-hover/max:drop-shadow-[0_0_4px_rgba(161,161,170,0.4)]" viewBox="0 0 12 12">
