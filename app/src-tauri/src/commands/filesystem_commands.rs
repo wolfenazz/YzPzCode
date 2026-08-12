@@ -2,6 +2,11 @@ use crate::filesystem;
 use crate::types::{FileContent, FileEntry, GitDiffStat, GitFileStatus};
 
 #[tauri::command]
+pub async fn path_exists(path: String) -> Result<bool, String> {
+    Ok(std::path::Path::new(&path).is_dir())
+}
+
+#[tauri::command]
 pub async fn list_directory_entries(path: String) -> Result<Vec<FileEntry>, String> {
     filesystem::explorer::list_directory_entries(&path)
 }

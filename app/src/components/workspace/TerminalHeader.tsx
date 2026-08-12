@@ -38,8 +38,8 @@ const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGOS;
 
 const STATUS_COLORS = {
   idle: 'bg-zinc-600',
-  running: 'bg-emerald-500',
-  error: 'bg-rose-500',
+  running: 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]',
+  error: 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]',
 };
 
 interface TerminalHeaderProps {
@@ -78,10 +78,10 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
     >
       <div className="flex items-center gap-3 min-w-0 overflow-hidden">
         <div className="relative flex h-2 w-2 shrink-0">
-           <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-40 ${
+           <span className={`animate-ping absolute inline-flex h-full w-full opacity-40 ${
              session.status === 'running' ? 'bg-emerald-400' : session.status === 'error' ? 'bg-rose-400' : 'bg-zinc-400'
            }`}></span>
-           <span className={`relative inline-flex rounded-full h-2 w-2 ${STATUS_COLORS[session.status]}`}></span>
+           <span className={`relative inline-flex h-2 w-2 ${STATUS_COLORS[session.status]}`}></span>
         </div>
 
         <span className={`text-[10px] font-black tracking-[0.2em] uppercase shrink-0 ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`}>
@@ -92,7 +92,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
 
         {session.agent ? (
           <div className="flex items-center gap-2 min-w-0">
-            <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md shrink-0 border transition-all duration-300 ${
+            <div className={`flex items-center gap-1.5 px-2 py-0.5 shrink-0 border transition-all duration-300 ${
               isLight ? 'bg-zinc-800/90 border-zinc-700' : 'bg-zinc-950/90 border-zinc-800 hover:border-zinc-700 group/agent'
             }`}>
               {isAgentType(session.agent) ? (
@@ -132,7 +132,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             </div>
           </div>
         ) : (
-          <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md shrink-0 border ${
+          <div className={`flex items-center gap-1.5 px-2 py-0.5 shrink-0 border ${
             isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-950 border-zinc-800'
           }`}>
             <svg className={`w-3 h-3 ${isLight ? 'text-zinc-500' : 'text-zinc-600'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -152,7 +152,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             e.stopPropagation();
             onToggleMouseTracking?.();
           }}
-          className={`px-2 py-1 rounded-md border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+          className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
             mouseTrackingEnabled
               ? (isLight
                   ? 'bg-emerald-900/45 border-emerald-700 text-emerald-300'
@@ -171,7 +171,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
           <button
             onClick={onRefreshCli}
             disabled={isRefreshing}
-            className={`flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+            className={`flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
               isLight
                 ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700'
                 : 'text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50'
@@ -186,7 +186,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         {onClose && (
           <button
             onClick={onClose}
-            className={`flex items-center justify-center w-6 h-6 rounded-md transition-all duration-200 cursor-pointer ${
+            className={`flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer ${
               isLight
                 ? 'text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30'
                 : 'text-zinc-600 hover:text-rose-400 hover:bg-rose-950/30'

@@ -12,7 +12,6 @@ interface WorkspaceHeaderProps {
   onWorkspaceClose: (workspaceId: string) => void;
   onNewWorkspace: () => void;
   onDocsClick: () => void;
-  onDesignerClick: () => void;
   onSettingsClick: () => void;
   isWindows: boolean;
   onMinimizeWindow: () => void;
@@ -148,7 +147,6 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onWorkspaceClose,
   onNewWorkspace,
   onDocsClick,
-  onDesignerClick,
   onSettingsClick,
   isWindows,
   onMinimizeWindow,
@@ -303,17 +301,6 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.6 9h16.8M3.6 15h16.8M12 3a15.3 15.3 0 010 18M12 3a15.3 15.3 0 000 18" />
                 </svg>
                 Browser
-              </button>
-              <button
-                onClick={onDesignerClick}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.18em] text-zinc-500 transition-colors hover:bg-emerald-500/10 hover:text-emerald-300 cursor-pointer"
-                title="YzPzDesgin"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 5h16M4 19h16M7 8h10v8H7z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="m9 12 2 2 4-5" />
-                </svg>
-                Desgin
               </button>
             </div>
           </div>

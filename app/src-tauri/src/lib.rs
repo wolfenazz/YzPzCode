@@ -188,6 +188,7 @@ pub fn run() {
             commands::get_os_version,
             commands::launch_external_terminals,
             commands::launch_external_command,
+            commands::path_exists,
             commands::list_directory_entries,
             commands::list_all_files,
             commands::read_file_content,

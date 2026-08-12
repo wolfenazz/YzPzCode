@@ -110,11 +110,11 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
         role="dialog"
         aria-modal="true"
         aria-label="Spawn new terminal session"
-        className={`relative w-full max-w-[620px] shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] animate-popover-in font-mono ${
+        className={`relative w-full max-w-[620px] animate-popover-in font-mono ${
           isLight
             ? 'bg-zinc-900/95 border border-zinc-700'
             : 'bg-zinc-950/80 border border-white/[0.08]'
-        } backdrop-blur-3xl rounded-2xl`}
+        } backdrop-blur-3xl`}
         onClick={(e) => e.stopPropagation()}
         style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
       >
@@ -129,7 +129,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
 
           <button
             onClick={onClose}
-            className={`absolute right-4 top-4 p-2 rounded-full transition-all duration-200 cursor-pointer ${
+            className={`absolute right-4 top-4 p-2 transition-all duration-200 cursor-pointer ${
               isLight ? 'hover:bg-zinc-800 text-zinc-500' : 'hover:bg-white/10 text-zinc-500'
             } hover:text-rose-500`}
           >
@@ -152,7 +152,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
             onClick={() => handleSelect(null)}
             onMouseEnter={() => setHovered('shell')}
             onMouseLeave={() => setHovered(null)}
-            className={`w-full group relative flex items-center gap-4 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer ${
+            className={`w-full group relative flex items-center gap-4 px-4 py-3 transition-all duration-200 cursor-pointer ${
               hovered === 'shell'
                 ? isLight
                   ? 'bg-white/10 shadow-sm'
@@ -162,7 +162,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
                   : 'hover:bg-white/5 text-zinc-400'
             }`}
           >
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 ${
+            <div className={`w-9 h-9 flex items-center justify-center transition-all duration-200 ${
               hovered === 'shell'
                 ? 'bg-white/20'
                 : 'bg-white/5'
@@ -190,7 +190,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
               onClick={() => setShowShellPicker(!showShellPicker)}
               onMouseEnter={() => setHovered('shell-picker')}
               onMouseLeave={() => setHovered(null)}
-              className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg transition-all duration-200 cursor-pointer ${
+              className={`w-full flex items-center gap-3 px-4 py-2 transition-all duration-200 cursor-pointer ${
                 hovered === 'shell-picker'
                   ? isLight ? 'bg-white/10' : 'bg-white/5'
                   : 'bg-transparent'
@@ -203,7 +203,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
               <span className={`text-[9px] font-bold uppercase tracking-[0.15em] ${isLight ? 'text-zinc-400' : 'text-zinc-500'}`}>
                 Shell: {availableShells.find((s) => s.path === selectedShell)?.name || 'Default'}
               </span>
-              <span className={`text-[8px] px-1.5 py-0.5 rounded border ${
+              <span className={`text-[8px] px-1.5 py-0.5 border ${
                 isLight ? 'border-zinc-700 text-zinc-500' : 'border-zinc-800 text-zinc-600'
               }`}>
                 {availableShellCount}
@@ -216,7 +216,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
             </button>
 
             {showShellPicker && (
-              <div className={`absolute left-0 right-0 z-50 mt-1 rounded-lg border shadow-xl overflow-hidden ${
+              <div className={`absolute left-0 right-0 z-50 mt-1 border shadow-xl overflow-hidden ${
                 isLight ? 'bg-zinc-800 border-zinc-700' : 'bg-zinc-900 border-zinc-800'
               }`}>
                 {availableShells.map((shell) => (
@@ -265,7 +265,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
                     onClick={() => handleSelect(agent.type)}
                     onMouseEnter={() => setHovered(agent.type)}
                     onMouseLeave={() => setHovered(null)}
-                    className={`group relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 cursor-pointer text-left ${
+                    className={`group relative w-full flex items-center gap-3 px-3 py-2.5 transition-all duration-200 cursor-pointer text-left ${
                       isHovered
                         ? isLight
                           ? 'bg-white/10 shadow-sm'
@@ -275,12 +275,12 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
                   >
                     {isHovered && (
                       <div
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
+                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5"
                         style={{ backgroundColor: agent.color }}
                       />
                     )}
 
-                    <div className={`w-8 h-8 rounded-md flex items-center justify-center transition-all duration-200 shrink-0 p-1.5 ${
+                    <div className={`w-8 h-8 flex items-center justify-center transition-all duration-200 shrink-0 p-1.5 ${
                       isHovered
                         ? 'bg-white shadow-sm scale-105'
                         : isLight ? 'bg-white/10 opacity-50' : 'bg-white/10 opacity-50'
@@ -313,7 +313,7 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
                         e.stopPropagation();
                         setExpandedAgent(isExpanded ? null : agent.type);
                       }}
-                      className={`shrink-0 p-1 rounded transition-all cursor-pointer ${
+                      className={`shrink-0 p-1 transition-all cursor-pointer ${
                         isExpanded
                           ? 'bg-white/10 text-zinc-300'
                           : 'opacity-0 group-hover:opacity-50 hover:!opacity-80 text-zinc-500'
@@ -327,13 +327,13 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
 
                   {/* Expanded capabilities — inline within the grid */}
                   {isExpanded && (
-                    <div className={`mx-3 mb-1 px-3 py-2 rounded-lg text-[9px] leading-relaxed animate-fade-in ${
+                    <div className={`mx-3 mb-1 px-3 py-2 text-[9px] leading-relaxed animate-fade-in ${
                       isLight
                         ? 'bg-zinc-800/80 text-zinc-400 border border-zinc-700/50'
                         : 'bg-zinc-900/80 text-zinc-500 border border-zinc-800/50'
                     }`}>
                       <div className="flex items-center gap-1.5 mb-1">
-                        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: agent.color }} />
+                        <div className="w-1.5 h-1.5" style={{ backgroundColor: agent.color }} />
                         <span className={`font-bold uppercase tracking-wider ${
                           isLight ? 'text-zinc-300' : 'text-zinc-300'
                         }`}>{agent.label}</span>
@@ -361,13 +361,13 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
                 onClick={() => handleSelect(tool.type)}
                 onMouseEnter={() => setHovered(`tool-${tool.type}`)}
                 onMouseLeave={() => setHovered(null)}
-                className={`group relative flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200 cursor-pointer ${
+                className={`group relative flex items-center gap-2.5 px-3 py-2 transition-all duration-200 cursor-pointer ${
                   hovered === `tool-${tool.type}`
                     ? 'bg-white/5'
                     : 'bg-transparent'
                 }`}
               >
-                <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200 shrink-0 ${
+                <div className={`w-6 h-6 flex items-center justify-center transition-all duration-200 shrink-0 ${
                   hovered === `tool-${tool.type}` ? 'scale-110' : 'opacity-50'
                 }`}>
                   <Icon icon={tool.icon} style={{ color: tool.color }} className="w-3 h-3" />
@@ -390,12 +390,12 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
           isLight ? 'border-zinc-800 bg-zinc-900/50' : 'border-white/[0.04] bg-white/[0.02]'
         }`}>
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <div className="w-1.5 h-1.5 bg-emerald-500 animate-pulse" />
             <span className="text-[8px] text-zinc-500 uppercase tracking-widest font-bold">session_ready</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="text-[8px] text-zinc-600 uppercase tracking-widest">dismiss</span>
-            <kbd className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${
+            <kbd className={`px-1.5 py-0.5 text-[8px] font-bold border ${
               isLight ? 'bg-zinc-800 border-zinc-700 text-zinc-500' : 'bg-zinc-900 border-zinc-800 text-zinc-500'
             }`}>ESC</kbd>
           </div>

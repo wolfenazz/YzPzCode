@@ -40,7 +40,7 @@ function makeEqualSizes(n: number): number[] {
 
 const MIN_SIZE = 12;
 const DIVIDER = 3;
-const GAP_PX = 10;
+const GAP_PX = 8;
 
 export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading, theme }) => {
   const [showNewDialog, setShowNewDialog] = useState(false);
@@ -226,7 +226,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           </div>
           <button
             onClick={() => setShowNewDialog(true)}
-            className={`px-6 py-2.5 border rounded-sm text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer ${
+            className={`px-6 py-2.5 border text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer ${
               isLight
                 ? 'border-zinc-300 text-zinc-600 hover:border-zinc-400 hover:text-zinc-700'
                 : 'border-zinc-700 text-zinc-300 hover:border-zinc-500 hover:text-zinc-200'
@@ -276,7 +276,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
             return (
               <div
                 key={session.id}
-                className="relative overflow-hidden rounded-2xl"
+                className="relative overflow-hidden"
                 style={{ gridRow: row + 1, gridColumn: col + 1 }}
               >
                 <SortableTerminalPane
@@ -289,7 +289,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           })}
           {sorted.length < cellCount && (
             <div
-              className={`relative overflow-hidden rounded-2xl border bg-zinc-950/30 border-zinc-800/80 shadow-[0_20px_35px_rgba(0,0,0,0.25)]`}
+              className={`relative overflow-hidden border bg-zinc-950/30 border-zinc-800`}
               style={{ gridRow: Math.floor(sorted.length / cols) + 1, gridColumn: (sorted.length % cols) + 1 }}
             >
               <div
@@ -302,7 +302,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
                 title="Spawn Terminal"
               >
                 <div className="flex flex-col items-center gap-4 transition-all duration-300 group-hover/empty:scale-110">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 transition-all duration-300 ${
+                  <div className={`w-12 h-12 flex items-center justify-center border-2 transition-all duration-300 ${
                     isLight
                       ? 'border-zinc-600 text-zinc-400 group-hover/empty:border-zinc-400 group-hover/empty:bg-zinc-800/50'
                       : 'border-zinc-700 text-zinc-500 group-hover/empty:border-zinc-500 group-hover/empty:bg-zinc-800/35 group-hover/empty:text-zinc-300'
@@ -323,7 +323,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
 
       <DragOverlay dropAnimation={null}>
         {activeSession ? (
-          <div className={`rounded-xl border shadow-2xl overflow-hidden ${
+          <div className={`border border-zinc-700 overflow-hidden ${
             isLight ? 'bg-zinc-900/90 border-zinc-600' : 'bg-zinc-950/90 border-zinc-700'
           }`}>
             <div className={`flex items-center gap-3 px-3 py-2 ${
@@ -335,7 +335,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
                 TTY::{activeSession.index + 1}
               </span>
               {activeSession.agent && (
-                <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-md border ${
+                <span className={`text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 border ${
                   isLight ? 'bg-zinc-800 border-zinc-700 text-zinc-300' : 'bg-zinc-950 border-zinc-800 text-zinc-400'
                 }`}>
                   {activeSession.agent}
@@ -371,7 +371,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
               pointerEvents: 'auto',
             }}
           >
-            <div className={`w-1 h-full transition-all duration-300 mx-auto rounded-full ${
+            <div className={`w-1 h-full transition-all duration-300 mx-auto ${
               isLight
                 ? 'bg-transparent group-hover/divider:bg-zinc-500/60'
                 : 'bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70'
@@ -396,7 +396,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
               pointerEvents: 'auto',
             }}
           >
-            <div className={`h-1 w-full transition-all duration-300 my-auto rounded-full ${
+            <div className={`h-1 w-full transition-all duration-300 my-auto ${
               isLight
                 ? 'bg-transparent group-hover/divider:bg-zinc-500/60'
                 : 'bg-transparent group-hover/divider:bg-zinc-500/60 group-active/divider:bg-zinc-400/70'
@@ -417,7 +417,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
         {renderGridDividers()}
       </div>
 
-      <div className="flex items-center justify-between px-4 py-2.5 shrink-0 border-t border-zinc-800/80 bg-zinc-950">
+      <div className="flex items-center justify-between px-3 py-2 shrink-0 border-t border-zinc-800/80 bg-zinc-950">
         <div className="flex items-center gap-6">
           <div className="flex items-center gap-2">
             <span className="text-[9px] font-black tracking-[0.22em] text-zinc-500 uppercase">Sessions</span>
@@ -435,7 +435,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
             isLight
               ? 'bg-zinc-800 text-zinc-100 border-zinc-700 hover:bg-zinc-700'
               : 'bg-zinc-900/90 text-zinc-200 border-zinc-700/90 hover:bg-zinc-800/95'
-          } border rounded-xl text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 hover:scale-[1.03] hover:-translate-y-0.5 active:scale-95 active:translate-y-0 cursor-pointer shadow-[0_10px_26px_rgba(0,0,0,0.32)] hover:shadow-[0_14px_30px_rgba(0,0,0,0.42)]`}
+          } border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer`}
           title="Initialize new TTY"
         >
           <div className="relative flex items-center justify-center">
@@ -445,7 +445,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading,
           </div>
           <span className="relative">Initialize_TTY</span>
 
-          <div className={`absolute inset-0 rounded-lg opacity-0 group-hover/init:opacity-100 transition-opacity duration-500 pointer-events-none ${
+          <div className={`absolute inset-0 opacity-0 group-hover/init:opacity-100 transition-opacity duration-500 pointer-events-none ${
             isLight ? 'bg-white/5' : 'bg-white/5'
           }`} />
         </button>

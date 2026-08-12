@@ -20,12 +20,11 @@ interface WorkspaceProps {
   isWindows: boolean;
   onDocsClick: () => void;
   onSettingsClick: () => void;
-  onDesignerClick: () => void;
 }
 
 import { motion, AnimatePresence } from 'framer-motion';
 
-export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick, onDesignerClick }) => {
+export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
     currentWorkspace,
     openWorkspaces,
@@ -280,7 +279,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onWorkspaceClose={handleWorkspaceClose}
         onNewWorkspace={handleNewWorkspace}
         onDocsClick={onDocsClick}
-        onDesignerClick={onDesignerClick}
         onSettingsClick={onSettingsClick}
         isWindows={isWindows}
         onThemeToggle={toggleTheme}
@@ -335,8 +333,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                   className="h-full w-full"
                 >
                   {activeView === "terminal" ? (
-                    <div className="h-full p-2.5">
-                      <div className="h-full rounded-2xl border border-zinc-800/70 bg-zinc-950/65 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] overflow-hidden">
+                    <div className="h-full p-1.5">
+                      <div className="h-full border border-zinc-800 bg-zinc-950/40 overflow-hidden">
                         <TerminalGrid sessions={sessions} isLoading={isLoading} theme={theme} />
                       </div>
                     </div>
@@ -352,7 +350,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         ) : (
           <div className="h-full flex items-center justify-center">
             <div className="text-center space-y-6">
-              <div className="w-10 h-10 mx-auto border border-zinc-800 rounded flex items-center justify-center">
+              <div className="w-10 h-10 mx-auto border border-zinc-800 flex items-center justify-center">
                 <svg className="w-5 h-5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
@@ -363,9 +361,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               </div>
               <button
                 onClick={handleNewWorkspace}
-                className="inline-flex items-center gap-2 px-4 py-2 text-zinc-400 hover:text-theme-main border border-zinc-800 hover:border-zinc-500 transition-all duration-200 text-[11px] font-mono uppercase tracking-[0.1em] cursor-pointer rounded group"
+                className="inline-flex items-center gap-2 px-4 py-2 text-zinc-400 hover:text-theme-main border border-zinc-800 hover:border-zinc-500 transition-all duration-200 text-[11px] font-mono uppercase tracking-[0.1em] cursor-pointer group"
               >
-                <span className="w-1 h-1 rounded-full bg-zinc-600 group-hover:bg-zinc-300 transition-colors duration-200"></span>
+                <span className="w-1 h-1 bg-zinc-600 group-hover:bg-zinc-300 transition-colors duration-200"></span>
                 Initialize
               </button>
             </div>

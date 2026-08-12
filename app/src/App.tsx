@@ -13,7 +13,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 const Workspace = lazy(() => import('./components/workspace/Workspace').then(m => ({ default: m.Workspace })));
 const DocsScreen = lazy(() => import('./components/docs/DocsScreen').then(m => ({ default: m.DocsScreen })));
 const SettingsScreen = lazy(() => import('./components/settings/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
-const DesignerPage = lazy(() => import('./components/designer/DesignerPage').then(m => ({ default: m.DesignerPage })));
 
 const LoadingFallback = () => (
   <div className="absolute inset-0 flex items-center justify-center bg-theme">
@@ -36,19 +35,16 @@ function App() {
   const { 
     view, 
     previousView,
-    openWorkspaces, 
-    activeWorkspaceId,
-    switchWorkspace,
     setView, 
     setViewWithPrevious,
     theme,
     toggleTheme,
     customCursor,
-    saveWorkspaceState,
     accentColor,
     uiDensity,
     animationsEnabled,
     nodejsCheckPassed,
+    pruneMissingWorkspaces,
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
 
@@ -103,17 +99,24 @@ function App() {
     });
 
     if (nodejsCheckPassed) {
-      if (saveWorkspaceState && openWorkspaces.length > 0) {
-        const targetId = activeWorkspaceId || openWorkspaces[0]?.id;
-        if (targetId) {
-          switchWorkspace(targetId);
-          setView('workspace');
-        }
-      } else {
-        setView('setup');
+      restoreWorkspace();
+    }
+  }, [nodejsCheckPassed]);
+
+  const restoreWorkspace = async () => {
+    await pruneMissingWorkspaces();
+    const state = useAppStore.getState();
+    if (state.saveWorkspaceState && state.openWorkspaces.length > 0) {
+      const targetId = state.activeWorkspaceId || state.openWorkspaces[0]?.id;
+      if (targetId) {
+        state.switchWorkspace(targetId);
+        state.setActiveView('terminal');
+        state.setView('workspace');
+        return;
       }
     }
-  }, []);
+    state.setView('setup');
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -134,10 +137,6 @@ function App() {
     setViewWithPrevious('settings');
   };
 
-  const handleDesignerClick = () => {
-    setViewWithPrevious('designer');
-  };
-
   const handleBackFromDocs = () => {
     if (previousView) {
       setView(previousView);
@@ -154,24 +153,8 @@ function App() {
     }
   };
 
-  const handleBackFromDesigner = () => {
-    if (previousView) {
-      setView(previousView);
-    } else {
-      setView('setup');
-    }
-  };
-
   const handleNodeJsReady = () => {
-    if (saveWorkspaceState && openWorkspaces.length > 0) {
-      const targetId = activeWorkspaceId || openWorkspaces[0]?.id;
-      if (targetId) {
-        switchWorkspace(targetId);
-        setView('workspace');
-        return;
-      }
-    }
-    setView('setup');
+    restoreWorkspace();
   };
 
   return (
@@ -193,7 +176,6 @@ function App() {
               isWindows={isWindows} 
               onDocsClick={handleDocsClick}
               onSettingsClick={handleSettingsClick}
-              onDesignerClick={handleDesignerClick}
             />
           )}
           {view === 'workspace' && (
@@ -202,7 +184,6 @@ function App() {
                 isWindows={isWindows} 
                 onDocsClick={handleDocsClick}
                 onSettingsClick={handleSettingsClick}
-                onDesignerClick={handleDesignerClick}
               />
             </Suspense>
           )}
@@ -227,14 +208,6 @@ function App() {
               />
             </Suspense>
           )}
-          {view === 'designer' && (
-            <Suspense fallback={<LoadingFallback />}>
-              <DesignerPage
-                isWindows={isWindows}
-                onBack={handleBackFromDesigner}
-              />
-            </Suspense>
-          )}
         </motion.div>
       </AnimatePresence>
       <UpdateNotification />
@@ -242,7 +215,6 @@ function App() {
         theme={theme}
         onThemeToggle={toggleTheme}
         onDocsClick={handleDocsClick}
-        onDesignerClick={handleDesignerClick}
         onNewWorkspace={() => setView('setup')}
       />
       {customCursor && <CustomCursor />}

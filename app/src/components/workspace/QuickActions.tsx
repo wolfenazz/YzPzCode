@@ -89,7 +89,7 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
     }
   };
 
-  const btnBase = `flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer border shrink-0 ${
+  const btnBase = `flex items-center gap-1 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer border shrink-0 ${
     isLight
       ? 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-emerald-400 hover:border-emerald-800 hover:bg-emerald-950/40'
       : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-emerald-400 hover:border-emerald-900 hover:bg-emerald-950/30'

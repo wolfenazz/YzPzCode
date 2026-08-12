@@ -891,7 +891,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`h-full flex flex-col overflow-hidden rounded-2xl font-mono border border-zinc-800/80 ${
+      className={`h-full flex flex-col overflow-hidden font-mono border border-zinc-700/60 ${
         isLight
           ? 'bg-zinc-900'
           : 'bg-zinc-950'
@@ -945,7 +945,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           />
           <button
             onClick={() => handleSearch('prev')}
-            className={`p-1 rounded transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
+            className={`p-1 transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
             title="Previous match"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -954,7 +954,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           </button>
           <button
             onClick={() => handleSearch('next')}
-            className={`p-1 rounded transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
+            className={`p-1 transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
             title="Next match"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -963,7 +963,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           </button>
           <button
             onClick={handleClearSearch}
-            className={`p-1 rounded transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
+            className={`p-1 transition-colors cursor-pointer ${isLight ? 'hover:bg-zinc-700 text-zinc-400' : 'hover:bg-zinc-800 text-zinc-500'}`}
             title="Close search"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -995,7 +995,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
       {showPasteConfirm && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className={`w-80 rounded-xl border shadow-2xl p-5 ${
+          <div className={`w-80 border border-zinc-700/70 p-5 ${
             isLight ? 'bg-zinc-900 border-zinc-700' : 'bg-zinc-950 border-zinc-800'
           }`}>
             <div className="flex items-center gap-2 mb-3">
@@ -1012,7 +1012,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             <div className="flex gap-2">
               <button
                 onClick={cancelPaste}
-                className={`flex-1 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                className={`flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
                   isLight ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800'
                 }`}
               >
@@ -1020,7 +1020,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
               </button>
               <button
                 onClick={executePaste}
-                className="flex-1 px-3 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white hover:bg-emerald-500 transition-colors cursor-pointer"
+                className="flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white hover:bg-emerald-500 transition-colors cursor-pointer"
               >
                 Paste Anyway
               </button>

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode } from '../types';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
@@ -41,8 +42,8 @@ interface AppState {
   activeSessionByWorkspace: Record<string, string | null>;
   terminalMouseModesBySession: Record<string, number[]>;
   isLoadingTerminals: boolean;
-  view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings" | "designer";
-  previousView: "nodejs-check" | "setup" | "workspace" | "settings" | "designer" | null;
+  view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings";
+  previousView: "nodejs-check" | "setup" | "workspace" | "settings" | null;
   lastOpenedWorkspaceId: string | null;
   terminalError: string | null;
 
@@ -94,8 +95,8 @@ interface AppState {
   discordRichPresence: boolean;
   nodejsCheckPassed: boolean;
 
-  setView: (view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings" | "designer") => void;
-  setViewWithPrevious: (view: "docs" | "settings" | "designer") => void;
+  setView: (view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings") => void;
+  setViewWithPrevious: (view: "docs" | "settings") => void;
   setCurrentWorkspace: (workspace: WorkspaceConfig | null) => void;
   setSessions: (sessions: TerminalSession[]) => void;
   addSession: (session: TerminalSession) => void;
@@ -152,6 +153,7 @@ interface AppState {
   openWorkspace: (workspace: WorkspaceConfig) => void;
   closeWorkspace: (workspaceId: string) => void;
   switchWorkspace: (workspaceId: string) => void;
+  pruneMissingWorkspaces: () => Promise<void>;
   setSessionsForWorkspace: (workspaceId: string, sessions: TerminalSession[]) => void;
   setActiveSessionForWorkspace: (workspaceId: string, sessionId: string | null) => void;
   closeAllWorkspaces: () => void;
@@ -252,7 +254,7 @@ const initialCliStatuses: Record<CliType, AgentCliInfo | null> = {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       currentWorkspace: null,
       workspaceList: [],
       openWorkspaces: [],
@@ -328,7 +330,7 @@ export const useAppStore = create<AppState>()(
 
       setView: (view) => set({ view }),
       setViewWithPrevious: (view) => set((state) => ({ 
-        previousView: state.view === "docs" || state.view === "settings" || state.view === "designer" ? state.previousView : state.view as "nodejs-check" | "setup" | "workspace" | "settings" | "designer",
+        previousView: state.view === "docs" || state.view === "settings" ? state.previousView : state.view as "nodejs-check" | "setup" | "workspace" | "settings",
         view 
       })),
       setCurrentWorkspace: (workspace) => set({
@@ -601,6 +603,41 @@ export const useAppStore = create<AppState>()(
           activeViewByWorkspace: {},
           browserStateByWorkspace: {},
         }),
+
+      pruneMissingWorkspaces: async () => {
+        const state = get();
+        const workspaces = state.openWorkspaces;
+        if (workspaces.length === 0) return;
+
+        const existing = await Promise.all(
+          workspaces.map(async (workspace) => {
+            try {
+              const exists = await invoke<boolean>('path_exists', { path: workspace.path });
+              return { workspace, exists };
+            } catch {
+              return { workspace, exists: false };
+            }
+          })
+        );
+
+        const missing = existing.filter((e) => !e.exists).map((e) => e.workspace);
+        if (missing.length === 0) return;
+
+        const missingIds = new Set(missing.map((w) => w.id));
+        const remaining = workspaces.filter((w) => !missingIds.has(w.id));
+        const currentWorkspaceRemoved = state.currentWorkspace ? missingIds.has(state.currentWorkspace.id) : false;
+        const nextWorkspace = remaining.length > 0 ? remaining[0] : null;
+
+        set({
+          openWorkspaces: remaining,
+          workspaceList: state.workspaceList.filter((w) => !missingIds.has(w.id)),
+          currentWorkspace: currentWorkspaceRemoved ? nextWorkspace : state.currentWorkspace,
+          activeWorkspaceId: currentWorkspaceRemoved ? (nextWorkspace?.id ?? null) : state.activeWorkspaceId,
+          sessions: currentWorkspaceRemoved ? (nextWorkspace ? (state.sessionsByWorkspace[nextWorkspace.id] || []) : []) : state.sessions,
+          activeSessionId: currentWorkspaceRemoved ? null : state.activeSessionId,
+          view: remaining.length > 0 ? state.view : "setup",
+        });
+      },
 
       setCliStatus: (agent, info) =>
         set((state) => ({

@@ -22,7 +22,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ agent, onClose, getAuthIns
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px] flex items-center justify-center z-50 font-mono">
-      <div className={`border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl ${
+      <div className={`border p-6 max-w-md w-full mx-4 ${
         isLight ? 'bg-gray-700 border-gray-500' : 'bg-zinc-950 border-zinc-800'
       }`}>
         <h3 className={`text-sm font-bold mb-4 tracking-widest uppercase border-b pb-2 ${
@@ -40,7 +40,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ agent, onClose, getAuthIns
         ) : (
           <div className="space-y-4">
             <p className={`text-xs uppercase tracking-widest ${isLight ? 'text-zinc-500' : 'text-zinc-500'}`}>Execute instructions:</p>
-            <ul className={`space-y-2 p-4 border rounded-sm ${
+            <ul className={`space-y-2 p-4 border ${
               isLight ? 'bg-zinc-50 border-zinc-300' : 'bg-zinc-900/50 border-zinc-800'
             }`}>
               {instructions.map((instr, i) => (
@@ -55,7 +55,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ agent, onClose, getAuthIns
         <div className="mt-8 flex justify-end">
           <button
             onClick={onClose}
-            className={`px-6 py-2 border transition-colors uppercase tracking-widest text-xs rounded-sm cursor-pointer ${
+            className={`px-6 py-2 border transition-colors uppercase tracking-widest text-xs cursor-pointer ${
               isLight
                 ? 'bg-zinc-200 text-zinc-700 border-zinc-300 hover:bg-zinc-300 hover:text-zinc-900'
                 : 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-100'

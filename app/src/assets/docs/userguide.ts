@@ -16,27 +16,26 @@ export const userGuideContent = `# YzPzCode User Guide
 12. [Git Integration](#git-integration)
 13. [In-App Browser](#in-app-browser)
 14. [Visual Design Inspector](#visual-design-inspector)
-15. [AI Designer](#ai-designer)
-16. [Settings](#settings)
-17. [Discord Rich Presence](#discord-rich-presence)
-18. [External Terminals](#external-terminals)
-19. [Quick Actions](#quick-actions)
-20. [Keyboard Shortcuts](#keyboard-shortcuts)
-21. [Common Tasks](#common-tasks)
-22. [Tips for Success](#tips-for-success)
-23. [Troubleshooting](#troubleshooting)
-24. [Platform-Specific Tips](#platform-specific-tips)
-25. [Button Reference](#button-reference)
-26. [Frequently Asked Questions](#frequently-asked-questions)
-27. [Getting More Help](#getting-more-help)
+15. [Settings](#settings)
+16. [Discord Rich Presence](#discord-rich-presence)
+17. [External Terminals](#external-terminals)
+18. [Quick Actions](#quick-actions)
+19. [Keyboard Shortcuts](#keyboard-shortcuts)
+20. [Common Tasks](#common-tasks)
+21. [Tips for Success](#tips-for-success)
+22. [Troubleshooting](#troubleshooting)
+23. [Platform-Specific Tips](#platform-specific-tips)
+24. [Button Reference](#button-reference)
+25. [Frequently Asked Questions](#frequently-asked-questions)
+26. [Getting More Help](#getting-more-help)
 
 ---
 
 ## What is YzPzCode?
 
-YzPzCode is a **multi-terminal AI development environment** — a desktop app that lets you work with multiple AI coding assistants simultaneously, each in their own terminal window, all organized in a beautiful grid layout. It also includes an in-app web browser with visual design tools, an AI-powered UI designer, and support for 10 SaaS tool CLIs.
+YzPzCode is a **multi-terminal AI development environment** — a desktop app that lets you work with multiple AI coding assistants simultaneously, each in their own terminal window, all organized in a beautiful grid layout. It also includes an in-app web browser with visual design tools and support for 10 SaaS tool CLIs.
 
-Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, Kilo, Hermes) and DevOps tools (GitHub, Stripe, Vercel, etc.) all helping you with your coding projects at the same time, with a built-in file explorer, code editor, web browser, and design tools.
+Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, Kilo, Hermes) and DevOps tools (GitHub, Stripe, Vercel, etc.) all helping you with your coding projects at the same time, with a built-in file explorer, code editor, and web browser.
 
 **Why use YzPzCode?**
 - **Parallel AI workflows** — Run multiple AI assistants side by side
@@ -46,7 +45,6 @@ Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, Ki
 - **Git integration** — Real-time status, diff stats, stage/unstage files
 - **In-app browser** — Webview browser with tabs, zoom, device presets
 - **Visual design inspector** — Inspect, capture, and apply styles from any webpage
-- **AI designer** — Prompt-based UI design generation with code export
 - **Quick Actions** — Auto-detected Dev/Build commands for your project
 - **Multi-workspace** — Switch between projects with tabbed workspaces
 - **Tool CLI management** — 10 SaaS tools detected and auth-checked
@@ -141,14 +139,13 @@ After installing an AI tool, you'll need to sign in:
 
 ### Screen Types
 
-YzPzCode has 6 main screens:
+YzPzCode has 5 main screens:
 
 1. **Node.js Check Screen** — Appears on first launch to check prerequisites
 2. **Setup Screen** — Where you create and configure workspaces
 3. **Workspace Screen** — The main working area with terminals, editor, and browser
 4. **Docs Screen** — Built-in user documentation
 5. **Settings Screen** — Application configuration
-6. **Designer Screen** — AI-powered UI design generation
 
 ### View Switcher
 
@@ -351,35 +348,6 @@ The browser includes powerful design tools. Access them from the browser toolbar
 
 ---
 
-## AI Designer
-
-Generate complete UI designs from natural language prompts.
-
-### Opening the Designer
-
-Click the **Designer** button in the workspace header or the global context menu.
-
-### Generating a Design
-
-1. **Enter a prompt** — Describe what you want (e.g., "A modern SaaS landing page with hero")
-2. **Select a theme** — Choose from curated themes
-3. **Choose page type** — Landing page, dashboard, etc.
-4. **Click Generate**
-
-### Working with Designs
-
-- **Live Preview**: See the design in responsive device frames
-- **Customization Panel**: Tweak colors, fonts, spacing
-- **Element Inspector**: Inspect generated components
-- **Design History**: Browse and restore previous iterations
-- **Skills Manager**: Manage prompt engineering skills
-
-### Export
-
-Export your design as HTML, CSS, and JavaScript.
-
----
-
 ## Settings
 
 Press **Ctrl+,** or use the context menu to open Settings. There are 11 sections:
@@ -544,14 +512,6 @@ Quick Actions appear in the workspace header and provide:
 1. In the browser, click **Pick UI Element Mode**
 2. Click on a UI component (card, nav bar, hero section, etc.)
 3. The full design reference is captured with structure, styles, typography, and colors
-4. Use the reference in the AI Designer for consistent designs
-
-### Creating a Design with AI
-
-1. Click the **Designer** button
-2. Describe your desired design
-3. Select a theme and page type
-4. Generate, customize, and export
 
 ---
 
@@ -571,7 +531,6 @@ Quick Actions appear in the workspace header and provide:
 
 - **Frontend dev**: Browser view + Claude + Codex + Editor
 - **Backend API**: Gemini + multiple terminal sessions + Git integration
-- **Design work**: AI Designer + browser preview + style capture
 - **DevOps**: Tool CLIs (Vercel, Supabase, Stripe) + managed commands
 
 ---
@@ -598,13 +557,6 @@ Quick Actions appear in the workspace header and provide:
 1. Check the URL is valid
 2. Navigate to a different URL
 3. Close and reopen the browser tab
-
-### Designer Not Working
-
-**Try these:**
-1. Make sure an AI CLI (like Claude) is installed
-2. Make your prompt more descriptive
-3. Try a different theme
 
 ### App Feels Slow
 
@@ -647,7 +599,6 @@ Quick Actions appear in the workspace header and provide:
 | × | Workspace Tab | Close workspace |
 | Theme | Header | Dark/Light toggle |
 | Docs | Header | Open documentation |
-| Designer | Header | Open AI Designer |
 | Settings | Context Menu | Open settings |
 | Terminal/Editor/Browser | Header | Switch workspace view |
 | Refresh | Agent Fleet | Re-detect CLIs |
@@ -690,7 +641,6 @@ Now that you know the basics:
 
 - Explore different agent combinations
 - Try the in-app browser and visual design tools
-- Use the AI Designer for rapid prototyping
 - Set up Discord Rich Presence
 - Customize your workspace experience
 
