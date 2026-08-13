@@ -26,11 +26,11 @@ export const UiReferenceClipboardPanel: React.FC<UiReferenceClipboardPanelProps>
           className="mb-3 h-8 w-8 text-cyan-300/25"
           aria-hidden="true"
         />
-        <p className="text-[11px] font-medium text-[var(--accent)]/60 leading-5">
-          no UI references captured yet
+        <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500 leading-5">
+          nothing captured yet
         </p>
-        <p className="mt-1 text-[10px] text-[var(--accent)]/40 leading-4">
-          use pick UI element on any website, then recreate it cleanly in localhost
+        <p className="mt-1 text-[10px] text-zinc-600 leading-4">
+          press copy UI, then click any element on this page to capture it
         </p>
       </div>
     );

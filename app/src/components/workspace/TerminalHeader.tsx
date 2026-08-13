@@ -214,10 +214,10 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                 e.stopPropagation();
                 setCommandsOpen((open) => !open);
               }}
-              className="flex items-center justify-center w-6 h-6 border transition-colors cursor-pointer bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:border-cyan-900 hover:bg-cyan-950/30"
+              className="flex items-center justify-center w-7 h-7 p-1.5 border transition-colors cursor-pointer bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:border-cyan-900 hover:bg-cyan-950/30"
               title="Agent commands"
             >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
               </svg>
             </button>

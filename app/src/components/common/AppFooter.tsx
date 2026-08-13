@@ -98,74 +98,48 @@ export const AppFooter: React.FC = () => {
 
           {/* Center: Branding & Authors (main page only) */}
           {view === 'setup' && (
-          <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 text-zinc-500">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span>Built with </span>
-              <svg className="w-3 h-3 text-rose-500/70 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-              <span>by</span>
-              <div className="flex items-center gap-1">
-                {authors.map((author, index) => (
-                  <React.Fragment key={author.name}>
-                    <span className="relative inline-flex items-center">
-                      {author.discord ? (
-                        <>
-                          <button
-                            onClick={() => setOpenPopover(openPopover === author.name ? null : author.name)}
-                            className="text-zinc-300 hover:text-theme-main transition-colors duration-150 cursor-pointer"
-                          >
-                            {author.name}
-                          </button>
-                          {openPopover === author.name && (
-                            <div
-                              ref={popoverRef}
-                              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-theme-card border border-theme rounded-md shadow-lg flex flex-col gap-2 whitespace-nowrap z-50 animate-popover-in"
+            <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 text-zinc-500">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span>Built with </span>
+                <svg className="w-3 h-3 text-rose-500/70 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+                </svg>
+                <span>by</span>
+                <div className="flex items-center gap-1">
+                  {authors.map((author, index) => (
+                    <React.Fragment key={author.name}>
+                      <span className="relative inline-flex items-center">
+                        {author.discord ? (
+                          <>
+                            <button
+                              onClick={() => setOpenPopover(openPopover === author.name ? null : author.name)}
+                              className="text-zinc-300 hover:text-theme-main transition-colors duration-150 cursor-pointer"
                             >
-                              <div className="flex items-center gap-2">
-                                <img
-                                  src={discordLogo}
-                                  alt="Discord"
-                                  className="w-4 h-4"
-                                  style={{
-                                    filter: author.name === 'Noor' ? 'brightness(0) saturate(100%) invert(47%) sepia(89%) saturate(2878%) hue-rotate(312deg) brightness(99%) contrast(101%)' : undefined
-                                  }}
-                                />
-                                <span className="text-theme-main font-medium">{author.discord}</span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    copyToClipboard(author.discord!.replace('@', ''), author.name, 'discord');
-                                  }}
-                                  className="p-1 hover:bg-theme-hover rounded transition-colors cursor-pointer"
-                                >
-                                  {copiedAuthor === author.name && copiedType === 'discord' ? (
-                                    <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  ) : (
-                                    <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                  )}
-                                </button>
-                              </div>
-                              {author.instagram && (
-                                <div className="flex items-center gap-2 pt-1 border-t border-theme">
+                              {author.name}
+                            </button>
+                            {openPopover === author.name && (
+                              <div
+                                ref={popoverRef}
+                                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-theme-card border border-theme rounded-md shadow-lg flex flex-col gap-2 whitespace-nowrap z-50 animate-popover-in"
+                              >
+                                <div className="flex items-center gap-2">
                                   <img
-                                    src={instagramLogo}
-                                    alt="Instagram"
+                                    src={discordLogo}
+                                    alt="Discord"
                                     className="w-4 h-4"
+                                    style={{
+                                      filter: author.name === 'Noor' ? 'brightness(0) saturate(100%) invert(47%) sepia(89%) saturate(2878%) hue-rotate(312deg) brightness(99%) contrast(101%)' : undefined
+                                    }}
                                   />
-                                  <span className="text-theme-main font-medium">{author.instagram}</span>
+                                  <span className="text-theme-main font-medium">{author.discord}</span>
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      copyToClipboard(author.instagram!.replace('@', ''), author.name, 'instagram');
+                                      copyToClipboard(author.discord!.replace('@', ''), author.name, 'discord');
                                     }}
                                     className="p-1 hover:bg-theme-hover rounded transition-colors cursor-pointer"
                                   >
-                                    {copiedAuthor === author.name && copiedType === 'instagram' ? (
+                                    {copiedAuthor === author.name && copiedType === 'discord' ? (
                                       <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                       </svg>
@@ -176,21 +150,47 @@ export const AppFooter: React.FC = () => {
                                     )}
                                   </button>
                                 </div>
-                              )}
-                              <div className="absolute top-full left-1/2 -mt-1 w-2 h-2 bg-theme-card border-r border-b border-theme transform rotate-45 -translate-x-1/2" />
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-zinc-300">{author.name}</span>
-                      )}
-                    </span>
-                    {index < authors.length - 1 && <span className="text-zinc-600 px-0.5">&</span>}
-                  </React.Fragment>
-                ))}
+                                {author.instagram && (
+                                  <div className="flex items-center gap-2 pt-1 border-t border-theme">
+                                    <img
+                                      src={instagramLogo}
+                                      alt="Instagram"
+                                      className="w-4 h-4"
+                                    />
+                                    <span className="text-theme-main font-medium">{author.instagram}</span>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        copyToClipboard(author.instagram!.replace('@', ''), author.name, 'instagram');
+                                      }}
+                                      className="p-1 hover:bg-theme-hover rounded transition-colors cursor-pointer"
+                                    >
+                                      {copiedAuthor === author.name && copiedType === 'instagram' ? (
+                                        <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                      ) : (
+                                        <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                                <div className="absolute top-full left-1/2 -mt-1 w-2 h-2 bg-theme-card border-r border-b border-theme transform rotate-45 -translate-x-1/2" />
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-zinc-300">{author.name}</span>
+                        )}
+                      </span>
+                      {index < authors.length - 1 && <span className="text-zinc-600 px-0.5">&</span>}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
           )}
 
           {/* Right: Actions & Version */}
@@ -256,11 +256,10 @@ export const AppFooter: React.FC = () => {
 
               <button
                 onClick={() => setCustomCursor(!customCursor)}
-                className={`px-2 py-1 transition-colors duration-150 border-l border-theme cursor-pointer ${
-                  customCursor
-                    ? 'text-green-500/70 hover:text-green-400 hover:bg-green-500/10'
-                    : 'text-zinc-500 hover:text-theme-main hover:bg-theme-hover'
-                }`}
+                className={`px-2 py-1 transition-colors duration-150 border-l border-theme cursor-pointer ${customCursor
+                  ? 'text-green-500/70 hover:text-green-400 hover:bg-green-500/10'
+                  : 'text-zinc-500 hover:text-theme-main hover:bg-theme-hover'
+                  }`}
                 title={customCursor ? 'Disable custom cursor' : 'Enable custom cursor'}
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -286,7 +285,7 @@ export const AppFooter: React.FC = () => {
               title="GitHub Repository"
             >
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+                <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
               </svg>
             </a>
           </div>

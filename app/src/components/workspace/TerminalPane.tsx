@@ -1219,8 +1219,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`h-full flex flex-col overflow-hidden font-mono bg-zinc-950 transition-colors duration-200 ${
-        isActive ? 'border border-accent shadow-[0_0_12px_var(--accent-glow)]' : 'border border-zinc-700/60'
+      className={`h-full flex flex-col overflow-hidden font-mono bg-zinc-950 transition-[border-color,box-shadow] duration-200 ${
+        isActive
+          ? 'border border-accent/90 rounded-sm shadow-[0_0_0_1px_var(--accent-glow),0_0_16px_var(--accent-glow),0_0_32px_rgba(216,119,87,0.12),inset_0_0_10px_rgba(0,0,0,0.5)]'
+          : 'border border-zinc-700/60 rounded-sm'
       }`}
       onMouseDown={() => setActiveSession(session.id)}
     >

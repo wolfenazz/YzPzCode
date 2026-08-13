@@ -23,10 +23,12 @@ import type {
 import { useAppStore } from '../../stores/appStore';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useTerminal } from '../../hooks/useTerminal';
+import { htmlToPlainText } from '../../utils/richText';
 import { BrowserTabBar } from './BrowserTabBar';
 import { StyleClipboardPanel } from './StyleClipboardPanel';
 import { UiReferenceClipboardPanel } from './UiReferenceClipboardPanel';
 import { ApplyModeToolbar } from './ApplyModeToolbar';
+import { RichPromptEditor } from './RichPromptEditor';
 import { ElementInspectorPanel } from './ElementInspectorPanel';
 
 interface BrowserPaneProps {
@@ -549,6 +551,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const [activeSidebar, setActiveSidebar] = useState<'styles' | 'ui-references' | null>(null);
   const [appliedToolbarOpen, setAppliedToolbarOpen] = useState(false);
   const [lastApplied, setLastApplied] = useState<AppliedStyle | null>(null);
+  const [showFullUiReferenceInfo, setShowFullUiReferenceInfo] = useState(false);
 
   const {
     ensureBrowserView,
@@ -1310,7 +1313,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       return;
     }
 
-    if (!effectiveState.uiReferencePrompt.trim()) {
+    const briefText = htmlToPlainText(effectiveState.uiReferencePrompt).trim();
+    if (!briefText) {
       setError('Enter an instruction before sending the UI reference to an agent.');
       return;
     }
@@ -1322,7 +1326,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
     const formattedPrompt = formatUiReferencePrompt(
       reference,
-      effectiveState.uiReferencePrompt,
+      briefText,
       effectiveState.uiReferenceMode,
       effectiveState.selectedElement,
     );
@@ -1330,6 +1334,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     setIsSubmitting(true);
     try {
       await writeToTerminal(targetSessionId, buildBracketedPasteInput(formattedPrompt));
+      setBrowserUiReferencePrompt(workspaceId, '');
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -1344,6 +1349,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     effectiveState.uiReferenceClipboard,
     effectiveState.uiReferenceMode,
     effectiveState.uiReferencePrompt,
+    setBrowserUiReferencePrompt,
+    workspaceId,
     writeToTerminal,
   ]);
 
@@ -1370,6 +1377,20 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const activeUiReference = effectiveState.uiReferenceClipboard.find(
     (reference) => reference.id === effectiveState.activeUiReferenceId,
   ) ?? effectiveState.uiReferenceClipboard[0] ?? null;
+
+  const uiReferenceCharCount = useMemo(
+    () => htmlToPlainText(effectiveState.uiReferencePrompt).length,
+    [effectiveState.uiReferencePrompt],
+  );
+
+  useEffect(() => {
+    setShowFullUiReferenceInfo(false);
+  }, [activeUiReference]);
+
+  const handleCopyUiReferenceHtml = useCallback(() => {
+    if (!activeUiReference) return;
+    navigator.clipboard.writeText(activeUiReference.htmlSnippet).catch(() => undefined);
+  }, [activeUiReference]);
 
   const displayUrl = resolvedDraftUrl.replace(/^https?:\/\//, '');
   const previewLabel = activeDevice.id === 'responsive'
@@ -1602,8 +1623,16 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               </button>
               <button
                 onClick={() => void handleTogglePickUiElement()}
-                title={effectiveState.pickUiElementMode ? 'Stop picking UI elements' : 'Pick UI Element'}
-                aria-label={effectiveState.pickUiElementMode ? 'Stop picking UI elements' : 'Pick UI Element'}
+                title={
+                  effectiveState.pickUiElementMode
+                    ? 'Now click any element on this page to capture it (press again to stop)'
+                    : 'Copy a UI element from any page and rebuild it in your local project'
+                }
+                aria-label={
+                  effectiveState.pickUiElementMode
+                    ? 'Stop picking UI elements'
+                    : 'Copy a UI element to rebuild in local project'
+                }
                 aria-pressed={effectiveState.pickUiElementMode}
                 className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 transition-colors cursor-pointer ${
                   effectiveState.pickUiElementMode
@@ -1612,7 +1641,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 }`}
               >
                 <Icon icon="material-symbols:view-in-ar-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.15em]">UI</span>
+                <span className="text-[9px] font-bold uppercase tracking-[0.15em]">copy UI</span>
               </button>
               <div className="relative">
                 <button
@@ -1951,180 +1980,339 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 14 }}
                 transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                className="w-[380px] shrink-0 border-l border-[var(--border-primary)] bg-[var(--bg-secondary)] overflow-y-auto"
+                className={`shrink-0 overflow-y-auto border-l border-zinc-800 bg-[var(--bg-secondary)] transition-[width] duration-200 ${
+                  showFullUiReferenceInfo ? 'w-[460px]' : 'w-[380px]'
+                }`}
               >
-                <div className="sticky top-0 z-10 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/95 backdrop-blur-sm">
-                  <div className="flex items-center justify-between px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <Icon icon="material-symbols:view-in-ar-rounded" className="h-3.5 w-3.5 text-cyan-300" aria-hidden="true" />
-                      <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-primary)]">
-                        UI references
+                {/* Header */}
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-3 py-2.5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="relative flex h-2 w-2 shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-40" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                      ui references
+                    </span>
+                    {effectiveState.uiReferenceClipboard.length > 0 && (
+                      <span className="border border-cyan-800 bg-cyan-950/40 px-1.5 text-[9px] font-black text-cyan-300">
+                        {effectiveState.uiReferenceClipboard.length}
                       </span>
-                      {effectiveState.uiReferenceClipboard.length > 0 && (
-                        <span className="rounded-full border border-cyan-500/20 px-1.5 text-[9px] font-bold text-cyan-200">
-                          {effectiveState.uiReferenceClipboard.length}
-                        </span>
-                      )}
-                    </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
                     <button
+                      type="button"
+                      onClick={() => setShowFullUiReferenceInfo((value) => !value)}
+                      title={showFullUiReferenceInfo ? 'Hide developer details' : 'Show developer details'}
+                      aria-label={showFullUiReferenceInfo ? 'Hide developer details' : 'Show developer details'}
+                      aria-pressed={showFullUiReferenceInfo}
+                      className={`flex items-center gap-1.5 border px-2 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+                        showFullUiReferenceInfo
+                          ? 'border-cyan-800 bg-cyan-950/40 text-cyan-300'
+                          : 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'
+                      }`}
+                    >
+                      <Icon icon="material-symbols:developer-mode-rounded" className="h-3 w-3" aria-hidden="true" />
+                      dev
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setActiveSidebar(null)}
-                      className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+                      title="Close UI references"
                       aria-label="Close UI references"
+                      className="flex h-6 w-6 items-center justify-center text-zinc-500 transition-colors hover:text-rose-400 cursor-pointer"
                     >
                       <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </div>
-                  <div className="border-t border-[var(--border-primary)]/60 px-3 py-2 text-[10px] leading-4 text-[var(--accent)]/55">
-                    Capture a component from any site, then recreate it inside your local project with project-native code.
-                  </div>
                 </div>
 
-                <UiReferenceClipboardPanel
-                  references={effectiveState.uiReferenceClipboard}
-                  activeReferenceId={effectiveState.activeUiReferenceId}
-                  onSelect={(referenceId) => setActiveUiReference(workspaceId, referenceId)}
-                  onRemove={(referenceId) => removeCapturedUiReference(workspaceId, referenceId)}
-                  onCopyJson={handleCopyUiReferenceJson}
-                />
-
-                {activeUiReference && (
-                  <div className="border-t border-[var(--border-primary)] p-3">
-                    <div className="rounded-xl border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(34,211,238,0.08),rgba(8,145,178,0.03))] p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-[9px] font-bold uppercase tracking-[0.2em] text-cyan-200/80">
-                            active reference
-                          </div>
-                          <div className="mt-1 text-[13px] font-semibold text-[var(--text-primary)]">
-                            {activeUiReference.componentLabel}
-                          </div>
-                          <p className="mt-2 text-[10px] leading-5 text-[var(--accent)]/70">
-                            {activeUiReference.designIntent}
-                          </p>
+                <div className="space-y-3 p-3">
+                  {/* ── Developer details (opt-in) ─────────────────────── */}
+                  {showFullUiReferenceInfo && activeUiReference && (
+                    <>
+                      <section className="border border-zinc-800 bg-zinc-950/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                            capture details
+                          </span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                            {activeUiReference.structure.captureStats?.capturedNodeCount ?? activeUiReference.structure.childCount} nodes
+                          </span>
                         </div>
-                        <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2 py-1 text-right">
-                          <div className="text-[8px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]/55">source</div>
-                          <div className="mt-0.5 max-w-[110px] truncate text-[10px] text-[var(--text-primary)]">
-                            {activeUiReference.sourceUrl.replace(/^https?:\/\//, '')}
+                        <div className="space-y-2.5 p-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
+                              {activeUiReference.tagName}
+                            </span>
+                            <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+                              {activeUiReference.selector}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="text-[9px] font-black uppercase tracking-widest text-zinc-600">design intent</div>
+                            <div className="mt-0.5 text-[10px] leading-4 text-zinc-300">
+                              {activeUiReference.designIntent || '—'}
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">source</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300" title={activeUiReference.sourceUrl}>
+                                {activeUiReference.sourceUrl.replace(/^https?:\/\//, '')}
+                              </div>
+                            </div>
+                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">page</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300" title={activeUiReference.pageTitle}>
+                                {activeUiReference.pageTitle || 'Untitled'}
+                              </div>
+                            </div>
+                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">viewport</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300">
+                                {activeUiReference.viewport.width}×{activeUiReference.viewport.height}
+                              </div>
+                            </div>
+                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">size</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300">
+                                {activeUiReference.layout.width}×{activeUiReference.layout.height}
+                              </div>
+                            </div>
+                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">assets</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300">
+                                {activeUiReference.assets.length}
+                              </div>
+                            </div>
+                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">status</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-emerald-400">ready</div>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </section>
 
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          onClick={() => setBrowserUiReferenceMode(workspaceId, 'insert')}
-                          className={`rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors cursor-pointer ${
-                            effectiveState.uiReferenceMode === 'insert'
-                              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                              : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--text-primary)] hover:border-emerald-500/30'
-                          }`}
-                        >
-                          Insert mode
-                        </button>
-                        <button
-                          onClick={() => setBrowserUiReferenceMode(workspaceId, 'replace')}
-                          className={`rounded-lg border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.18em] transition-colors cursor-pointer ${
-                            effectiveState.uiReferenceMode === 'replace'
-                              ? 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                              : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--text-primary)] hover:border-amber-500/30'
-                          }`}
-                        >
-                          Replace mode
-                        </button>
-                      </div>
-
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-[10px]">
-                        <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 p-2">
-                          <div className="text-[8px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]/55">layout</div>
-                          <div className="mt-1 text-[var(--text-primary)]">
+                      <section className="border border-zinc-800 bg-zinc-950/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">captured styles</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                            {activeUiReference.interactivity.hoverSelectors.length} hovers
+                          </span>
+                        </div>
+                        <div className="space-y-1.5 p-3 font-mono text-[10px] leading-4 text-zinc-400">
+                          <div>
+                            <span className="text-zinc-600">display </span>
                             {activeUiReference.layout.display} / {activeUiReference.layout.position}
                           </div>
-                          <div className="mt-1 text-[var(--accent)]/60">
-                            {activeUiReference.layout.width} x {activeUiReference.layout.height}
+                          <div>
+                            <span className="text-zinc-600">spacing </span>
+                            {activeUiReference.spacing.padding} · radius {activeUiReference.spacing.borderRadius}
+                          </div>
+                          <div>
+                            <span className="text-zinc-600">font </span>
+                            {activeUiReference.typography.fontSize} {activeUiReference.typography.fontWeight} · {activeUiReference.typography.fontFamily}
+                          </div>
+                          <div>
+                            <span className="text-zinc-600">visual </span>
+                            {activeUiReference.visuals.background || 'transparent'} · {activeUiReference.visuals.color}
+                          </div>
+                          <div>
+                            <span className="text-zinc-600">hover </span>
+                            {activeUiReference.interactivity.hoverSelectors.slice(0, 2).join(' | ') || 'none detected'}
                           </div>
                         </div>
-                        <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 p-2">
-                          <div className="text-[8px] font-bold uppercase tracking-[0.15em] text-[var(--accent)]/55">viewport</div>
-                          <div className="mt-1 text-[var(--text-primary)]">
-                            {activeUiReference.viewport.width} x {activeUiReference.viewport.height}
-                          </div>
-                          <div className="mt-1 text-[var(--accent)]/60">
-                            {activeUiReference.assets.length} assets
-                          </div>
-                        </div>
-                      </div>
+                      </section>
 
+                      <section className="border border-zinc-800 bg-zinc-950/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">html snippet</span>
+                          <button
+                            type="button"
+                            onClick={handleCopyUiReferenceHtml}
+                            className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200 cursor-pointer"
+                          >
+                            <Icon icon="material-symbols:content-copy-rounded" className="h-3 w-3" aria-hidden="true" />
+                            copy
+                          </button>
+                        </div>
+                        <pre className="max-h-40 overflow-auto border-t border-zinc-800/60 bg-zinc-900/60 p-2.5 font-mono text-[10px] leading-4 text-zinc-400 whitespace-pre-wrap break-all">
+                          {activeUiReference.htmlSnippet}
+                        </pre>
+                      </section>
+                    </>
+                  )}
+
+                  {/* ── Captured references ────────────────────────────── */}
+                  <section className="border border-zinc-800 bg-zinc-950/80">
+                    <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                        captured references
+                      </span>
+                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                        {effectiveState.uiReferenceClipboard.length}
+                      </span>
+                    </div>
+                    <UiReferenceClipboardPanel
+                      references={effectiveState.uiReferenceClipboard}
+                      activeReferenceId={effectiveState.activeUiReferenceId}
+                      onSelect={(referenceId) => setActiveUiReference(workspaceId, referenceId)}
+                      onRemove={(referenceId) => removeCapturedUiReference(workspaceId, referenceId)}
+                      onCopyJson={handleCopyUiReferenceJson}
+                    />
+                  </section>
+
+                  {activeUiReference && (
+                    <>
+                      {/* ── Apply mode ──────────────────────────────────── */}
+                      <section className="border border-zinc-800 bg-zinc-950/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                            apply to local page
+                          </span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                            {effectiveState.uiReferenceMode === 'insert' ? 'add' : 'swap'}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 p-3">
+                          <button
+                            type="button"
+                            onClick={() => setBrowserUiReferenceMode(workspaceId, 'insert')}
+                            className={`border px-3 py-2 text-left transition-colors cursor-pointer ${
+                              effectiveState.uiReferenceMode === 'insert'
+                                ? 'border-emerald-800 bg-emerald-950/40'
+                                : 'border-zinc-800 bg-zinc-900/60 hover:border-emerald-800/60'
+                            }`}
+                          >
+                            <div className={`text-[10px] font-black uppercase tracking-widest ${effectiveState.uiReferenceMode === 'insert' ? 'text-emerald-300' : 'text-zinc-400'}`}>
+                              add new
+                            </div>
+                            <div className="mt-0.5 text-[9px] leading-4 text-zinc-600">
+                              insert this component somewhere new in localhost.
+                            </div>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBrowserUiReferenceMode(workspaceId, 'replace')}
+                            className={`border px-3 py-2 text-left transition-colors cursor-pointer ${
+                              effectiveState.uiReferenceMode === 'replace'
+                                ? 'border-amber-800 bg-amber-950/40'
+                                : 'border-zinc-800 bg-zinc-900/60 hover:border-amber-800/60'
+                            }`}
+                          >
+                            <div className={`text-[10px] font-black uppercase tracking-widest ${effectiveState.uiReferenceMode === 'replace' ? 'text-amber-300' : 'text-zinc-400'}`}>
+                              swap existing
+                            </div>
+                            <div className="mt-0.5 text-[9px] leading-4 text-zinc-600">
+                              replace an element already on localhost.
+                            </div>
+                          </button>
+                        </div>
+                      </section>
+
+                      {/* ── Replace target ─────────────────────────────── */}
                       {effectiveState.uiReferenceMode === 'replace' && (
-                        <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/6 p-2.5">
-                          <div className="flex items-center gap-1.5">
-                            <Icon icon="material-symbols:target-rounded" className="h-3 w-3 text-amber-200" aria-hidden="true" />
-                            <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-amber-100">
+                        <section className="border border-amber-900/50 bg-zinc-950/80">
+                          <div className="flex items-center gap-1.5 border-b border-amber-900/40 px-3 py-2">
+                            <Icon icon="material-symbols:target-rounded" className="h-3 w-3 text-amber-300" aria-hidden="true" />
+                            <span className="text-[9px] font-black uppercase tracking-widest text-amber-200/80">
                               localhost target
                             </span>
                           </div>
-                          <p className="mt-1 text-[10px] leading-4 text-amber-100/75">
-                            Select an element in your local page with inspect mode before sending replace mode.
-                          </p>
-                          <div className="mt-2 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-2 py-1.5 text-[10px] text-[var(--text-primary)]">
-                            {selectedElement
-                              ? selectedElement.selectors[0] || selectedElement.tagName
-                              : 'No target selected yet'}
+                          <div className="space-y-2 p-3">
+                            <p className="text-[9px] leading-4 text-zinc-500">
+                              pick the element on your local page this reference should replace
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => void handleToggleInspect()}
+                              className={`inline-flex w-full items-center justify-center gap-1.5 border px-2 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+                                effectiveState.inspectMode
+                                  ? 'border-emerald-800 bg-emerald-950/40 text-emerald-300'
+                                  : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                              }`}
+                            >
+                              <Icon icon="material-symbols:touch-app-rounded" className="h-3 w-3" aria-hidden="true" />
+                              {effectiveState.inspectMode ? 'inspecting — click the local element now' : 'activate inspect mode'}
+                            </button>
+                            <div className="border border-zinc-800 bg-zinc-900/50 px-2 py-1.5 font-mono text-[10px] text-zinc-400">
+                              {selectedElement
+                                ? selectedElement.selectors[0] || selectedElement.tagName
+                                : 'no target selected yet'}
+                            </div>
                           </div>
-                        </div>
+                        </section>
                       )}
 
-                      <div className="mt-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 p-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
-                            <Icon icon="material-symbols:terminal-rounded" className="h-3 w-3 text-cyan-300" aria-hidden="true" />
-                            <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-[var(--text-primary)]">
-                              target agent
-                            </span>
-                          </div>
-                          <span className="text-[9px] text-[var(--accent)]/55">{targetableSessions.length} avail</span>
-                        </div>
-                        <select
-                          value={effectiveState.targetSessionId ?? ''}
-                          onChange={(event) => setBrowserTargetSession(workspaceId, event.target.value || null)}
-                          className="mt-2 w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/80 px-3 py-2 text-[11px] font-medium text-[var(--text-primary)] outline-none transition-colors focus:border-cyan-500/30 focus:ring-1 focus:ring-cyan-500/10"
-                        >
-                          {targetableSessions.map((session) => (
-                            <option key={session.id} value={session.id} className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
-                              {sessionDisplayName(session)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="mt-3">
-                        <div className="mb-2 flex items-center gap-1.5">
-                          <Icon icon="material-symbols:edit-note-rounded" className="h-3 w-3 text-cyan-300" aria-hidden="true" />
-                          <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-primary)]">
-                            Integration brief
+                      {/* ── Target agent ───────────────────────────────── */}
+                      <section className="border border-zinc-800 bg-zinc-950/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">target agent</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                            {targetableSessions.length} avail
                           </span>
                         </div>
-                        <textarea
-                          value={effectiveState.uiReferencePrompt}
-                          onChange={(event) => setBrowserUiReferencePrompt(workspaceId, event.target.value)}
-                          className="min-h-[144px] w-full resize-none rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)]/80 px-3 py-2.5 text-[11px] leading-5 text-[var(--text-primary)] outline-none placeholder:text-zinc-600 transition-colors focus:border-cyan-500/30 focus:ring-1 focus:ring-cyan-500/10"
-                          placeholder="Recreate this as a reusable React/Tailwind component for my local landing page. Keep the visual hierarchy, spacing rhythm, and tone, but use clean project-native code."
-                        />
-                      </div>
+                        <div className="p-3">
+                          <select
+                            value={effectiveState.targetSessionId ?? ''}
+                            onChange={(event) => setBrowserTargetSession(workspaceId, event.target.value || null)}
+                            className="w-full cursor-pointer appearance-none border border-zinc-800 bg-zinc-900 px-2.5 py-2 font-mono text-[11px] text-zinc-200 outline-none transition-colors focus:border-zinc-600"
+                          >
+                            {targetableSessions.length === 0 && <option value="">no session</option>}
+                            {targetableSessions.map((session) => (
+                              <option key={session.id} value={session.id} className="bg-zinc-900 text-zinc-200">
+                                {sessionDisplayName(session)}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1.5 text-[9px] leading-4 text-zinc-600">
+                            {targetableSessions.length === 0
+                              ? 'open an agent terminal tab (claude, codex, gemini…) to enable rebuild'
+                              : 'handoff goes directly into the chosen terminal context'}
+                          </p>
+                        </div>
+                      </section>
 
-                      <motion.button
+                      {/* ── Integration brief ──────────────────────────── */}
+                      <section className="border border-zinc-800 bg-zinc-950/80">
+                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                            integration brief
+                          </span>
+                          <span className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">
+                            {uiReferenceCharCount} ch
+                          </span>
+                        </div>
+                        <div className="p-3">
+                          <RichPromptEditor
+                            initialHtml={effectiveState.uiReferencePrompt}
+                            placeholder="Recreate this as a reusable React/Tailwind component for my local landing page. Keep the visual hierarchy, spacing rhythm, and tone, but use clean project-native code."
+                            onChange={(html) => setBrowserUiReferencePrompt(workspaceId, html)}
+                            onSubmit={() => void handleSendUiReferenceToAgent()}
+                            submitting={isSubmitting}
+                          />
+                          <div className="mt-1.5 flex items-center justify-between text-[9px] font-medium uppercase tracking-widest text-zinc-600">
+                            <span>enter ↵ send</span>
+                            <span>shift+enter newline</span>
+                          </div>
+                        </div>
+                      </section>
+
+                      {/* ── Send ───────────────────────────────────────── */}
+                      <button
+                        type="button"
                         onClick={() => void handleSendUiReferenceToAgent()}
                         disabled={isSubmitting || targetableSessions.length === 0}
-                        whileHover={!isSubmitting ? { scale: 1.01, y: -1 } : {}}
-                        whileTap={!isSubmitting ? { scale: 0.98, y: 0 } : {}}
-                        className="mt-3 group relative inline-flex w-full items-center justify-center gap-2.5 overflow-hidden rounded-lg border border-cyan-500/25 bg-gradient-to-br from-cyan-500/15 via-sky-500/10 to-emerald-500/10 px-5 py-3 text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12),0_4px_12px_rgba(0,0,0,0.25)] transition-all duration-200 hover:border-cyan-400/40 hover:text-cyan-50 hover:shadow-[0_0_34px_rgba(34,211,238,0.18),0_6px_16px_rgba(0,0,0,0.3)] disabled:cursor-not-allowed disabled:opacity-30 cursor-pointer"
+                        className="flex w-full items-center justify-center gap-2 border border-cyan-800/70 bg-cyan-950/40 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300 transition-colors hover:border-cyan-700 hover:bg-cyan-900/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                       >
-                        <span className="absolute inset-0 rounded-lg bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_60%)] opacity-0 transition-opacity group-hover:opacity-100" />
-                        <Icon icon="material-symbols:auto-awesome-rounded" className="relative h-4 w-4" aria-hidden="true" />
-                        <span className="relative">{isSubmitting ? 'sending...' : 'send reference to agent'}</span>
-                      </motion.button>
-                    </div>
-                  </div>
-                )}
+                        <Icon icon="material-symbols:auto-awesome-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{isSubmitting ? 'sending…' : 'rebuild in local project'}</span>
+                      </button>
+                    </>
+                  )}
+                </div>
               </motion.aside>
             )}
           </AnimatePresence>
