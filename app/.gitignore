@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# draw.io webapp (fetched via: npm run fetch:drawio)
+public/drawio
+.tmp-drawio
+

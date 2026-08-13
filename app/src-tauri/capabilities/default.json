@@ -17,6 +17,7 @@
     "core:window:allow-set-decorations",
     "core:window:allow-is-maximized",
     "opener:default",
+    "opener:allow-open-path",
     "dialog:default",
     "updater:default",
     "process:default"

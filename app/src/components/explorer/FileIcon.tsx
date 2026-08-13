@@ -28,6 +28,8 @@ const EXTENSION_COLORS: Record<string, string> = {
   yaml: '#ef4444',
   yml: '#ef4444',
   xml: '#ef4444',
+  drawio: '#f59e0b',
+  dio: '#f59e0b',
   sql: '#3b82f6',
   sh: '#22c55e',
   bash: '#22c55e',
@@ -53,6 +55,8 @@ const EXTENSION_COLORS: Record<string, string> = {
   doc: '#3b82f6',
   xlsx: '#22c55e',
   xls: '#22c55e',
+  pptx: '#f97316',
+  ppt: '#f97316',
   env: '#eab308',
   lock: '#b7b5a6',
 };

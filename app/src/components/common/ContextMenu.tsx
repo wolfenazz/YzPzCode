@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import type { RegisteredTerminal } from '../../utils/terminalRegistry';
+import { getTerminalForTarget } from '../../utils/terminalRegistry';
 
 interface ContextMenuProps {
   onDocsClick: () => void;
@@ -16,15 +18,22 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 }) => {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
+  const terminalRef = useRef<RegisteredTerminal | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
     setVisible(false);
+    terminalRef.current = null;
   }, []);
 
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
+      // A more specific context menu (file tree, editor tabs, terminal, etc.)
+      // already handled this right-click — don't stack the global menu on top.
+      if (e.defaultPrevented) return;
       e.preventDefault();
+
+      terminalRef.current = getTerminalForTarget(e.target) ?? null;
 
       let x = e.clientX;
       let y = e.clientY;
@@ -99,9 +108,18 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
       <button
         role="menuitem"
         onClick={() => {
-          const selection = window.getSelection()?.toString() ?? '';
-          if (selection) {
-            navigator.clipboard.writeText(selection).catch(console.error);
+          const terminal = terminalRef.current;
+          if (terminal) {
+            const selection = terminal.xterm.getSelection();
+            if (selection) {
+              navigator.clipboard.writeText(selection).catch(console.error);
+              close();
+              return;
+            }
+          }
+          const domSelection = window.getSelection()?.toString() ?? '';
+          if (domSelection) {
+            navigator.clipboard.writeText(domSelection).catch(console.error);
           }
           close();
         }}
@@ -119,6 +137,15 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
         onClick={async () => {
           try {
             const text = await navigator.clipboard.readText();
+            if (text) {
+              const terminal = terminalRef.current;
+              if (terminal) {
+                terminal.focus();
+                void terminal.paste(text);
+                close();
+                return;
+              }
+            }
             const target = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
             if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
               const start = target.selectionStart ?? 0;

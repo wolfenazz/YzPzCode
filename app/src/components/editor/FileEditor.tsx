@@ -16,7 +16,9 @@ import { MarkdownPreview } from './MarkdownPreview';
 import { ImagePreview, isImageFile } from './ImagePreview';
 import { PdfPreview } from './PdfPreview';
 import { DocxPreview } from './DocxPreview';
-import { SpreadsheetPreview } from './SpreadsheetPreview';
+import { SpreadsheetEditor } from './SpreadsheetEditor';
+import { PptxPreview } from './PptxPreview';
+import { DrawioPreview } from './DrawioPreview';
 import { invoke } from '@tauri-apps/api/core';
 
 type MonacoEditor = Parameters<OnMount>[0];
@@ -142,7 +144,9 @@ export const FileEditor: React.FC = () => {
   const isPdf = fileExt === "pdf";
   const isDocx = fileExt === "docx" || fileExt === "doc";
   const isSpreadsheet = fileExt === "xlsx" || fileExt === "xls" || fileExt === "csv";
-  const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet;
+  const isPptx = fileExt === "pptx" || fileExt === "ppt";
+  const isDrawio = fileExt === "drawio" || fileExt === "dio";
+  const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet || isPptx || isDrawio;
   const showEditor = Boolean(activeFile && !isPreviewable && !(isMarkdown && mdPreview));
 
   const dotIndex = activeFile ? activeFile.name.lastIndexOf(".") : -1;
@@ -553,9 +557,23 @@ export const FileEditor: React.FC = () => {
             )}
 
             {activeFile && isSpreadsheet && (
-              <SpreadsheetPreview
+              <SpreadsheetEditor
                 filePath={activeFile.path}
                 fileName={activeFile.name}
+              />
+            )}
+
+            {activeFile && isPptx && (
+              <PptxPreview
+                filePath={activeFile.path}
+                fileName={activeFile.name}
+              />
+            )}
+
+            {activeFile && isDrawio && (
+              <DrawioPreview
+                filePath={activeFile.path}
+                content={activeFile.content}
               />
             )}
 

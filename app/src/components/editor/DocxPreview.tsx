@@ -1,6 +1,8 @@
-import React, { memo, useEffect, useState, useMemo } from 'react';
+import React, { memo, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import mammoth from 'mammoth';
+import { renderAsync } from 'docx-preview';
+import { OpenInOfficeButton } from './OpenInOfficeButton';
+import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
 
 interface DocxPreviewProps {
   filePath: string;
@@ -8,10 +10,12 @@ interface DocxPreviewProps {
 }
 
 const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) => {
-  const [html, setHtml] = useState<string>('');
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const styleRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [wordCount, setWordCount] = useState(0);
+  const { refreshKey, refresh } = usePreviewRefresh(filePath);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,11 +32,30 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
           bytes[i] = binaryString.charCodeAt(i);
         }
 
-        const result = await mammoth.convertToHtml({ arrayBuffer: bytes.buffer });
+        if (!bodyRef.current) return;
+        if (bodyRef.current.firstChild) bodyRef.current.replaceChildren();
+        if (styleRef.current?.firstChild) styleRef.current.replaceChildren();
+
+        await renderAsync(
+          bytes.buffer,
+          bodyRef.current,
+          styleRef.current ?? undefined,
+          {
+            className: 'docx',
+            inWrapper: true,
+            ignoreWidth: false,
+            ignoreHeight: false,
+            ignoreFonts: false,
+            breakPages: true,
+            renderHeaders: true,
+            renderFooters: true,
+            renderFootnotes: true,
+            renderEndnotes: true,
+          }
+        );
         if (cancelled) return;
-        setHtml(result.value);
-        const text = result.value.replace(/<[^>]*>/g, '').trim();
-        setWordCount(text ? text.split(/\s+/).length : 0);
+        const text = bodyRef.current?.innerText ?? '';
+        setWordCount(text ? text.trim().split(/\s+/).length : 0);
         setLoading(false);
       })
       .catch(() => {
@@ -43,14 +66,7 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
       });
 
     return () => { cancelled = true; };
-  }, [filePath]);
-
-  const processedHtml = useMemo(() => {
-    if (!html) return '';
-    return html
-      .replace(/<table/g, '<table class="docx-table"')
-      .replace(/<img /g, '<img style="max-width:100%;height:auto;border-radius:4px;" ');
-  }, [html]);
+  }, [filePath, refreshKey]);
 
   if (error) {
     return (
@@ -84,19 +100,35 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
             ~{wordCount} words
           </span>
         )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refresh}
+            disabled={loading}
+            title="Refresh preview"
+            aria-label="Refresh preview"
+            className="p-1 rounded transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500 disabled:opacity-30"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.58 9a8 8 0 0114.42 1M19.42 15a8 8 0 01-14.42-1" />
+            </svg>
+          </button>
+          {!loading && (
+            <OpenInOfficeButton filePath={filePath} appName="Word" />
+          )}
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 docx-preview-dark">
-        {!loading && processedHtml && (
-          <div className="max-w-3xl mx-auto docx-content-dark">
-            <div dangerouslySetInnerHTML={{ __html: processedHtml }} />
-          </div>
-        )}
-        {!loading && !processedHtml && (
-          <div className="flex items-center justify-center py-12 text-zinc-500">
-            <div className="text-[10px] uppercase tracking-widest opacity-50">Empty document</div>
-          </div>
-        )}
+        <div className="max-w-3xl mx-auto docx-content-dark">
+          {/* docx-preview injects its rendered content + styles into these */}
+          <div ref={styleRef} />
+          <div ref={bodyRef} />
+          {!loading && wordCount === 0 && (
+            <div className="flex items-center justify-center py-12 text-zinc-500">
+              <div className="text-[10px] uppercase tracking-widest opacity-50">Empty document</div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

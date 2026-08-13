@@ -27,6 +27,11 @@ pub async fn write_file_content(path: String, content: String) -> Result<(), Str
 }
 
 #[tauri::command]
+pub async fn write_file_bytes(path: String, base64_data: String) -> Result<(), String> {
+    filesystem::reader::write_file_bytes(&path, &base64_data)
+}
+
+#[tauri::command]
 pub async fn get_git_status(workspace_path: String) -> Result<Vec<GitFileStatus>, String> {
     filesystem::git_status::get_git_status(&workspace_path)
 }

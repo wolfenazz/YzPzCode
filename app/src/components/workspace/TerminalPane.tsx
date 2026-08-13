@@ -10,6 +10,7 @@ import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, Cli
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useAppStore } from '../../stores/appStore';
+import { registerTerminal } from '../../utils/terminalRegistry';
 import '@xterm/xterm/css/xterm.css';
 
 import { TerminalHeader, isAgentType } from './TerminalHeader';
@@ -663,6 +664,19 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
   }, [session.id]);
 
+  const pasteClipboardText = useCallback(
+    (text: string) => {
+      if (!text) return;
+      if (text.length > 1024) {
+        setPendingPasteText(text);
+        setShowPasteConfirm(true);
+        return;
+      }
+      return pasteToTerminal(text);
+    },
+    [pasteToTerminal]
+  );
+
   useEffect(() => {
     if (!terminalRef.current || xtermRef.current) return;
     const terminalElement = terminalRef.current;
@@ -752,6 +766,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     terminalElement.addEventListener('mousedown', handleMouseDownFocus);
     terminalElement.addEventListener('wheel', handleWheel, { passive: true });
     terminalElement.addEventListener('contextmenu', handleContextMenu);
+
+    const unregisterTerminal = registerTerminal({
+      element: terminalElement,
+      xterm,
+      paste: pasteClipboardText,
+      focus: () => xterm.focus(),
+    });
 
     xtermRef.current = xterm;
     fitAddonRef.current = fitAddon;
@@ -889,17 +910,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       }
 
       if (isCtrl && event.key === 'v' && isKeydown) {
-        navigator.clipboard.readText().then(async (text) => {
-          if (!text) return;
-
-          if (text.length > 1024) {
-            setPendingPasteText(text);
-            setShowPasteConfirm(true);
-            return;
-          }
-
-          await pasteToTerminal(text);
-        }).catch(console.error);
+        navigator.clipboard.readText().then((text) => pasteClipboardText(text)).catch(console.error);
         return false;
       }
 
@@ -942,12 +953,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
       terminalElement.removeEventListener('wheel', handleWheel);
       terminalElement.removeEventListener('contextmenu', handleContextMenu);
+      unregisterTerminal();
       xterm.dispose();
       xtermRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand, forceEnableMouse, pasteToTerminal]);
+  }, [session.id, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand, forceEnableMouse, pasteToTerminal, pasteClipboardText]);
 
   useEffect(() => {
     if (!xtermRef.current) return;

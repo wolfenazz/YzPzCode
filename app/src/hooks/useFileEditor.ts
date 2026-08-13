@@ -5,7 +5,7 @@ import { useAppStore } from '../stores/appStore';
 
 const BINARY_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif',
-  'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv',
+  'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt',
 ]);
 
 const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024;

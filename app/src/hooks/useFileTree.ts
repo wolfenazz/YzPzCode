@@ -263,22 +263,9 @@ export function useFileTree(workspacePath: string | null) {
     [nodeMap]
   );
 
-  const handleMove = useCallback(
-    async ({
-      dragIds,
-      parentId,
-      parentNode,
-      index: _index,
-    }: {
-      dragIds: string[];
-      parentId: string | null;
-      parentNode: { data: TreeNodeData } | null;
-      index: number;
-    }) => {
+  const moveEntries = useCallback(
+    async (dragIds: string[], destDir: string) => {
       if (dragIds.length === 0 || !workspacePath) return;
-
-      const destDir = parentId && parentNode ? parentNode.data.path : workspacePath;
-      if (!destDir) return;
 
       // Determine which of the dragged nodes actually change parent folders.
       // Items already living in destDir stay put (the tree is always sorted,
@@ -361,6 +348,26 @@ export function useFileTree(workspacePath: string | null) {
       }
     },
     [workspacePath, loadRoot, nodeMap]
+  );
+
+  const handleMove = useCallback(
+    async ({
+      dragIds,
+      parentId,
+      parentNode,
+      index: _index,
+    }: {
+      dragIds: string[];
+      parentId: string | null;
+      parentNode: { data: TreeNodeData } | null;
+      index: number;
+    }) => {
+      if (dragIds.length === 0 || !workspacePath) return;
+      const destDir = parentId && parentNode ? parentNode.data.path : workspacePath;
+      if (!destDir) return;
+      await moveEntries(dragIds, destDir);
+    },
+    [workspacePath, moveEntries]
   );
 
   const handleRename = useCallback(
@@ -663,6 +670,7 @@ export function useFileTree(workspacePath: string | null) {
     treeRef,
     handleToggle,
     handleMove,
+    moveEntries,
     handleRename,
     handleDelete,
     createNewEntry,

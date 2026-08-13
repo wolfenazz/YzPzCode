@@ -1,44 +1,39 @@
-# Project Context
+# Project Context — YzPzCode Office Viewer & Editor
 
-## Environment
-- Tauri v2 desktop app (YzPzCode)
-- Frontend: React 19 + TypeScript, Vite 6, Tailwind CSS v4 (`@import "tailwindcss"` in styles.css)
-- Backend: Rust (not affected by editor work)
-- Test: `npx tsc --noEmit` (from app/), `npm run build` (tsc + vite), `cargo test` (backend)
+## Mission
+Add Microsoft Office viewer & editor: view Word/Excel/PowerPoint in-app (professional),
+edit Excel in-app, open Word/PPT in desktop Office for editing, auto-refresh previews.
 
-## Theming Architecture (DISCOVERED)
-- **styles.css** is the color system heart:
-  - `:root` = dark mode defaults (Claude warm dark palette after previous mission)
-  - `.light-theme` class = light mode (Claude warm light palette)
-  - CSS vars: `--bg-primary`, `--bg-secondary`, `--bg-tertiary`, `--border-primary`,
-    `--text-primary`, `--text-secondary`, `--accent` + `--accent-light/glow/border/text`
-  - Derived sub-themes: `.markdown-dark/.markdown-light`, `.docx-preview-*`, spreadsheet,
-    `.setup-bg`, scrollbars, xterm overrides, `.rich-prompt-editor`
-- **App.tsx** `ACCENT_COLOR_MAP` (8 accents) applied to `document.documentElement.style`
-- Claude theme (terracotta accent) is the current default from the previous mission.
+## Decisions (from user)
+- View all 3 + edit Excel in-app + open Word/PPT in desktop Office
+- Spreadsheet editor: `@glideapps/glide-data-grid` (MIT)
+- Word viewer: upgrade `mammoth` → `docx-preview` (MIT)
+- PPT viewer: `pptx-viewer` (MIT, TS, fflate dep) — NOT jQuery pptxjs
+- Excel save: SheetJS community (values-only first; xlsx-js-style if styling matters)
 
-## Editor Architecture (CURRENT MISSION)
-- **OLD**: FileEditor.tsx used CodeMirror 6 (`@codemirror/*`) with custom theme compartments.
-- **NEW**: FileEditor.tsx rewritten to use **Monaco Editor** (`monaco-editor@0.56.0` +
-  `@monaco-editor/react@4.7.0`) — the actual VS Code editor engine. VS Code look & feel:
-  minimap, breadcrumbs, native find widget, IntelliSense, vs-dark/vs themes.
-- `app/src/lib/monaco.ts`: MonacoEnvironment.getWorker with Vite `?worker` imports
-  (editor/json/css/html/ts) + `loader.config({ monaco })` — fully offline (no CDN).
-- `app/vite.config.ts`: added `monaco` manualChunk; codemirror chunk retained until
-  CodeMirror fully removed.
-- **FileTab** (`types/index.ts`): `{ path, name, language, content, originalContent, isDirty, gitChange? }`.
-  `openFiles` + `activeFilePath` in appStore. Save via `invoke("write_file_content")`.
-- Editor settings in appStore: autoSave, autoSaveDelay, showMinimap, editorFontFamily,
-  editorFontSize, editorTabSize, editorWordWrap, editorLineNumbers (on/off/relative),
-  editorBracketColorization, editorFormatOnSave, editorTrimWhitespace.
-- FindReplaceBar.tsx is now UNUSED (Monaco native find widget replaces it) — kept on disk.
+## Tech Stack
+- Tauri v2 + React 19 + TypeScript strict + Vite 6 + Tailwind v4 + Zustand
+- Existing previews: PdfPreview (pdfjs), DocxPreview (mammoth), SpreadsheetPreview (xlsx, read-only), DrawioPreview (iframe), ImagePreview, MarkdownPreview
+- File I/O: `read_file_content` (text), `read_file_as_base64` (data URL), `write_file_content` (text only)
 
-## shadcn/ui foundation (set up for this mission)
-- `app/components.json` (new-york style, neutral base, cssVariables, `@/` aliases)
-- `app/src/lib/utils.ts` with cn()
-- Deps added: class-variance-authority, clsx, tailwind-merge, lucide-react, tw-animate-css
-- Tailwind v4 shadcn CSS vars added to styles.css (mapped to Claude palette)
+## Key Integration Points
+1. `app/src/components/editor/FileEditor.tsx` — routes by ext: isDocx/isSpreadsheet/isPdf + isPreviewable (lines 139-148)
+2. `app/src/hooks/useFileEditor.ts` — BINARY_EXTENSIONS set (line 6-9); binary files open with empty content → previews read bytes directly
+3. `app/src-tauri/src/filesystem/reader.rs` — MAX_FILE_SIZE=10MB (line 9), detect_language, detect_mime_type, is_binary_file need pptx/ppt
+4. `app/src-tauri/src/commands/filesystem_commands.rs` — needs `write_file_bytes` (base64) for binary saves
+5. `app/src-tauri/src/lib.rs` — command registration (line 194-215)
+6. `app/src-tauri/capabilities/default.json` — has `opener:default` → openPath available
+7. `@tauri-apps/plugin-opener` — registered lib.rs:62, in package.json, NOT yet imported in frontend
+8. `file-system-changed` event (watcher.rs:109) — auto-refresh mechanism
+9. `app/src/components/explorer/FileIcon.tsx` — EXTENSION_COLORS (add pptx)
+10. `app/src-tauri/src/types.rs` — FileContent type
 
-## Notes
-- Previous mission (Claude theme redesign) completed; uncommitted changes preserved.
-- Mission history archived in `.opencode/archive/`.
+## Dependencies to Add (app/)
+- `pptx-viewer` (MIT) — PPTX viewing
+- `docx-preview` (MIT) — Word viewing (replace mammoth usage)
+- `@glideapps/glide-data-grid` (MIT) — editable spreadsheet grid
+
+## Verification
+- `npx tsc --noEmit` (from app/)
+- `cargo check` / `cargo clippy` (from app/src-tauri/)
+- Manual: open pptx/docx/xlsx; edit+save xlsx round-trip; "Open in Word" launches desktop app; external save refreshes preview

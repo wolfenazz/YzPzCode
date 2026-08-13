@@ -6,7 +6,7 @@ use base64::Engine;
 use crate::filesystem::validation::validate_no_path_traversal;
 use crate::types::FileContent;
 
-const MAX_FILE_SIZE: u64 = 10 * 1024 * 1024;
+const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024;
 
 fn check_file_size(path: &Path) -> Result<(), String> {
     let metadata =
@@ -51,6 +51,23 @@ pub fn write_file_content(file_path: &str, content: &str) -> Result<(), String> 
     fs::write(path, content).map_err(|e| format!("Failed to write file: {}", e))
 }
 
+/// Writes raw binary data (base64-encoded) to a file. Used by binary file editors
+/// (e.g. Excel spreadsheets saved back from the frontend).
+pub fn write_file_bytes(file_path: &str, base64_data: &str) -> Result<(), String> {
+    validate_no_path_traversal(file_path).map_err(|e| e.to_string())?;
+    let path = Path::new(file_path);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create parent directory: {}", e))?;
+    }
+
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(base64_data)
+        .map_err(|e| format!("Failed to decode base64 data: {}", e))?;
+
+    fs::write(path, decoded).map_err(|e| format!("Failed to write file: {}", e))
+}
+
 fn detect_language(path: &Path) -> &'static str {
     match path
         .extension()
@@ -70,6 +87,7 @@ fn detect_language(path: &Path) -> &'static str {
         "toml" => "toml",
         "yaml" | "yml" => "yaml",
         "xml" => "xml",
+        "drawio" | "dio" => "xml",
         "sql" => "sql",
         "sh" | "bash" => "shell",
         "go" => "go",
@@ -89,6 +107,8 @@ fn detect_language(path: &Path) -> &'static str {
         "xlsx" => "xlsx",
         "xls" => "xls",
         "csv" => "csv",
+        "pptx" => "pptx",
+        "ppt" => "ppt",
         _ => {
             let filename = path
                 .file_name()
@@ -149,6 +169,8 @@ fn detect_mime_type(path: &Path) -> &'static str {
         "xlsx" => "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "xls" => "application/vnd.ms-excel",
         "csv" => "text/csv",
+        "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "ppt" => "application/vnd.ms-powerpoint",
         _ => "application/octet-stream",
     }
 }
@@ -185,7 +207,7 @@ pub fn is_binary_file(file_path: &str) -> Result<bool, String> {
 
     let binary_extensions: &[&str] = &[
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "avif", "tiff", "tif", "pdf", "docx",
-        "doc", "xlsx", "xls",
+        "doc", "xlsx", "xls", "pptx", "ppt",
     ];
 
     if binary_extensions.contains(&ext.as_str()) {

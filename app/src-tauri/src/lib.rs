@@ -193,6 +193,7 @@ pub fn run() {
             commands::list_all_files,
             commands::read_file_content,
             commands::write_file_content,
+            commands::write_file_bytes,
             commands::get_git_status,
             commands::get_git_diff_stats,
             commands::get_git_file_content,

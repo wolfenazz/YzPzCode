@@ -174,7 +174,49 @@
       "fetchedAt": "2026-08-13T00:07:26.697Z",
       "expiresAt": "2026-08-14T00:07:26.697Z",
       "size": 3351
+    },
+    "tauri_app_reference_config_.md": {
+      "url": "https://tauri.app/reference/config/#dragdropenabled",
+      "title": "Configuration | Tauri",
+      "fetchedAt": "2026-08-13T01:02:29.556Z",
+      "expiresAt": "2026-08-14T01:02:29.556Z",
+      "size": 15153
+    },
+    "v2_tauri_app_reference_config_.md": {
+      "url": "https://v2.tauri.app/reference/config/#windowconfig",
+      "title": "Configuration | Tauri",
+      "fetchedAt": "2026-08-13T01:02:46.480Z",
+      "expiresAt": "2026-08-14T01:02:46.480Z",
+      "size": 15153
+    },
+    "www_drawio_com_doc_faq_embed-mode.md": {
+      "url": "https://www.drawio.com/doc/faq/embed-mode",
+      "title": "Embed mode | draw.io",
+      "fetchedAt": "2026-08-13T01:19:23.591Z",
+      "expiresAt": "2026-08-14T01:19:23.591Z",
+      "size": 15142
+    },
+    "www_npmjs_com_package_drawio.md": {
+      "url": "https://www.npmjs.com/package/drawio",
+      "title": "drawio - npm",
+      "fetchedAt": "2026-08-13T01:22:39.027Z",
+      "expiresAt": "2026-08-14T01:22:39.027Z",
+      "size": 818
+    },
+    "github_com_dream-num_univer.md": {
+      "url": "https://github.com/dream-num/univer",
+      "title": "GitHub - dream-num/univer: Univer is a full-stack framework for creating and editing spreadsheets / word processor / presentation on both web and server. · GitHub",
+      "fetchedAt": "2026-08-13T01:32:07.279Z",
+      "expiresAt": "2026-08-14T01:32:07.279Z",
+      "size": 15278
+    },
+    "github_com_meshesha_pptxjs.md": {
+      "url": "https://github.com/meshesha/pptxjs",
+      "title": "GitHub - meshesha/PPTXjs: jquery plugin for convertation pptx to html · GitHub",
+      "fetchedAt": "2026-08-13T01:32:07.531Z",
+      "expiresAt": "2026-08-14T01:32:07.531Z",
+      "size": 6258
     }
   },
-  "lastUpdated": "2026-08-13T00:07:26.705Z"
+  "lastUpdated": "2026-08-13T01:32:07.578Z"
 }

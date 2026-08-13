@@ -31,6 +31,8 @@ interface ExplorerContextValue {
   externalDropTarget: string | null;
   clipboard: ExplorerClipboard;
   searchTerm?: string;
+  nativeDropTarget: string | null;
+  nativeDragging: boolean;
 }
 
 export const ExplorerContext = React.createContext<ExplorerContextValue>({
@@ -41,6 +43,8 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
   externalDropTarget: null,
   clipboard: null,
   searchTerm: undefined,
+  nativeDropTarget: null,
+  nativeDragging: false,
 });
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
@@ -153,19 +157,33 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   dragHandle,
 }) => {
   const ctx = useContext(ExplorerContext);
-  const { onFileClick, gitStatuses, activeFilePath, onContextMenu, externalDropTarget, clipboard, searchTerm } = ctx;
+  const {
+    onFileClick,
+    gitStatuses,
+    activeFilePath,
+    onContextMenu,
+    externalDropTarget,
+    clipboard,
+    searchTerm,
+    nativeDropTarget,
+    nativeDragging,
+  } = ctx;
   const data = node.data;
   const isActive = activeFilePath === data.id;
   const isCut = isClipboardPath(clipboard, data.id);
   const gitChange = gitStatuses.find((g) => g.path === data.id)?.change;
   const willReceiveDrop = node.willReceiveDrop;
   const isExternalTarget = externalDropTarget === data.id && data.isDir;
+  const isNativeTarget =
+    nativeDragging && nativeDropTarget !== null && nativeDropTarget === data.id && data.isDir;
   const isSelected = node.isSelected;
 
   const [autoExpandTimer, setAutoExpandTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  const isDropTarget = willReceiveDrop || isExternalTarget || isNativeTarget;
+
   useEffect(() => {
-    if (willReceiveDrop && data.isDir && node.isClosed) {
+    if (isDropTarget && data.isDir && node.isClosed) {
       const timer = setTimeout(() => {
         node.toggle();
       }, 600);
@@ -175,11 +193,11 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
         setAutoExpandTimer(null);
       };
     }
-    if (!willReceiveDrop && autoExpandTimer) {
+    if (!isDropTarget && autoExpandTimer) {
       clearTimeout(autoExpandTimer);
       setAutoExpandTimer(null);
     }
-  }, [willReceiveDrop, data.isDir, node.isClosed]);
+  }, [isDropTarget, data.isDir, node.isClosed]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -226,7 +244,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
     node.reset();
   }, [node]);
 
-  const dropHighlight = willReceiveDrop || isExternalTarget;
+  const dropHighlight = isDropTarget;
 
   const rowClass = isActive
     ? 'bg-zinc-800/90 text-zinc-100'
@@ -242,6 +260,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
       role="treeitem"
       aria-expanded={data.isDir ? node.isOpen : undefined}
       aria-selected={isSelected}
+      draggable
       data-file-path={data.path}
       data-is-dir={data.isDir ? 'true' : undefined}
       style={{

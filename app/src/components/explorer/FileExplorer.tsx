@@ -66,6 +66,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     treeRef,
     handleToggle,
     handleMove,
+    moveEntries,
     handleRename,
     createNewEntry,
     deleteEntry,
@@ -176,6 +177,24 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const [selectedEntries, setSelectedEntries] = useState<ExplorerClipboardEntry[]>([]);
 
+  // Native HTML5 drag & drop state (react-dnd is neutralized — see
+  // dndRootElement below — because its canDrop chain can't resolve reliably
+  // with the installed react-dnd version skew, causing a "not-allowed" cursor).
+  const [nativeDrag, setNativeDrag] = useState<ExplorerClipboardEntry[] | null>(null);
+  const [nativeDropTarget, setNativeDropTarget] = useState<string | null>(null);
+  // Synchronous mirror of the in-flight drag payload. The native `dragover`
+  // event can fire before React flushes the state update from `dragstart`, so
+  // the handlers must read the payload from a ref (never from state) to be able
+  // to call preventDefault() + set dropEffect='move' on the very first event.
+  // Without this, the browser shows a "not-allowed" cursor for the first
+  // dragover(s) and the drop is blocked.
+  const nativeDragRef = useRef<ExplorerClipboardEntry[] | null>(null);
+  const selectedEntriesRef = useRef<ExplorerClipboardEntry[]>([]);
+
+  useEffect(() => {
+    selectedEntriesRef.current = selectedEntries;
+  }, [selectedEntries]);
+
   const handleTreeSelect = useCallback((nodes: NodeApi<TreeNodeData>[]) => {
     setSelectedEntries(
       nodes.map((n) => {
@@ -184,6 +203,108 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       })
     );
   }, []);
+
+  const nativeMoveEntries = useCallback(
+    async (entries: ExplorerClipboardEntry[], destDir: string) => {
+      const paths = entries.map((e) => e.path);
+      await moveEntries(paths, destDir);
+    },
+    [moveEntries]
+  );
+
+  // Native drag & drop listeners attached directly to the tree container (not
+  // via React synthetic events). We call stopPropagation() so that neither
+  // react-arborist's react-dnd backend (whose window-level dragover handler
+  // sets dropEffect='none') nor React's delegated handlers can override the
+  // cursor. This guarantees the "move" cursor and makes the drop actually work.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const getRow = (target: EventTarget | null): HTMLElement | null => {
+      const node = target as HTMLElement | null;
+      return node && node.closest ? (node.closest('[data-file-path]') as HTMLElement | null) : null;
+    };
+
+    const onDragStart = (e: DragEvent) => {
+      const row = getRow(e.target);
+      if (!row) return;
+      const path = row.getAttribute('data-file-path');
+      if (!path) return;
+      const isDir = row.getAttribute('data-is-dir') === 'true';
+      const name = path.split(/[\\/]/).pop() ?? path;
+      const selected = selectedEntriesRef.current;
+      const inSelection = selected.some((s) => s.path === path);
+      const entries =
+        inSelection && selected.length > 1
+          ? selected
+          : [{ path, name, isDir }];
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', path);
+      }
+      nativeDragRef.current = entries;
+      setNativeDrag(entries);
+      setNativeDropTarget(null);
+      e.stopPropagation();
+    };
+
+    const onDragOver = (e: DragEvent) => {
+      if (!nativeDragRef.current) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      const row = getRow(e.target);
+      let targetPath = workspacePath;
+      if (row) {
+        const p = row.getAttribute('data-file-path');
+        const isDir = row.getAttribute('data-is-dir') === 'true';
+        if (p) targetPath = isDir ? p : findParentPath(p) ?? workspacePath;
+      }
+      setNativeDropTarget((prev) => (prev !== targetPath ? targetPath : prev));
+      e.stopPropagation();
+    };
+
+    const onDrop = (e: DragEvent) => {
+      const entries = nativeDragRef.current;
+      if (!entries || entries.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const row = getRow(e.target);
+      let destDir = workspacePath;
+      if (row) {
+        const p = row.getAttribute('data-file-path');
+        const isDir = row.getAttribute('data-is-dir') === 'true';
+        if (p) destDir = isDir ? p : findParentPath(p) ?? workspacePath;
+      }
+      nativeDragRef.current = null;
+      setNativeDrag(null);
+      setNativeDropTarget(null);
+      void nativeMoveEntries(entries, destDir);
+    };
+
+    const onDragEnd = () => {
+      nativeDragRef.current = null;
+      setNativeDrag(null);
+      setNativeDropTarget(null);
+    };
+
+    el.addEventListener('dragstart', onDragStart);
+    el.addEventListener('dragover', onDragOver);
+    el.addEventListener('drop', onDrop);
+    el.addEventListener('dragend', onDragEnd);
+    return () => {
+      el.removeEventListener('dragstart', onDragStart);
+      el.removeEventListener('dragover', onDragOver);
+      el.removeEventListener('drop', onDrop);
+      el.removeEventListener('dragend', onDragEnd);
+    };
+  }, [workspacePath, nativeMoveEntries]);
+
+  // Neutralize react-dnd's HTML5 backend by pointing its event listeners at a
+  // detached element. Without this, react-dnd's window-level dragover handler
+  // sets dataTransfer.dropEffect = 'none' whenever its canDrop chain fails,
+  // showing a "not-allowed" cursor and blocking native drops.
+  const dndRootElement = useMemo(() => document.createElement('div'), []);
 
   const handleContainerContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -661,6 +782,52 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     [findExternalDropTarget, importExternalFiles]
   );
 
+  const handleContainerDragOver = useCallback(
+    (e: React.DragEvent) => {
+      // Allow dropping an in-tree drag onto empty space → move to workspace root.
+      if (nativeDragRef.current) {
+        const row = (e.target as HTMLElement).closest('[data-file-path]');
+        if (row) return; // the row's own dragover handler manages it
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setNativeDropTarget(workspacePath);
+        return;
+      }
+      handleExternalDragOver(e);
+    },
+    [workspacePath, handleExternalDragOver]
+  );
+
+  const handleContainerDrop = useCallback(
+    async (e: React.DragEvent) => {
+      const entries = nativeDragRef.current;
+      if (entries && entries.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+        nativeDragRef.current = null;
+        setNativeDrag(null);
+        setNativeDropTarget(null);
+        await nativeMoveEntries(entries, workspacePath);
+        return;
+      }
+      await handleExternalDrop(e);
+    },
+    [workspacePath, nativeMoveEntries, handleExternalDrop]
+  );
+
+  const handleContainerDragLeave = useCallback(
+    (e: React.DragEvent) => {
+      if (nativeDragRef.current) {
+        const relatedTarget = e.relatedTarget as HTMLElement | null;
+        if (relatedTarget && containerRef.current?.contains(relatedTarget)) return;
+        setNativeDropTarget(null);
+        return;
+      }
+      handleExternalDragLeave(e);
+    },
+    [handleExternalDragLeave]
+  );
+
   const explorerContextValue = useMemo(
     () => ({
       onFileClick,
@@ -670,8 +837,20 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       externalDropTarget,
       clipboard: explorerClipboard,
       searchTerm: debouncedSearchQuery || undefined,
+      nativeDropTarget,
+      nativeDragging: !!nativeDrag,
     }),
-    [onFileClick, gitStatuses, activeFilePath, handleContextMenu, externalDropTarget, explorerClipboard, debouncedSearchQuery]
+    [
+      onFileClick,
+      gitStatuses,
+      activeFilePath,
+      handleContextMenu,
+      externalDropTarget,
+      explorerClipboard,
+      debouncedSearchQuery,
+      nativeDropTarget,
+      nativeDrag,
+    ]
   );
 
   return (
@@ -844,9 +1023,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         ref={containerRef}
         onKeyDownCapture={handleKeyDownCapture}
         onKeyDown={handleKeyDown}
-        onDragOver={handleExternalDragOver}
-        onDragLeave={handleExternalDragLeave}
-        onDrop={handleExternalDrop}
+        onDragOver={handleContainerDragOver}
+        onDragLeave={handleContainerDragLeave}
+        onDrop={handleContainerDrop}
       >
         {isLoading && treeData.length === 0 ? (
           <div className="flex items-center justify-center py-8">
@@ -919,27 +1098,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                     });
                   }
                 }}
-                disableDrop={({ parentNode, dragNodes }) => {
-                  // Dropping onto a leaf (file) is allowed — the destination
-                  // resolves to its containing folder (VS Code behavior).
-                  for (const drag of dragNodes) {
-                    if (!drag) continue;
-                    if (drag.isInternal && parentNode) {
-                      if (drag.id === parentNode.id) return true;
-                      const dragPath = (drag.data as TreeNodeData | undefined)?.path;
-                      const parentPath = (parentNode.data as TreeNodeData | undefined)?.path;
-                      if (
-                        dragPath &&
-                        parentPath &&
-                        (parentPath.startsWith(dragPath + '/') ||
-                          parentPath.startsWith(dragPath + '\\'))
-                      ) {
-                        return true;
-                      }
-                    }
-                  }
-                  return false;
-                }}
+                dndRootElement={dndRootElement}
                 padding={4}
                 overscanCount={10}
               >
