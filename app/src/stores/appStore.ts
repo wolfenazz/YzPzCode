@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode } from '../types';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
@@ -110,6 +110,7 @@ interface AppState {
   activeSessionId: string | null;
   activeSessionByWorkspace: Record<string, string | null>;
   terminalMouseModesBySession: Record<string, number[]>;
+  terminalMouseAlwaysOnDisabledBySession: Record<string, boolean>;
   manualAgentBySession: Record<string, AgentType>;
   isLoadingTerminals: boolean;
   view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings";
@@ -175,6 +176,7 @@ interface AppState {
   removeSession: (sessionId: string) => void;
   setTerminalMouseModes: (sessionId: string, modes: number[]) => void;
   clearTerminalMouseModes: (sessionId: string) => void;
+  setTerminalMouseAlwaysOnDisabled: (sessionId: string, disabled: boolean) => void;
   setManualAgent: (sessionId: string, agent: AgentType) => void;
   setIsLoadingTerminals: (loading: boolean) => void;
   updateWorkspaceList: (workspaces: WorkspaceConfig[]) => void;
@@ -269,6 +271,15 @@ interface AppState {
   clearRestoredFilePaths: (workspaceId: string) => void;
   setActiveView: (view: WorkspaceView) => void;
   ensureBrowserState: (workspaceId: string) => void;
+  agentSessionsByWorkspace: Record<string, AgentSessionSummary[]>;
+  activeAgentSessionByWorkspace: Record<string, string | null>;
+  agentPaneUIModes: Record<string, AgentPaneUIMode>;
+  setAgentSessionsForWorkspace: (workspaceId: string, sessions: AgentSessionSummary[]) => void;
+  addAgentSessionForWorkspace: (workspaceId: string, session: AgentSessionSummary) => void;
+  removeAgentSessionForWorkspace: (workspaceId: string, sessionId: string) => void;
+  setActiveAgentSessionForWorkspace: (workspaceId: string, sessionId: string | null) => void;
+  setAgentPaneUIMode: (sessionId: string, mode: AgentPaneUIMode) => void;
+  closeAllAgentSessions: () => void;
   setBrowserCurrentUrl: (workspaceId: string, url: string) => void;
   setBrowserDraftUrl: (workspaceId: string, url: string) => void;
   setBrowserLoading: (workspaceId: string, isLoading: boolean) => void;
@@ -318,6 +329,7 @@ const initialCliStatuses: Record<CliType, AgentCliInfo | null> = {
   cursor: null,
   kilo: null,
   hermes: null,
+  pi: null,
   gh: null,
   stripe: null,
   supabase: null,
@@ -342,6 +354,7 @@ export const useAppStore = create<AppState>()(
       activeSessionId: null,
       activeSessionByWorkspace: {} as Record<string, string | null>,
       terminalMouseModesBySession: {} as Record<string, number[]>,
+      terminalMouseAlwaysOnDisabledBySession: {} as Record<string, boolean>,
       manualAgentBySession: {} as Record<string, AgentType>,
       isLoadingTerminals: false,
       view: "nodejs-check" as const,
@@ -463,6 +476,9 @@ export const useAppStore = create<AppState>()(
             terminalMouseModesBySession: Object.fromEntries(
               Object.entries(state.terminalMouseModesBySession).filter(([id]) => id !== sessionId)
             ),
+            terminalMouseAlwaysOnDisabledBySession: Object.fromEntries(
+              Object.entries(state.terminalMouseAlwaysOnDisabledBySession).filter(([id]) => id !== sessionId)
+            ),
             manualAgentBySession: Object.fromEntries(
               Object.entries(state.manualAgentBySession).filter(([id]) => id !== sessionId)
             ),
@@ -482,6 +498,13 @@ export const useAppStore = create<AppState>()(
           terminalMouseModesBySession: Object.fromEntries(
             Object.entries(state.terminalMouseModesBySession).filter(([id]) => id !== sessionId)
           ),
+        })),
+      setTerminalMouseAlwaysOnDisabled: (sessionId, disabled) =>
+        set((state) => ({
+          terminalMouseAlwaysOnDisabledBySession: {
+            ...state.terminalMouseAlwaysOnDisabledBySession,
+            [sessionId]: disabled,
+          },
         })),
       setManualAgent: (sessionId, agent) =>
         set((state) => ({
@@ -547,6 +570,7 @@ export const useAppStore = create<AppState>()(
           isLoadingTerminals: false,
           activeSessionId: null,
           terminalMouseModesBySession: {},
+          terminalMouseAlwaysOnDisabledBySession: {},
           manualAgentBySession: {},
           cliLaunchStates: {},
         }),
@@ -711,6 +735,7 @@ export const useAppStore = create<AppState>()(
           activeSessionByWorkspace: {},
           activeSessionId: null,
           terminalMouseModesBySession: {},
+          terminalMouseAlwaysOnDisabledBySession: {},
           manualAgentBySession: {},
           view: "setup",
           openFiles: [],
@@ -720,6 +745,8 @@ export const useAppStore = create<AppState>()(
           activeFileByWorkspace: {},
           activeViewByWorkspace: {},
           browserStateByWorkspace: {},
+          agentSessionsByWorkspace: {},
+          activeAgentSessionByWorkspace: {},
         }),
 
       pruneMissingWorkspaces: async () => {
@@ -802,6 +829,9 @@ export const useAppStore = create<AppState>()(
       activeFileByWorkspace: {} as Record<string, string | null>,
       activeViewByWorkspace: {} as Record<string, WorkspaceView>,
       browserStateByWorkspace: {} as Record<string, BrowserWorkspaceState>,
+      agentSessionsByWorkspace: {} as Record<string, AgentSessionSummary[]>,
+      activeAgentSessionByWorkspace: {} as Record<string, string | null>,
+      agentPaneUIModes: {} as Record<string, AgentPaneUIMode>,
       explorerClipboard: null,
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
@@ -834,6 +864,71 @@ export const useAppStore = create<AppState>()(
               [wsId]: view,
             },
           };
+        }),
+
+      setAgentSessionsForWorkspace: (workspaceId, sessions) =>
+        set((state) => ({
+          agentSessionsByWorkspace: {
+            ...state.agentSessionsByWorkspace,
+            [workspaceId]: sessions,
+          },
+        })),
+
+      addAgentSessionForWorkspace: (workspaceId, session) =>
+        set((state) => {
+          const current = state.agentSessionsByWorkspace[workspaceId] || [];
+          if (current.some((s) => s.sessionId === session.sessionId)) return state;
+          return {
+            agentSessionsByWorkspace: {
+              ...state.agentSessionsByWorkspace,
+              [workspaceId]: [...current, session],
+            },
+            activeAgentSessionByWorkspace: {
+              ...state.activeAgentSessionByWorkspace,
+              [workspaceId]: session.sessionId,
+            },
+          };
+        }),
+
+      removeAgentSessionForWorkspace: (workspaceId, sessionId) =>
+        set((state) => {
+          const current = state.agentSessionsByWorkspace[workspaceId] || [];
+          const next = current.filter((s) => s.sessionId !== sessionId);
+          return {
+            agentSessionsByWorkspace: {
+              ...state.agentSessionsByWorkspace,
+              [workspaceId]: next,
+            },
+            activeAgentSessionByWorkspace: {
+              ...state.activeAgentSessionByWorkspace,
+              [workspaceId]:
+                state.activeAgentSessionByWorkspace[workspaceId] === sessionId
+                  ? (next[0]?.sessionId ?? null)
+                  : state.activeAgentSessionByWorkspace[workspaceId],
+            },
+          };
+        }),
+
+      setActiveAgentSessionForWorkspace: (workspaceId, sessionId) =>
+        set((state) => ({
+          activeAgentSessionByWorkspace: {
+            ...state.activeAgentSessionByWorkspace,
+            [workspaceId]: sessionId,
+          },
+        })),
+
+      setAgentPaneUIMode: (sessionId, mode) =>
+        set((state) => ({
+          agentPaneUIModes: {
+            ...state.agentPaneUIModes,
+            [sessionId]: mode,
+          },
+        })),
+
+      closeAllAgentSessions: () =>
+        set({
+          agentSessionsByWorkspace: {},
+          activeAgentSessionByWorkspace: {},
         }),
 
       ensureBrowserState: (workspaceId) =>
@@ -1458,6 +1553,7 @@ export const useAppStore = create<AppState>()(
           discordRichPresence: state.discordRichPresence,
           nodejsCheckPassed: state.nodejsCheckPassed,
           inspectorQuickPrompts: state.inspectorQuickPrompts,
+          agentPaneUIModes: state.agentPaneUIModes,
         };
 
         if (state.saveWorkspaceState) {
@@ -1469,6 +1565,8 @@ export const useAppStore = create<AppState>()(
             lastOpenedWorkspaceId: state.lastOpenedWorkspaceId,
             explorerOpen: state.explorerOpen,
             activeViewByWorkspace: state.activeViewByWorkspace,
+            activeAgentSessionByWorkspace: state.activeAgentSessionByWorkspace,
+            agentSessionsByWorkspace: state.agentSessionsByWorkspace,
             activeFileByWorkspace: state.activeFileByWorkspace,
             browserStateByWorkspace: Object.fromEntries(
               Object.entries(state.browserStateByWorkspace).map(([wsId, browserState]) => [

@@ -234,9 +234,13 @@ fn launch_external_windows_separate(
 fn tile_console_windows(count: usize, cols: usize, rows: usize) {
     use std::ptr;
 
+    #[allow(clippy::upper_case_acronyms)]
     type HWND = isize;
+    #[allow(clippy::upper_case_acronyms)]
     type DWORD = u32;
+    #[allow(clippy::upper_case_acronyms)]
     type BOOL = i32;
+    #[allow(clippy::upper_case_acronyms)]
     type UINT = u32;
 
     const SM_CXSCREEN: i32 = 0;

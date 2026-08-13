@@ -1,13 +1,15 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
-import type { BrowserSelectedElement, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
+import type { BrowserSelectedElement, CliType, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
 import { htmlToPlainText } from '../../utils/richText';
 import { RichPromptEditor } from './RichPromptEditor';
 import { useAppStore } from '../../stores/appStore';
+import { AgentTargetSelect } from './AgentTargetSelect';
 
 export interface SessionOption {
   id: string;
   label: string;
+  agent: CliType | null;
 }
 
 interface ElementInspectorPanelProps {
@@ -287,18 +289,11 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
             </span>
           </div>
           <div className="p-3">
-            <select
+            <AgentTargetSelect
               value={targetSessionId ?? ''}
-              onChange={(event) => onTargetSessionChange(event.target.value || null)}
-              className="w-full cursor-pointer appearance-none border border-zinc-800 bg-zinc-900 px-2.5 py-2 font-mono text-[11px] text-zinc-200 outline-none transition-colors focus:border-zinc-600"
-            >
-              {sessionOptions.length === 0 && <option value="">no session</option>}
-              {sessionOptions.map((session) => (
-                <option key={session.id} value={session.id} className="bg-zinc-900 text-zinc-200">
-                  {session.label}
-                </option>
-              ))}
-            </select>
+              options={sessionOptions}
+              onChange={onTargetSessionChange}
+            />
             <p className="mt-1.5 text-[9px] leading-4 text-zinc-600">
               handoff goes directly into the chosen terminal context
             </p>

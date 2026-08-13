@@ -341,7 +341,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
-        return Ok(cmd);
+        Ok(cmd)
     }
 
     #[cfg(target_os = "macos")]
@@ -439,7 +439,7 @@ fn kill_child_process(child: &Arc<Mutex<Child>>) -> Result<()> {
             .stderr(Stdio::null())
             .status()
             .with_context(|| format!("Failed to stop managed command pid {}", pid))?;
-        return Ok(());
+        Ok(())
     }
 
     #[cfg(not(target_os = "windows"))]

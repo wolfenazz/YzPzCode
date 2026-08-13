@@ -35,6 +35,7 @@ impl AuthDetector {
             AgentType::Cursor => Self::check_cursor_auth(),
             AgentType::Kilo => Self::check_kilo_auth(),
             AgentType::Hermes => Self::check_hermes_auth(),
+            AgentType::Pi => Self::check_pi_auth(),
             AgentType::Gh => Self::check_gh_auth(),
             AgentType::Stripe => Self::check_stripe_auth(),
             AgentType::Supabase => Self::check_supabase_auth(),
@@ -57,6 +58,7 @@ impl AuthDetector {
             AgentType::Cursor,
             AgentType::Kilo,
             AgentType::Hermes,
+            AgentType::Pi,
         ]
         .iter()
         .map(|agent| Self::check_auth(*agent))
@@ -378,6 +380,46 @@ impl AuthDetector {
         }
     }
 
+    fn check_pi_auth() -> AuthInfo {
+        let api_key_envs = [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "DEEPSEEK_API_KEY",
+        ];
+        if api_key_envs.iter().any(|var| env::var(var).is_ok()) {
+            return AuthInfo {
+                agent: AgentType::Pi,
+                status: AuthStatus::Authenticated,
+                error: None,
+                config_path: None,
+            };
+        }
+
+        if let Some(home) = Self::get_home_dir() {
+            let config_dir = home.join(".pi").join("agent");
+            let auth_file = config_dir.join("auth.json");
+            let settings_file = config_dir.join("settings.json");
+
+            if auth_file.exists() || settings_file.exists() {
+                return AuthInfo {
+                    agent: AgentType::Pi,
+                    status: AuthStatus::Authenticated,
+                    error: None,
+                    config_path: Some(config_dir.to_string_lossy().to_string()),
+                };
+            }
+        }
+
+        AuthInfo {
+            agent: AgentType::Pi,
+            status: AuthStatus::NotAuthenticated,
+            error: None,
+            config_path: None,
+        }
+    }
+
     fn check_gh_auth() -> AuthInfo {
         if let Some(home) = Self::get_home_dir() {
             let config_path = home.join(".config").join("gh").join("hosts.yml");
@@ -674,6 +716,11 @@ impl AuthDetector {
                 "Run 'hermes model' to configure your LLM provider".to_string(),
                 "Or edit ~/.hermes/.env and add OPENROUTER_API_KEY=your-key".to_string(),
                 "Or run 'hermes setup' for the full setup wizard".to_string(),
+            ],
+            AgentType::Pi => vec![
+                "Run 'pi' and use '/login' to authenticate with a subscription or API key".to_string(),
+                "Or set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY environment variable".to_string(),
+                "Credentials are stored in ~/.pi/agent/auth.json".to_string(),
             ],
             AgentType::Gh => vec![
                 "Run 'gh auth login' in a terminal".to_string(),

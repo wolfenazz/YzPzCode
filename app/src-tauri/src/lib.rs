@@ -1,5 +1,6 @@
 mod agent;
 mod agent_cli;
+mod agent_host;
 mod browser;
 mod commands;
 mod discord_presence;
@@ -11,6 +12,7 @@ mod utils;
 
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
+use agent_host::AgentHostManager;
 use browser::BrowserManager;
 use discord_presence::DiscordPresenceManager;
 use ide::IdeDetector;
@@ -57,6 +59,7 @@ pub fn run() {
     let browser_manager = BrowserManager::new();
     let ide_detector = IdeDetector::new();
     let discord_manager = DiscordPresenceManager::new();
+    let agent_host_manager = AgentHostManager::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -72,6 +75,7 @@ pub fn run() {
         .manage(browser_manager.clone())
         .manage(ide_detector.clone())
         .manage(discord_manager.clone())
+        .manage(agent_host_manager.clone())
         .setup(move |app| {
             terminal_manager.set_app_handle(app.handle().clone());
             agent_executor.set_app_handle(app.handle().clone());
@@ -79,6 +83,7 @@ pub fn run() {
             cli_launcher.set_app_handle(app.handle().clone());
             managed_command_manager.set_app_handle(app.handle().clone());
             browser_manager.set_app_handle(app.handle().clone());
+            agent_host_manager.set_app_handle(app.handle().clone());
 
             #[cfg(target_os = "macos")]
             {
@@ -93,6 +98,7 @@ pub fn run() {
                 let terminal_manager_clone = terminal_manager.clone();
                 let managed_command_manager_clone = managed_command_manager.clone();
                 let browser_manager_clone = browser_manager.clone();
+                let agent_host_manager_clone = agent_host_manager.clone();
 
                 app.listen("tauri://close-requested", move |_event| {
                     if let Err(e) = managed_command_manager_clone.stop_all() {
@@ -110,6 +116,7 @@ pub fn run() {
                             e
                         );
                     }
+                    agent_host_manager_clone.shutdown();
                 });
             }
 
@@ -191,6 +198,7 @@ pub fn run() {
             commands::path_exists,
             commands::list_directory_entries,
             commands::list_all_files,
+            commands::list_all_entries,
             commands::read_file_content,
             commands::write_file_content,
             commands::write_file_bytes,
@@ -219,6 +227,42 @@ pub fn run() {
             commands::is_discord_presence_enabled,
             commands::update_discord_activity,
             commands::clear_discord_activity,
+            commands::ensure_agent_host,
+            commands::get_agent_host_status,
+            commands::create_agent_session,
+            commands::send_agent_message,
+            commands::resume_agent_session,
+            commands::abort_agent_session,
+            commands::stop_agent_session,
+            commands::delete_agent_session,
+            commands::list_agent_sessions,
+            commands::get_agent_session,
+            commands::read_agent_messages,
+            commands::get_agent_session_preview,
+            commands::update_agent_session_title,
+            commands::update_agent_session_model,
+            commands::approve_agent_tool,
+            commands::get_agent_providers,
+            commands::get_agent_models,
+            commands::set_agent_provider_config,
+            commands::list_agent_provider_configs,
+            commands::remove_agent_provider_config,
+            commands::get_agent_session_usage,
+            commands::update_agent_session_connection,
+            commands::get_agent_settings,
+            commands::update_agent_settings,
+            commands::set_agent_tool_policy,
+            commands::clear_agent_tool_policy,
+            commands::list_agent_user_instructions,
+            commands::add_agent_user_instruction,
+            commands::toggle_agent_user_instruction,
+            commands::list_agent_runtime_commands,
+            commands::answer_agent_question,
+            commands::list_agent_mcp_servers,
+            commands::add_agent_mcp_server,
+            commands::remove_agent_mcp_server,
+            commands::set_agent_mcp_server_disabled,
+            commands::shutdown_agent_host,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

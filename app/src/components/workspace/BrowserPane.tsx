@@ -30,6 +30,7 @@ import { UiReferenceClipboardPanel } from './UiReferenceClipboardPanel';
 import { ApplyModeToolbar } from './ApplyModeToolbar';
 import { RichPromptEditor } from './RichPromptEditor';
 import { ElementInspectorPanel } from './ElementInspectorPanel';
+import { AgentTargetSelect } from './AgentTargetSelect';
 
 interface BrowserPaneProps {
   workspaceId: string;
@@ -618,7 +619,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   }, [activeSessionId, targetableSessions]);
 
   const sessionOptions = useMemo(
-    () => targetableSessions.map((session) => ({ id: session.id, label: sessionDisplayName(session) })),
+    () => targetableSessions.map((session) => ({ id: session.id, label: sessionDisplayName(session), agent: session.agent ?? null })),
     [targetableSessions],
   );
 
@@ -2255,18 +2256,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                           </span>
                         </div>
                         <div className="p-3">
-                          <select
+                          <AgentTargetSelect
                             value={effectiveState.targetSessionId ?? ''}
-                            onChange={(event) => setBrowserTargetSession(workspaceId, event.target.value || null)}
-                            className="w-full cursor-pointer appearance-none border border-zinc-800 bg-zinc-900 px-2.5 py-2 font-mono text-[11px] text-zinc-200 outline-none transition-colors focus:border-zinc-600"
-                          >
-                            {targetableSessions.length === 0 && <option value="">no session</option>}
-                            {targetableSessions.map((session) => (
-                              <option key={session.id} value={session.id} className="bg-zinc-900 text-zinc-200">
-                                {sessionDisplayName(session)}
-                              </option>
-                            ))}
-                          </select>
+                            options={targetableSessions.map((session) => ({
+                              id: session.id,
+                              label: sessionDisplayName(session),
+                              agent: session.agent ?? null,
+                            }))}
+                            onChange={(sessionId) => setBrowserTargetSession(workspaceId, sessionId)}
+                          />
                           <p className="mt-1.5 text-[9px] leading-4 text-zinc-600">
                             {targetableSessions.length === 0
                               ? 'open an agent terminal tab (claude, codex, gemini…) to enable rebuild'

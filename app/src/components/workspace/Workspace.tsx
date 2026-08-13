@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { BrowserPane } from './BrowserPane';
+import { AgentGrid } from '../agent/AgentGrid';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { FileEditor } from '../editor/FileEditor';
@@ -12,6 +13,7 @@ import { useTerminal } from '../../hooks/useTerminal';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useBrowser } from '../../hooks/useBrowser';
+import { useAgentHost } from '../../hooks/useAgentHost';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { FileEntry, WorkspaceView } from '../../types';
@@ -49,6 +51,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const { detectAllClis } = useAgentCli();
   const { checkAllAuth } = useCliLauncher();
   const { closeBrowserView } = useBrowser();
+  const { stopSession: stopAgentSession } = useAgentHost();
   const { openFile } = useFileEditor();
   const shouldWatchFiles = !!currentWorkspace?.path && (explorerOpen || activeView === 'editor');
   useFileWatcher(shouldWatchFiles ? currentWorkspace?.path ?? null : null);
@@ -228,7 +231,21 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     killWorkspaceSessions(workspaceId).catch((err) => {
       console.error('Error killing workspace sessions:', err);
     });
-  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView]);
+
+    // Stop running YZPZ Agent sessions for this workspace. Sessions are KEPT
+    // persisted so they can be resumed later from Agent → History.
+    const agentSessions = useAppStore.getState().agentSessionsByWorkspace[workspaceId] || [];
+    await Promise.allSettled(
+      agentSessions.map(async (s) => {
+        try {
+          await stopAgentSession(s.sessionId);
+        } catch (err) {
+          console.error('Error stopping agent session:', err);
+        }
+      })
+    );
+    useAppStore.getState().setAgentSessionsForWorkspace(workspaceId, []);
+  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView, stopAgentSession]);
 
   const handleNewWorkspace = useCallback(() => {
     setView('setup');
@@ -332,6 +349,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               >
                 <div className="h-full w-full overflow-hidden">
                   <TerminalGrid sessions={sessions} isLoading={isLoading} />
+                </div>
+              </div>
+
+              {/*
+                The agent grid stays MOUNTED across view switches (hidden via
+                CSS) so in-flight agent streams and chat state survive TTY<->
+                Agent<->Code<->Browser switching — same rationale as terminals.
+              */}
+              <div
+                className={activeView === "agent" ? "h-full w-full" : "hidden"}
+                aria-hidden={activeView !== "agent"}
+              >
+                <div className="h-full w-full overflow-hidden">
+                  {currentWorkspace && <AgentGrid workspaceId={currentWorkspace.id} />}
                 </div>
               </div>
 

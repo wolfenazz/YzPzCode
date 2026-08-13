@@ -1,9 +1,9 @@
-export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo" | "hermes";
+export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo" | "hermes" | "pi";
 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
-export type WorkspaceView = "terminal" | "editor" | "browser";
+export type WorkspaceView = "terminal" | "agent" | "editor" | "browser";
 
 export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
@@ -460,4 +460,222 @@ export interface FileTab {
   originalContent: string;
   isDirty: boolean;
   gitChange?: 'added' | 'modified' | 'deleted' | 'untracked';
+}
+
+// ─── YZPZ Agent (Cline-SDK harness) ────────────────────────────────
+
+export interface AgentHostStatus {
+  running: boolean;
+  connected: boolean;
+  port: number | null;
+  nodeMajor: number | null;
+  sessions: number;
+}
+
+export interface AgentSessionSummary {
+  sessionId: string;
+  workspaceId: string;
+  title: string | null;
+  providerId: string | null;
+  modelId: string | null;
+  createdAt: number | null;
+  updatedAt: number | null;
+  messageCount: number | null;
+  preview: string | null;
+  status?: string;
+}
+
+export interface AgentApprovalRequest {
+  requestId: string;
+  sessionId: string;
+  agentId: string;
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  policy: string;
+  pendingCount: number;
+}
+
+export interface AgentProviderInfo {
+  id: string;
+  name: string;
+  baseUrl: string | null;
+  defaultModelId: string | null;
+  models: number;
+}
+
+export interface AgentModelReasoningOption {
+  type: 'toggle' | 'effort' | 'budget_tokens';
+  /** Present when type === 'effort': allowed levels (may include null/'default') */
+  values?: Array<string | null>;
+  /** Present when type === 'budget_tokens' */
+  min?: number;
+  max?: number;
+}
+
+export interface AgentModelInfo {
+  id: string;
+  name: string;
+  contextWindow: number | null;
+  maxOutput: number | null;
+  capabilities?: string[];
+  reasoningOptions?: AgentModelReasoningOption[];
+}
+
+/** One MCP server linked to the agent (from the sidecar). */
+export interface AgentMcpServer {
+  name: string;
+  status: 'connected' | 'connecting' | 'disconnected';
+  disabled: boolean;
+  lastError?: string | null;
+  toolCount: number;
+  transport: { type: string; command?: string; args?: string[]; url?: string } | null;
+}
+
+/** One item in the agent-maintained task list. */
+export interface AgentTodo {
+  id: string;
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+}
+
+/** A pending `ask_question` decision from the agent. */
+export interface AgentQuestion {
+  requestId: string;
+  sessionId: string;
+  agentId: string;
+  question: string;
+  options: string[];
+}
+
+/** A CoreSessionEvent forwarded verbatim from the sidecar. */
+export interface AgentCoreSessionEvent {
+  type:
+    | "chunk"
+    | "agent_event"
+    | "team_progress"
+    | "pending_prompts"
+    | "pending_prompt_submitted"
+    | "session_snapshot"
+    | "ended"
+    | "hook"
+    | "status";
+  payload: Record<string, unknown>;
+}
+
+/** Inner AgentEvent (content/tool/usage deltas) carried inside agent_event. */
+export interface AgentStreamEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface AgentApprovalRequestEvent {
+  requestId: string;
+  sessionId: string;
+  agentId: string;
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  policy: string;
+  pendingCount: number;
+}
+
+/** Accumulated token/cost usage for a session (from the sidecar). */
+export interface AgentAccumulatedUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  totalCost: number;
+}
+
+export interface AgentSessionUsage {
+  usage?: AgentAccumulatedUsage | null;
+  aggregateUsage?: AgentAccumulatedUsage | null;
+}
+
+export type AgentMode = 'ask' | 'act' | 'plan' | 'orchestrator';
+
+/** Per-pane agent UI density: full shows every control, minimal keeps only a slim status line. */
+export type AgentPaneUIMode = 'full' | 'minimal';
+
+/** Live token delta carried by `usage`/`usage-updated` agent events. */
+export interface AgentUsageDelta {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  totalCost?: number;
+}
+
+export interface AgentTeamProgressSummary {
+  teamName: string;
+  updatedAt: string;
+  members: {
+    total: number;
+    byStatus: Record<string, number>;
+    leadCount: number;
+    teammateCount: number;
+  };
+  tasks: {
+    total: number;
+    byStatus: Record<string, number>;
+    completionPct: number;
+  };
+  runs: {
+    total: number;
+    byStatus: Record<string, number>;
+    activeRunIds: string[];
+  };
+  outcomes: {
+    total: number;
+    byStatus: Record<string, number>;
+    finalizedPct: number;
+  };
+}
+
+export interface AgentSubAgentActivity {
+  agentId: string;
+  role: 'lead' | 'teammate';
+  task: string;
+  status: 'running' | 'done' | 'error';
+  ts: number;
+}
+
+export interface AgentToolPolicy {
+  enabled: boolean;
+  autoApprove: boolean;
+}
+
+export interface AgentToolInfo {
+  id: string;
+  description: string;
+  defaultEnabled: boolean;
+  policy: AgentToolPolicy | null;
+}
+
+export interface AgentUserInstruction {
+  id: string;
+  filePath: string;
+  name: string;
+  description: string | null;
+  disabled: boolean;
+  instructions: string;
+}
+
+export interface AgentGlobalSettings {
+  telemetryOptOut: boolean;
+  autoUpdateEnabled: boolean;
+  compactionStrategy?: 'basic' | 'agentic';
+  compactionEnabled?: boolean;
+  planActMode?: 'plan' | 'act';
+  toolAutoApprove?: boolean;
+  disabledTools?: string[];
+  defaultProviderId?: string | null;
+}
+
+export interface AgentSettings {
+  global: AgentGlobalSettings;
+  tools: AgentToolInfo[];
+  providerConfigs: Array<{ providerId: string; apiKey?: string; baseUrl?: string; modelId?: string }>;
 }

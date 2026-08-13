@@ -11,6 +11,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+embed-resource = "3"
 
 [dependencies]
 tauri = { version = "2", features = ["unstable"] }
@@ -33,3 +34,5 @@ base64 = "0.22"
 regex = "1"
 discord-rich-presence = "0.2"
 url = "2"
+tokio-tungstenite = "0.26"
+futures-util = "0.3"

@@ -9,6 +9,7 @@ import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
+import piLogo from '../../assets/pi.svg';
 
 interface AgentOption {
   type: AgentType;
@@ -26,6 +27,7 @@ const AGENT_OPTIONS: AgentOption[] = [
   { type: 'cursor', label: 'Cursor Agent', description: 'Contextual AI Environment', logo: cursorLogo, color: '#3178C6' },
   { type: 'kilo', label: 'Kilo Code', description: 'Lightweight AI Developer', logo: kiloLogo, color: '#8B5CF6' },
   { type: 'hermes', label: 'Hermes Agent', description: 'NousResearch Autonomous Agent', logo: hermesLogo, color: '#F59E0B' },
+  { type: 'pi', label: 'Pi Agent', description: 'Minimal Terminal Coding Harness', logo: piLogo, color: '#FFFFFF' },
 ];
 
 const AGENT_CAPABILITIES: Record<AgentType, string> = {
@@ -36,6 +38,7 @@ const AGENT_CAPABILITIES: Record<AgentType, string> = {
   cursor: 'IDE-integrated AI agent with deep codebase awareness. Context-aware suggestions and multi-file edits.',
   kilo: 'Lightweight, fast AI coding assistant optimized for quick tasks. Lower resource usage.',
   hermes: 'NousResearch autonomous AI agent with tool use, messaging integration, and browser automation.',
+  pi: 'Minimal terminal coding harness with TypeScript extensions, skills, prompt templates, and pi packages. Supports Claude, OpenAI, Gemini, and 20+ providers.',
 };
 
 const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; icon: string; color: string }[] = [

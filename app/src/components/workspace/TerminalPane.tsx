@@ -89,6 +89,7 @@ const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
   gemini: '/new',
   cursor: '/new',
   hermes: '/new',
+  pi: '/new',
   claude: '/clear',
 };
 
@@ -117,6 +118,7 @@ const AGENT_BINARY_NAMES: Record<string, AgentType> = {
   opencode: 'opencode',
   kilo: 'kilo',
   hermes: 'hermes',
+  pi: 'pi',
   agent: 'cursor',
   cursor: 'cursor',
 };
@@ -234,6 +236,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const lineTrackingReliableRef = useRef(true);
   const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
+  const mouseAlwaysOnDisabled = useAppStore((state) => state.terminalMouseAlwaysOnDisabledBySession[session.id] ?? false);
+  const setMouseAlwaysOnDisabled = useAppStore((state) => state.setTerminalMouseAlwaysOnDisabled);
   const manualAgent = useAppStore((state) => state.manualAgentBySession[session.id]);
   const setManualAgent = useAppStore((state) => state.setManualAgent);
   const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
@@ -257,10 +261,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   // Refs mirroring store settings so the xterm lifecycle effect (which only
   // re-runs per session) can read the latest values without being re-created.
   const effectiveAgent = manualAgent ?? session.agent;
-  // AI agent sessions always keep mouse tracking locked on; shell/tool
-  // sessions use the per-session toggle state.
+  // AI agent sessions always keep mouse tracking locked on by default; the
+  // header button lets the user turn it off per-session. Shell/tool sessions
+  // use the per-session toggle state.
   const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
-  const mouseAlwaysOnRef = useRef(isAiAgent);
+  const isAiAgentRef = useRef(isAiAgent);
+  const mouseAlwaysOnRef = useRef(isAiAgent && !mouseAlwaysOnDisabled);
   const pasteOnRightClickRef = useRef(terminalPasteOnRightClick);
   const effectiveAgentRef = useRef(effectiveAgent);
   const promoteToAgentRef = useRef<((agent: AgentType) => void) | null>(null);
@@ -268,8 +274,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     effectiveAgentRef.current = effectiveAgent;
   }, [effectiveAgent]);
   useEffect(() => {
-    mouseAlwaysOnRef.current = isAiAgent;
-  }, [isAiAgent]);
+    isAiAgentRef.current = isAiAgent;
+    mouseAlwaysOnRef.current = isAiAgent && !mouseAlwaysOnDisabled;
+  }, [isAiAgent, mouseAlwaysOnDisabled]);
   useEffect(() => {
     pasteOnRightClickRef.current = terminalPasteOnRightClick;
   }, [terminalPasteOnRightClick]);
@@ -494,6 +501,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const promoteToAgent = useCallback((agent: AgentType) => {
     if (effectiveAgentRef.current) return;
     setManualAgent(session.id, agent);
+    setMouseAlwaysOnDisabled(session.id, false);
     mouseAlwaysOnRef.current = true;
     // Write the mouse-enable sequence AFTER the user's Enter has submitted the
     // agent command — writing it synchronously interleaved the escape sequence
@@ -501,7 +509,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setTimeout(() => {
       forceEnableMouse();
     }, 1500);
-  }, [session.id, setManualAgent, forceEnableMouse]);
+  }, [session.id, setManualAgent, setMouseAlwaysOnDisabled, forceEnableMouse]);
 
   promoteToAgentRef.current = promoteToAgent;
 
@@ -569,9 +577,31 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [syncMouseModes, forceEnableMouse]);
 
   const handleToggleMouseTracking = useCallback(async () => {
-    // In Always-On mode the toggle acts as a "re-lock" — mouse can never be
-    // disabled from the header.
-    if (mouseAlwaysOnRef.current) {
+    // AI agent sessions: the button turns Always-On Mouse off (or back on).
+    if (isAiAgentRef.current) {
+      if (mouseAlwaysOnRef.current) {
+        // Turn OFF — disable mouse reporting on the PTY and xterm, and stop
+        // the always-on re-lock so the running app keeps it off.
+        mouseAlwaysOnRef.current = false;
+        setMouseAlwaysOnDisabled(session.id, true);
+        const disableModes = normalizeMouseModes(mouseModesRef.current);
+        const disableSequence = buildMouseModeSequence(disableModes, 'l');
+        try {
+          await invoke('write_to_terminal', {
+            sessionId: session.id,
+            input: disableSequence,
+          });
+        } catch (error) {
+          console.error('Failed to disable mouse tracking:', error);
+        }
+        xtermRef.current?.write(disableSequence);
+        syncMouseModes([]);
+        return;
+      }
+
+      // Turn back ON — restore Always-On Mouse.
+      mouseAlwaysOnRef.current = true;
+      setMouseAlwaysOnDisabled(session.id, false);
       forceEnableMouse();
       return;
     }
@@ -597,7 +627,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     } catch (error) {
       console.error('Failed to toggle mouse tracking:', error);
     }
-  }, [session.id, mouseTrackingEnabled, syncMouseModes, forceEnableMouse]);
+  }, [session.id, mouseTrackingEnabled, syncMouseModes, forceEnableMouse, setMouseAlwaysOnDisabled]);
 
   const startManagedCommand = useCallback(async (command: string) => {
     await invoke('run_managed_terminal_command', {
@@ -1187,7 +1217,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleRetryInstall = async () => {
     if (!session.agent) return;
-    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes'];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi'];
     if (!agentTypes.includes(session.agent as AgentType)) return;
     setInstalling(true);
     await installCli(session.agent as AgentType);
@@ -1233,6 +1263,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         isRefreshing={isRefreshing}
         onClose={onClose}
         mouseTrackingEnabled={mouseTrackingEnabled}
+        mouseAlwaysOn={isAiAgent && !mouseAlwaysOnDisabled}
         onToggleMouseTracking={handleToggleMouseTracking}
         onNewSession={handleNewSession}
         onRunCommand={handleRunCommand}

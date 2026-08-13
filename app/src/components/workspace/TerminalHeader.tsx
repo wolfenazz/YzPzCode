@@ -11,6 +11,7 @@ import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
+import piLogo from '../../assets/pi.svg';
 
 export const AGENT_LOGOS: Record<AgentType, string> = {
   claude: claudeLogo,
@@ -20,6 +21,7 @@ export const AGENT_LOGOS: Record<AgentType, string> = {
   cursor: cursorLogo,
   kilo: kiloLogo,
   hermes: hermesLogo,
+  pi: piLogo,
 };
 
 const TOOL_ICON_MAP: Record<ToolCliType, { icon: string; color: string }> = {
@@ -51,6 +53,7 @@ interface TerminalHeaderProps {
   cliStatusBadge: React.ReactNode;
   dragListeners?: Record<string, unknown>;
   mouseTrackingEnabled?: boolean;
+  mouseAlwaysOn?: boolean;
   onToggleMouseTracking?: () => void;
   onNewSession?: () => void;
   onRunCommand?: (command: string) => void;
@@ -66,6 +69,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   cliStatusBadge,
   dragListeners,
   mouseTrackingEnabled = false,
+  mouseAlwaysOn = false,
   onToggleMouseTracking,
   onNewSession,
   onRunCommand,
@@ -76,10 +80,13 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   // detection of an agent launched manually inside the terminal, so the badge,
   // mouse always-on behavior and New Session button appear in both cases.
   const effectiveAgent = agentOverride ?? session.agent;
-  // AI agent terminals (opencode, kilo, claude, ...) always keep mouse
-  // tracking on — no toggle shown, so the button stays hidden there.
+  // AI agent terminals (opencode, kilo, claude, ...) keep mouse tracking on by
+  // default via Always-On Mouse, but expose the same On/Off button so it can be
+  // disabled per-session.
   const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
-  const mouseOn = mouseTrackingEnabled;
+  // For AI agents the button reflects the Always-On state; for shell/tool
+  // terminals it reflects whether xterm currently has mouse tracking enabled.
+  const mouseOn = isAiAgent ? mouseAlwaysOn : mouseTrackingEnabled;
 
   const [commandsOpen, setCommandsOpen] = useState(false);
   const commandsRef = useRef<HTMLDivElement>(null);
@@ -165,27 +172,27 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       </div>
 
       <div className="flex items-center shrink-0 gap-1 ml-2">
-        {!isAiAgent && (
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleMouseTracking?.();
-            }}
-            className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
-              mouseOn
-                ? 'bg-emerald-950/45 border-emerald-800 text-emerald-400'
-                : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
-            }`}
-            title={mouseOn
-              ? 'Mouse mode enabled (click to disable)'
-              : 'Mouse mode disabled (click to enable manually)'}
-          >
-            Mouse {mouseOn ? 'On' : 'Off'}
-          </button>
-        )}
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleMouseTracking?.();
+          }}
+          className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+            mouseOn
+              ? 'bg-emerald-950/45 border-emerald-800 text-emerald-400'
+              : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
+          }`}
+          title={mouseOn
+            ? (isAiAgent
+              ? 'Always-On Mouse enabled (click to disable)'
+              : 'Mouse mode enabled (click to disable)')
+            : 'Mouse mode disabled (click to enable manually)'}
+        >
+          Mouse {mouseOn ? 'On' : 'Off'}
+        </button>
         {isAiAgent && onNewSession && (
           <button
             type="button"
@@ -214,11 +221,11 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                 e.stopPropagation();
                 setCommandsOpen((open) => !open);
               }}
-              className="flex items-center justify-center w-7 h-7 p-1.5 border transition-colors cursor-pointer bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:border-cyan-900 hover:bg-cyan-950/30"
+              className="flex items-center justify-center w-6 h-6 p-1 border transition-colors cursor-pointer bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:border-cyan-900 hover:bg-cyan-950/30"
               title="Agent commands"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 6h14M5 12h14M5 18h14M3 6h.01M3 12h.01M3 18h.01" />
               </svg>
             </button>
             {commandsOpen && agentCommands.length > 0 && (

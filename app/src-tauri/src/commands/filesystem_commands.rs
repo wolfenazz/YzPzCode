@@ -17,6 +17,11 @@ pub async fn list_all_files(path: String) -> Result<Vec<FileEntry>, String> {
 }
 
 #[tauri::command]
+pub async fn list_all_entries(path: String) -> Result<Vec<FileEntry>, String> {
+    filesystem::explorer::list_all_entries_recursive(&path)
+}
+
+#[tauri::command]
 pub async fn read_file_content(path: String) -> Result<FileContent, String> {
     filesystem::reader::read_file_content(&path)
 }

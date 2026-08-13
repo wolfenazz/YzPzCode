@@ -44,7 +44,8 @@ impl PrerequisitesChecker {
     }
 
     pub fn check_nodejs() -> PrerequisiteStatus {
-        let minimum = "18.0.0";
+        // YZPZ Agent (Cline SDK) requires Node.js 22+.
+        let minimum = "22.0.0";
         let result = Self::run_command("node", &["--version"]);
 
         match result {
@@ -60,11 +61,13 @@ impl PrerequisitesChecker {
                     meets_minimum,
                     install_url: "https://nodejs.org".to_string(),
                     required_for: vec![
+                        "YZPZ Agent".to_string(),
                         "Claude Code".to_string(),
                         "OpenCode".to_string(),
                         "Codex CLI".to_string(),
                         "Gemini CLI".to_string(),
                         "Kilo CLI".to_string(),
+                        "Pi Agent".to_string(),
                     ],
                 }
             }
@@ -99,6 +102,7 @@ impl PrerequisitesChecker {
                         "Codex CLI".to_string(),
                         "Gemini CLI".to_string(),
                         "Kilo CLI".to_string(),
+                        "Pi Agent".to_string(),
                     ],
                 }
             }
@@ -131,6 +135,7 @@ impl PrerequisitesChecker {
                         "Gemini CLI".to_string(),
                         "Kilo CLI".to_string(),
                         "Hermes Agent".to_string(),
+                        "Pi Agent".to_string(),
                     ],
                 }
             }

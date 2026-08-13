@@ -3,7 +3,7 @@ import { CliType, AgentType, ToolCliType, AgentFleet, AgentCliInfo } from '../ty
 
 const STORAGE_KEY = 'yzpzcode-agent-allocation';
 
-const AGENT_TYPES: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes'];
+const AGENT_TYPES: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi'];
 const TOOL_TYPES: ToolCliType[] = ['gh', 'stripe', 'supabase', 'valyu', 'posthog', 'elevenlabs', 'ramp', 'gws', 'agentmail', 'vercel'];
 const ALL_CLI_TYPES: CliType[] = [...AGENT_TYPES, ...TOOL_TYPES];
 
@@ -50,6 +50,7 @@ const DEFAULT_ALLOCATION: Record<CliType, number> = {
   cursor: 0,
   kilo: 0,
   hermes: 0,
+  pi: 0,
   gh: 0,
   stripe: 0,
   supabase: 0,

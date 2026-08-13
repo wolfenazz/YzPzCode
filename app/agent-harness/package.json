@@ -1,0 +1,26 @@
+{
+  "name": "@yzpzcode/agent-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "YZPZ Agent sidecar — Cline SDK harness (rebranded) for YzPzCode",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "node --watch dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@cline/sdk": "0.0.74",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/ws": "^8.5.13",
+    "typescript": "~5.6.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

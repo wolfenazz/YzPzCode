@@ -35,7 +35,7 @@ export const userGuideContent = `# YzPzCode User Guide
 
 YzPzCode is a **multi-terminal AI development environment** — a desktop app that lets you work with multiple AI coding assistants simultaneously, each in their own terminal window, all organized in a beautiful grid layout. It also includes an in-app web browser with visual design tools and support for 10 SaaS tool CLIs.
 
-Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, Kilo, Hermes) and DevOps tools (GitHub, Stripe, Vercel, etc.) all helping you with your coding projects at the same time, with a built-in file explorer, code editor, and web browser.
+Think of it like having several AI assistants (Claude, Codex, Gemini, Cursor, Kilo, Hermes, Pi) and DevOps tools (GitHub, Stripe, Vercel, etc.) all helping you with your coding projects at the same time, with a built-in file explorer, code editor, and web browser.
 
 **Why use YzPzCode?**
 - **Parallel AI workflows** — Run multiple AI assistants side by side
@@ -83,6 +83,7 @@ YzPzCode works with popular AI coding tools. You'll need to install at least one
 | **Cursor** | \`cursor\` | AI-powered coding IDE |
 | **Kilo** | \`kilo\` | Code agent for any task |
 | **Hermes** | \`hermes\` | Fast coding agent |
+| **Pi** | \`pi\` | Minimal terminal coding harness |
 | **OpenCode** | \`opencode\` | Open-source AI coding |
 
 ### Sign In

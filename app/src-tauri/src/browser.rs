@@ -2247,7 +2247,7 @@ impl BrowserManager {
             }
             if let Some(chrome) = preview_chrome {
                 let script = preview_chrome_script(Some(chrome));
-                webview.eval(&format!("setTimeout(() => {{ {script} }}, 0);"))?;
+                webview.eval(format!("setTimeout(() => {{ {script} }}, 0);"))?;
             }
             webview
                 .eval(

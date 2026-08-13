@@ -49,7 +49,7 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
     use super::providers::{
         AgentmailCliProvider, ClaudeCliProvider, CodexCliProvider, CursorCliProvider,
         ElevenlabsCliProvider, GeminiCliProvider, GhCliProvider, GwsCliProvider, HermesCliProvider,
-        KiloCliProvider, OpenCodeCliProvider, PosthogCliProvider, RampCliProvider,
+        KiloCliProvider, OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider,
         StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
     match agent {
@@ -60,6 +60,7 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AgentType::Cursor => Box::new(CursorCliProvider),
         AgentType::Kilo => Box::new(KiloCliProvider),
         AgentType::Hermes => Box::new(HermesCliProvider),
+        AgentType::Pi => Box::new(PiCliProvider),
         AgentType::Gh => Box::new(GhCliProvider),
         AgentType::Stripe => Box::new(StripeCliProvider),
         AgentType::Supabase => Box::new(SupabaseCliProvider),

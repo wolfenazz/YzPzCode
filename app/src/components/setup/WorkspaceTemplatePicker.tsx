@@ -51,6 +51,7 @@ const AGENT_LABELS: Record<AgentType, string> = {
   cursor: 'Cursor',
   kilo: 'Kilo',
   hermes: 'Hermes',
+  pi: 'Pi',
 };
 
 const AGENT_COLORS: Record<AgentType, string> = {
@@ -61,10 +62,11 @@ const AGENT_COLORS: Record<AgentType, string> = {
   cursor: '#EC4899',
   kilo: '#14B8A6',
   hermes: '#F59E0B',
+  pi: '#E5E7EB',
 };
 
 const EMPTY_ALLOCATION: Record<CliType, number> = {
-  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0,
+  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0,
   gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0,
 };
 

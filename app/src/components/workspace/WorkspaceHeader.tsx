@@ -177,8 +177,16 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
         {/* Left: Branding & Core Navigation */}
         <div className="flex items-center h-full titlebar-nodrag">
           <div className="flex items-center gap-2 px-3.5 h-full border-r border-[var(--border-primary)] cursor-default">
-            <span className="text-[11px] font-mono font-bold text-[var(--text-secondary)]">$</span>
-            <img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-70" />
+            <button
+              className="group flex items-center justify-center w-7 h-7 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer"
+              title="YzPzCode"
+            >
+              <img
+                src={logo}
+                alt="YzPzCode"
+                className="h-5 w-auto opacity-70 transition-all duration-200 group-hover:opacity-100 group-hover:scale-110"
+              />
+            </button>
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-mono font-bold tracking-tight text-[var(--text-primary)]">YZPZ</span>
               <span className="text-[10px] text-[var(--text-secondary)]/60">/</span>
@@ -279,6 +287,18 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 TTY
+              </button>
+              <button
+                onClick={() => onViewChange('agent')}
+                className={`flex items-center gap-1.5 px-2.5 h-full text-[9px] font-bold uppercase tracking-[0.14em] transition-colors duration-100 cursor-pointer ${
+                  activeView === 'agent'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                }`}
+                title="YZPZ Agent — UI AI agent harness"
+              >
+                <img src={logo} alt="YZPZ Agent" className="w-3.5 h-3.5 object-contain" draggable={false} />
+                Agent
               </button>
               <button
                 onClick={() => onViewChange('editor')}

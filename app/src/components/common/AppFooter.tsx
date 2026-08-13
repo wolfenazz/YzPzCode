@@ -12,6 +12,14 @@ const authors = [
   { name: 'Khalid', discord: null, instagram: null },
 ];
 
+function getGridDimensions(count: number): { cols: number; rows: number } {
+  if (count <= 1) return { cols: 1, rows: 1 };
+  if (count === 2) return { cols: 2, rows: 1 };
+  if (count <= 4) return { cols: 2, rows: 2 };
+  if (count <= 6) return { cols: 3, rows: 2 };
+  return { cols: 3, rows: 3 };
+}
+
 export const AppFooter: React.FC = () => {
   const {
     checking,
@@ -24,7 +32,9 @@ export const AppFooter: React.FC = () => {
     resetUpToDate,
   } = useUpdaterStore();
 
-  const { view, customCursor, setCustomCursor } = useAppStore();
+  const { view, customCursor, setCustomCursor, sessions, currentWorkspace } = useAppStore();
+
+  const { cols, rows } = getGridDimensions(sessions.length);
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [openPopover, setOpenPopover] = useState<string | null>(null);
@@ -80,19 +90,16 @@ export const AppFooter: React.FC = () => {
     <>
       <footer className="flex-shrink-0 h-10 border-t border-theme bg-theme-card/40 select-none">
         <div className="h-full flex items-center justify-between px-5 font-mono text-[10px] tracking-wider uppercase">
-          {/* Left: System Status */}
+          {/* Left: Sessions & Layout */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-emerald-500/70">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500/80"></span>
-              </span>
-              <span>system::ready</span>
+            <div className="flex items-center gap-2 text-zinc-600">
+              <span className="text-zinc-500">sessions</span>
+              <span className="font-semibold text-zinc-200">{sessions.length}</span>
             </div>
             <div className="hidden md:flex items-center gap-3 text-zinc-600">
               <span className="text-zinc-800">|</span>
-              <span>env::production</span>
-              <span className="text-zinc-800">|</span>
-              <span>loc::global</span>
+              <span className="text-zinc-500">layout</span>
+              <span className="font-semibold text-zinc-200">{currentWorkspace ? `${cols}x${rows}` : '---'}</span>
             </div>
           </div>
 

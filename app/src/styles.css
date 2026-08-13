@@ -278,6 +278,21 @@ html.animations-disabled *::after {
   animation: spin-slow 1.5s linear infinite;
 }
 
+/* Premium agent mode icons: soft breathing glow (color from --icon-glow) */
+@keyframes mode-icon-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 2px var(--icon-glow, currentColor));
+  }
+  50% {
+    filter: drop-shadow(0 0 8px var(--icon-glow, currentColor));
+  }
+}
+
+.animate-mode-icon {
+  animation: mode-icon-glow 2.6s ease-in-out infinite;
+}
+
 @keyframes gemini-border-flow {
   0% {
     background-position: 0% 50%;
@@ -1054,3 +1069,366 @@ html.has-custom-cursor *::after {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+/* highlight.js — scoped to agent markdown so it matches the app palette */
+.markdown-body .hljs {
+  color: #c3c1ba;
+}
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote {
+  color: #6e6a60;
+  font-style: italic;
+}
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-doctag {
+  color: #d87757;
+}
+.markdown-body .hljs-string,
+.markdown-body .hljs-regexp,
+.markdown-body .hljs-addition {
+  color: #a3c978;
+}
+.markdown-body .hljs-number,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet {
+  color: #e0a458;
+}
+.markdown-body .hljs-title,
+.markdown-body .hljs-title.function_,
+.markdown-body .hljs-section,
+.markdown-body .hljs-attr,
+.markdown-body .hljs-built_in {
+  color: #7fb7d8;
+}
+.markdown-body .hljs-params,
+.markdown-body .hljs-variable,
+.markdown-body .hljs-template-variable {
+  color: #c3c1ba;
+}
+.markdown-body .hljs-type,
+.markdown-body .hljs-class .hljs-title,
+.markdown-body .hljs-selector-class {
+  color: #d3a4d8;
+}
+.markdown-body .hljs-deletion {
+  color: #e06c75;
+}
+.markdown-body .hljs-emphasis {
+  font-style: italic;
+}
+.markdown-body .hljs-strong {
+  font-weight: 700;
+}
+
+/* ── YZPZ Agent premium chat / panels ─────────────────────────── */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up { animation: fadeInUp 0.18s ease-out both; }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fadeIn 0.15s ease-out both; }
+
+@keyframes reasoningPing {
+  0% { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.animate-reasoning-ping { animation: reasoningPing 1.4s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+@keyframes typingDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+.typing-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  animation: typingDot 1.2s ease-in-out infinite;
+}
+
+/* Agent "thinking" loader: bouncing balls with ground shadows */
+.agent-loader {
+  width: 200px;
+  height: 60px;
+  position: relative;
+  z-index: 1;
+}
+@keyframes agentLoaderBounce {
+  0% {
+    top: 60px;
+    height: 5px;
+    border-radius: 50px 50px 25px 25px;
+    transform: scaleX(1.7);
+  }
+  40% {
+    height: 20px;
+    border-radius: 50%;
+    transform: scaleX(1);
+  }
+  100% {
+    top: 0%;
+  }
+}
+.agent-loader-circle {
+  width: 20px;
+  height: 20px;
+  position: absolute;
+  border-radius: 50%;
+  background-color: var(--accent);
+  left: 15%;
+  transform-origin: 50%;
+  animation: agentLoaderBounce 0.5s alternate infinite ease;
+}
+.agent-loader-circle:nth-child(2) {
+  left: 45%;
+  animation-delay: 0.2s;
+}
+.agent-loader-circle:nth-child(3) {
+  left: auto;
+  right: 15%;
+  animation-delay: 0.3s;
+}
+@keyframes agentLoaderShadow {
+  0% { transform: scaleX(1.5); }
+  40% { transform: scaleX(1); opacity: 0.7; }
+  100% { transform: scaleX(0.2); opacity: 0.4; }
+}
+.agent-loader-shadow {
+  width: 20px;
+  height: 4px;
+  border-radius: 50%;
+  background-color: rgba(0, 0, 0, 0.45);
+  position: absolute;
+  top: 62px;
+  transform-origin: 50%;
+  z-index: -1;
+  left: 15%;
+  filter: blur(1px);
+  animation: agentLoaderShadow 0.5s alternate infinite ease;
+}
+.agent-loader-shadow:nth-child(4) {
+  left: 45%;
+  animation-delay: 0.2s;
+}
+.agent-loader-shadow:nth-child(5) {
+  left: auto;
+  right: 15%;
+  animation-delay: 0.3s;
+}
+
+@keyframes streamingBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
+}
+.streaming-cursor { animation: streamingBlink 1s ease-in-out infinite; }
+
+/* MCP status dot pulse for connecting state */
+@keyframes mcpConnecting {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.mcp-dot-connecting { animation: mcpConnecting 1.2s ease-in-out infinite; }
+
+/* Empty-state agent logo: glow radiates from the icon itself, not a box */
+.agent-ready-icon {
+  cursor: default;
+}
+.agent-ready-logo {
+  filter: drop-shadow(0 0 6px var(--accent-glow)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+  transition: transform 0.35s ease, filter 0.35s ease;
+}
+.agent-ready-icon:hover .agent-ready-logo {
+  transform: translateY(-1px) scale(1.08);
+  filter:
+    drop-shadow(0 0 14px var(--accent-glow))
+    drop-shadow(0 0 32px var(--accent-glow))
+    drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
+}
+
+/* Empty-state "Agent ready" headline: smooth flowing rainbow beam */
+@keyframes agentReadyRainbow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.agent-ready-rainbow {
+  background: linear-gradient(90deg, #ff4d6d, #ff9e3d, #f9c74f, #4ade80, #38bdf8, #a78bfa, #f472b6, #ff4d6d);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: agentReadyRainbow 7s linear infinite;
+}
+
+/* ── Agent chat rich markdown (diagrams, math, tables, code) ─────── */
+
+.markdown-body {
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body > *:last-child { margin-bottom: 0; }
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.35;
+  margin: 1em 0 0.5em;
+  letter-spacing: 0.01em;
+}
+.markdown-body h1 { font-size: 1.2rem; border-bottom: 1px solid var(--border-primary); padding-bottom: 0.25em; }
+.markdown-body h2 { font-size: 1.1rem; border-bottom: 1px solid var(--border-primary); padding-bottom: 0.2em; }
+.markdown-body h3 { font-size: 1rem; }
+.markdown-body h4 { font-size: 0.95rem; }
+.markdown-body h5,
+.markdown-body h6 { font-size: 0.9rem; }
+
+.markdown-body p { margin: 0.55em 0; }
+.markdown-body ul,
+.markdown-body ol { margin: 0.55em 0; padding-left: 1.5em; }
+.markdown-body li { margin: 0.2em 0; }
+.markdown-body li::marker { color: var(--text-secondary); }
+.markdown-body li > input[type="checkbox"] { margin-right: 0.4em; accent-color: var(--accent); }
+
+.markdown-body blockquote {
+  margin: 0.7em 0;
+  padding: 0.15em 0.9em;
+  border-left: 2px solid var(--accent-border);
+  background: var(--accent-light);
+  border-radius: 0 6px 6px 0;
+  color: var(--text-secondary);
+}
+.markdown-body blockquote > :first-child { margin-top: 0; }
+.markdown-body blockquote > :last-child { margin-bottom: 0; }
+
+.markdown-body hr {
+  border: none;
+  border-top: 1px solid var(--border-primary);
+  margin: 1em 0;
+}
+
+.markdown-body a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-body :not(pre) > code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--accent-light);
+  border: 1px solid var(--accent-border);
+  border-radius: 3px;
+  padding: 0.1em 0.35em;
+  color: var(--accent);
+}
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 0.7em 0;
+  font-size: 0.92em;
+  width: 100%;
+  display: block;
+  overflow-x: auto;
+}
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--border-primary);
+  padding: 0.4em 0.7em;
+  text-align: left;
+}
+.markdown-body th {
+  background: var(--bg-tertiary);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.markdown-body tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.02); }
+
+.markdown-body strong { color: var(--text-primary); font-weight: 700; }
+.markdown-body em { color: var(--text-secondary); }
+
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 8px;
+  border: 1px solid var(--border-primary);
+  margin: 0.6em 0;
+}
+
+/* Base <pre> for indented code that bypasses the CodeBlock component */
+.markdown-body pre:not(.agent-code-pre) {
+  margin: 0.7em 0;
+  padding: 0.8em 1em;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+/* Agent chat code blocks — dim line-number gutter driven by a CSS counter */
+.agent-code-pre {
+  counter-reset: line;
+  padding: 0.5em 0.75em;
+}
+.agent-code-pre .code-line {
+  counter-increment: line;
+  display: block;
+  position: relative;
+  padding-left: 3em;
+}
+.agent-code-pre .code-line::before {
+  content: counter(line);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2.2em;
+  padding-right: 0.85em;
+  text-align: right;
+  color: var(--text-secondary);
+  opacity: 0.35;
+  user-select: none;
+}
+.agent-code-pre .code-line:hover::before {
+  opacity: 0.85;
+  color: var(--accent);
+}
+
+/* KaTeX — math equations */
+.markdown-body .katex { font-size: 1.05em; }
+.markdown-body .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin: 0.6em 0;
+  padding: 0.4em 0;
+}
+.markdown-body .katex-display::-webkit-scrollbar { height: 6px; }
+.markdown-body .katex-display::-webkit-scrollbar-thumb {
+  background: var(--border-primary);
+  border-radius: 3px;
+}
+
+/* Mermaid — diagrams */
+.mermaid-diagram {
+  display: flex;
+  justify-content: center;
+}
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+

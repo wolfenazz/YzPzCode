@@ -10,6 +10,7 @@ pub enum AgentType {
     Cursor,
     Kilo,
     Hermes,
+    Pi,
     Gh,
     Stripe,
     Supabase,
