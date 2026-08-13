@@ -89,7 +89,7 @@ const SpreadsheetEditorInner: React.FC<SpreadsheetEditorProps> = ({ filePath, fi
   const dataRef = useRef<SheetData[]>([]);
   const filePathRef = useRef(filePath);
   const markFileSaved = useAppStore((s) => s.markFileSaved);
-  const { refreshKey, refresh } = usePreviewRefresh(filePath);
+  const { refreshKey } = usePreviewRefresh(filePath);
   // When we save in-app, the fs watcher fires too — suppress the redundant
   // reload so we don't flash the spinner or reset the active sheet.
   const suppressRefreshRef = useRef(false);
@@ -292,7 +292,8 @@ const SpreadsheetEditorInner: React.FC<SpreadsheetEditorProps> = ({ filePath, fi
           <button
             onClick={() => {
               if (isDirty && !window.confirm('Discard unsaved changes and reload from disk?')) return;
-              refresh();
+              suppressRefreshRef.current = false;
+              void loadFile();
             }}
             disabled={loading || saving}
             title="Reload from disk"
