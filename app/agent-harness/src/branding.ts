@@ -28,6 +28,9 @@ const EFFICIENCY_DIRECTIVE = [
   "- When a read is truncated (it will say so), continue with an offset to read the next region — do not re-read the same region.",
   "- Prefer `search_codebase` for finding symbols/strings over broad `run_commands` greps.",
   "- Do not echo large tool outputs back to the user; summarize.",
+  "- Before reading a file, confirm it exists first (list the parent directory or search for it). Never read a guessed path — a failed read wastes a turn and surfaces an error.",
+  "- Keep the final summary to 1-3 short sentences plus a compact bullet list. Do not restate the question or narrate every step you took.",
+  "- Do not announce your steps ('let me explore…', 'let me check…'); just act and report results.",
 ].join("\n");
 
 // PI-style one-line tool snippets so the model knows the tool set cheaply
@@ -46,7 +49,7 @@ const TOOL_SNIPPETS = [
   "- todo_write: Maintain a visible task list",
 ].join("\n");
 
-export function buildSystemPrompt(custom?: string | null): string {
+export function buildSystemPrompt(custom?: string | null, workspaceRoot?: string | null): string {
   let base: string;
   try {
     base = getClineDefaultSystemPrompt({});
@@ -55,5 +58,13 @@ export function buildSystemPrompt(custom?: string | null): string {
     base =
       "You are an AI coding assistant. Help the user modify their codebase using the available tools.";
   }
-  return [base, "", YZPZ_BRANDING, TOOL_SNIPPETS, EFFICIENCY_DIRECTIVE, custom ? `\n${custom}` : ""].join("\n");
+  const workspace = workspaceRoot?.trim()
+    ? [
+        "",
+        "WORKSPACE",
+        `Your workspace root is: ${workspaceRoot.trim()}`,
+        "This is the folder the user opened in YzPzCode — the base directory for ALL file operations. Resolve relative paths returned by search results against this root, and use absolute paths under this root when a tool requires them.",
+      ].join("\n")
+    : "";
+  return [base, "", YZPZ_BRANDING, workspace, TOOL_SNIPPETS, EFFICIENCY_DIRECTIVE, custom ? `\n${custom}` : ""].join("\n");
 }

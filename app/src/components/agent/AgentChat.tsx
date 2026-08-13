@@ -8,6 +8,7 @@ import hljs from 'highlight.js';
 import { ClineMessage, ToolLogEntry } from '../../hooks/useAgentSession';
 import { DiffView, isEditTool } from './DiffView';
 import { QuestionCard } from './QuestionCard';
+import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
 import type { AgentQuestion } from '../../types';
 
@@ -431,7 +432,7 @@ const ReasoningBlock: React.FC<{ text: string; active?: boolean }> = ({ text, ac
 };
 
 const ToolBlock: React.FC<{ name: string; input: unknown; running?: boolean }> = ({ name, input, running }) => {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const accent = TOOL_ACCENT[name] ?? 'text-[var(--text-secondary)]';
   return (
     <div className={`overflow-hidden rounded-lg border transition-colors duration-150 ${running ? 'border-[var(--accent-border)] shadow-sm' : 'border-[var(--border-primary)]'}`}>
@@ -472,9 +473,36 @@ const ToolBlock: React.FC<{ name: string; input: unknown; running?: boolean }> =
   );
 };
 
-const ToolResultBlock: React.FC<{ content: unknown; isError?: boolean }> = ({ content, isError }) => (
-  <OutputBlock label={isError ? 'Error' : 'Output'} text={formatToolResult(content)} isError={isError} />
-);
+const ToolResultBlock: React.FC<{ content: unknown; isError?: boolean }> = ({ content, isError }) => {
+  const [open, setOpen] = useState(false);
+  const text = formatToolResult(content);
+  if (!text) return null;
+  const lineCount = text.split('\n').length;
+  const preview = (text.split('\n')[0] ?? '').trim().slice(0, 120);
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className={`w-full flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left cursor-pointer transition-colors duration-100 ${
+          isError
+            ? 'border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/30 hover:bg-[var(--bg-tertiary)]/70'
+            : 'border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)]/80'
+        }`}
+        title="Click to view full output"
+      >
+        <span className={`font-mono text-[9px] shrink-0 ${isError ? 'text-amber-500/80' : 'text-emerald-500/80'}`}>
+          {isError ? '⚠' : '✓'}
+        </span>
+        <span className={`font-mono text-[9px] font-bold uppercase tracking-widest shrink-0 ${isError ? 'text-amber-500/70' : 'text-[var(--text-secondary)]/60'}`}>
+          {isError ? 'Error' : `Output · ${lineCount} line${lineCount === 1 ? '' : 's'}`}
+        </span>
+        {preview && <span className="font-mono text-[9px] text-[var(--text-secondary)]/40 truncate min-w-0">{preview}</span>}
+        <span className="ml-auto font-mono text-[9px] text-[var(--text-secondary)]/40 shrink-0">▸</span>
+      </button>
+    );
+  }
+  return <OutputBlock label={isError ? 'Error' : 'Output'} text={text} isError={isError} />;
+};
 
 const ThinkingLoader: React.FC = () => (
   <div className="flex items-center gap-2.5 px-1 py-1.5 animate-fade-in-up">
@@ -495,6 +523,7 @@ const StreamingCursor: React.FC = () => (
 );
 
 const AssistantBlock: React.FC<{ block: ClineMessage['content'][number] }> = ({ block }) => {
+  const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   if (block.type === 'text' && typeof block.text === 'string') {
     if (!block.text.trim()) return null;
     return (
@@ -519,7 +548,7 @@ const AssistantBlock: React.FC<{ block: ClineMessage['content'][number] }> = ({ 
       (block as { text?: string; thinking?: string; content?: string }).thinking ??
       (block as { text?: string; thinking?: string; content?: string }).content ??
       '';
-    if (!text) return null;
+    if (!text || !showAgentReasoning) return null;
     return <ReasoningBlock text={text} />;
   }
   return null;
@@ -538,6 +567,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   autoScroll = true,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   const hasNewContent =
     streamingText.length > 0 || streamingThinking.length > 0 || toolLog.length > 0 || !!activeTool || isThinking || !!pendingQuestion;
 
@@ -611,7 +641,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             <span className="truncate">{notice}</span>
           </div>
         )}
-        {streamingThinking.trim() && <ReasoningBlock text={streamingThinking} active />}
+        {showAgentReasoning && streamingThinking.trim() && <ReasoningBlock text={streamingThinking} active />}
         {toolLog.map((t) => (
           <div key={t.id} className="space-y-1.5">
             <ToolBlock name={t.name} input={t.input} running={t.status === 'running'} />

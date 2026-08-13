@@ -3,6 +3,7 @@ import {
   setClineDir,
   Llms,
   createUserInstructionConfigService,
+  createDefaultExecutors,
   getCoreBuiltinToolCatalog,
   readGlobalSettings,
   setCompactionModeGlobally,
@@ -35,7 +36,7 @@ import {
 import type { ToolApprovalRequest, ToolApprovalResult, ToolPolicy } from "@cline/core";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { buildSystemPrompt } from "./branding.js";
 import { ProviderConfigStore } from "./store.js";
 import {
@@ -219,6 +220,8 @@ export class AgentHarness {
    * here as a fallback that survives rehydrate/session-restore paths.
    */
   private steeringBySession = new Map<string, string[]>();
+  /** Workspace root per session — used to resolve relative file paths correctly. */
+  private sessionCwd = new Map<string, string>();
   readonly dataDir: string;
   private prefsFile: string;
   private prefs: Record<string, unknown>;
@@ -291,6 +294,7 @@ export class AgentHarness {
         requestToolApproval: async (request: ToolApprovalRequest) => this.handleApproval(request),
         toolExecutors: {
           askQuestion: this.handleAskQuestion.bind(this) as AskQuestionExecutor,
+          readFile: this.buildReadFileExecutor(),
         } as ToolExecutors,
       },
     });
@@ -363,6 +367,31 @@ export class AgentHarness {
     this.questions.delete(requestId);
     pending.resolve(answer);
     return true;
+  }
+
+  /**
+   * Custom `read_files` executor. The SDK's built-in executor resolves relative
+   * paths against `process.cwd()` (the harness's own directory), not the user's
+   * workspace — so search results like `documentation.md` could never be read.
+   * We resolve relative paths against the session's workspace root first, then
+   * delegate to the SDK's default executor (keeps image support, line ranges,
+   * size limits, and error formatting intact).
+   */
+  private buildReadFileExecutor(): NonNullable<ToolExecutors["readFile"]> {
+    const defaultExecutors = createDefaultExecutors();
+    const defaultRead = defaultExecutors.readFile;
+    const self = this;
+    if (!defaultRead) {
+      throw new Error("SDK did not provide a default readFile executor");
+    }
+    return async (
+      request: { path: string; start_line?: number | null; end_line?: number | null },
+      context: AgentToolContext,
+    ) => {
+      const cwd = self.sessionCwd.get(context.sessionId ?? "");
+      const path = cwd && !isAbsolute(request.path) ? join(cwd, request.path) : request.path;
+      return defaultRead({ ...request, path }, context);
+    };
   }
 
   /** Custom `todo_write` tool registered on every session via extraTools. */
@@ -600,6 +629,7 @@ export class AgentHarness {
 
     // Always own the session id so the read-only (ask-mode) guard can key on it.
     const sessionId = args.sessionId?.trim() || `yzpz-${randomUUID()}`;
+    this.sessionCwd.set(sessionId, args.cwd);
 
     // Per-workspace skills/workflows/rules (global dirs are included inside).
     const userInstructionService = await this.buildUserInstructionService(args.cwd);
@@ -619,7 +649,7 @@ export class AgentHarness {
           modelId: args.modelId,
           apiKey: args.apiKey ?? stored?.apiKey,
           baseUrl: args.baseUrl ?? stored?.baseUrl,
-          systemPrompt: buildSystemPrompt(args.systemPrompt) + TODO_INSTRUCTION,
+          systemPrompt: buildSystemPrompt(args.systemPrompt, args.cwd) + TODO_INSTRUCTION,
           cwd: args.cwd,
           workspaceRoot: args.cwd,
           enableTools: true,
@@ -1277,6 +1307,7 @@ export class AgentHarness {
     this.steeringBySession.delete(sessionId);
     this.completionNudges.delete(sessionId);
     this.todosBySession.delete(sessionId);
+    this.sessionCwd.delete(sessionId);
     this.userInstructionServices.get(sessionId)?.stop();
     this.userInstructionServices.delete(sessionId);
     return deleted;

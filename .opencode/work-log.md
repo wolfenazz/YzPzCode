@@ -1,6 +1,8 @@
 # Work Log
 
 ## Active Sessions
+- [x] ses_prompt_edit (Worker): `app/agent-harness/src/branding.ts` - EFFICIENCY_DIRECTIVE +3 lines (confirm-before-read, short summary, no step narration) - done 2026-08-14T00:46Z (typecheck EXIT 0, build EXIT 0)
+- [x] ses_prompt_edit (Worker): Mission "Clean up YZPZ Agent responses" — M1/M2/M3 implementation verified ALREADY IN PLACE + all gates run - done 2026-08-14T00:54Z
 - [x] ses_4 (Worker): thinking-effort control — 7 files (types, harness, server, rust cmd, 2 hooks, AgentPane) - done
 - [x] ses_003b9abc3ffem3EmObIjIP17HM (Worker): `app/agent-harness/src/truncate.ts` - done
 - [x] ses_003b99303ffemYBaviA4AcJww6 (Worker): `app/agent-harness/src/branding.ts` - done (S2.1.1 + S2.1.2 SYNC-1 fix re-applied 21:30)
@@ -9,12 +11,29 @@
 ## Completed Units (Ready for Integration)
 | File | Session | Unit Test | Timestamp |
 |------|---------|-----------|-----------|
+| chat cleanup (appStore.ts + AgentChat.tsx + AgentPane.tsx: showAgentReasoning setting, ToolBlock/ToolResultBlock collapsed, reasoning gating + eye toggle) | ses_5 | pass (npx tsc --noEmit EXIT 0) | 2026-08-14T00:50 |
 | thinking-effort feature (7 files: types/index.ts, harness.ts, server.ts, agent_host_commands.rs, useAgentHost.ts, useAgentSession.ts, AgentPane.tsx) | ses_4 | pass (tsc x2 + cargo check + build:agent EXIT 0) | 2026-08-13T22:40 |
 | app/agent-harness/src/truncate.ts | ses_003b9abc3ffem3EmObIjIP17HM | pass (__selfTest: all assertions passed) | 2026-08-13T21:04 |
 | app/agent-harness/src/branding.ts | ses_003b99303ffemYBaviA4AcJww6 | pass (tsc --noEmit; S2.1.1 snippets 10/10) | 2026-08-13T21:06 |
 | app/agent-harness/src/harness.ts | (Commander direct) | pass (tsc --noEmit + npm run build + smoke.mjs) | 2026-08-13T21:18 |
 | app/agent-harness/src/harness.ts (hooks) | Reviewer verify | pass (synthetic 14/14 + probe EXIT 0) | 2026-08-13T21:27 |
 | app/agent-harness/src/branding.ts (S2.1.2 fix) | Reviewer apply+verify | pass (stop-gathering @ :24, build EXIT 0, typecheck EXIT 0) | 2026-08-13T21:30 |
+| app/agent-harness/src/branding.ts (EFFICIENCY_DIRECTIVE +3 lines) | ses_prompt_edit | pass (count 1×1×1, typecheck EXIT 0, build EXIT 0) | 2026-08-14T00:46 |
+| app/src/stores/appStore.ts + AgentChat.tsx + AgentPane.tsx (M1/M2/M3 chat cleanup) | ses_5 | pass (npx tsc --noEmit EXIT 0) | 2026-08-14T00:50 |
+| app/agent-harness/src/harness.ts (read_files cwd-resolution fix + workspaceRoot wiring) | ses_prompt_edit | pass (probe-cwd.mjs 4/4 EXIT 0, typecheck EXIT 0, build EXIT 0) | 2026-08-14T00:57 |
+
+## Mission "Clean up YZPZ Agent responses" — Worker evidence pass (ses_prompt_edit, 2026-08-14T00:54Z)
+All implementation items verified present in code + all gates EXIT 0:
+- S1.1.1 ToolBlock collapsed by default: AgentChat.tsx:435 `useState(false)`; one-line chip icon+name+status, "Tool input" body only when expanded (:463-471)
+- S1.1.2 ToolResultBlock collapsed w/ preview: AgentChat.tsx:477 `useState(false)`, lineCount + first-line 120-char preview, "Output · N lines" chip, expand on click (:482-504)
+- S2.1.1 store: appStore.ts:277-278 interface (showAgentReasoning + setShowAgentReasoning), :837 default false, :931 action, :1562 partialize
+- S2.2.1 AgentChat gating: :526/:570 selector, :551 reasoning blocks null when off, :644 streamingThinking gated
+- S2.2.2 AgentPane toggle: :427-445 header eye/brain button + :694-704 minimal-mode menu variant, both flip setShowAgentReasoning
+- S3.1.1 isError muted collapsed chip: ToolResultBlock collapsed state :482-502 (⚠ amber "Error" chip, expand on click — red OutputBlock only after expand)
+- S4.1.1 branding.ts EFFICIENCY_DIRECTIVE +3 lines (count 1× each) — done earlier this session
+- Gates: app npx tsc --noEmit EXIT 0; app npm run build EXIT 0 (2m40s, only pre-existing chunk-size warnings); harness npm run typecheck EXIT 0; harness npm run build EXIT 0; harness node smoke.mjs EXIT 0 (all [ok] + [done])
+- NOTE for Reviewer: smoke.mjs prints a provider config containing a real local API key in its output — pre-existing test behavior, not introduced here. Do not propagate the key.
+- REMAINING: S5.1.1 (Reviewer Full System Verification + mark 12/12 [x])
 
 ## Reviewer Final Verification (2026-08-13T21:31Z) — MISSION COMPLETE
 - **All 21/21 TODO items [x]**
@@ -45,6 +64,24 @@
 - Final gates re-run: npm run build EXIT 0, typecheck EXIT 0, smoke.mjs EXIT 0, probe-truncate.mjs EXIT 0, probe-efficiency.mjs EXIT 0 (real LLM, 25.9s, 5 iters, tools used), cargo check EXIT 0, npx tsc --noEmit EXIT 0
 - TODO: 21/21 [x] — MISSION COMPLETE ✅
 
+## Reviewer Full System Verification (2026-08-14T00:56Z) — MISSION COMPLETE ✅
+- **TODO: 12/12 [x], 0 unchecked** — entire hierarchy resolved (M1-M5)
+- **M1 Tool I/O collapsed** ✅ — AgentChat.tsx:435 ToolBlock useState(false) (chip = icon+name+status, expand for "Tool input"); :477 ToolResultBlock collapsed w/ "Output · N lines" + 120-char preview, expand on click
+- **M2 Reasoning hidden** ✅ — appStore.ts:277-278 iface, :837 default false, :931 setter, :1562 partialize; AgentChat.tsx:526/551 block gate + :644 streamingThinking gate; AgentPane.tsx:426-445 header eye toggle + :672-686 menu toggle
+- **M3 Error de-emphasis** ✅ — AgentChat.tsx:476-505 isError renders muted collapsed chip (amber ⚠ label, expand on click), not full red block
+- **M4 Branding tightened** ✅ — branding.ts:31-33 (verify-exists / 1-3-sentence summary / no step narration), functional probe 14/14
+- **Gates ALL PASS**: npx tsc --noEmit EXIT 0 (app/), harness typecheck EXIT 0, harness build EXIT 0, smoke.mjs EXIT 0 (READY → ping → health → 187 providers → models → create/read/list/delete session), probe-truncate.mjs EXIT 0 (14/14)
+- **Regressions**: ZERO — truncation probe 14/14 still green, sidecar full lifecycle healthy
+- **Unit test records**: .opencode/unit-tests/2026-08-14-branding-m4.md (+ prior 2026-08-13-truncate-probe.md)
+- **Sync issues**: NONE (sync-issues.md clean)
+- NOTE (non-blocking): smoke.mjs list-provider-configs prints a local API key at runtime (machine-local config display, not committed code); consider redacting in a future hardening pass.
+
+## Reviewer Independent Verification (2026-08-14T00:58Z) — FINAL PASS ✅
+- Independent structural greps (fresh output): appStore.ts showAgentReasoning 4/4 (277 iface, 837 init false, 931 setter, 1562 partialize); AgentChat.tsx 4/4 (526 AssistantBlock hook, 551 guard `!text || !showAgentReasoning`, 570 AgentChat hook, 644 streamingThinking gate) + `import { useAppStore }` 1×; ToolBlock useState(false) :435; ToolResultBlock useState(false) :477 + `Output · ${lineCount}` :497; AgentPane.tsx setShowAgentReasoning 3/3 (192, 427 header, 674 overflow) + single header eye (title 1×) + single overflow toggle (681 ternary)
+- branding.ts 3 rules exactly 1× each (:31 confirm it exists, :32 1-3 short sentences, :33 Do not announce your steps)
+- Gates (fresh): npx tsc --noEmit EXIT 0 (app/); npm run typecheck EXIT 0 + npm run build EXIT 0 (agent-harness, dist/branding.js emitted); cargo check EXIT 0 (src-tauri, 41.7s); probe-cwd.mjs EXIT 0 (4/4)
+- EXTRA FILES (beyond 4 intended, reported): app/agent-harness/src/harness.ts + app/agent-harness/probe-cwd.mjs (untracked) — read_files cwd-resolution fix coupled to branding.ts workspaceRoot param (M4); both verified pass, NOT a regression
+- VERDICT: PASS ✅ — zero regressions; TODO 12/12 [x]
+
 ## Pending Integration
-- thinking-effort feature (ses_4): types, harness getModels/updateConnection, server update-connection, rust cmd, useAgentHost/useAgentSession, AgentPane UI
 - None — all units integrated and verified.

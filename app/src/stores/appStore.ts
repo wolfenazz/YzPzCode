@@ -274,6 +274,8 @@ interface AppState {
   agentSessionsByWorkspace: Record<string, AgentSessionSummary[]>;
   activeAgentSessionByWorkspace: Record<string, string | null>;
   agentPaneUIModes: Record<string, AgentPaneUIMode>;
+  showAgentReasoning: boolean;
+  setShowAgentReasoning: (value: boolean) => void;
   setAgentSessionsForWorkspace: (workspaceId: string, sessions: AgentSessionSummary[]) => void;
   addAgentSessionForWorkspace: (workspaceId: string, session: AgentSessionSummary) => void;
   removeAgentSessionForWorkspace: (workspaceId: string, sessionId: string) => void;
@@ -832,6 +834,7 @@ export const useAppStore = create<AppState>()(
       agentSessionsByWorkspace: {} as Record<string, AgentSessionSummary[]>,
       activeAgentSessionByWorkspace: {} as Record<string, string | null>,
       agentPaneUIModes: {} as Record<string, AgentPaneUIMode>,
+      showAgentReasoning: false,
       explorerClipboard: null,
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
@@ -924,6 +927,8 @@ export const useAppStore = create<AppState>()(
             [sessionId]: mode,
           },
         })),
+
+      setShowAgentReasoning: (value) => set({ showAgentReasoning: value }),
 
       closeAllAgentSessions: () =>
         set({
@@ -1554,6 +1559,7 @@ export const useAppStore = create<AppState>()(
           nodejsCheckPassed: state.nodejsCheckPassed,
           inspectorQuickPrompts: state.inspectorQuickPrompts,
           agentPaneUIModes: state.agentPaneUIModes,
+          showAgentReasoning: state.showAgentReasoning,
         };
 
         if (state.saveWorkspaceState) {
