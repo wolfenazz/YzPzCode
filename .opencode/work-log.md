@@ -1,6 +1,7 @@
 # Work Log
 
 ## Active Sessions
+- [x] ses_review (Reviewer): release.yml CI fix verification (S1.1.1/S1.1.2/S2.1.1/S2.1.2/S2.1.3) - done 2026-08-14T02:25Z (all 5 TODO items verified [x])
 - [x] ses_prompt_edit (Worker): `app/agent-harness/src/branding.ts` - EFFICIENCY_DIRECTIVE +3 lines (confirm-before-read, short summary, no step narration) - done 2026-08-14T00:46Z (typecheck EXIT 0, build EXIT 0)
 - [x] ses_prompt_edit (Worker): Mission "Clean up YZPZ Agent responses" — M1/M2/M3 implementation verified ALREADY IN PLACE + all gates run - done 2026-08-14T00:54Z
 - [x] ses_4 (Worker): thinking-effort control — 7 files (types, harness, server, rust cmd, 2 hooks, AgentPane) - done
@@ -21,6 +22,7 @@
 | app/agent-harness/src/branding.ts (EFFICIENCY_DIRECTIVE +3 lines) | ses_prompt_edit | pass (count 1×1×1, typecheck EXIT 0, build EXIT 0) | 2026-08-14T00:46 |
 | app/src/stores/appStore.ts + AgentChat.tsx + AgentPane.tsx (M1/M2/M3 chat cleanup) | ses_5 | pass (npx tsc --noEmit EXIT 0) | 2026-08-14T00:50 |
 | app/agent-harness/src/harness.ts (read_files cwd-resolution fix + workspaceRoot wiring) | ses_prompt_edit | pass (probe-cwd.mjs 4/4 EXIT 0, typecheck EXIT 0, build EXIT 0) | 2026-08-14T00:57 |
+| .github/workflows/release.yml (CI fix: agent-harness npm ci step + action bumps) | ses_review | pass (YAML parse OK, npm ci+build EXIT 0 x2, diff minimal) | 2026-08-14T02:25 |
 
 ## Mission "Clean up YZPZ Agent responses" — Worker evidence pass (ses_prompt_edit, 2026-08-14T00:54Z)
 All implementation items verified present in code + all gates EXIT 0:
@@ -82,6 +84,16 @@ All implementation items verified present in code + all gates EXIT 0:
 - Gates (fresh): npx tsc --noEmit EXIT 0 (app/); npm run typecheck EXIT 0 + npm run build EXIT 0 (agent-harness, dist/branding.js emitted); cargo check EXIT 0 (src-tauri, 41.7s); probe-cwd.mjs EXIT 0 (4/4)
 - EXTRA FILES (beyond 4 intended, reported): app/agent-harness/src/harness.ts + app/agent-harness/probe-cwd.mjs (untracked) — read_files cwd-resolution fix coupled to branding.ts workspaceRoot param (M4); both verified pass, NOT a regression
 - VERDICT: PASS ✅ — zero regressions; TODO 12/12 [x]
+
+## Reviewer Unit Verification (2026-08-14T02:25Z) — release.yml CI fix
+- **TODO: 5/5 [x]** (S1.1.1, S1.1.2, S2.1.1, S2.1.2, S2.1.3) — M1 + M2 completed
+- **S1.1.1** ✅ — "Install agent-harness dependencies" step at release.yml:75-77 (`working-directory: app/agent-harness`, `run: npm ci`), positioned between frontend deps (:71-73) and Build Tauri app (:79); `app/agent-harness/package-lock.json` is git-tracked (npm ci requires it)
+- **S1.1.2** ✅ — checkout@v7 (3×: :18/:53/:102), setup-node@v7 (:56), softprops/action-gh-release@v3 (2×: :22/:105). Note: floating majors (@v7/@v3) used instead of exact v7.0.1/v7.0.0/v3.0.2 — resolve to verified latest, Node 24 native, satisfies intent
+- **S2.1.1** ✅ — python yaml.safe_load OK: jobs create-release/build/publish-release, build job has 7 steps incl. agent-harness install; actionlint not available locally (substituted with structural review)
+- **S2.1.2** ✅ — fresh independent run in app/agent-harness: `npm ci` EXIT 0 (324 pkgs) + `npm run build` EXIT 0 (tsc -p tsconfig.json) — proves the TS2688 root cause fix (@types/node now installed in CI)
+- **S2.1.3** ✅ — git diff is minimal: 6 action version bumps + 1 new step only; matrix/needs/env/tauri-action args untouched; no new secrets (only secrets.* references)
+- **Security**: no hardcoded secrets; audit warnings (16 vulns in agent-harness deps) pre-existing, non-blocking
+- **Sync issues**: NONE
 
 ## Pending Integration
 - None — all units integrated and verified.

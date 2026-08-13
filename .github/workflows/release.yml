@@ -15,11 +15,11 @@ jobs:
     outputs:
       release_id: ${{ steps.create-release.outputs.id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Create Release
         id: create-release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: YzPzCode ${{ github.ref_name }}
@@ -50,10 +50,10 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 
@@ -70,6 +70,10 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: app
+        run: npm ci
+
+      - name: Install agent-harness dependencies
+        working-directory: app/agent-harness
         run: npm ci
 
       - name: Build Tauri app
@@ -95,10 +99,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Publish Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           draft: false
