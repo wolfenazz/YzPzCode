@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../types';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
@@ -31,6 +31,75 @@ const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
   appliedStyles: [],
 });
 
+export const DEFAULT_INSPECTOR_QUICK_PROMPTS: InspectorQuickPrompt[] = [
+  {
+    id: 'enhance-polish',
+    label: 'Polish & refine',
+    group: 'enhance',
+    text: 'Polish this element: tighten the spacing, align to an 8px grid, and strengthen the visual hierarchy. Keep the existing style, colors, and tone.',
+  },
+  {
+    id: 'enhance-typography',
+    label: 'Improve typography',
+    group: 'enhance',
+    text: 'Improve the typography of this element — refine font sizes, weight contrast, line-height, and readability so it looks intentional and premium.',
+  },
+  {
+    id: 'enhance-interactions',
+    label: 'Enhance interactions',
+    group: 'enhance',
+    text: 'Add polished hover, focus, and active states to this element with smooth transitions that match the app\'s design language.',
+  },
+  {
+    id: 'enhance-visual-polish',
+    label: 'Elevate visual polish',
+    group: 'enhance',
+    text: 'Elevate the visual polish of this element — refine shadows, borders, and border radius to feel more premium without changing the layout.',
+  },
+  {
+    id: 'enhance-spacing',
+    label: 'Refine spacing',
+    group: 'enhance',
+    text: 'Refine the spacing and padding of this element so it feels balanced, airy, and consistent with the rest of the page.',
+  },
+  {
+    id: 'adjust-compact',
+    label: 'Make it compact',
+    group: 'adjust',
+    text: 'Make this element more compact — reduce padding, font size, and gaps so it takes up less vertical space.',
+  },
+  {
+    id: 'adjust-stand-out',
+    label: 'Make it stand out',
+    group: 'adjust',
+    text: 'Make this element stand out more — strengthen its accent color, size, and contrast so it draws the eye.',
+  },
+  {
+    id: 'adjust-simplify',
+    label: 'Simplify / declutter',
+    group: 'adjust',
+    text: 'Simplify this element: reduce visual noise, remove redundant styling, and make it cleaner and more focused.',
+  },
+  {
+    id: 'adjust-accent',
+    label: 'Match accent color',
+    group: 'adjust',
+    text: 'Adjust this element\'s color scheme to match the app\'s accent color while keeping good contrast and accessibility.',
+  },
+  {
+    id: 'adjust-responsive',
+    label: 'Responsive behavior',
+    group: 'adjust',
+    text: 'Make this element adapt better on smaller screens — stacking layout, fluid widths, and readable type sizes.',
+  },
+  {
+    id: 'adjust-center',
+    label: 'Center content',
+    group: 'adjust',
+    text: 'Center this element\'s content horizontally and vertically for a more balanced, symmetrical layout.',
+  },
+];
+
 interface AppState {
   currentWorkspace: WorkspaceConfig | null;
   workspaceList: WorkspaceConfig[];
@@ -41,6 +110,7 @@ interface AppState {
   activeSessionId: string | null;
   activeSessionByWorkspace: Record<string, string | null>;
   terminalMouseModesBySession: Record<string, number[]>;
+  manualAgentBySession: Record<string, AgentType>;
   isLoadingTerminals: boolean;
   view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings";
   previousView: "nodejs-check" | "setup" | "workspace" | "settings" | null;
@@ -95,6 +165,7 @@ interface AppState {
   setupViewMode: "page" | "stepper";
   discordRichPresence: boolean;
   nodejsCheckPassed: boolean;
+  inspectorQuickPrompts: InspectorQuickPrompt[];
 
   setView: (view: "nodejs-check" | "setup" | "workspace" | "docs" | "settings") => void;
   setViewWithPrevious: (view: "docs" | "settings") => void;
@@ -104,6 +175,7 @@ interface AppState {
   removeSession: (sessionId: string) => void;
   setTerminalMouseModes: (sessionId: string, modes: number[]) => void;
   clearTerminalMouseModes: (sessionId: string) => void;
+  setManualAgent: (sessionId: string, agent: AgentType) => void;
   setIsLoadingTerminals: (loading: boolean) => void;
   updateWorkspaceList: (workspaces: WorkspaceConfig[]) => void;
   addToWorkspaceList: (workspace: WorkspaceConfig) => void;
@@ -151,6 +223,11 @@ interface AppState {
   setDiscordRichPresence: (enabled: boolean) => void;
   setNodeJsCheckPassed: (passed: boolean) => void;
 
+  addInspectorQuickPrompt: (group: InspectorQuickPromptGroup) => void;
+  updateInspectorQuickPrompt: (id: string, patch: Partial<Pick<InspectorQuickPrompt, 'label' | 'text' | 'group'>>) => void;
+  removeInspectorQuickPrompt: (id: string) => void;
+  resetInspectorQuickPrompts: () => void;
+
   openWorkspace: (workspace: WorkspaceConfig) => void;
   closeWorkspace: (workspaceId: string) => void;
   switchWorkspace: (workspaceId: string) => void;
@@ -182,13 +259,13 @@ interface AppState {
   activeFileByWorkspace: Record<string, string | null>;
   activeViewByWorkspace: Record<string, WorkspaceView>;
   browserStateByWorkspace: Record<string, BrowserWorkspaceState>;
-  explorerClipboard: { operation: 'copy' | 'cut'; path: string; name: string; isDir: boolean } | null;
+  explorerClipboard: { operation: 'copy' | 'cut'; entries: { path: string; name: string; isDir: boolean }[] } | null;
   restoredFilePathsByWorkspace: Record<string, string[]>;
   recentDirectories: string[];
   addRecentDirectory: (path: string) => void;
   clearRecentDirectories: () => void;
   toggleExplorer: () => void;
-  setExplorerClipboard: (entry: { operation: 'copy' | 'cut'; path: string; name: string; isDir: boolean } | null) => void;
+  setExplorerClipboard: (entry: { operation: 'copy' | 'cut'; entries: { path: string; name: string; isDir: boolean }[] } | null) => void;
   clearRestoredFilePaths: (workspaceId: string) => void;
   setActiveView: (view: WorkspaceView) => void;
   ensureBrowserState: (workspaceId: string) => void;
@@ -265,6 +342,7 @@ export const useAppStore = create<AppState>()(
       activeSessionId: null,
       activeSessionByWorkspace: {} as Record<string, string | null>,
       terminalMouseModesBySession: {} as Record<string, number[]>,
+      manualAgentBySession: {} as Record<string, AgentType>,
       isLoadingTerminals: false,
       view: "nodejs-check" as const,
       previousView: null,
@@ -317,6 +395,7 @@ export const useAppStore = create<AppState>()(
       setupViewMode: "page",
       discordRichPresence: false,
       nodejsCheckPassed: false,
+      inspectorQuickPrompts: DEFAULT_INSPECTOR_QUICK_PROMPTS,
       ideStatuses: {
         vsCode: null,
         visualStudio: null,
@@ -384,6 +463,9 @@ export const useAppStore = create<AppState>()(
             terminalMouseModesBySession: Object.fromEntries(
               Object.entries(state.terminalMouseModesBySession).filter(([id]) => id !== sessionId)
             ),
+            manualAgentBySession: Object.fromEntries(
+              Object.entries(state.manualAgentBySession).filter(([id]) => id !== sessionId)
+            ),
             activeSessionId:
               state.activeSessionId === sessionId ? null : state.activeSessionId,
           };
@@ -400,6 +482,13 @@ export const useAppStore = create<AppState>()(
           terminalMouseModesBySession: Object.fromEntries(
             Object.entries(state.terminalMouseModesBySession).filter(([id]) => id !== sessionId)
           ),
+        })),
+      setManualAgent: (sessionId, agent) =>
+        set((state) => ({
+          manualAgentBySession: {
+            ...state.manualAgentBySession,
+            [sessionId]: agent,
+          },
         })),
       setIsLoadingTerminals: (loading) => set({ isLoadingTerminals: loading }),
       setTerminalError: (error) => set({ terminalError: error }),
@@ -458,6 +547,7 @@ export const useAppStore = create<AppState>()(
           isLoadingTerminals: false,
           activeSessionId: null,
           terminalMouseModesBySession: {},
+          manualAgentBySession: {},
           cliLaunchStates: {},
         }),
 
@@ -499,6 +589,31 @@ export const useAppStore = create<AppState>()(
       setSetupViewMode: (mode) => set({ setupViewMode: mode }),
       setDiscordRichPresence: (enabled) => set({ discordRichPresence: enabled }),
       setNodeJsCheckPassed: (passed) => set({ nodejsCheckPassed: passed }),
+
+      addInspectorQuickPrompt: (group) =>
+        set((state) => ({
+          inspectorQuickPrompts: [
+            ...state.inspectorQuickPrompts,
+            {
+              id: `inspector-prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              label: 'New prompt',
+              text: '',
+              group,
+            },
+          ],
+        })),
+      updateInspectorQuickPrompt: (id, patch) =>
+        set((state) => ({
+          inspectorQuickPrompts: state.inspectorQuickPrompts.map((prompt) =>
+            prompt.id === id ? { ...prompt, ...patch } : prompt,
+          ),
+        })),
+      removeInspectorQuickPrompt: (id) =>
+        set((state) => ({
+          inspectorQuickPrompts: state.inspectorQuickPrompts.filter((prompt) => prompt.id !== id),
+        })),
+      resetInspectorQuickPrompts: () => set({ inspectorQuickPrompts: DEFAULT_INSPECTOR_QUICK_PROMPTS }),
+
 
       openWorkspace: (workspace) =>
         set((state) => {
@@ -596,6 +711,7 @@ export const useAppStore = create<AppState>()(
           activeSessionByWorkspace: {},
           activeSessionId: null,
           terminalMouseModesBySession: {},
+          manualAgentBySession: {},
           view: "setup",
           openFiles: [],
           activeFilePath: null,
@@ -1341,6 +1457,7 @@ export const useAppStore = create<AppState>()(
           setupViewMode: state.setupViewMode,
           discordRichPresence: state.discordRichPresence,
           nodejsCheckPassed: state.nodejsCheckPassed,
+          inspectorQuickPrompts: state.inspectorQuickPrompts,
         };
 
         if (state.saveWorkspaceState) {

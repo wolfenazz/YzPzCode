@@ -6,12 +6,22 @@ import { FileIcon } from './FileIcon';
 import { GitStatusBadge } from './GitStatusBadge';
 import type { FileEntry } from '../../types';
 
-export type ExplorerClipboard = {
-  operation: 'copy' | 'cut';
+export type ExplorerClipboardEntry = {
   path: string;
   name: string;
   isDir: boolean;
+};
+
+export type ExplorerClipboard = {
+  operation: 'copy' | 'cut';
+  entries: ExplorerClipboardEntry[];
 } | null;
+
+export const isClipboardPath = (
+  clipboard: ExplorerClipboard,
+  path: string
+): boolean =>
+  !!clipboard && clipboard.entries.some((entry) => entry.path === path);
 
 interface ExplorerContextValue {
   onFileClick: (entry: FileEntry) => void;
@@ -20,6 +30,7 @@ interface ExplorerContextValue {
   onContextMenu: (e: React.MouseEvent, nodeData: TreeNodeData) => void;
   externalDropTarget: string | null;
   clipboard: ExplorerClipboard;
+  searchTerm?: string;
 }
 
 export const ExplorerContext = React.createContext<ExplorerContextValue>({
@@ -29,6 +40,7 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
   onContextMenu: () => {},
   externalDropTarget: null,
   clipboard: null,
+  searchTerm: undefined,
 });
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
@@ -106,16 +118,45 @@ const EditInput: React.FC<{
   );
 };
 
+const HighlightedName: React.FC<{ name: string; searchTerm?: string; isCut: boolean }> = memo(
+  ({ name, searchTerm, isCut }) => {
+    if (!searchTerm || !searchTerm.trim()) {
+      return (
+        <span className={`truncate text-xs flex-1 ${isCut ? 'line-through decoration-zinc-500/60' : ''}`}>
+          {name}
+        </span>
+      );
+    }
+    const lower = name.toLowerCase();
+    const term = searchTerm.toLowerCase();
+    const idx = lower.indexOf(term);
+    if (idx === -1) {
+      return (
+        <span className={`truncate text-xs flex-1 ${isCut ? 'line-through decoration-zinc-500/60' : ''}`}>
+          {name}
+        </span>
+      );
+    }
+    return (
+      <span className={`truncate text-xs flex-1 ${isCut ? 'line-through decoration-zinc-500/60' : ''}`}>
+        {name.slice(0, idx)}
+        <mark className="bg-amber-500/30 text-amber-200 rounded-[2px] px-px">{name.slice(idx, idx + term.length)}</mark>
+        {name.slice(idx + term.length)}
+      </span>
+    );
+  }
+);
+
 const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   node,
   style,
   dragHandle,
 }) => {
   const ctx = useContext(ExplorerContext);
-  const { onFileClick, gitStatuses, activeFilePath, onContextMenu, externalDropTarget, clipboard } = ctx;
+  const { onFileClick, gitStatuses, activeFilePath, onContextMenu, externalDropTarget, clipboard, searchTerm } = ctx;
   const data = node.data;
   const isActive = activeFilePath === data.id;
-  const isCut = clipboard?.operation === 'cut' && clipboard.path === data.id;
+  const isCut = isClipboardPath(clipboard, data.id);
   const gitChange = gitStatuses.find((g) => g.path === data.id)?.change;
   const willReceiveDrop = node.willReceiveDrop;
   const isExternalTarget = externalDropTarget === data.id && data.isDir;
@@ -246,9 +287,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
             onCancel={handleCancelEdit}
           />
         ) : (
-          <span className={`truncate text-xs flex-1 ${isCut ? 'line-through decoration-zinc-500/60' : ''}`}>
-            {data.name}
-          </span>
+          <HighlightedName name={data.name} searchTerm={searchTerm} isCut={isCut} />
         )}
 
         {isCut && !node.isEditing && (

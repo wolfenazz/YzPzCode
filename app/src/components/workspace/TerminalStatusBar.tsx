@@ -14,6 +14,7 @@ function getGridDimensions(count: number): { cols: number; rows: number } {
 export const TerminalStatusBar: React.FC = () => {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
+  const activeView = useAppStore((s) => s.activeView);
   const sessions = useAppStore((s) => s.sessions);
   const addSession = useAppStore((s) => s.addSession);
 
@@ -39,6 +40,7 @@ export const TerminalStatusBar: React.FC = () => {
   }, [currentWorkspace, sessions.length, addSession]);
 
   if (!currentWorkspace) return null;
+  if (activeView !== 'terminal') return null;
 
   return (
     <>
@@ -54,7 +56,7 @@ export const TerminalStatusBar: React.FC = () => {
         </div>
         <button
           onClick={() => setShowNewDialog(true)}
-          className="group/init relative flex items-center gap-1.5 px-2 py-1 bg-zinc-900/90 text-zinc-200 border-zinc-700/90 hover:bg-zinc-800/95 border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer"
+          className="group/init relative flex items-center gap-1.5 px-2 py-1 bg-[var(--accent)] text-zinc-950 border-[var(--accent-border)] hover:brightness-110 shadow-[0_0_10px_-2px_var(--accent-glow)] border text-[9px] font-bold uppercase tracking-[0.15em] transition-all duration-300 cursor-pointer"
           title="Initialize new TTY"
         >
           <svg className="w-3 h-3 transition-transform duration-500 group-hover/init:rotate-[360deg]" fill="none" stroke="currentColor" viewBox="0 0 24 24">

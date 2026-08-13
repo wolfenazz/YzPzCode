@@ -1,8 +1,9 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::event::CreateKind;
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::{AppHandle, Emitter};
 
 static FS_WATCHER: Mutex<Option<RecommendedWatcher>> = Mutex::new(None);
@@ -32,6 +33,22 @@ fn should_ignore_path(path: &str) -> bool {
         .any(|segment| normalized.contains(segment))
 }
 
+/// Returns true when `child` is a direct child of `root` (compared
+/// case-insensitively to be safe on Windows).
+fn is_top_level_child(child: &Path, root: &Path) -> bool {
+    let Some(parent) = child.parent() else {
+        return false;
+    };
+    if parent == root {
+        return true;
+    }
+    // Fall back to a normalized string comparison (handles trailing slashes
+    // and casing differences).
+    let parent_norm = parent.to_string_lossy().to_ascii_lowercase();
+    let root_norm = root.to_string_lossy().to_ascii_lowercase();
+    parent_norm.trim_end_matches(['/', '\\']) == root_norm.trim_end_matches(['/', '\\'])
+}
+
 pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result<(), String> {
     let path = PathBuf::from(&workspace_path);
     if !path.exists() {
@@ -49,6 +66,26 @@ pub fn start_fs_watcher(app_handle: AppHandle, workspace_path: String) -> Result
                 Ok(e) => e,
                 Err(_) => return,
             };
+
+            // Re-watch newly created top-level directories so deep changes
+            // inside them keep producing events. The static FS_WATCHER is
+            // already populated by the time events start arriving, and we only
+            // hold the lock for the duration of the (cheap) watch() call.
+            if matches!(event.kind, EventKind::Create(CreateKind::Folder)) {
+                for path in &event.paths {
+                    let display = path.to_string_lossy().to_string();
+                    if should_ignore_path(&display) {
+                        continue;
+                    }
+                    if is_top_level_child(path, Path::new(&watcher_path)) {
+                        if let Ok(mut guard) = FS_WATCHER.lock() {
+                            if let Some(w) = guard.as_mut() {
+                                let _ = w.watch(path, RecursiveMode::Recursive);
+                            }
+                        }
+                    }
+                }
+            }
 
             let now = Instant::now();
             if let Ok(mut last) = LAST_EMIT.lock() {
@@ -122,4 +159,39 @@ pub fn stop_fs_watcher() -> Result<(), String> {
     let _ = guard.take();
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    #[test]
+    fn detects_direct_children() {
+        let root = Path::new(r"C:\workspace");
+        assert!(is_top_level_child(Path::new(r"C:\workspace\src"), root));
+        assert!(is_top_level_child(
+            Path::new(r"C:\workspace\package.json"),
+            root
+        ));
+    }
+
+    #[test]
+    fn rejects_nested_paths_and_root_itself() {
+        let root = Path::new(r"C:\workspace");
+        assert!(!is_top_level_child(
+            Path::new(r"C:\workspace\src\deep"),
+            root
+        ));
+        assert!(!is_top_level_child(Path::new(r"C:\workspace"), root));
+        assert!(!is_top_level_child(Path::new(r"C:\other"), root));
+    }
+
+    #[test]
+    fn handles_trailing_separator_and_case() {
+        let root = Path::new(r"C:\workspace");
+        // Trailing-separator spelling of the root itself is NOT a child.
+        assert!(!is_top_level_child(Path::new(r"C:\workspace\"), root));
+        assert!(is_top_level_child(Path::new(r"C:\WORKSPACE\SRC"), root));
+    }
 }

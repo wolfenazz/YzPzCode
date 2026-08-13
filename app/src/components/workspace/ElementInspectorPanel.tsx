@@ -1,8 +1,9 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon } from '@iconify/react';
-import type { BrowserSelectedElement } from '../../types';
+import type { BrowserSelectedElement, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
 import { htmlToPlainText } from '../../utils/richText';
 import { RichPromptEditor } from './RichPromptEditor';
+import { useAppStore } from '../../stores/appStore';
 
 export interface SessionOption {
   id: string;
@@ -31,6 +32,21 @@ const Meta: React.FC<{ label: string; value: string; accent?: boolean }> = ({ la
   </div>
 );
 
+const escapePromptHtml = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+const promptToHtml = (text: string): string =>
+  escapePromptHtml(text).replace(/\n/g, '<br>');
+
+const PROMPT_GROUPS: { group: InspectorQuickPromptGroup; label: string; icon: string }[] = [
+  { group: 'enhance', label: 'enhance', icon: 'material-symbols:auto-awesome-rounded' },
+  { group: 'adjust', label: 'adjust / edit', icon: 'material-symbols:tune-rounded' },
+];
+
 export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   element,
   pageTitle,
@@ -44,6 +60,8 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   onClear,
 }: ElementInspectorPanelProps) {
   const [showFullInfo, setShowFullInfo] = useState(false);
+
+  const inspectorQuickPrompts = useAppStore((state) => state.inspectorQuickPrompts);
 
   useEffect(() => {
     setShowFullInfo(false);
@@ -76,6 +94,22 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   const handleCopyHtml = useCallback(() => {
     navigator.clipboard.writeText(element.htmlSnippet).catch(() => undefined);
   }, [element.htmlSnippet]);
+
+  const handleApplyPrompt = useCallback(
+    (prompt: InspectorQuickPrompt) => {
+      onDraftChange(promptToHtml(prompt.text));
+    },
+    [onDraftChange],
+  );
+
+  const promptsByGroup = useMemo(() => {
+    const grouped: Record<InspectorQuickPromptGroup, InspectorQuickPrompt[]> = { enhance: [], adjust: [] };
+    for (const prompt of inspectorQuickPrompts) {
+      grouped[prompt.group] = grouped[prompt.group] ?? [];
+      grouped[prompt.group].push(prompt);
+    }
+    return grouped;
+  }, [inspectorQuickPrompts]);
 
   return (
     <aside
@@ -289,6 +323,43 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
               <span>enter ↵ send</span>
               <span>shift+enter newline</span>
             </div>
+          </div>
+        </section>
+
+        {/* ── Quick prompts ──────────────────────────────────────────── */}
+        <section className="border border-zinc-800 bg-zinc-950/80">
+          <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">quick prompts</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+              {inspectorQuickPrompts.length} ready
+            </span>
+          </div>
+          <div className="space-y-2.5 p-3">
+            {PROMPT_GROUPS.map(({ group, label, icon }) => {
+              const prompts = promptsByGroup[group];
+              if (prompts.length === 0) return null;
+              return (
+                <div key={group}>
+                  <div className="mb-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                    <Icon icon={icon} className="h-3 w-3" aria-hidden="true" />
+                    {label}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {prompts.map((prompt) => (
+                      <button
+                        key={prompt.id}
+                        type="button"
+                        onClick={() => handleApplyPrompt(prompt)}
+                        title={prompt.text}
+                        className="rounded-md border border-zinc-800 bg-zinc-900 px-2 py-1 text-left text-[9px] font-bold leading-4 text-zinc-300 transition-colors hover:border-emerald-500/40 hover:bg-emerald-500/5 hover:text-emerald-200 cursor-pointer"
+                      >
+                        {prompt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </section>
 

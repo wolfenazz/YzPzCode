@@ -6,7 +6,7 @@ import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
-import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, ManagedTerminalCommandState } from '../../types';
+import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, CliType, ManagedTerminalCommandState } from '../../types';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useAppStore } from '../../stores/appStore';
@@ -81,6 +81,16 @@ const normalizeMouseModes = (modes: Iterable<number>): number[] =>
     .filter((mode) => SUPPORTED_MOUSE_MODE_CODES.includes(mode as typeof SUPPORTED_MOUSE_MODE_CODES[number]))
     .sort((a, b) => a - b);
 
+const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
+  opencode: '/new',
+  kilo: '/new',
+  codex: '/new',
+  gemini: '/new',
+  cursor: '/new',
+  hermes: '/new',
+  claude: '/clear',
+};
+
 const buildMouseModeSequence = (modes: Iterable<number>, operation: 'h' | 'l'): string =>
   normalizeMouseModes(modes)
     .map((mode) => `\x1b[?${mode}${operation}`)
@@ -94,6 +104,58 @@ const shouldInterceptManagedCommand = (value: string): boolean => {
   return MANAGED_COMMAND_PREFIXES.some((prefix) =>
     normalized === prefix || normalized.startsWith(`${prefix} `)
   );
+};
+
+// AI agent binary names a user may type to launch an agent manually inside a
+// shell terminal. Cursor's CLI binary is `agent` (not `cursor`), so both the
+// user-facing name and the real binary are matched to the Cursor agent.
+const AGENT_BINARY_NAMES: Record<string, AgentType> = {
+  claude: 'claude',
+  codex: 'codex',
+  gemini: 'gemini',
+  opencode: 'opencode',
+  kilo: 'kilo',
+  hermes: 'hermes',
+  agent: 'cursor',
+  cursor: 'cursor',
+};
+
+const LAUNCHER_TOKENS = new Set(['npx', 'npx.cmd', 'npx.exe', 'bunx', 'bunx.cmd', 'bunx.exe', 'sudo', 'yarn', 'npm', 'pnpm']);
+const SUBCOMMAND_TOKENS = new Set(['dlx', 'exec', 'create', 'dlx.cmd', 'exec.cmd']);
+
+const commandBasename = (token: string): string => {
+  const normalized = token.replace(/\\/g, '/');
+  const idx = normalized.lastIndexOf('/');
+  return idx >= 0 ? normalized.slice(idx + 1) : normalized;
+};
+
+const detectAgentFromCommand = (command: string): AgentType | null => {
+  const tokens = command.trim().split(/\s+/);
+  if (tokens.length === 0) return null;
+
+  while (tokens.length && /^[-@]/.test(tokens[0])) tokens.shift();
+
+  // Peel off launchers (npx / bunx / sudo / pnpm dlx / yarn dlx / npm exec ...)
+  // plus their option/subcommand tokens until the resolved executable is first.
+  let changed = true;
+  while (changed && tokens.length) {
+    changed = false;
+    const current = commandBasename(tokens[0]).toLowerCase();
+    if (LAUNCHER_TOKENS.has(current)) {
+      tokens.shift();
+      changed = true;
+      while (tokens.length && /^-/.test(tokens[0])) tokens.shift();
+      if (tokens.length && SUBCOMMAND_TOKENS.has(tokens[0].toLowerCase())) {
+        tokens.shift();
+        changed = true;
+        while (tokens.length && /^-/.test(tokens[0])) tokens.shift();
+      }
+    }
+  }
+
+  if (tokens.length === 0) return null;
+  const name = commandBasename(tokens[0]).toLowerCase().replace(/\.(exe|cmd|bat|sh)$/, '');
+  return AGENT_BINARY_NAMES[name] ?? null;
 };
 
 const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
@@ -171,6 +233,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const lineTrackingReliableRef = useRef(true);
   const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
+  const manualAgent = useAppStore((state) => state.manualAgentBySession[session.id]);
+  const setManualAgent = useAppStore((state) => state.setManualAgent);
   const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const setActiveSession = useAppStore((state) => state.setActiveSession);
@@ -191,11 +255,17 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   // Refs mirroring store settings so the xterm lifecycle effect (which only
   // re-runs per session) can read the latest values without being re-created.
-  // AI agent sessions always keep mouse tracking locked on; shell/tool sessions
-  // use the per-session toggle state.
-  const isAiAgent = !!session.agent && isAgentType(session.agent);
+  const effectiveAgent = manualAgent ?? session.agent;
+  // AI agent sessions always keep mouse tracking locked on; shell/tool
+  // sessions use the per-session toggle state.
+  const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
   const mouseAlwaysOnRef = useRef(isAiAgent);
   const pasteOnRightClickRef = useRef(terminalPasteOnRightClick);
+  const effectiveAgentRef = useRef(effectiveAgent);
+  const promoteToAgentRef = useRef<((agent: AgentType) => void) | null>(null);
+  useEffect(() => {
+    effectiveAgentRef.current = effectiveAgent;
+  }, [effectiveAgent]);
   useEffect(() => {
     mouseAlwaysOnRef.current = isAiAgent;
   }, [isAiAgent]);
@@ -399,6 +469,40 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     xtermRef.current?.write(sequence);
     invoke('write_to_terminal', { sessionId: session.id, input: sequence }).catch(console.error);
   }, [session.id, syncMouseModes]);
+
+  const handleRunCommand = useCallback(async (command: string) => {
+    try {
+      // Write the command text and the Enter separately with a small gap.
+      // TUI agents (opencode, kilo, ...) can drop the submit if the Enter byte
+      // arrives in the same chunk as the text — the text stays in the input
+      // box but never runs. Splitting reproduces real typing.
+      await invoke('write_to_terminal', { sessionId: session.id, input: command });
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      await invoke('write_to_terminal', { sessionId: session.id, input: '\r' });
+    } catch (e) {
+      console.error('Failed to run agent command:', e);
+    }
+  }, [session.id]);
+
+  const handleNewSession = useCallback(async () => {
+    if (!effectiveAgentRef.current) return;
+    const command = NEW_SESSION_COMMANDS[effectiveAgentRef.current as CliType] ?? '/new';
+    await handleRunCommand(command);
+  }, [handleRunCommand]);
+
+  const promoteToAgent = useCallback((agent: AgentType) => {
+    if (effectiveAgentRef.current) return;
+    setManualAgent(session.id, agent);
+    mouseAlwaysOnRef.current = true;
+    // Write the mouse-enable sequence AFTER the user's Enter has submitted the
+    // agent command — writing it synchronously interleaved the escape sequence
+    // with the \r and made the shell swallow the first Enter.
+    setTimeout(() => {
+      forceEnableMouse();
+    }, 1500);
+  }, [session.id, setManualAgent, forceEnableMouse]);
+
+  promoteToAgentRef.current = promoteToAgent;
 
   const handleRefreshCli = useCallback(async () => {
     if (!session.agent || isRefreshing) return;
@@ -715,6 +819,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             }
           })();
           return;
+        }
+
+        const detectedAgent = detectAgentFromCommand(commandCandidate);
+        if (detectedAgent && !effectiveAgentRef.current) {
+          promoteToAgentRef.current?.(detectedAgent);
         }
       }
 
@@ -1111,6 +1220,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         onClose={onClose}
         mouseTrackingEnabled={mouseTrackingEnabled}
         onToggleMouseTracking={handleToggleMouseTracking}
+        onNewSession={handleNewSession}
+        onRunCommand={handleRunCommand}
+        agentOverride={effectiveAgent}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}

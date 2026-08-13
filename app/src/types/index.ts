@@ -226,6 +226,15 @@ export interface BrowserTab {
   favicon?: string;
 }
 
+export type InspectorQuickPromptGroup = 'enhance' | 'adjust';
+
+export interface InspectorQuickPrompt {
+  id: string;
+  label: string;
+  text: string;
+  group: InspectorQuickPromptGroup;
+}
+
 export interface CapturedStyle {
   id: string;
   sourceUrl: string;

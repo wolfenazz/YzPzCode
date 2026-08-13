@@ -104,7 +104,77 @@
       "fetchedAt": "2026-08-12T19:11:23.195Z",
       "expiresAt": "2026-08-13T19:11:23.195Z",
       "size": 4128
+    },
+    "opencode_ai_docs_commands_.md": {
+      "url": "https://opencode.ai/docs/commands/",
+      "title": "Commands | OpenCode",
+      "fetchedAt": "2026-08-12T22:56:26.068Z",
+      "expiresAt": "2026-08-13T22:56:26.068Z",
+      "size": 7098
+    },
+    "docs_anthropic_com_en_docs_claude-code_slash-commands.md": {
+      "url": "https://docs.anthropic.com/en/docs/claude-code/slash-commands",
+      "title": "Extend Claude with skills - Claude Code Docs",
+      "fetchedAt": "2026-08-12T22:56:26.798Z",
+      "expiresAt": "2026-08-13T22:56:26.798Z",
+      "size": 15186
+    },
+    "opencode_ai_docs_tui_.md": {
+      "url": "https://opencode.ai/docs/tui/",
+      "title": "TUI | OpenCode",
+      "fetchedAt": "2026-08-12T22:56:33.173Z",
+      "expiresAt": "2026-08-13T22:56:33.173Z",
+      "size": 9880
+    },
+    "code_claude_com_docs_en_commands.md": {
+      "url": "https://code.claude.com/docs/en/commands",
+      "title": "Commands - Claude Code Docs",
+      "fetchedAt": "2026-08-12T22:56:39.896Z",
+      "expiresAt": "2026-08-13T22:56:39.896Z",
+      "size": 15148
+    },
+    "github_com_openai_codex.md": {
+      "url": "https://github.com/openai/codex",
+      "title": "GitHub - openai/codex: Lightweight coding agent that runs in your terminal · GitHub",
+      "fetchedAt": "2026-08-12T22:56:51.958Z",
+      "expiresAt": "2026-08-13T22:56:51.958Z",
+      "size": 3367
+    },
+    "developers_openai_com_codex_cli_.md": {
+      "url": "https://developers.openai.com/codex/cli/",
+      "title": "Untitled",
+      "fetchedAt": "2026-08-12T22:57:09.371Z",
+      "expiresAt": "2026-08-13T22:57:09.371Z",
+      "size": 1278
+    },
+    "developers_openai_com_codex_developer-commands_.md": {
+      "url": "https://developers.openai.com/codex/developer-commands/",
+      "title": "Untitled",
+      "fetchedAt": "2026-08-12T22:57:14.745Z",
+      "expiresAt": "2026-08-13T22:57:14.745Z",
+      "size": 15144
+    },
+    "github_com_google-gemini_gemini-cli.md": {
+      "url": "https://github.com/google-gemini/gemini-cli",
+      "title": "GitHub - google-gemini/gemini-cli: An open-source AI agent that brings the power of Gemini directly into your terminal. · GitHub",
+      "fetchedAt": "2026-08-12T22:57:15.137Z",
+      "expiresAt": "2026-08-13T22:57:15.137Z",
+      "size": 13806
+    },
+    "www_geminicli_com_docs_reference_commands.md": {
+      "url": "https://www.geminicli.com/docs/reference/commands",
+      "title": "CLI commands | Gemini CLI",
+      "fetchedAt": "2026-08-12T22:57:21.548Z",
+      "expiresAt": "2026-08-13T22:57:21.548Z",
+      "size": 15155
+    },
+    "github_com_brimdata_react-arborist_issues.md": {
+      "url": "https://github.com/brimdata/react-arborist/issues?q=drag+drop+not+working+canDrop",
+      "title": "Issues · jameskerr/react-arborist · GitHub",
+      "fetchedAt": "2026-08-13T00:07:26.697Z",
+      "expiresAt": "2026-08-14T00:07:26.697Z",
+      "size": 3351
     }
   },
-  "lastUpdated": "2026-08-12T19:11:23.196Z"
+  "lastUpdated": "2026-08-13T00:07:26.705Z"
 }

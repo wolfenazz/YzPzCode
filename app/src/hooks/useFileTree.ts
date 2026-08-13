@@ -148,6 +148,13 @@ function insertNodeIntoDirectory(
     nodes.map((node) => {
       if (node.path === parentPath) {
         inserted = true;
+        // If the target folder was never expanded (loaded: false), do NOT
+        // mark it loaded — its real children are unknown. Keep loaded: false
+        // so the next expand re-fetches the true directory contents instead
+        // of showing only the node that was just moved/inserted.
+        if (!node.loaded) {
+          return { ...node };
+        }
         const nextChildren = sortNodes([...(node.children ?? []), nodeToInsert]);
         return {
           ...node,
@@ -192,6 +199,27 @@ export function useFileTree(workspacePath: string | null) {
   const [treeData, setTreeData] = useState<TreeNodeData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const treeRef = useRef<TreeApi<TreeNodeData> | null>(null);
+
+  // ---- Undo log -----------------------------------------------------------
+  // Defined before the ops below so every mutating callback can push undo
+  // records without a temporal-dead-zone reference error.
+  type UndoOp =
+    | { kind: 'move'; sourcePath: string; destinationDir: string; name: string }
+    | { kind: 'delete'; path: string; isDir: boolean }
+    | { kind: 'create'; path: string; isDir: boolean }
+    | { kind: 'rename'; oldPath: string; newPath: string }
+    | { kind: 'duplicate'; sourcePath: string; createdPath: string };
+
+  const undoLogRef = useRef<UndoOp[]>([]);
+  const MAX_UNDO = 30;
+
+  const pushUndoOp = useCallback((op: UndoOp) => {
+    undoLogRef.current = [...undoLogRef.current.slice(-(MAX_UNDO - 1)), op];
+  }, []);
+
+  const clearUndoLog = useCallback(() => {
+    undoLogRef.current = [];
+  }, []);
 
   const nodeMap = useMemo(() => buildNodeMap(treeData), [treeData]);
 
@@ -247,42 +275,86 @@ export function useFileTree(workspacePath: string | null) {
       parentNode: { data: TreeNodeData } | null;
       index: number;
     }) => {
-      const sourcePath = dragIds[0];
-      if (!sourcePath || !workspacePath) return;
+      if (dragIds.length === 0 || !workspacePath) return;
 
       const destDir = parentId && parentNode ? parentNode.data.path : workspacePath;
-      const sourceNode = nodeMap.get(sourcePath);
-      if (!sourceNode) {
-        loadRoot();
-        return;
+      if (!destDir) return;
+
+      // Determine which of the dragged nodes actually change parent folders.
+      // Items already living in destDir stay put (the tree is always sorted,
+      // so intra-folder reordering is a no-op).
+      const movingIds = dragIds.filter((sourcePath) => {
+        const currentParent = findParentPath(sourcePath) ?? workspacePath;
+        return destDir !== currentParent;
+      });
+      if (movingIds.length === 0) return;
+
+      // Guard against moving a folder into itself or its own descendant.
+      const destNode = nodeMap.get(destDir);
+      for (const sourcePath of movingIds) {
+        const sourceNode = nodeMap.get(sourcePath);
+        if (!sourceNode) {
+          loadRoot();
+          return;
+        }
+        if (sourceNode.isDir && destNode) {
+          const dragPath = sourceNode.path;
+          const destPath = destNode.path;
+          if (dragPath === destPath) return;
+          if (
+            destPath.startsWith(dragPath + '/') ||
+            destPath.startsWith(dragPath + '\\')
+          ) {
+            return;
+          }
+        }
       }
 
-      const currentParent = findParentPath(sourcePath) ?? workspacePath;
-      if (destDir === currentParent) {
-        return;
-      }
+      const separator = destDir.includes('\\') ? '\\' : '/';
 
       try {
-        await invoke('move_entry', {
-          sourcePath,
-          destinationDir: destDir,
-        });
-
-        const separator = destDir.includes('\\') ? '\\' : '/';
-        const movedPath = `${destDir}${separator}${sourceNode.name}`;
+        // Move every dragged item on disk first.
+        for (const sourcePath of movingIds) {
+          const sourceNode = nodeMap.get(sourcePath);
+          await invoke('move_entry', {
+            sourcePath,
+            destinationDir: destDir,
+          });
+          if (sourceNode) {
+            pushUndoOp({ kind: 'move', sourcePath, destinationDir: destDir, name: sourceNode.name });
+          }
+        }
 
         setTreeData((prev) => {
-          const { tree: withoutNode, removed } = detachNode(prev, sourcePath);
-          const nodeToInsert = rebaseNodePath(removed ?? sourceNode, sourcePath, movedPath);
-          const parentPath = destDir === workspacePath ? null : destDir;
-          const inserted = insertNodeIntoDirectory(withoutNode, parentPath, nodeToInsert);
-
-          if (!inserted.inserted) {
-            return prev;
+          // Detach all moved nodes first (handles siblings & ancestors).
+          let tree = prev;
+          const movedNodes: TreeNodeData[] = [];
+          for (const sourcePath of movingIds) {
+            const { tree: next, removed } = detachNode(tree, sourcePath);
+            if (removed) {
+              tree = next;
+              movedNodes.push(removed);
+            }
           }
 
-          return inserted.tree;
+          const parentPath = destDir === workspacePath ? null : destDir;
+          for (const node of movedNodes) {
+            const movedPath = `${destDir}${separator}${node.name}`;
+            const rebased = rebaseNodePath(node, node.path, movedPath);
+            const inserted = insertNodeIntoDirectory(tree, parentPath, rebased);
+            if (!inserted.inserted) {
+              loadRoot();
+              return prev;
+            }
+            tree = inserted.tree;
+          }
+          return tree;
         });
+
+        // Reveal the destination folder so the moved items are visible.
+        if (destDir !== workspacePath) {
+          setTimeout(() => treeRef.current?.open(destDir), 50);
+        }
       } catch (err) {
         console.error('Failed to move entry:', err);
         loadRoot();
@@ -309,6 +381,7 @@ export function useFileTree(workspacePath: string | null) {
         const parentPath = findParentPath(id);
         const sep = id.includes('\\') ? '\\' : '/';
         const newPath = parentPath ? parentPath + sep + name : name;
+        pushUndoOp({ kind: 'rename', oldPath: id, newPath });
         setTreeData((prev) =>
           updateNodeInTreeWithCallback(prev, id, (node) => ({
             ...rebaseNodePath(node, id, newPath),
@@ -321,15 +394,19 @@ export function useFileTree(workspacePath: string | null) {
         loadRoot();
       }
     },
-    [loadRoot, nodeMap]
+    [loadRoot, nodeMap, pushUndoOp]
   );
 
   const handleDelete = useCallback(
-    async ({ ids }: { ids: string[]; nodes: { data: TreeNodeData }[] }) => {
+    async ({ ids, nodes }: { ids: string[]; nodes: { data: TreeNodeData }[] }) => {
       const deletedPaths = new Set<string>();
       for (const id of ids) {
         try {
+          const node = nodes.find((n) => n.data.id === id)?.data;
           await invoke('delete_entry', { path: id });
+          if (node) {
+            pushUndoOp({ kind: 'delete', path: id, isDir: node.isDir });
+          }
           deletedPaths.add(id);
         } catch (err) {
           console.error('Failed to delete entry:', err);
@@ -345,7 +422,7 @@ export function useFileTree(workspacePath: string | null) {
         });
       }
     },
-    []
+    [pushUndoOp]
   );
 
   const createNewEntry = useCallback(
@@ -376,6 +453,8 @@ export function useFileTree(workspacePath: string | null) {
           ...(type === 'directory' ? { children: [], loaded: false } : {}),
         };
 
+        pushUndoOp({ kind: 'create', path: fullPath, isDir: type === 'directory' });
+
         if (dir === workspacePath) {
           setTreeData((prev) => [...prev, newNode]);
         } else {
@@ -402,14 +481,18 @@ export function useFileTree(workspacePath: string | null) {
 
   const deleteEntry = useCallback(
     async (path: string) => {
+      const node = nodeMap.get(path);
       try {
         await invoke('delete_entry', { path });
+        if (node) {
+          pushUndoOp({ kind: 'delete', path, isDir: node.isDir });
+        }
         setTreeData((prev) => removeNodeFromTree(prev, path));
       } catch (err) {
         console.error('Failed to delete entry:', err);
       }
     },
-    []
+    [nodeMap, pushUndoOp]
   );
 
   const renameEntry = useCallback(
@@ -424,6 +507,7 @@ export function useFileTree(workspacePath: string | null) {
         const parentPath = findParentPath(oldPath);
         const sep = oldPath.includes('\\') ? '\\' : '/';
         const newPath = parentPath ? parentPath + sep + newName : newName;
+        pushUndoOp({ kind: 'rename', oldPath, newPath });
         setTreeData((prev) =>
           updateNodeInTreeWithCallback(prev, oldPath, (node) => ({
             ...rebaseNodePath(node, oldPath, newPath),
@@ -436,7 +520,7 @@ export function useFileTree(workspacePath: string | null) {
         loadRoot();
       }
     },
-    [loadRoot, nodeMap]
+    [loadRoot, nodeMap, pushUndoOp]
   );
 
   const revealInFileManager = useCallback(async (path: string) => {
@@ -460,6 +544,119 @@ export function useFileTree(workspacePath: string | null) {
     [loadRoot]
   );
 
+  /**
+   * Merge freshly-fetched children over existing tree nodes so already-loaded
+   * directories keep their expanded children (and open state) intact.
+   */
+  const mergePreservingLoaded = useCallback(
+    (prev: TreeNodeData[], fresh: TreeNodeData[]): TreeNodeData[] => {
+      const prevMap = new Map<string, TreeNodeData>();
+      const walk = (nodes: TreeNodeData[]) => {
+        for (const node of nodes) {
+          prevMap.set(node.path, node);
+          if (node.children) walk(node.children);
+        }
+      };
+      walk(prev);
+
+      const merge = (nodes: TreeNodeData[]): TreeNodeData[] =>
+        nodes.map((entry) => {
+          const prevNode = prevMap.get(entry.path);
+          if (prevNode?.isDir && prevNode.loaded && prevNode.children) {
+            return {
+              ...entry,
+              loaded: true,
+              children: merge(prevNode.children),
+            };
+          }
+          return entry;
+        });
+
+      return merge(fresh);
+    },
+    []
+  );
+
+  /** Reload the children of a single (already loaded) directory in place. */
+  const refreshPath = useCallback(
+    async (dirPath: string | null) => {
+      const target = dirPath ?? workspacePath;
+      if (!target) return;
+      try {
+        const entries = await invoke<FileEntry[]>('list_directory_entries', {
+          path: target,
+        });
+        const children = entries.map(entryToNode);
+        setTreeData((prev) => {
+          if (target === workspacePath) {
+            return mergePreservingLoaded(prev, children);
+          }
+          return updateNodeInTree(prev, target, {
+            children: mergePreservingLoaded(prev, children),
+            loaded: true,
+          });
+        });
+      } catch (err) {
+        console.error('Failed to refresh path:', err);
+      }
+    },
+    [workspacePath, mergePreservingLoaded]
+  );
+
+  // ---- Undo log -----------------------------------------------------------
+  const undoExplorerOp = useCallback(async () => {
+    const op = undoLogRef.current.pop();
+    if (!op) return;
+    try {
+      switch (op.kind) {
+        case 'move': {
+          // Inverse: move the item back to its original parent.
+          await invoke('move_entry', {
+            sourcePath: `${op.destinationDir}${op.destinationDir.includes('\\') ? '\\' : '/'}${op.name}`,
+            destinationDir: findParentPath(op.sourcePath) ?? workspacePath,
+          });
+          break;
+        }
+        case 'delete': {
+          if (op.isDir) {
+            await invoke('create_directory', { path: op.path });
+          } else {
+            await invoke('create_file', { path: op.path });
+          }
+          break;
+        }
+        case 'create': {
+          await invoke('delete_entry', { path: op.path });
+          break;
+        }
+        case 'rename': {
+          await invoke('rename_entry', { oldPath: op.newPath, newName: op.oldPath.split(/[\\/]/).pop() ?? op.oldPath });
+          break;
+        }
+        case 'duplicate': {
+          await invoke('delete_entry', { path: op.createdPath });
+          break;
+        }
+      }
+      loadRoot();
+    } catch (err) {
+      console.error('Failed to undo operation:', err);
+      loadRoot();
+    }
+  }, [loadRoot, workspacePath]);
+
+  const externalRefreshRef = useRef<((paths: string[]) => void) | null>(null);
+
+  const registerExternalRefresh = useCallback(
+    (cb: (paths: string[]) => void) => {
+      externalRefreshRef.current = cb;
+      return () => {
+        externalRefreshRef.current = null;
+      };
+    },
+    []
+  );
+
   return {
     treeData,
     isLoading,
@@ -473,6 +670,11 @@ export function useFileTree(workspacePath: string | null) {
     renameEntry,
     revealInFileManager,
     refreshRoot: loadRoot,
+    refreshPath,
     importExternalFiles,
+    registerExternalRefresh,
+    undoExplorerOp,
+    pushUndoOp,
+    clearUndoLog,
   };
 }

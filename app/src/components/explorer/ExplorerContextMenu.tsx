@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TreeNodeData } from '../../hooks/useFileTree';
-import type { ExplorerClipboard } from './TreeNode';
+import type { ExplorerClipboard, ExplorerClipboardEntry } from './TreeNode';
 
 interface ContextMenuState {
   x: number;
@@ -25,7 +25,15 @@ interface ExplorerContextMenuProps {
   onOpenInTerminal: (node: TreeNodeData) => void;
   onDuplicate: (node: TreeNodeData) => void;
   onCopyAsImportPath: (node: TreeNodeData) => void;
+  onCopyName: (node: TreeNodeData) => void;
+  onOpenToSide: (node: TreeNodeData) => void;
+  onFindInFolder: (node: TreeNodeData) => void;
   onPaste: (node: TreeNodeData | null) => void;
+  onMultiCopy: () => void;
+  onMultiCut: () => void;
+  onMultiDelete: () => void;
+  onMultiDuplicate: () => void;
+  selectedEntries: ExplorerClipboardEntry[];
   clipboard: ExplorerClipboard;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }
@@ -78,7 +86,15 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
   onOpenInTerminal,
   onDuplicate,
   onCopyAsImportPath,
+  onCopyName,
+  onOpenToSide,
+  onFindInFolder,
   onPaste,
+  onMultiCopy,
+  onMultiCut,
+  onMultiDelete,
+  onMultiDuplicate,
+  selectedEntries,
   clipboard,
   containerRef,
 }) => {
@@ -216,9 +232,56 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
     onClose();
   }, [menu, onCopyAsImportPath, onClose]);
 
+  const handleCopyName = useCallback(() => {
+    if (!menu?.node) return;
+    onCopyName(menu.node);
+    onClose();
+  }, [menu, onCopyName, onClose]);
+
+  const handleOpenToSide = useCallback(() => {
+    if (!menu?.node) return;
+    onOpenToSide(menu.node);
+    onClose();
+  }, [menu, onOpenToSide, onClose]);
+
+  const handleFindInFolder = useCallback(() => {
+    if (!menu?.node) return;
+    onFindInFolder(menu.node);
+    onClose();
+  }, [menu, onFindInFolder, onClose]);
+
+  const handleMultiCopy = useCallback(() => {
+    onMultiCopy();
+    onClose();
+  }, [onMultiCopy, onClose]);
+
+  const handleMultiCut = useCallback(() => {
+    onMultiCut();
+    onClose();
+  }, [onMultiCut, onClose]);
+
+  const handleMultiDelete = useCallback(() => {
+    onMultiDelete();
+    onClose();
+  }, [onMultiDelete, onClose]);
+
+  const handleMultiDuplicate = useCallback(() => {
+    onMultiDuplicate();
+    onClose();
+  }, [onMultiDuplicate, onClose]);
+
   const isDir = menu?.node?.isDir ?? false;
   const hasNode = !!menu?.node;
   const hasClipboard = !!clipboard;
+
+  // When the right-clicked node is part of a multi-selection, apply actions to
+  // the entire selection (VS Code behavior).
+  const rightClickedInSelection =
+    hasNode &&
+    menu.node != null &&
+    selectedEntries.some((entry) => entry.path === menu.node?.path) &&
+    selectedEntries.length > 1;
+  const selectionCount = selectedEntries.length;
 
   return (
     <AnimatePresence>
@@ -240,30 +303,55 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
               {(hasNode || hasClipboard) && <MenuSeparator />}
             </>
           )}
-          {hasNode && (
+          {rightClickedInSelection ? (
             <>
-              {isDir && (
-                <MenuItem label="Open in Terminal" onClick={handleOpenInTerminal} />
-              )}
-              <MenuItem label="Copy" shortcut="Ctrl+C" onClick={handleCopy} />
-              <MenuItem label="Cut" shortcut="Ctrl+X" onClick={handleCut} />
               <MenuItem
-                label="Paste"
-                shortcut="Ctrl+V"
-                onClick={handlePaste}
-                disabled={!hasClipboard}
+                label={`Copy ${selectionCount} items`}
+                shortcut="Ctrl+C"
+                onClick={handleMultiCopy}
               />
-              <MenuItem label="Duplicate" onClick={handleDuplicate} />
-              <MenuSeparator />
-              <MenuItem label="Copy Path" shortcut="Ctrl+Shift+C" onClick={handleCopyPath} />
-              <MenuItem label="Copy Relative Path" shortcut="Ctrl+Alt+C" onClick={handleCopyRelativePath} />
-              <MenuItem label="Copy as Import Path" onClick={handleCopyAsImportPath} />
-              <MenuSeparator />
-              <MenuItem label="Rename" shortcut="F2" onClick={handleRename} />
-              <MenuItem label="Delete" shortcut="Del" onClick={handleDelete} danger />
-              <MenuSeparator />
-              <MenuItem label="Reveal in File Manager" onClick={handleReveal} />
+              <MenuItem
+                label={`Cut ${selectionCount} items`}
+                shortcut="Ctrl+X"
+                onClick={handleMultiCut}
+              />
+              <MenuItem
+                label={`Delete ${selectionCount} items`}
+                shortcut="Del"
+                onClick={handleMultiDelete}
+                danger
+              />
+              <MenuItem label={`Duplicate ${selectionCount} items`} onClick={handleMultiDuplicate} />
             </>
+          ) : (
+            hasNode && (
+              <>
+                {isDir && (
+                  <MenuItem label="Open in Terminal" onClick={handleOpenInTerminal} />
+                )}
+                {!isDir && <MenuItem label="Open to the Side" onClick={handleOpenToSide} />}
+                <MenuItem label="Copy" shortcut="Ctrl+C" onClick={handleCopy} />
+                <MenuItem label="Cut" shortcut="Ctrl+X" onClick={handleCut} />
+                <MenuItem
+                  label="Paste"
+                  shortcut="Ctrl+V"
+                  onClick={handlePaste}
+                  disabled={!hasClipboard}
+                />
+                <MenuItem label="Duplicate" onClick={handleDuplicate} />
+                <MenuSeparator />
+                <MenuItem label="Copy Path" shortcut="Ctrl+Shift+C" onClick={handleCopyPath} />
+                <MenuItem label="Copy Relative Path" shortcut="Ctrl+Alt+C" onClick={handleCopyRelativePath} />
+                <MenuItem label="Copy Name" onClick={handleCopyName} />
+                <MenuItem label="Copy as Import Path" onClick={handleCopyAsImportPath} />
+                <MenuSeparator />
+                <MenuItem label="Rename" shortcut="F2" onClick={handleRename} />
+                <MenuItem label="Delete" shortcut="Del" onClick={handleDelete} danger />
+                <MenuSeparator />
+                <MenuItem label="Find in Folder" onClick={handleFindInFolder} />
+                <MenuItem label="Reveal in File Manager" onClick={handleReveal} />
+              </>
+            )
           )}
           {!hasNode && hasClipboard && (
             <>

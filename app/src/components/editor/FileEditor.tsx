@@ -10,6 +10,7 @@ import { Editor } from '@monaco-editor/react';
 import type { BeforeMount, OnChange, OnMount } from '@monaco-editor/react';
 import type { editor as MonacoEditorNamespace } from 'monaco-editor';
 import { useAppStore } from '../../stores/appStore';
+import { FileIcon } from '../explorer/FileIcon';
 import { EditorTabs } from './EditorTabs';
 import { MarkdownPreview } from './MarkdownPreview';
 import { ImagePreview, isImageFile } from './ImagePreview';
@@ -143,6 +144,10 @@ export const FileEditor: React.FC = () => {
   const isSpreadsheet = fileExt === "xlsx" || fileExt === "xls" || fileExt === "csv";
   const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet;
   const showEditor = Boolean(activeFile && !isPreviewable && !(isMarkdown && mdPreview));
+
+  const dotIndex = activeFile ? activeFile.name.lastIndexOf(".") : -1;
+  const fileNameBase = activeFile && dotIndex > 0 ? activeFile.name.slice(0, dotIndex) : activeFile?.name ?? "";
+  const fileExtPart = activeFile && dotIndex > 0 ? activeFile.name.slice(dotIndex) : "";
 
   // One Monaco model per normalized file path → per-file undo stack & view state.
   const monacoPath = activeFile ? activeFile.path.replace(/\\/g, "/") : undefined;
@@ -336,14 +341,14 @@ export const FileEditor: React.FC = () => {
 
   const toolbarBtnClass = (active: boolean, accent: "default" | "emerald" = "default"): string => {
     const base =
-      "inline-flex items-center gap-1.5 rounded-sm border px-2 py-1 text-[10px] font-mono font-medium uppercase tracking-[0.14em] transition-colors cursor-pointer select-none";
+      "group/tb inline-flex items-center gap-1.5 rounded-md border px-2.5 py-[5px] text-[10px] font-mono font-semibold uppercase tracking-[0.16em] transition-all duration-150 cursor-pointer select-none";
     if (active) {
       return accent === "emerald"
-        ? `${base} border-emerald-500/30 bg-emerald-500/10 text-emerald-400`
-        : `${base} border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)]`;
+        ? `${base} border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_14px_-4px_rgba(16,185,129,0.55)] hover:bg-emerald-500/15`
+        : `${base} border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_14px_-4px_var(--accent-glow)] hover:bg-[var(--accent-light)]`;
     }
 
-    return `${base} border-transparent text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--accent)]`;
+    return `${base} border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--text-secondary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--accent)] hover:shadow-[0_0_14px_-4px_var(--accent-glow)]`;
   };
 
   return (
@@ -363,28 +368,35 @@ export const FileEditor: React.FC = () => {
       <div className="flex-1 min-h-0">
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
           {activeFile && (
-            <div className={`shrink-0 border-b px-4 py-2.5 ${toolbarClass}`}>
+            <div className="relative shrink-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/95 px-4 py-2.5 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent opacity-60" />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2.5">
-                  <span
-                    className="select-none font-mono text-[12px] leading-none text-[var(--accent)]"
-                    aria-hidden
-                  >
-                    ❯
-                  </span>
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 shrink-0 border border-[var(--accent-border)] bg-[var(--accent-light)] group/fe">
+                    <FileIcon extension={fileExt} isDir={false} className="w-3 h-3 shrink-0" />
+                    <span className="text-[9px] uppercase font-black tracking-widest text-[var(--accent)]">
+                      {fileExt ? `.${fileExt}` : 'file'}
+                    </span>
+                  </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className="truncate font-mono text-[12px] font-medium text-[var(--text-primary)]">
-                        {activeFile.name}
+                      <span className="truncate font-mono text-[12px] font-semibold text-[var(--text-primary)]">
+                        {fileNameBase}
+                        {fileExtPart && (
+                          <span className="text-[var(--accent)]">{fileExtPart}</span>
+                        )}
                       </span>
                       {activeFile.isDirty && (
-                        <span className="inline-flex items-center gap-1.5 rounded-sm border border-[var(--accent-border)] bg-[var(--accent-light)] px-1.5 py-0.5 text-[9px] font-mono font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
-                          <span className="h-1 w-1 rounded-full bg-[var(--accent)]" />
+                        <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent-glow)]" />
+                          </span>
                           unsaved
                         </span>
                       )}
                     </div>
-                    <div className="mt-0.5 truncate font-mono text-[10px] tracking-wide text-[var(--text-secondary)]">
+                    <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-[var(--text-secondary)]">
                       <span className="text-[var(--accent-text)]">~/</span>
                       {getBreadcrumb(activeFile.path)}
                     </div>
@@ -402,10 +414,13 @@ export const FileEditor: React.FC = () => {
                         title="Find and Replace"
                         aria-label="Find and replace"
                       >
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                         Find
+                        <kbd className="hidden rounded border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 px-1 py-px font-mono text-[8px] font-bold tracking-wider text-[var(--text-secondary)] shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)] transition-colors duration-150 lg:inline-flex group-hover/tb:border-[var(--accent-border)] group-hover/tb:text-[var(--accent-text)]">
+                          Ctrl+F
+                        </kbd>
                       </button>
                       <button
                         onClick={() => setEditorWordWrap(!editorWordWrap)}
@@ -414,7 +429,7 @@ export const FileEditor: React.FC = () => {
                         aria-label="Toggle word wrap"
                         aria-pressed={editorWordWrap}
                       >
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h11a3 3 0 110 6h-3M4 18h5" />
                         </svg>
                         Wrap
@@ -426,11 +441,12 @@ export const FileEditor: React.FC = () => {
                         aria-label="Toggle minimap"
                         aria-pressed={showMinimapSetting}
                       >
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5h4v14H4zM10 5h4v14h-4zM16 5h4v14h-4z" />
                         </svg>
                         Map
                       </button>
+                      <div className="h-4 w-px bg-[var(--border-primary)]" />
                       <button
                         onClick={() => setAutoSave(!autoSave)}
                         className={toolbarBtnClass(autoSave, "emerald")}
@@ -438,7 +454,7 @@ export const FileEditor: React.FC = () => {
                         aria-label="Toggle auto-save"
                         aria-pressed={autoSave}
                       >
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                         Auto
@@ -449,34 +465,40 @@ export const FileEditor: React.FC = () => {
                         title="Save"
                         aria-label="Save file"
                       >
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5h11l3 3v11a1 1 0 01-1 1H6a1 1 0 01-1-1V5zm3 0v5h8" />
                         </svg>
                         Save
+                        <kbd className="hidden rounded border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 px-1 py-px font-mono text-[8px] font-bold tracking-wider text-[var(--text-secondary)] shadow-[inset_0_-1px_0_rgba(0,0,0,0.4)] transition-colors duration-150 lg:inline-flex group-hover/tb:border-[var(--accent-border)] group-hover/tb:text-[var(--accent-text)]">
+                          Ctrl+S
+                        </kbd>
                       </button>
                     </>
                   )}
 
                   {isMarkdown && (
-                    <button
-                      onClick={() => setMdPreview(!mdPreview)}
-                      className={toolbarBtnClass(mdPreview, "emerald")}
-                      title={mdPreview ? "Show source" : "Show preview"}
-                      aria-label={mdPreview ? "Show source code" : "Show markdown preview"}
-                      aria-pressed={mdPreview}
-                    >
-                      {mdPreview ? (
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                        </svg>
-                      ) : (
-                        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      )}
-                      {mdPreview ? "Code" : "Preview"}
-                    </button>
+                    <>
+                      <div className="h-4 w-px bg-[var(--border-primary)]" />
+                      <button
+                        onClick={() => setMdPreview(!mdPreview)}
+                        className={toolbarBtnClass(mdPreview, "emerald")}
+                        title={mdPreview ? "Show source" : "Show preview"}
+                        aria-label={mdPreview ? "Show source code" : "Show markdown preview"}
+                        aria-pressed={mdPreview}
+                      >
+                        {mdPreview ? (
+                          <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                          </svg>
+                        ) : (
+                          <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                        {mdPreview ? "Code" : "Preview"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

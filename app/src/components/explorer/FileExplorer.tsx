@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Tree } from 'react-arborist';
+import { Tree, type NodeApi } from 'react-arborist';
 import { FileEntry } from '../../types';
 import { useFileTree, type TreeNodeData } from '../../hooks/useFileTree';
-import { TreeNode, ExplorerContext } from './TreeNode';
+import { TreeNode, ExplorerContext, type ExplorerClipboardEntry } from './TreeNode';
+import { FileIcon } from './FileIcon';
 import { GitChangesPanel } from './GitChangesPanel';
 import { ExplorerContextMenu } from './ExplorerContextMenu';
 import { useAppStore } from '../../stores/appStore';
@@ -26,12 +27,17 @@ const HeaderIconButton: React.FC<{
   title: string;
   onClick: () => void;
   children: React.ReactNode;
-}> = ({ title, onClick, children }) => (
+  active?: boolean;
+}> = ({ title, onClick, children, active }) => (
   <button
     onClick={onClick}
     title={title}
     aria-label={title}
-    className="p-1 rounded-sm text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/40 cursor-pointer transition-colors duration-75"
+    className={`p-1 rounded-sm transition-colors duration-75 cursor-pointer ${
+      active
+        ? 'text-zinc-200 hover:bg-zinc-700/40'
+        : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/40'
+    }`}
   >
     {children}
   </button>
@@ -51,6 +57,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const addSession = useAppStore((s) => s.addSession);
   const setGitStatuses = useAppStore((s) => s.setGitStatuses);
   const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
+  const openFiles = useAppStore((s) => s.openFiles);
+  const closeFileTab = useAppStore((s) => s.closeFileTab);
 
   const {
     treeData,
@@ -63,7 +71,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     deleteEntry,
     revealInFileManager,
     refreshRoot,
+    refreshPath,
     importExternalFiles,
+    undoExplorerOp,
+    pushUndoOp,
   } = useFileTree(workspacePath);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,12 +87,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [externalDropTarget, setExternalDropTarget] = useState<string | null>(null);
   const [isExternalDrag, setIsExternalDrag] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
-    path: string;
-    name: string;
+    paths: string[];
+    names: string[];
     isDir: boolean;
   } | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [treeSize, setTreeSize] = useState({ width: 300, height: 400 });
 
   useEffect(() => {
@@ -104,6 +116,48 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     return () => observer.disconnect();
   }, []);
 
+  // Let the FS watcher refresh the tree when files change on disk.
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    let cancelled = false;
+
+    (async () => {
+      const { listen } = await import('@tauri-apps/api/event');
+      if (cancelled) return;
+      unlisten = await listen<{ workspacePath: string; paths: string[] }>(
+        'file-system-changed',
+        (event) => {
+          const paths = event.payload?.paths;
+          if (!paths || paths.length === 0) {
+            refreshRoot();
+            return;
+          }
+          // Refresh affected loaded parents (or the root for unknown paths).
+          const dirsToRefresh = new Set<string>();
+          for (const p of paths) {
+            const parent = findParentPath(p);
+            if (parent && parent !== workspacePath) {
+              dirsToRefresh.add(parent);
+            }
+          }
+          if (dirsToRefresh.size === 0) {
+            refreshRoot();
+          } else {
+            refreshRoot();
+            for (const dir of dirsToRefresh) {
+              refreshPath(dir);
+            }
+          }
+        }
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [refreshRoot, refreshPath, workspacePath]);
+
   useEffect(() => {
     if (!pendingDelete) return;
     const onKey = (e: KeyboardEvent) => {
@@ -119,6 +173,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     },
     []
   );
+
+  const [selectedEntries, setSelectedEntries] = useState<ExplorerClipboardEntry[]>([]);
+
+  const handleTreeSelect = useCallback((nodes: NodeApi<TreeNodeData>[]) => {
+    setSelectedEntries(
+      nodes.map((n) => {
+        const data = n.data as TreeNodeData;
+        return { path: data.path, name: data.name, isDir: data.isDir };
+      })
+    );
+  }, []);
 
   const handleContainerContextMenu = useCallback(
     (e: React.MouseEvent) => {
@@ -159,15 +224,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleDeleteFromMenu = useCallback(
     (node: TreeNodeData) => {
-      setPendingDelete({ path: node.path, name: node.name, isDir: node.isDir });
+      setPendingDelete({ paths: [node.path], names: [node.name], isDir: node.isDir });
     },
     []
   );
 
   const confirmDelete = useCallback(
-    async (path: string) => {
+    async (paths: string[]) => {
       try {
-        await deleteEntry(path);
+        for (const path of paths) {
+          await deleteEntry(path);
+        }
       } finally {
         setPendingDelete(null);
       }
@@ -177,16 +244,33 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleCopy = useCallback(
     (node: TreeNodeData) => {
-      setExplorerClipboard({ operation: 'copy', path: node.path, name: node.name, isDir: node.isDir });
+      const entries: ExplorerClipboardEntry[] = [{ path: node.path, name: node.name, isDir: node.isDir }];
+      setExplorerClipboard({ operation: 'copy', entries });
     },
     [setExplorerClipboard]
   );
 
   const handleCut = useCallback(
     (node: TreeNodeData) => {
-      setExplorerClipboard({ operation: 'cut', path: node.path, name: node.name, isDir: node.isDir });
+      const entries: ExplorerClipboardEntry[] = [{ path: node.path, name: node.name, isDir: node.isDir }];
+      setExplorerClipboard({ operation: 'cut', entries });
     },
     [setExplorerClipboard]
+  );
+
+  const copySelectionToClipboard = useCallback(
+    (operation: 'copy' | 'cut') => {
+      const tree = treeRef.current;
+      if (!tree) return;
+      const nodes = tree.selectedNodes;
+      if (nodes.length === 0) return;
+      const entries: ExplorerClipboardEntry[] = nodes.map((n) => {
+        const data = n.data as TreeNodeData;
+        return { path: data.path, name: data.name, isDir: data.isDir };
+      });
+      setExplorerClipboard({ operation, entries });
+    },
+    [treeRef, setExplorerClipboard]
   );
 
   const handleCopyPath = useCallback(
@@ -236,14 +320,76 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleDuplicate = useCallback(
     async (node: TreeNodeData) => {
       try {
-        await invoke('duplicate_entry', { path: node.path });
+        const createdPath = await invoke<string>('duplicate_entry', { path: node.path });
+        pushUndoOp({ kind: 'duplicate', sourcePath: node.path, createdPath });
         refreshRoot();
       } catch (err) {
         console.error('Failed to duplicate:', err);
       }
     },
-    [refreshRoot]
+    [refreshRoot, pushUndoOp]
   );
+
+  const handleMultiDuplicate = useCallback(async () => {
+    try {
+      for (const entry of selectedEntries) {
+        const createdPath = await invoke<string>('duplicate_entry', { path: entry.path });
+        pushUndoOp({ kind: 'duplicate', sourcePath: entry.path, createdPath });
+      }
+      refreshRoot();
+    } catch (err) {
+      console.error('Failed to duplicate selection:', err);
+    }
+  }, [selectedEntries, refreshRoot, pushUndoOp]);
+
+  const handleMultiDelete = useCallback(() => {
+    if (selectedEntries.length === 0) return;
+    setPendingDelete({
+      paths: selectedEntries.map((e) => e.path),
+      names: selectedEntries.map((e) => e.name),
+      isDir: selectedEntries[0]?.isDir ?? false,
+    });
+  }, [selectedEntries]);
+
+  const handleMultiCopy = useCallback(() => {
+    if (selectedEntries.length === 0) return;
+    setExplorerClipboard({ operation: 'copy', entries: selectedEntries });
+  }, [selectedEntries, setExplorerClipboard]);
+
+  const handleMultiCut = useCallback(() => {
+    if (selectedEntries.length === 0) return;
+    setExplorerClipboard({ operation: 'cut', entries: selectedEntries });
+  }, [selectedEntries, setExplorerClipboard]);
+
+  const handleCopyName = useCallback((node: TreeNodeData) => {
+    navigator.clipboard.writeText(node.name).catch(console.error);
+  }, []);
+
+  // "Open to the Side" (VS Code parity): open the file in the editor. The
+  // editor is tab-based, so the file opens in its own tab alongside the
+  // current one — the closest equivalent to a side-by-side editor group.
+  const handleOpenToSide = useCallback(
+    (node: TreeNodeData) => {
+      if (node.isDir) return;
+      onFileClick({
+        name: node.name,
+        path: node.path,
+        isDir: false,
+        size: 0,
+        modifiedAt: 0,
+        extension: node.extension,
+      });
+    },
+    [onFileClick]
+  );
+
+  const handleFindInFolder = useCallback((node: TreeNodeData) => {
+    // Focus the search box and pre-fill with the folder name to quickly
+    // narrow the tree to entries inside that folder.
+    const query = node.isDir ? node.name : findParentPath(node.path)?.split(/[\\/]/).pop() ?? '';
+    setSearchQuery(query);
+    searchInputRef.current?.focus();
+  }, []);
 
   const handleCopyAsImportPath = useCallback(
     (node: TreeNodeData) => {
@@ -263,10 +409,16 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       if (!clip) return;
       const destDir = targetDir || workspacePath;
       try {
-        if (clip.operation === 'copy') {
-          await invoke('copy_entry', { sourcePath: clip.path, destinationDir: destDir });
-        } else {
-          await invoke('move_entry', { sourcePath: clip.path, destinationDir: destDir });
+        for (const entry of clip.entries) {
+          if (clip.operation === 'copy') {
+            const createdPath = await invoke<string>('copy_entry', { sourcePath: entry.path, destinationDir: destDir });
+            pushUndoOp({ kind: 'duplicate', sourcePath: entry.path, createdPath });
+          } else {
+            await invoke('move_entry', { sourcePath: entry.path, destinationDir: destDir });
+            pushUndoOp({ kind: 'move', sourcePath: entry.path, destinationDir: destDir, name: entry.name });
+          }
+        }
+        if (clip.operation === 'cut') {
           setExplorerClipboard(null);
         }
         refreshRoot();
@@ -278,7 +430,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         refreshRoot();
       }
     },
-    [explorerClipboard, workspacePath, setExplorerClipboard, refreshRoot]
+    [explorerClipboard, workspacePath, setExplorerClipboard, refreshRoot, treeRef, pushUndoOp]
   );
 
   const handlePasteFromMenu = useCallback(
@@ -295,6 +447,20 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleCollapseAll = useCallback(() => {
     treeRef.current?.closeAll();
   }, [treeRef]);
+
+  const handleRevealActiveFile = useCallback(() => {
+    if (!activeFilePath) return;
+    const tree = treeRef.current;
+    if (!tree) return;
+    try {
+      tree.openParents(activeFilePath);
+      tree.scrollTo(activeFilePath);
+      tree.select(activeFilePath);
+      tree.focus(activeFilePath);
+    } catch (err) {
+      console.error('Failed to reveal active file:', err);
+    }
+  }, [activeFilePath, treeRef]);
 
   const handleStageFile = useCallback(
     async (filePath: string) => {
@@ -326,6 +492,44 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     [workspacePath, setGitStatuses, setGitDiffStats]
   );
 
+  const handleKeyDownCapture = useCallback(
+    (e: React.KeyboardEvent) => {
+      // Intercept Enter in the capture phase so react-arborist's own
+      // rename-on-Enter (bubble phase, child container) never fires. In VS
+      // Code, Enter opens the focused file; F2 is used for rename.
+      if (e.key !== 'Enter') return;
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
+      const tree = treeRef.current;
+      const node = tree?.focusedNode;
+      if (!node || node.isEditing) return;
+      const data = node.data as TreeNodeData;
+      if (!data.isDir) {
+        e.preventDefault();
+        e.stopPropagation();
+        onFileClick({
+          name: data.name,
+          path: data.path,
+          isDir: false,
+          size: 0,
+          modifiedAt: 0,
+          extension: data.extension,
+        });
+      } else {
+        e.preventDefault();
+        e.stopPropagation();
+        tree?.toggle(node.id);
+      }
+    },
+    [onFileClick, treeRef]
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -351,35 +555,40 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         const nodes = tree.selectedNodes;
         if (nodes.length > 0) {
           e.preventDefault();
-          const data = nodes[0].data;
-          setPendingDelete({ path: data.path, name: data.name, isDir: data.isDir });
+          const data = nodes.map((n) => n.data as TreeNodeData);
+          setPendingDelete({
+            paths: data.map((d) => d.path),
+            names: data.map((d) => d.name),
+            isDir: data[0]?.isDir ?? false,
+          });
         }
       } else if (mod && e.key.toLowerCase() === 'c') {
-        const nodes = tree.selectedNodes;
-        if (nodes.length > 0) {
+        if (tree.selectedNodes.length > 0) {
           e.preventDefault();
-          const data = nodes[0].data;
-          setExplorerClipboard({ operation: 'copy', path: data.path, name: data.name, isDir: data.isDir });
+          copySelectionToClipboard('copy');
         }
       } else if (mod && e.key.toLowerCase() === 'x') {
-        const nodes = tree.selectedNodes;
-        if (nodes.length > 0) {
+        if (tree.selectedNodes.length > 0) {
           e.preventDefault();
-          const data = nodes[0].data;
-          setExplorerClipboard({ operation: 'cut', path: data.path, name: data.name, isDir: data.isDir });
+          copySelectionToClipboard('cut');
         }
       } else if (mod && e.key.toLowerCase() === 'v') {
         const node = tree.focusedNode ?? tree.mostRecentNode;
-        const data = node?.data;
+        const data = node?.data as TreeNodeData | undefined;
         if (data) {
           const targetDir = data.isDir ? data.path : findParentPath(data.path);
           handlePaste(targetDir);
         } else {
           handlePaste(workspacePath);
         }
+      } else if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        if (explorerClipboard === null) {
+          e.preventDefault();
+          undoExplorerOp();
+        }
       }
     },
-    [handlePaste, workspacePath, setExplorerClipboard]
+    [handlePaste, workspacePath, copySelectionToClipboard, undoExplorerOp, explorerClipboard]
   );
 
   const findExternalDropTarget = useCallback(
@@ -460,8 +669,9 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       onContextMenu: handleContextMenu,
       externalDropTarget,
       clipboard: explorerClipboard,
+      searchTerm: debouncedSearchQuery || undefined,
     }),
-    [onFileClick, gitStatuses, activeFilePath, handleContextMenu, externalDropTarget, explorerClipboard]
+    [onFileClick, gitStatuses, activeFilePath, handleContextMenu, externalDropTarget, explorerClipboard, debouncedSearchQuery]
   );
 
   return (
@@ -496,6 +706,26 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 strokeLinejoin="round"
                 strokeWidth={1.5}
                 d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
+              />
+            </svg>
+          </HeaderIconButton>
+          <HeaderIconButton
+            title="Reveal Active File in Explorer"
+            onClick={handleRevealActiveFile}
+            active={!!activeFilePath}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+              />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.5}
+                d="M12 11v4m0 0l-2-2m2 2l2-2"
               />
             </svg>
           </HeaderIconButton>
@@ -538,6 +768,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             />
           </svg>
           <input
+            ref={searchInputRef}
             type="text"
             aria-label="Search files"
             value={searchQuery}
@@ -566,9 +797,52 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         </div>
       </div>
 
+      {openFiles.length > 0 && (
+        <div className="shrink-0 border-b border-theme select-none">
+          <div className="flex items-center gap-1.5 px-3 h-7">
+            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.18em] flex-1">
+              Open Editors
+            </span>
+            <span className="text-[9px] font-mono text-zinc-700">{openFiles.length}</span>
+          </div>
+          <div className="pb-1 max-h-40 overflow-y-auto custom-scrollbar">
+            {openFiles.map((file) => {
+              const isActiveOpen = activeFilePath === file.path;
+              return (
+                <div
+                  key={file.path}
+                  onClick={() => onFileClick({ name: file.name, path: file.path, isDir: false, size: 0, modifiedAt: 0, extension: file.language } as FileEntry)}
+                  className={`group/openfile flex items-center gap-2 pl-3 pr-1.5 py-1 cursor-pointer transition-colors duration-75 ${
+                    isActiveOpen ? 'bg-zinc-800/60 text-zinc-100' : 'text-zinc-400 hover:bg-theme-hover/70 hover:text-zinc-200'
+                  }`}
+                  title={file.path}
+                >
+                  <FileIcon extension={file.language ?? null} isDir={false} className="w-4 h-4 shrink-0" name={file.name} />
+                  <span className="truncate text-xs flex-1 min-w-0">{file.name}</span>
+                  {file.isDirty && <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 shrink-0" />}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeFileTab(file.path);
+                    }}
+                    className="p-0.5 rounded-sm text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/40 cursor-pointer opacity-0 group-hover/openfile:opacity-100 transition-opacity"
+                    title="Close File"
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div
         className="flex-1 min-h-0 relative"
         ref={containerRef}
+        onKeyDownCapture={handleKeyDownCapture}
         onKeyDown={handleKeyDown}
         onDragOver={handleExternalDragOver}
         onDragLeave={handleExternalDragLeave}
@@ -626,17 +900,28 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 rowHeight={26}
                 openByDefault={false}
                 searchTerm={debouncedSearchQuery || undefined}
+                searchMatch={(node, term) => {
+                  const data = node.data as TreeNodeData;
+                  if (!term) return true;
+                  return data.name.toLowerCase().includes(term.toLowerCase());
+                }}
                 onToggle={handleToggle}
                 onMove={handleMove}
                 onRename={handleRename}
+                onSelect={handleTreeSelect}
                 onDelete={({ nodes }) => {
-                  const first = nodes[0]?.data;
-                  if (first) {
-                    setPendingDelete({ path: first.path, name: first.name, isDir: first.isDir });
+                  const data = nodes.map((n) => n.data as TreeNodeData);
+                  if (data.length > 0) {
+                    setPendingDelete({
+                      paths: data.map((d) => d.path),
+                      names: data.map((d) => d.name),
+                      isDir: data[0]?.isDir ?? false,
+                    });
                   }
                 }}
                 disableDrop={({ parentNode, dragNodes }) => {
-                  if (parentNode !== null && parentNode.isLeaf) return true;
+                  // Dropping onto a leaf (file) is allowed — the destination
+                  // resolves to its containing folder (VS Code behavior).
                   for (const drag of dragNodes) {
                     if (!drag) continue;
                     if (drag.isInternal && parentNode) {
@@ -680,7 +965,15 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           onOpenInTerminal={handleOpenInTerminal}
           onDuplicate={handleDuplicate}
           onCopyAsImportPath={handleCopyAsImportPath}
+          onCopyName={handleCopyName}
+          onOpenToSide={handleOpenToSide}
+          onFindInFolder={handleFindInFolder}
           onPaste={handlePasteFromMenu}
+          onMultiCopy={handleMultiCopy}
+          onMultiCut={handleMultiCut}
+          onMultiDelete={handleMultiDelete}
+          onMultiDuplicate={handleMultiDuplicate}
+          selectedEntries={selectedEntries}
           clipboard={explorerClipboard}
           containerRef={containerRef}
         />
@@ -718,14 +1011,23 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             >
               <div className="px-4 pt-3.5 pb-1">
                 <h2 className="text-[13px] font-semibold text-theme-main">
-                  Delete {pendingDelete.isDir ? 'Folder' : 'File'}?
+                  Delete {pendingDelete.names.length > 1 ? `${pendingDelete.names.length} items` : `${pendingDelete.isDir ? 'Folder' : 'File'}`}?
                 </h2>
               </div>
               <div className="px-4 py-2">
                 <p className="text-[11px] text-zinc-400 leading-relaxed">
                   Are you sure you want to delete{' '}
-                  <span className="font-mono text-zinc-200">{pendingDelete.name}</span>? This action
-                  is permanent and cannot be undone.
+                  {pendingDelete.names.length > 1 ? (
+                    <>
+                      <span className="font-mono text-zinc-200">{pendingDelete.names.length} items</span>{' '}
+                      (including <span className="font-mono text-zinc-200">{pendingDelete.names[0]}</span>)?
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-mono text-zinc-200">{pendingDelete.names[0]}</span>?
+                    </>
+                  )}{' '}
+                  This action is permanent and cannot be undone.
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 px-4 py-3 bg-zinc-950/40 border-t border-theme">
@@ -736,10 +1038,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   Cancel
                 </button>
                 <button
-                  onClick={() => confirmDelete(pendingDelete.path)}
+                  onClick={() => confirmDelete(pendingDelete.paths)}
                   className="px-3.5 py-1.5 rounded-sm text-[11px] font-medium text-white bg-rose-600/90 hover:bg-rose-600 transition-colors cursor-pointer"
                 >
-                  Delete
+                  Delete {pendingDelete.names.length > 1 ? `${pendingDelete.names.length} items` : ''}
                 </button>
               </div>
             </motion.div>

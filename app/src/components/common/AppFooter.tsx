@@ -24,7 +24,7 @@ export const AppFooter: React.FC = () => {
     resetUpToDate,
   } = useUpdaterStore();
 
-  const { customCursor, setCustomCursor } = useAppStore();
+  const { view, customCursor, setCustomCursor } = useAppStore();
 
   const [appVersion, setAppVersion] = useState<string>('');
   const [openPopover, setOpenPopover] = useState<string | null>(null);
@@ -96,7 +96,8 @@ export const AppFooter: React.FC = () => {
             </div>
           </div>
 
-          {/* Center: Branding & Authors */}
+          {/* Center: Branding & Authors (main page only) */}
+          {view === 'setup' && (
           <div className="absolute left-1/2 -translate-x-1/2 hidden lg:flex items-center gap-2 text-zinc-500">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span>Built with </span>
@@ -190,6 +191,7 @@ export const AppFooter: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Right: Actions & Version */}
           <div className="flex items-center gap-2">
