@@ -32,10 +32,10 @@ const ACCENT_COLOR_MAP: Record<string, string> = {
 };
 
 function App() {
-  const { 
-    view, 
+  const {
+    view,
     previousView,
-    setView, 
+    setView,
     setViewWithPrevious,
     customCursor,
     accentColor,
@@ -171,16 +171,16 @@ function App() {
             <NodeJsCheckScreen onReady={handleNodeJsReady} />
           )}
           {view === 'setup' && (
-            <SetupScreen 
-              isWindows={isWindows} 
+            <SetupScreen
+              isWindows={isWindows}
               onDocsClick={handleDocsClick}
               onSettingsClick={handleSettingsClick}
             />
           )}
           {view === 'workspace' && (
             <Suspense fallback={<LoadingFallback />}>
-              <Workspace 
-                isWindows={isWindows} 
+              <Workspace
+                isWindows={isWindows}
                 onDocsClick={handleDocsClick}
                 onSettingsClick={handleSettingsClick}
               />
@@ -199,9 +199,9 @@ function App() {
               <SettingsScreen
                 isWindows={isWindows}
                 onBack={handleBackFromSettings}
-                onMinimizeWindow={() => minimizeWindow().catch(() => {})}
-                onMaximizeWindow={() => maximizeWindow().catch(() => {})}
-                onCloseWindow={() => closeWindow().catch(() => {})}
+                onMinimizeWindow={() => minimizeWindow().catch(() => { })}
+                onMaximizeWindow={() => maximizeWindow().catch(() => { })}
+                onCloseWindow={() => closeWindow().catch(() => { })}
               />
             </Suspense>
           )}

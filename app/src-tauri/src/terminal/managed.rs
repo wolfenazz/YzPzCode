@@ -10,6 +10,7 @@ use std::thread;
 use tauri::{AppHandle, Emitter};
 
 use crate::terminal::spawn_output_reader;
+#[cfg(target_os = "windows")]
 use crate::utils::process::get_npm_global_prefix;
 
 const MANAGED_COMMAND_STATE_EVENT: &str = "managed-command-state-changed";
@@ -289,10 +290,14 @@ where
 {
     thread::spawn(move || {
         let mut buf = [0u8; 4096];
+        let mut previous_was_carriage_return = false;
         loop {
             match reader.read(&mut buf) {
                 Ok(0) => break,
-                Ok(n) => match output_tx.try_send(buf[..n].to_vec()) {
+                Ok(n) => match output_tx.try_send(normalize_terminal_newlines(
+                    &buf[..n],
+                    &mut previous_was_carriage_return,
+                )) {
                     Ok(()) => {}
                     Err(TrySendError::Full(_)) => {}
                     Err(TrySendError::Disconnected(_)) => break,
@@ -301,6 +306,24 @@ where
             }
         }
     });
+}
+
+/// A PTY normally translates a line-feed to CRLF before it reaches the
+/// terminal. Managed commands use pipes, so their raw LF-only output must be
+/// normalized here; otherwise xterm moves down a row while retaining the old
+/// column, causing progressively indented and overlapping output.
+fn normalize_terminal_newlines(data: &[u8], previous_was_carriage_return: &mut bool) -> Vec<u8> {
+    let mut normalized = Vec::with_capacity(data.len());
+
+    for &byte in data {
+        if byte == b'\n' && !*previous_was_carriage_return {
+            normalized.push(b'\r');
+        }
+        normalized.push(byte);
+        *previous_was_carriage_return = byte == b'\r';
+    }
+
+    normalized
 }
 
 fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
@@ -312,6 +335,8 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         ));
     }
 
+    let command_cwd = resolve_managed_command_cwd(path, command);
+
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
@@ -321,7 +346,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
             .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
         let mut cmd = Command::new(shell);
         cmd.args(["/D", "/C", command])
-            .current_dir(cwd)
+            .current_dir(&command_cwd)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -351,7 +376,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
         let mut cmd = Command::new(shell);
         cmd.args(["-lc", command])
-            .current_dir(cwd)
+            .current_dir(&command_cwd)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -368,7 +393,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
         let mut cmd = Command::new(shell);
         cmd.args(["-lc", command])
-            .current_dir(cwd)
+            .current_dir(&command_cwd)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -376,6 +401,27 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         return Ok(cmd);
+    }
+}
+
+/// Projects such as YzPzCode keep their frontend package in `app/` while the
+/// workspace itself is opened at the repository root. Make managed JS dev
+/// commands work from that root without affecting projects that already have
+/// a root package or non-JavaScript commands.
+fn resolve_managed_command_cwd(cwd: &std::path::Path, command: &str) -> std::path::PathBuf {
+    let starts_js_command = matches!(
+        command.trim_start().split_whitespace().next(),
+        Some("npm" | "npx" | "pnpm" | "yarn" | "bun" | "vite" | "next")
+    );
+    let app_dir = cwd.join("app");
+
+    if starts_js_command
+        && !cwd.join("package.json").is_file()
+        && app_dir.join("package.json").is_file()
+    {
+        app_dir
+    } else {
+        cwd.to_path_buf()
     }
 }
 

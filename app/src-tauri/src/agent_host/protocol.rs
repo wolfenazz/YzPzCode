@@ -155,7 +155,8 @@ mod tests {
         assert!(req.compaction_strategy.is_none());
 
         // Absent field defaults to None (backwards compatible).
-        let raw2 = r#"{"workspaceId":"w2","cwd":"C:\\dev","providerId":"openai","modelId":"gpt-5"}"#;
+        let raw2 =
+            r#"{"workspaceId":"w2","cwd":"C:\\dev","providerId":"openai","modelId":"gpt-5"}"#;
         let req2: CreateAgentSessionRequest = serde_json::from_str(raw2).unwrap();
         assert!(req2.max_total_tokens.is_none());
 

@@ -9,7 +9,7 @@ interface NewAgentDialogProps {
   defaultProviderId?: string;
   defaultModelId?: string;
   onClose: () => void;
-  onCreate: (params: CreateAgentSessionParams) => Promise<void>;
+  onCreate: (params: CreateAgentSessionParams & { initialPrompt?: string }) => Promise<void>;
 }
 
 const PROVIDER_DISPLAY: Record<string, { name: string; needsBaseUrl: boolean }> = {
@@ -28,6 +28,16 @@ const PROVIDER_DISPLAY: Record<string, { name: string; needsBaseUrl: boolean }> 
  * default provider (or first saved provider), its saved model and API key, so
  * creating an agent normally requires just clicking "Create Agent".
  */
+/** Derive a short session title from the first non-empty line of a prompt. */
+const deriveTitle = (prompt: string): string => {
+  const line = prompt
+    .split(/\r?\n/)
+    .map((l) => l.trim().replace(/^#+\s*/, ''))
+    .find((l) => l.length > 0);
+  if (!line) return '';
+  return line.length > 60 ? `${line.slice(0, 57)}…` : line;
+};
+
 export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   workspaceId,
   cwd,
@@ -48,6 +58,8 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [maxTotalTokens, setMaxTotalTokens] = useState<number>(0);
+  const [title, setTitle] = useState('');
+  const [initialPrompt, setInitialPrompt] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -148,6 +160,8 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         apiKey: apiKey.trim() || undefined,
         baseUrl: baseUrl.trim() || undefined,
         maxTotalTokens: maxTotalTokens > 0 ? maxTotalTokens : undefined,
+        title: title.trim() || deriveTitle(initialPrompt) || undefined,
+        initialPrompt: initialPrompt.trim() || undefined,
       });
       onClose();
     } catch (err) {
@@ -155,7 +169,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
     } finally {
       setCreating(false);
     }
-  }, [modelId, onCreate, workspaceId, cwd, providerId, apiKey, baseUrl, setProviderConfig, onClose, maxTotalTokens]);
+  }, [modelId, onCreate, workspaceId, cwd, providerId, apiKey, baseUrl, setProviderConfig, onClose, maxTotalTokens, title, initialPrompt]);
 
   return (
     <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center font-mono" onClick={onClose}>
@@ -182,6 +196,35 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
             </div>
           ) : (
             <>
+              {/* Session label */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                  Session Label <span className="normal-case tracking-normal opacity-60">(optional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  maxLength={80}
+                  placeholder="e.g. Refactor auth flow"
+                  className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                />
+              </div>
+
+              {/* First task */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                  First Task <span className="normal-case tracking-normal opacity-60">(optional — starts immediately)</span>
+                </label>
+                <textarea
+                  value={initialPrompt}
+                  onChange={(e) => setInitialPrompt(e.target.value)}
+                  rows={3}
+                  placeholder="Describe what this agent should work on first… leave empty for a blank chat"
+                  className="w-full rounded-md border border-theme bg-[var(--bg-main)] px-2.5 py-2 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)] resize-y min-h-[60px] max-h-[160px] custom-scrollbar"
+                />
+              </div>
+
               {hasSavedKey && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-emerald-900/50 bg-emerald-950/20">
                   <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,7 +335,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
               disabled={creating || loading || !modelId}
               className="px-4 h-9 rounded-md bg-[var(--accent)] text-white text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all duration-100 cursor-pointer"
             >
-              {creating ? 'Starting…' : 'Create Agent'}
+              {creating ? 'Starting…' : initialPrompt.trim() ? 'Create & Start' : 'Create Agent'}
             </button>
           </div>
         </div>

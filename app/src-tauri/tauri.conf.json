@@ -32,7 +32,9 @@
     "createUpdaterArtifacts": false,
     "resources": {
       "../agent-harness/dist": "agent-harness/dist",
+      "../agent-harness/src": "agent-harness/src",
       "../agent-harness/package.json": "agent-harness/package.json",
+      "../agent-harness/tsconfig.json": "agent-harness/tsconfig.json",
       "../agent-harness/node_modules": "agent-harness/node_modules"
     },
     "icon": [

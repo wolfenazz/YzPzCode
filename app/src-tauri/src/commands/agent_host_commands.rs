@@ -179,7 +179,10 @@ pub async fn get_agent_session_preview(
     session_id: String,
 ) -> Result<Value, String> {
     manager
-        .quick_command("get-session-preview", Some(json!({ "sessionId": session_id })))
+        .quick_command(
+            "get-session-preview",
+            Some(json!({ "sessionId": session_id })),
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -287,7 +290,10 @@ pub async fn remove_agent_provider_config(
     provider_id: String,
 ) -> Result<Value, String> {
     manager
-        .quick_command("remove-provider-config", Some(json!({ "providerId": provider_id })))
+        .quick_command(
+            "remove-provider-config",
+            Some(json!({ "providerId": provider_id })),
+        )
         .await
         .map_err(|e| e.to_string())
 }

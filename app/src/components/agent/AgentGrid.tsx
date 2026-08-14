@@ -20,7 +20,7 @@ function getDims(count: number): { cols: number; rows: number } {
 }
 
 export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
-  const { ensureHost, createSession, listSessions, stopSession, deleteSession, resumeSession } = useAgentHost();
+  const { ensureHost, onBootstrap, createSession, listSessions, stopSession, deleteSession, resumeSession } = useAgentHost();
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const agentSessionsByWorkspace = useAppStore((s) => s.agentSessionsByWorkspace);
   const setAgentSessionsForWorkspace = useAppStore((s) => s.setAgentSessionsForWorkspace);
@@ -32,77 +32,101 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [hostError, setHostError] = useState<string | null>(null);
   const [hostReady, setHostReady] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [creating, setCreating] = useState(false);
   const initializedRef = useRef(false);
+
+  // Track backend-side harness bootstrap (local rebuild of dist) so the UI can
+  // show progress instead of a silent wait.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    onBootstrap((e) => {
+      const { phase, message } = e.payload;
+      setPreparing(phase === 'building');
+      if (phase === 'error' && message) {
+        setHostReady(false);
+        setPreparing(false);
+        setHostError(message);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, [onBootstrap]);
+
+  const init = useCallback(async () => {
+    try {
+      await ensureHost();
+      setHostReady(true);
+      setHostError(null);
+      setPreparing(false);
+
+      // The full history lives on disk and is shown via the History modal.
+      // Here we must only restore the panes the user had OPEN before the app
+      // was closed — not reopen every session ever created.
+      const restored = useAppStore.getState().agentSessionsByWorkspace[workspaceId] ?? [];
+
+      if (restored.length > 0) {
+        const existing = await listSessions(workspaceId);
+        const summaries: AgentSessionSummary[] = existing.map((s) => {
+          const record = s as { sessionId: string; status?: string; createdAt?: string; updatedAt?: string; metadata?: Record<string, unknown> };
+          const metadata = record.metadata ?? {};
+          const workspaceOf = typeof metadata.workspaceId === 'string' ? metadata.workspaceId : workspaceId;
+          return {
+            sessionId: record.sessionId,
+            workspaceId: workspaceOf,
+            title: typeof metadata.title === 'string' ? metadata.title : null,
+            providerId: typeof metadata.providerId === 'string' ? metadata.providerId : null,
+            modelId: typeof metadata.modelId === 'string' ? metadata.modelId : null,
+            createdAt: typeof metadata.createdAt === 'number' ? metadata.createdAt : parseDate(record.createdAt),
+            updatedAt: parseDate(record.updatedAt),
+            messageCount: null,
+            preview: null,
+            status: record.status,
+            maxTotalTokens: typeof metadata.maxTotalTokens === 'number' && metadata.maxTotalTokens > 0 ? metadata.maxTotalTokens : null,
+          };
+        });
+        // Keep only previously-open panes (preserving their order), and drop
+        // any whose session no longer exists on disk. Refresh metadata from
+        // disk so titles/models stay current.
+        const byId = new Map(summaries.map((s) => [s.sessionId, s]));
+        const open = restored
+          .map((p) => byId.get(p.sessionId))
+          .filter((s): s is AgentSessionSummary => Boolean(s));
+        setAgentSessionsForWorkspace(workspaceId, open);
+        // Rehydrate any session that is no longer alive in the sidecar (e.g.
+        // after an app/sidecar restart) so re-attached panes can accept
+        // messages again. Already-alive sessions are cheap no-ops.
+        void Promise.allSettled(
+          open.map((s) => resumeSession(s.sessionId))
+        );
+      } else {
+        // Nothing was open before — start with a clean grid rather than
+        // auto-opening the entire session history.
+        setAgentSessionsForWorkspace(workspaceId, []);
+      }
+    } catch (err) {
+      setHostReady(false);
+      setPreparing(false);
+      setHostError(err instanceof Error ? err.message : String(err));
+    }
+  }, [ensureHost, listSessions, setAgentSessionsForWorkspace, workspaceId, resumeSession]);
 
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-
-    const init = async () => {
-      try {
-        await ensureHost();
-        setHostReady(true);
-        setHostError(null);
-
-        // The full history lives on disk and is shown via the History modal.
-        // Here we must only restore the panes the user had OPEN before the app
-        // was closed — not reopen every session ever created.
-        const restored = useAppStore.getState().agentSessionsByWorkspace[workspaceId] ?? [];
-
-        if (restored.length > 0) {
-          const existing = await listSessions(workspaceId);
-          const summaries: AgentSessionSummary[] = existing.map((s) => {
-            const record = s as { sessionId: string; status?: string; createdAt?: string; updatedAt?: string; metadata?: Record<string, unknown> };
-            const metadata = record.metadata ?? {};
-            const workspaceOf = typeof metadata.workspaceId === 'string' ? metadata.workspaceId : workspaceId;
-            return {
-              sessionId: record.sessionId,
-              workspaceId: workspaceOf,
-              title: typeof metadata.title === 'string' ? metadata.title : null,
-              providerId: typeof metadata.providerId === 'string' ? metadata.providerId : null,
-              modelId: typeof metadata.modelId === 'string' ? metadata.modelId : null,
-              createdAt: typeof metadata.createdAt === 'number' ? metadata.createdAt : parseDate(record.createdAt),
-              updatedAt: parseDate(record.updatedAt),
-              messageCount: null,
-              preview: null,
-              status: record.status,
-              maxTotalTokens: typeof metadata.maxTotalTokens === 'number' && metadata.maxTotalTokens > 0 ? metadata.maxTotalTokens : null,
-            };
-          });
-          // Keep only previously-open panes (preserving their order), and drop
-          // any whose session no longer exists on disk. Refresh metadata from
-          // disk so titles/models stay current.
-          const byId = new Map(summaries.map((s) => [s.sessionId, s]));
-          const open = restored
-            .map((p) => byId.get(p.sessionId))
-            .filter((s): s is AgentSessionSummary => Boolean(s));
-          setAgentSessionsForWorkspace(workspaceId, open);
-          // Rehydrate any session that is no longer alive in the sidecar (e.g.
-          // after an app/sidecar restart) so re-attached panes can accept
-          // messages again. Already-alive sessions are cheap no-ops.
-          void Promise.allSettled(
-            open.map((s) => resumeSession(s.sessionId))
-          );
-        } else {
-          // Nothing was open before — start with a clean grid rather than
-          // auto-opening the entire session history.
-          setAgentSessionsForWorkspace(workspaceId, []);
-        }
-      } catch (err) {
-        setHostReady(false);
-        setHostError(err instanceof Error ? err.message : String(err));
-      }
-    };
     void init();
-  }, [ensureHost, listSessions, setAgentSessionsForWorkspace, workspaceId]);
+  }, [init]);
 
   const handleCreate = useCallback(
-    async (params: CreateAgentSessionParams) => {
+    async (params: CreateAgentSessionParams & { initialPrompt?: string }) => {
       setCreating(true);
       setHostError(null);
       try {
-        const result = await createSession(params);
+        const { initialPrompt, ...sessionParams } = params;
+        const result = await createSession(sessionParams);
         const now = Date.now();
         const summary: AgentSessionSummary = {
           sessionId: result.sessionId,
@@ -117,6 +141,16 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           maxTotalTokens: params.maxTotalTokens ?? null,
         };
         addAgentSessionForWorkspace(params.workspaceId, summary);
+
+        // The harness auto-starts new sessions, so an initial prompt can be
+        // sent right away. Failures here are surfaced via the pane events.
+        if (initialPrompt?.trim()) {
+          try {
+            await sendMessage(result.sessionId, initialPrompt.trim());
+          } catch (err) {
+            console.error('[agent] initial prompt failed:', err);
+          }
+        }
       } catch (err) {
         setHostError(err instanceof Error ? err.message : String(err));
         throw err;
@@ -124,7 +158,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
         setCreating(false);
       }
     },
-    [createSession, addAgentSessionForWorkspace]
+    [createSession, sendMessage, addAgentSessionForWorkspace]
   );
 
   const handleClose = useCallback(
@@ -233,12 +267,24 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
         <span className="ml-auto flex items-center gap-1.5">
           {!hostReady && !hostError && (
             <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--accent)] animate-pulse">
-              starting harness…
+              {preparing ? 'preparing harness…' : 'starting harness…'}
             </span>
           )}
           {hostError && (
-            <span className="font-mono text-[9px] text-rose-500 truncate max-w-[260px]" title={hostError}>
-              {hostError}
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span className="font-mono text-[9px] text-rose-500 truncate max-w-[260px]" title={hostError}>
+                {hostError}
+              </span>
+              <button
+                onClick={() => {
+                  setHostError(null);
+                  void init();
+                }}
+                className="shrink-0 h-5 px-2 rounded border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-border)] font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+                title="Retry starting the YZPZ Agent"
+              >
+                Retry
+              </button>
             </span>
           )}
           <button

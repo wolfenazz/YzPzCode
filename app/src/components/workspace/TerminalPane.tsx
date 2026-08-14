@@ -464,19 +464,19 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const sequence = buildMouseModeSequence(normalizedModes, 'h');
     term.write(sequence);
 
-    // Send to the PTY as well so the running program actually has mouse
-    // reporting enabled after reconnects — writing only to the xterm display
-    // made the UI claim "Mouse On" while the backend app had it off.
-    invoke('write_to_terminal', { sessionId: session.id, input: sequence }).catch(console.error);
-  }, [session.id, syncMouseModes]);
+    // These are terminal *output* control sequences. They must be written to
+    // xterm only: sending them to the PTY makes a macOS shell receive them as
+    // ordinary input, which corrupts the command used to launch an AI agent.
+  }, [syncMouseModes]);
 
   const forceEnableMouse = useCallback(() => {
     const modes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
     syncMouseModes(modes);
     const sequence = buildMouseModeSequence(modes, 'h');
     xtermRef.current?.write(sequence);
-    invoke('write_to_terminal', { sessionId: session.id, input: sequence }).catch(console.error);
-  }, [session.id, syncMouseModes]);
+    // Do not write DECSET mouse-mode sequences to the PTY. xterm will forward
+    // real mouse reports through onData once mouse tracking is active.
+  }, [syncMouseModes]);
 
   const handleRunCommand = useCallback(async (command: string) => {
     try {
@@ -576,7 +576,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
   }, [syncMouseModes, forceEnableMouse]);
 
-  const handleToggleMouseTracking = useCallback(async () => {
+  const handleToggleMouseTracking = useCallback(() => {
     // AI agent sessions: the button turns Always-On Mouse off (or back on).
     if (isAiAgentRef.current) {
       if (mouseAlwaysOnRef.current) {
@@ -586,14 +586,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         setMouseAlwaysOnDisabled(session.id, true);
         const disableModes = normalizeMouseModes(mouseModesRef.current);
         const disableSequence = buildMouseModeSequence(disableModes, 'l');
-        try {
-          await invoke('write_to_terminal', {
-            sessionId: session.id,
-            input: disableSequence,
-          });
-        } catch (error) {
-          console.error('Failed to disable mouse tracking:', error);
-        }
         xtermRef.current?.write(disableSequence);
         syncMouseModes([]);
         return;
@@ -611,21 +603,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const enableSequence = buildMouseModeSequence(enableModes, 'h');
     const disableSequence = buildMouseModeSequence(disableModes, 'l');
 
-    try {
-      await invoke('write_to_terminal', {
-        sessionId: session.id,
-        input: mouseTrackingEnabled ? disableSequence : enableSequence,
-      });
-
-      if (mouseTrackingEnabled) {
-        xtermRef.current?.write(disableSequence);
-        syncMouseModes([]);
-      } else {
-        xtermRef.current?.write(enableSequence);
-        syncMouseModes(enableModes);
-      }
-    } catch (error) {
-      console.error('Failed to toggle mouse tracking:', error);
+    if (mouseTrackingEnabled) {
+      xtermRef.current?.write(disableSequence);
+      syncMouseModes([]);
+    } else {
+      xtermRef.current?.write(enableSequence);
+      syncMouseModes(enableModes);
     }
   }, [session.id, mouseTrackingEnabled, syncMouseModes, forceEnableMouse, setMouseAlwaysOnDisabled]);
 

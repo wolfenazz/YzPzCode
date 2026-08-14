@@ -290,6 +290,7 @@ interface AppState {
   setAgentSessionsForWorkspace: (workspaceId: string, sessions: AgentSessionSummary[]) => void;
   addAgentSessionForWorkspace: (workspaceId: string, session: AgentSessionSummary) => void;
   removeAgentSessionForWorkspace: (workspaceId: string, sessionId: string) => void;
+  updateAgentSessionForWorkspace: (workspaceId: string, sessionId: string, updates: Partial<AgentSessionSummary>) => void;
   setActiveAgentSessionForWorkspace: (workspaceId: string, sessionId: string | null) => void;
   setAgentPaneUIMode: (sessionId: string, mode: AgentPaneUIMode) => void;
   closeAllAgentSessions: () => void;
@@ -956,6 +957,18 @@ export const useAppStore = create<AppState>()(
                 state.activeAgentSessionByWorkspace[workspaceId] === sessionId
                   ? (next[0]?.sessionId ?? null)
                   : state.activeAgentSessionByWorkspace[workspaceId],
+            },
+          };
+        }),
+
+      updateAgentSessionForWorkspace: (workspaceId, sessionId, updates) =>
+        set((state) => {
+          const current = state.agentSessionsByWorkspace[workspaceId] || [];
+          if (!current.some((s) => s.sessionId === sessionId)) return state;
+          return {
+            agentSessionsByWorkspace: {
+              ...state.agentSessionsByWorkspace,
+              [workspaceId]: current.map((s) => (s.sessionId === sessionId ? { ...s, ...updates } : s)),
             },
           };
         }),

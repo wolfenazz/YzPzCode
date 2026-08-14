@@ -9,7 +9,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{mpsc, oneshot, Mutex as AsyncMutex};
 use tokio_tungstenite::tungstenite::Message;
 
@@ -24,11 +24,29 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 /// Build a node command that never allocates a console window.
 /// The app is a GUI process without a console, so a console-subsystem
 /// child (node.exe) would otherwise pop an empty terminal window.
+#[cfg(target_os = "windows")]
 fn new_node_command(node: &std::path::Path) -> Command {
     let mut cmd = Command::new(node);
-    #[cfg(target_os = "windows")]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd
+}
+
+#[cfg(not(target_os = "windows"))]
+fn new_node_command(node: &std::path::Path) -> Command {
+    Command::new(node)
+}
+
+/// Async variant used for long-running node invocations (e.g. harness builds).
+#[cfg(target_os = "windows")]
+fn new_node_command_tokio(node: &std::path::Path) -> tokio::process::Command {
+    let mut cmd = tokio::process::Command::new(node);
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+#[cfg(not(target_os = "windows"))]
+fn new_node_command_tokio(node: &std::path::Path) -> tokio::process::Command {
+    tokio::process::Command::new(node)
 }
 
 const EVENT_PREFIX: &str = "yzpz-agent";
@@ -171,11 +189,13 @@ impl AgentHostManager {
         })?;
         let node_major = node_major_version(&node)?;
 
-        let harness_dir = resolve_harness_dir()?;
+        let harness_dir = locate_harness_dir(&self.inner)?;
+        ensure_harness_ready(&self.inner, &node, &harness_dir).await?;
+
         let entry = harness_dir.join("dist").join("index.js");
         if !entry.exists() {
             return Err(AgentHostError::Sidecar(format!(
-                "YZPZ Agent harness not built (missing {}). Run `npm run build` in app/agent-harness.",
+                "YZPZ Agent harness not built (missing {}). Reinstall YzPzCode to restore the agent.",
                 entry.display()
             )));
         }
@@ -452,6 +472,16 @@ fn emit_log(inner: &HostInner, message: &str) {
     }
 }
 
+fn emit_bootstrap(inner: &HostInner, phase: &str, message: &str) {
+    let app = inner.app_handle.lock().unwrap();
+    if let Some(app) = app.as_ref() {
+        let _ = app.emit(
+            &format!("{EVENT_PREFIX}:bootstrap"),
+            &json!({ "phase": phase, "message": message }),
+        );
+    }
+}
+
 fn node_major_version(node: &std::path::Path) -> Result<u32, AgentHostError> {
     let output = new_node_command(node)
         .arg("--version")
@@ -499,15 +529,35 @@ async fn read_ready_port(stdout: std::process::ChildStdout) -> Result<u16> {
         .map_err(|_| anyhow!("sidecar exited before READY"))
 }
 
-fn resolve_harness_dir() -> Result<std::path::PathBuf, AgentHostError> {
+/// Locate the YZPZ Agent harness directory.
+///
+/// Preference order:
+/// 1. `YZPZ_AGENT_HARNESS_DIR` env override (authoritative).
+/// 2. Tauri resource dir (`resource_dir/agent-harness`) — where the harness
+///    is bundled in packaged builds (macOS `Contents/Resources`, Windows/Linux
+///    next to the executable).
+/// 3. Next to the running executable (Windows/Linux + dev fallback).
+/// 4. Dev-tree relative paths (cwd, cwd/app, parent/app).
+///
+/// An installed-but-unbuilt harness (`package.json` present without
+/// `dist/index.js`) is still returned so callers can rebuild it locally.
+fn locate_harness_dir(inner: &HostInner) -> Result<std::path::PathBuf, AgentHostError> {
     if let Ok(dir) = std::env::var("YZPZ_AGENT_HARNESS_DIR") {
         let p = std::path::PathBuf::from(dir);
-        if p.join("dist").join("index.js").exists() {
+        if p.join("dist").join("index.js").exists() || p.join("package.json").exists() {
             return Ok(p);
         }
     }
 
     let mut candidates: Vec<std::path::PathBuf> = Vec::new();
+    {
+        let app = inner.app_handle.lock().unwrap();
+        if let Some(app) = app.as_ref() {
+            if let Ok(resource_dir) = app.path().resource_dir() {
+                candidates.push(resource_dir.join("agent-harness"));
+            }
+        }
+    }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             candidates.push(dir.join("agent-harness"));
@@ -519,15 +569,86 @@ fn resolve_harness_dir() -> Result<std::path::PathBuf, AgentHostError> {
         candidates.push(cwd.join("..").join("app").join("agent-harness"));
     }
 
-    for candidate in candidates {
+    // Prefer a harness that is already built.
+    for candidate in &candidates {
         if candidate.join("dist").join("index.js").exists() {
+            return Ok(candidate.clone());
+        }
+    }
+    // Fall back to an unbuilt harness so the caller can rebuild it locally.
+    for candidate in candidates {
+        if candidate.join("package.json").exists() {
             return Ok(candidate);
         }
     }
 
     Err(AgentHostError::Sidecar(
-        "could not locate YZPZ Agent harness (app/agent-harness). Set YZPZ_AGENT_HARNESS_DIR to its path.".to_string(),
+        "YZPZ Agent harness could not be located (app/agent-harness). \
+         Reinstall YzPzCode, or set YZPZ_AGENT_HARNESS_DIR to the harness directory."
+            .to_string(),
     ))
+}
+
+/// Ensure `dist/index.js` exists in the harness, rebuilding it locally when
+/// possible (requires the bundled source, tsconfig, and node_modules). No
+/// network access is used; if the harness is incomplete beyond repair, a
+/// clear, actionable error is returned.
+async fn ensure_harness_ready(
+    inner: &HostInner,
+    node: &std::path::Path,
+    harness_dir: &std::path::Path,
+) -> Result<(), AgentHostError> {
+    let entry = harness_dir.join("dist").join("index.js");
+    if entry.exists() {
+        return Ok(());
+    }
+
+    emit_log(
+        inner,
+        &format!(
+            "YZPZ Agent harness not built (missing {}); rebuilding locally…",
+            entry.display()
+        ),
+    );
+    emit_bootstrap(inner, "building", "Rebuilding YZPZ Agent harness…");
+
+    let missing_source = !harness_dir.join("src").join("index.ts").exists()
+        || !harness_dir.join("tsconfig.json").exists();
+    let missing_deps =
+        !harness_dir.join("node_modules").exists() || !harness_dir.join("package.json").exists();
+    if missing_source || missing_deps {
+        return Err(AgentHostError::Sidecar(format!(
+            "YZPZ Agent harness is incomplete (missing {}) and cannot be rebuilt locally. \
+             Reinstall YzPzCode to restore the agent.",
+            entry.display()
+        )));
+    }
+
+    let tsc = harness_dir
+        .join("node_modules")
+        .join("typescript")
+        .join("bin")
+        .join("tsc");
+    let output = new_node_command_tokio(node)
+        .arg(&tsc)
+        .arg("-p")
+        .arg(harness_dir.join("tsconfig.json"))
+        .current_dir(harness_dir)
+        .output()
+        .await
+        .map_err(|e| AgentHostError::Sidecar(format!("failed to run harness build: {e}")))?;
+
+    if output.status.success() && entry.exists() {
+        emit_log(inner, "YZPZ Agent harness built successfully");
+        emit_bootstrap(inner, "ready", "YZPZ Agent harness ready");
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.lines().next_back().unwrap_or("unknown error");
+        Err(AgentHostError::Sidecar(format!(
+            "YZPZ Agent harness build failed: {detail}"
+        )))
+    }
 }
 
 fn data_dir_path() -> String {

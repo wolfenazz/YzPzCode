@@ -718,8 +718,10 @@ impl AuthDetector {
                 "Or run 'hermes setup' for the full setup wizard".to_string(),
             ],
             AgentType::Pi => vec![
-                "Run 'pi' and use '/login' to authenticate with a subscription or API key".to_string(),
-                "Or set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY environment variable".to_string(),
+                "Run 'pi' and use '/login' to authenticate with a subscription or API key"
+                    .to_string(),
+                "Or set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY environment variable"
+                    .to_string(),
                 "Credentials are stored in ~/.pi/agent/auth.json".to_string(),
             ],
             AgentType::Gh => vec![

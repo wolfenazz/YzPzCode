@@ -89,7 +89,10 @@ mod tests {
     #[test]
     fn pi_provider_version_command() {
         let provider = PiCliProvider;
-        assert_eq!(provider.get_version_command(), vec!["--version".to_string()]);
+        assert_eq!(
+            provider.get_version_command(),
+            vec!["--version".to_string()]
+        );
     }
 
     #[test]

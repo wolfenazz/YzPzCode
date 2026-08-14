@@ -62,11 +62,9 @@ export type EventSink = (name: string, payload: unknown) => void;
 const APPROVAL_TIMEOUT_MS = 600_000; // 10 min; auto-deny on timeout
 
 // ── Token-efficiency knobs ────────────────────────────────────────────────
-// The SDK triggers compaction at ~90% of the model's effective context window.
-// With today's 1M-token models that lets a single run balloon past 800K tokens
-// before anything is compacted. We cap the effective window the runtime budgets
-// against (via knownModels) so requests stay small and compaction runs early.
-const DEFAULT_CONTEXT_TOKEN_BUDGET = 96_000;
+// The SDK triggers compaction relative to the model's effective context window.
+// Always preserve the provider-advertised window here: replacing it with a
+// smaller local budget makes a 1M-token session compact around 90k tokens.
 // Cap model output per API call so turns cannot ramble.
 const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
 // Hard ceiling on loop iterations (prevents runaway tool loops).
@@ -713,26 +711,31 @@ export class AgentHarness {
   }
 
   /**
-   * Cap the model's effective context window at DEFAULT_CONTEXT_TOKEN_BUDGET so
-   * the runtime budgets/compacts against a small window regardless of the
-   * provider's advertised (often enormous) one. Never exceeds the real window.
+   * Resolve the model's actual provider-advertised limits. The SDK relies on
+   * this value to determine when compaction is necessary, so it must never be
+   * replaced with an arbitrary local cap.
    */
-  private async resolveCappedModelInfo(
+  private async resolveModelInfo(
     providerId: string,
     modelId: string,
   ): Promise<Record<string, { id: string; contextWindow?: number; maxInputTokens?: number }>> {
-    const budget = DEFAULT_CONTEXT_TOKEN_BUDGET;
     try {
       const catalog = (await Llms.getModelsForProvider(providerId)) as Record<
         string,
         { id?: string; contextWindow?: number | null }
       >;
-      const realWindow = catalog?.[modelId]?.contextWindow ?? undefined;
-      const limit = realWindow != null ? Math.min(budget, realWindow) : budget;
-      return { [modelId]: { id: modelId, contextWindow: limit, maxInputTokens: limit } };
+      const contextWindow = catalog?.[modelId]?.contextWindow;
+      if (typeof contextWindow === "number" && contextWindow > 0) {
+        return { [modelId]: { id: modelId, contextWindow, maxInputTokens: contextWindow } };
+      }
     } catch {
-      return { [modelId]: { id: modelId, contextWindow: budget, maxInputTokens: budget } };
+      // Fall through and let the SDK resolve its provider default.
     }
+
+    // Do not invent a smaller fallback window. Provider-specific defaults can
+    // still be resolved by the SDK, while an artificial value forces early
+    // compaction for models whose catalog metadata is incomplete.
+    return { [modelId]: { id: modelId } };
   }
 
   /**
@@ -798,7 +801,7 @@ export class AgentHarness {
           teamName: args.teamName ?? "YZPZ",
           maxTokensPerTurn: DEFAULT_MAX_OUTPUT_TOKENS,
           maxIterations: DEFAULT_MAX_ITERATIONS,
-          knownModels: await this.resolveCappedModelInfo(args.providerId, args.modelId),
+          knownModels: await this.resolveModelInfo(args.providerId, args.modelId),
           execution: {
             maxConsecutiveMistakes: 4,
             loopDetection: { softThreshold: 3, hardThreshold: 5 },

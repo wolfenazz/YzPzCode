@@ -304,6 +304,11 @@ export const useAgentHost = () => {
       listen<{ message: string }>('yzpz-agent:log', cb),
     []
   );
+  const onBootstrap = useCallback(
+    (cb: (event: { payload: { phase: string; message: string } }) => void): Promise<UnlistenFn> =>
+      listen<{ phase: string; message: string }>('yzpz-agent:bootstrap', cb),
+    []
+  );
   const onTeamProgress = useCallback(
     (cb: (event: { payload: AgentTeamProgressSummary }) => void): Promise<UnlistenFn> =>
       listen<AgentTeamProgressSummary>('yzpz-agent:team-progress', cb),
@@ -368,6 +373,7 @@ export const useAgentHost = () => {
     onSessionEnded,
     onApprovalResolved,
     onLog,
+    onBootstrap,
     onTeamProgress,
     onQuestionRequest,
     onTodoUpdated,
