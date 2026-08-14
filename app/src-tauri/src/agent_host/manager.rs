@@ -13,7 +13,23 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::{mpsc, oneshot, Mutex as AsyncMutex};
 use tokio_tungstenite::tungstenite::Message;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
 use super::protocol::{CommandMessage, SidecarMessage};
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+/// Build a node command that never allocates a console window.
+/// The app is a GUI process without a console, so a console-subsystem
+/// child (node.exe) would otherwise pop an empty terminal window.
+fn new_node_command(node: &std::path::Path) -> Command {
+    let mut cmd = Command::new(node);
+    #[cfg(target_os = "windows")]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
 
 const EVENT_PREFIX: &str = "yzpz-agent";
 const CONNECT_ATTEMPTS: u32 = 8;
@@ -164,7 +180,7 @@ impl AgentHostManager {
             )));
         }
 
-        let mut child = Command::new(&node)
+        let mut child = new_node_command(&node)
             .arg(&entry)
             .arg("--data-dir")
             .arg(data_dir_path())
@@ -436,8 +452,8 @@ fn emit_log(inner: &HostInner, message: &str) {
     }
 }
 
-fn node_major_version(node: &std::path::PathBuf) -> Result<u32, AgentHostError> {
-    let output = Command::new(node)
+fn node_major_version(node: &std::path::Path) -> Result<u32, AgentHostError> {
+    let output = new_node_command(node)
         .arg("--version")
         .output()
         .map_err(|e| AgentHostError::NodeMissing(format!("failed to run node: {e}")))?;

@@ -1,6 +1,7 @@
 # Work Log
 
 ## Active Sessions
+- [x] ses_worker_ci (Worker): `.github/workflows/release.yml` - added `Install agent-harness dependencies` step (npm ci, working-directory: app/agent-harness) + bumped actions/checkout@v4->v7 (3x), setup-node@v4->v7, action-gh-release@v1->v3 (2x) - done 2026-08-14T02:25Z
 - [x] ses_review (Reviewer): release.yml CI fix verification (S1.1.1/S1.1.2/S2.1.1/S2.1.2/S2.1.3) - done 2026-08-14T02:25Z (all 5 TODO items verified [x])
 - [x] ses_prompt_edit (Worker): `app/agent-harness/src/branding.ts` - EFFICIENCY_DIRECTIVE +3 lines (confirm-before-read, short summary, no step narration) - done 2026-08-14T00:46Z (typecheck EXIT 0, build EXIT 0)
 - [x] ses_prompt_edit (Worker): Mission "Clean up YZPZ Agent responses" — M1/M2/M3 implementation verified ALREADY IN PLACE + all gates run - done 2026-08-14T00:54Z
