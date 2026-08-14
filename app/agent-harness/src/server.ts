@@ -5,6 +5,14 @@ import type { ProviderConfigStore } from "./store.js";
 
 type CommandHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
+/** Credentials stay in the harness process. The renderer only needs to know
+ * whether a provider has a saved key in order to present connection controls. */
+const toSafeProviderConfigs = (configs: ReturnType<ProviderConfigStore["list"]>) =>
+  configs.map(({ apiKey, ...config }) => ({
+    ...config,
+    hasApiKey: Boolean(apiKey),
+  }));
+
 export class AgentServer {
   private wss: WebSocketServer;
   private harness: AgentHarness;
@@ -58,6 +66,7 @@ export class AgentServer {
           enableAgentTeams: args.enableAgentTeams as boolean | undefined,
           teamName: args.teamName as string | undefined,
           compactionStrategy: args.compactionStrategy as "basic" | "agentic" | undefined,
+          maxTotalTokens: args.maxTotalTokens as number | undefined,
         });
       },
       "resume-session": async (args) => {
@@ -140,6 +149,8 @@ export class AgentServer {
           args.sessionId as string,
           args.prompt as string,
           args.mode as string | undefined,
+          Array.isArray(args.userImages) ? args.userImages.filter((path): path is string => typeof path === "string") : [],
+          Array.isArray(args.userFiles) ? args.userFiles.filter((path): path is string => typeof path === "string") : [],
         );
       },
       abort: async (args) => {
@@ -202,9 +213,9 @@ export class AgentServer {
           baseUrl: args.baseUrl as string | undefined,
           modelId: args.modelId as string | undefined,
         });
-        return { configs: this.store.list() };
+        return { configs: toSafeProviderConfigs(this.store.list()) };
       },
-      "list-provider-configs": async () => ({ configs: this.store.list() }),
+      "list-provider-configs": async () => ({ configs: toSafeProviderConfigs(this.store.list()) }),
       "remove-provider-config": async (args) => {
         if (!args.providerId) throw new Error("providerId is required");
         return this.harness.removeProviderConfig(args.providerId as string);

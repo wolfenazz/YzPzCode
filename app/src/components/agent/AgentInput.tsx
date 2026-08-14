@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
-import type { AgentMode } from '../../types';
+import { open } from '@tauri-apps/plugin-dialog';
+import type { AgentAttachment, AgentMode } from '../../types';
 import { useAppStore } from '../../stores/appStore';
 import { useAgentMention } from '../../hooks/useAgentMention';
 import type { MentionItem } from '../../hooks/useAgentMention';
@@ -11,11 +12,13 @@ interface AgentInputProps {
   isRunning: boolean;
   mode: AgentMode;
   onModeChange: (mode: AgentMode) => void;
-  onSend: (prompt: string) => Promise<void> | void;
+  onSend: (prompt: string, attachments?: AgentAttachment[]) => Promise<void> | void;
   onAbort: () => Promise<void> | void;
   placeholder?: string;
   /** Icon-only mode tabs (used when the pane is minimal or short). */
   compact?: boolean;
+  /** Models advertise vision inconsistently; only block images when we know it is unavailable. */
+  supportsImages?: boolean;
 }
 
 const MODE_ORDER: AgentMode[] = ['ask', 'act', 'plan', 'orchestrator'];
@@ -105,6 +108,9 @@ const MODE_STYLES: Record<AgentMode, {
 
 const MIN_HEIGHT = 38;
 const MAX_HEIGHT = 240;
+const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+
+const attachmentName = (path: string): string => path.split(/[\\/]/).pop() || path;
 
 export const AgentInput: React.FC<AgentInputProps> = ({
   disabled,
@@ -115,8 +121,11 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   onAbort,
   placeholder = 'Describe a task for YZPZ Agent…',
   compact = false,
+  supportsImages = true,
 }) => {
   const [value, setValue] = useState('');
+  const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const workspacePath = useAppStore((s) => s.currentWorkspace?.path);
@@ -168,11 +177,42 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     close();
     setValue('');
     try {
-      await onSend(prompt);
+      await onSend(prompt, attachments);
+      setAttachments([]);
+      setAttachmentNotice(null);
     } catch (err) {
       console.error('[agent] send failed:', err);
     }
-  }, [value, disabled, isRunning, onSend, close]);
+  }, [value, attachments, disabled, isRunning, onSend, close]);
+
+  const handleAttach = useCallback(async () => {
+    if (disabled || isRunning) return;
+    try {
+      const selected = await open({ multiple: true, directory: false });
+      const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
+      const next = paths.map((path): AgentAttachment => ({
+        path,
+        name: attachmentName(path),
+        kind: IMAGE_EXTENSION.test(path) ? 'image' : 'file',
+      }));
+      const usable = supportsImages ? next : next.filter((attachment) => attachment.kind !== 'image');
+      if (usable.length !== next.length) {
+        setAttachmentNotice('This model does not advertise image support. Attach a document or choose a vision model.');
+      } else {
+        setAttachmentNotice(null);
+      }
+      setAttachments((current) => {
+        const seen = new Set(current.map((attachment) => attachment.path));
+        return [...current, ...usable.filter((attachment) => !seen.has(attachment.path))];
+      });
+    } catch (error) {
+      setAttachmentNotice(error instanceof Error ? error.message : 'Could not attach the selected file.');
+    }
+  }, [disabled, isRunning, supportsImages]);
+
+  const removeAttachment = useCallback((path: string) => {
+    setAttachments((current) => current.filter((attachment) => attachment.path !== path));
+  }, []);
 
   const cycleMode = useCallback(
     (dir: 1 | -1) => {
@@ -269,15 +309,16 @@ export const AgentInput: React.FC<AgentInputProps> = ({
       <div className={`flex items-center gap-0.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] w-fit shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_1px_2px_rgba(0,0,0,0.3)] p-0.5`}>
         {MODE_TABS.map((tab) => {
           const active = mode === tab.id;
+          if (compact && !active) return null;
           const tabStyle = MODE_STYLES[tab.id];
           return (
             <button
               key={tab.id}
-              onClick={() => onModeChange(tab.id)}
+              onClick={() => (compact ? cycleMode(1) : onModeChange(tab.id))}
               title={tab.title}
               aria-label={tab.label}
               className={`flex items-center justify-center gap-1 rounded-md border font-mono text-[9px] font-bold uppercase tracking-widest transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
-                compact ? 'w-6 h-6 text-[8px]' : 'px-2 h-8'
+                compact ? 'px-2 h-6 text-[8px]' : 'px-2 h-8'
               } ${
                 active
                   ? tabStyle.active
@@ -286,7 +327,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
             >
               {active && !compact && <span className={`w-1.5 h-1.5 rounded-full ${tabStyle.dot}`} />}
               {tab.icon}
-              {!compact && tab.label}
+              {tab.label}
             </button>
           );
         })}
@@ -312,6 +353,30 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           </button>
         </div>
       </div>
+
+      {attachments.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {attachments.map((attachment) => (
+            <span
+              key={attachment.path}
+              className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] py-1 pl-1.5 pr-1 font-mono text-[9px] text-[var(--text-secondary)]"
+              title={attachment.path}
+            >
+              <Icon icon={attachment.kind === 'image' ? 'material-symbols:image-rounded' : 'material-symbols:description-rounded'} className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+              <span className="max-w-40 truncate">{attachment.name}</span>
+              <button
+                type="button"
+                onClick={() => removeAttachment(attachment.path)}
+                className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[var(--text-secondary)]/60 hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+                title={`Remove ${attachment.name}`}
+                aria-label={`Remove ${attachment.name}`}
+              >
+                <Icon icon="material-symbols:close-rounded" className="h-3 w-3" aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Prompt field + send */}
       <div className="flex items-end gap-2">
@@ -346,6 +411,16 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           />
         </div>
         <button
+          type="button"
+          onClick={() => void handleAttach()}
+          disabled={disabled || isRunning}
+          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+          title="Attach images or files"
+          aria-label="Attach images or files"
+        >
+          <Icon icon="material-symbols:attach-file-rounded" className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <button
           onClick={() => void handleSend()}
           disabled={disabled || isRunning || !value.trim()}
           title={isRunning ? 'Agent is running' : value.trim() ? 'Send prompt (Enter)' : 'Type a prompt first'}
@@ -362,7 +437,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
       {!compact && (
         <div className="flex items-center gap-2 px-0.5">
           <span className="truncate font-mono text-[9px] text-[var(--text-secondary)]/60">
-            {activeTab?.title}
+            {attachmentNotice ?? activeTab?.title}
           </span>
           <span className="ml-auto flex items-center gap-2.5 shrink-0 font-mono text-[8px] uppercase tracking-widest text-[var(--text-secondary)]/40">
             <span>Tab ⇥ switch mode</span>

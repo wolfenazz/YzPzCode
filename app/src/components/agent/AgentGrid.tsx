@@ -67,6 +67,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
               messageCount: null,
               preview: null,
               status: record.status,
+              maxTotalTokens: typeof metadata.maxTotalTokens === 'number' && metadata.maxTotalTokens > 0 ? metadata.maxTotalTokens : null,
             };
           });
           // Keep only previously-open panes (preserving their order), and drop
@@ -113,6 +114,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           updatedAt: now,
           messageCount: 0,
           preview: null,
+          maxTotalTokens: params.maxTotalTokens ?? null,
         };
         addAgentSessionForWorkspace(params.workspaceId, summary);
       } catch (err) {
@@ -183,6 +185,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           providerId: existing.providerId,
           modelId: existing.modelId,
           title: existing.title ?? undefined,
+          maxTotalTokens: existing.maxTotalTokens ?? undefined,
         });
         const now = Date.now();
         addAgentSessionForWorkspace(workspaceId, {
@@ -195,6 +198,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           updatedAt: now,
           messageCount: 0,
           preview: null,
+          maxTotalTokens: existing.maxTotalTokens ?? null,
         });
       } catch (err) {
         setHostError(err instanceof Error ? err.message : String(err));

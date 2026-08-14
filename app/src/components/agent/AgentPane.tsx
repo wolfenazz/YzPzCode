@@ -14,7 +14,7 @@ import { useAgentSession } from '../../hooks/useAgentSession';
 import { useAgentHost } from '../../hooks/useAgentHost';
 import { useElementSize } from '../../hooks/useElementSize';
 import { useAppStore } from '../../stores/appStore';
-import type { AgentMcpServer, AgentMode, AgentModelInfo, AgentPaneUIMode, AgentProviderInfo, AgentSessionSummary } from '../../types';
+import type { AgentAttachment, AgentMcpServer, AgentMode, AgentModelInfo, AgentPaneUIMode, AgentProviderInfo, AgentSessionSummary } from '../../types';
 
 interface AgentPaneProps {
   session: AgentSessionSummary;
@@ -77,6 +77,14 @@ const SHORT_HEIGHT = 440;
 const TODO_MIN_WIDTH = 480;
 
 const MCP_POLL_MS = 10_000;
+const OPENROUTER_PROVIDER_ID = 'openrouter';
+const OPENROUTER_FREE_MODEL_ID = 'openrouter/free';
+
+/** Supports a running pre-update harness until it is restarted. New harnesses
+ * expose only `hasApiKey`; the legacy response included an `apiKey` field. */
+const hasSavedProviderKey = (config: { hasApiKey?: boolean }): boolean =>
+  config.hasApiKey === true ||
+  (!Object.prototype.hasOwnProperty.call(config, 'hasApiKey') && Object.prototype.hasOwnProperty.call(config, 'apiKey'));
 
 /**
  * Compact header control for model thinking effort. A small brain-icon button
@@ -152,6 +160,8 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     mode,
     setMode,
     usage,
+    contextTokens,
+    compaction,
     aggregateUsage,
     team,
     subAgents,
@@ -177,6 +187,8 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const [models, setModels] = useState<AgentModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
+  const [freeModeNotice, setFreeModeNotice] = useState<string | null>(null);
+  const [switchingToFree, setSwitchingToFree] = useState(false);
   const [mcpServers, setMcpServers] = useState<AgentMcpServer[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
   const [todosVisible, setTodosVisible] = useState(true);
@@ -212,7 +224,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
       .catch(() => undefined);
     void listProviderConfigs()
       .then((cfgs) => {
-        if (mounted) setConfiguredProviders(new Set(cfgs.map((c) => c.providerId)));
+        if (mounted) setConfiguredProviders(new Set(cfgs.filter(hasSavedProviderKey).map((c) => c.providerId)));
       })
       .catch(() => undefined);
     return () => {
@@ -275,8 +287,8 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   }, [status]);
 
   const handleSend = useCallback(
-    async (prompt: string) => {
-      await send(prompt);
+    async (prompt: string, attachments: AgentAttachment[] = []) => {
+      await send(prompt, attachments);
     },
     [send]
   );
@@ -296,6 +308,31 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     [updateConnection]
   );
 
+  const handleFreeMode = useCallback(async () => {
+    if (switchingToFree) return;
+    const configs = await listProviderConfigs().catch(() => []);
+    const savedProviders = new Set(configs.filter(hasSavedProviderKey).map((config) => config.providerId));
+    setConfiguredProviders(savedProviders);
+    if (!savedProviders.has(OPENROUTER_PROVIDER_ID)) {
+      setFreeModeNotice('Add an OpenRouter API key in the agent provider settings, then try Free mode again.');
+      return;
+    }
+
+    setSwitchingToFree(true);
+    setFreeModeNotice(null);
+    setModels([]);
+    const switched = await updateConnection({
+      providerId: OPENROUTER_PROVIDER_ID,
+      modelId: OPENROUTER_FREE_MODEL_ID,
+    });
+    setSwitchingToFree(false);
+    setFreeModeNotice(
+      switched
+        ? 'Free mode is active — OpenRouter will route this session to a compatible free model.'
+        : 'Could not switch to Free mode. Check the OpenRouter provider connection and try again.'
+    );
+  }, [listProviderConfigs, switchingToFree, updateConnection]);
+
   const handleAnswerQuestion = useCallback(
     (requestId: string, answer: string) => {
       void answerQuestion(requestId, answer);
@@ -303,9 +340,23 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     [answerQuestion]
   );
 
-  const statusMeta = STATUS_LABEL[status] ?? STATUS_LABEL.idle;
+  const teamHasActiveWork = mode === 'orchestrator' && (
+    (team?.runs?.activeRunIds?.length ?? 0) > 0 || subAgents.some((agent) => agent.status === 'running')
+  );
+  const isWorking = status === 'running' || status === 'starting' || teamHasActiveWork;
+  const statusMeta = isWorking
+    ? { label: 'working', color: 'text-[var(--accent)] animate-pulse' }
+    : STATUS_LABEL[status] ?? STATUS_LABEL.idle;
   const title = session.title || `YZPZ Agent ${index + 1}`;
-  const contextWindow = models.find((m) => m.id === modelId)?.contextWindow ?? null;
+  const providerName = providers.find((provider) => provider.id === providerId)?.name ?? providerId ?? session.providerId ?? 'Provider';
+  const availableModels = providerId === OPENROUTER_PROVIDER_ID && !models.some((model) => model.id === OPENROUTER_FREE_MODEL_ID)
+    ? [{ id: OPENROUTER_FREE_MODEL_ID, name: 'Free Models Router', contextWindow: null, maxOutput: null }, ...models]
+    : models;
+  const modelName = modelId === OPENROUTER_FREE_MODEL_ID
+    ? 'Free Models Router'
+    : availableModels.find((model) => model.id === modelId)?.name ?? modelId ?? session.modelId ?? 'Model';
+  const connectionLabel = `${providerName} · ${modelName}`;
+  const contextWindow = availableModels.find((m) => m.id === modelId)?.contextWindow ?? null;
   const mm = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss = String(elapsed % 60).padStart(2, '0');
 
@@ -315,14 +366,17 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const inputCompact = uiMode === 'minimal' || isShort;
   const showSlimLine =
     uiMode === 'minimal' &&
-    (status === 'running' || status === 'starting' || status === 'error' || !!error || approvals.length > 0 || !!activeTool);
-  const ctxPct = contextPercent(usage, contextWindow);
+    (isWorking || status === 'error' || !!error || approvals.length > 0 || !!activeTool);
+  const ctxPct = contextPercent(
+    contextTokens === null ? usage : { inputTokens: contextTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCost: 0 },
+    contextWindow,
+  );
 
   const providerOptions = providers.map((p) => ({
     value: p.id,
     label: configuredProviders.has(p.id) ? `${p.name} ✓` : p.name,
   }));
-  const modelOptions = models.map((m) => ({
+  const modelOptions = availableModels.map((m) => ({
     value: m.id,
     label: m.contextWindow ? `${m.name} (${Math.round(m.contextWindow / 1000)}k)` : m.name,
   }));
@@ -336,7 +390,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     xhigh: 'X-High',
     max: 'Max',
   };
-  const activeModel = models.find((m) => m.id === modelId) ?? null;
+  const activeModel = availableModels.find((m) => m.id === modelId) ?? null;
+  const modelCapabilities = activeModel?.capabilities ?? [];
+  const supportsImages = modelCapabilities.length === 0 || modelCapabilities.some((capability) => /image|vision|multimodal/i.test(capability));
   const reasoningOptions = activeModel?.reasoningOptions ?? [];
   const effortOption = reasoningOptions.find((o) => o.type === 'effort');
   const hasReasoning = !!(activeModel?.capabilities ?? []).includes('reasoning') || reasoningOptions.length > 0;
@@ -382,14 +438,20 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
           )}
         </button>
 
-        <span className="font-mono text-[10px] font-black tracking-[0.2em] uppercase text-[var(--text-primary)]">
-          AGENT::{index + 1}
-        </span>
-        <span className="w-px h-3.5 bg-[var(--border-primary)]" />
-        <span className="font-mono text-[10px] text-[var(--text-secondary)] truncate min-w-0 max-w-[90px] md:max-w-[160px]" title={title}>
+        <span className="text-[11px] font-medium text-[var(--text-primary)] truncate min-w-0 max-w-[160px] md:max-w-[280px]" title={title}>
           {title}
         </span>
         {showHeaderExtras && <span className="hidden xl:inline-flex items-center gap-1 shrink-0">{MODE_ICON[mode]}</span>}
+        {!showHeaderExtras && (
+          <span
+            className="min-w-0 max-w-[min(38vw,260px)] flex items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)]/45 px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-secondary)]"
+            title={`Provider: ${providerName}\nModel: ${modelName}`}
+            aria-label={`Provider ${providerName}; model ${modelName}`}
+          >
+            <Icon icon="material-symbols:memory-alt-rounded" className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+            <span className="truncate">{connectionLabel}</span>
+          </span>
+        )}
 
         {/* Right-side controls */}
         <div className="ml-auto flex items-center gap-1.5 shrink-0 min-w-0">
@@ -408,7 +470,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               <span className="font-mono text-[9px] text-[var(--text-secondary)]/50 tabular-nums hidden sm:inline" title="Elapsed">
                 {mm}:{ss}
               </span>
-              <UsageMeter usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} />
+              <UsageMeter usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} budget={session.maxTotalTokens ?? null} />
               <AgentSelect
                 value={providerId ?? ''}
                 onChange={handleProviderChange}
@@ -418,7 +480,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               <AgentSelect
                 value={modelId ?? ''}
                 onChange={handleModelChange}
-                disabled={!providerId || modelsLoading || models.length === 0}
+                disabled={!providerId || modelsLoading || availableModels.length === 0}
                 placeholder={modelsLoading ? 'Loading…' : 'Model'}
                 searchPlaceholder="Search models…"
                 options={modelOptions}
@@ -482,6 +544,29 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             </span>
           )}
 
+          <button
+            type="button"
+            onClick={() => void handleFreeMode()}
+            disabled={switchingToFree}
+            title={
+              configuredProviders.has(OPENROUTER_PROVIDER_ID)
+                ? 'Switch this session to OpenRouter Free Models Router'
+                : 'Configure OpenRouter to enable Free mode'
+            }
+            className={`h-6 flex items-center gap-1 rounded-md border px-1.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 ${
+              providerId === OPENROUTER_PROVIDER_ID && modelId === OPENROUTER_FREE_MODEL_ID
+                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
+                : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-400'
+            } ${switchingToFree ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}
+          >
+            <Icon
+              icon={switchingToFree ? 'svg-spinners:3-dots-fade' : 'material-symbols:bolt-rounded'}
+              className="h-3.5 w-3.5"
+              aria-hidden="true"
+            />
+            {!isVeryNarrow && <span>{providerId === OPENROUTER_PROVIDER_ID && modelId === OPENROUTER_FREE_MODEL_ID ? 'Free active' : 'Free mode'}</span>}
+          </button>
+
           {/* Start a new chat (clears all context for this agent) */}
           <button
             onClick={() => onNewChat(session.sessionId)}
@@ -519,12 +604,31 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
         </div>
       </div>
 
+      {freeModeNotice && (
+        <div
+          role="status"
+          className="shrink-0 flex items-center gap-2 px-2.5 py-1 border-b border-[var(--border-primary)] bg-emerald-500/[0.045] text-[10px] text-[var(--text-secondary)]"
+        >
+          <Icon icon={configuredProviders.has(OPENROUTER_PROVIDER_ID) ? 'material-symbols:verified-rounded' : 'material-symbols:info-rounded'} className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
+          <span className="min-w-0 truncate">{freeModeNotice}</span>
+          <button
+            type="button"
+            onClick={() => setFreeModeNotice(null)}
+            className="ml-auto shrink-0 rounded p-0.5 text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+            title="Dismiss"
+            aria-label="Dismiss Free mode notice"
+          >
+            <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {/* Slim status line (minimal mode, only while the agent is active) */}
       {showSlimLine && (
         <div className="shrink-0 flex items-center gap-2 px-2.5 py-1 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/25 select-none overflow-hidden">
           <span
             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-              status === 'running'
+              isWorking
                 ? 'bg-[var(--accent)] animate-pulse'
                 : status === 'error'
                   ? 'bg-rose-500'
@@ -535,23 +639,10 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             {statusMeta.label}
           </span>
           {activeTool && (
-            <span className="flex items-center gap-1.5 font-mono text-[9px] text-[var(--accent)] shrink-0">
+            <span className="flex items-center gap-1.5 text-[10px] text-[var(--accent)] shrink-0">
               <span className="w-2.5 h-2.5 rounded-full border-[1.5px] border-[var(--accent-border)] border-t-transparent animate-spin" />
-              {String(activeTool.name)}
+              Working on your request
             </span>
-          )}
-          {iterations > 0 && (
-            <span className="font-mono text-[9px] text-[var(--text-secondary)]/60 tabular-nums shrink-0">itr {iterations}</span>
-          )}
-          {toolCount > 0 && (
-            <span className="font-mono text-[9px] text-[var(--text-secondary)]/60 tabular-nums shrink-0">tools {toolCount}</span>
-          )}
-          <span className="font-mono text-[9px] text-[var(--text-secondary)]/50 tabular-nums shrink-0">{mm}:{ss}</span>
-          <span className="ml-auto font-mono text-[9px] tabular-nums text-[var(--text-secondary)]/70 shrink-0" title="Context window usage">
-            ctx {ctxPct.toFixed(0)}%
-          </span>
-          {mcpServers.length > 0 && (
-            <span className="font-mono text-[9px] text-[var(--text-secondary)]/50 shrink-0">MCP {mcpServers.length}</span>
           )}
           {error && (
             <span className="font-mono text-[9px] text-rose-500 truncate max-w-[140px] shrink-0" title={error}>
@@ -563,7 +654,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
 
       {/* Context window gauge (full mode; collapses to a slim line when short) */}
       {uiMode === 'full' && (
-        <ContextGauge usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} slim={isShort} />
+        <ContextGauge usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} slim={isShort} />
       )}
 
       {/* Linked MCP servers status (full mode; collapses to one chip when tight) */}
@@ -585,8 +676,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             streamingThinking={streamingThinking}
             activeTool={activeTool}
             toolLog={toolLog}
-            isThinking={status === 'running' && !streamingText && !streamingThinking && !activeTool}
+            isThinking={isWorking && !streamingText && !streamingThinking && !activeTool}
             notice={notice}
+            compaction={compaction}
             pendingQuestion={pendingQuestion}
             onAnswerQuestion={handleAnswerQuestion}
           />
@@ -600,13 +692,14 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
           {/* Input */}
           <AgentInput
             disabled={!session.sessionId}
-            isRunning={status === 'running'}
+            isRunning={isWorking}
             mode={mode}
             onModeChange={setMode}
             onSend={handleSend}
             onAbort={abort}
             placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
             compact={inputCompact}
+            supportsImages={supportsImages}
           />
         </div>
 
@@ -694,7 +787,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
           <AgentSelect
             value={modelId ?? ''}
             onChange={handleModelChange}
-            disabled={!providerId || modelsLoading || models.length === 0}
+            disabled={!providerId || modelsLoading || availableModels.length === 0}
             placeholder={modelsLoading ? 'Loading…' : 'Model'}
             searchPlaceholder="Search models…"
             options={modelOptions}
@@ -711,7 +804,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             />
           )}
 
-          <UsageMeter usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} />
+          <UsageMeter usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} budget={session.maxTotalTokens ?? null} />
 
           <div className="flex items-center justify-between px-1 font-mono text-[9px] text-[var(--text-secondary)]/60 tabular-nums">
             <span>iterations <b className="text-[var(--text-primary)]">{iterations}</b></span>

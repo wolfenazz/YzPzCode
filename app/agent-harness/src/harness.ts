@@ -36,7 +36,8 @@ import {
 import type { ToolApprovalRequest, ToolApprovalResult, ToolPolicy } from "@cline/core";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { homedir } from "node:os";
+import { basename, isAbsolute, join } from "node:path";
 import { buildSystemPrompt } from "./branding.js";
 import { ProviderConfigStore } from "./store.js";
 import {
@@ -73,6 +74,55 @@ const DEFAULT_MAX_ITERATIONS = 20;
 // Recent context preserved verbatim after compaction. PI uses keepRecentTokens
 // = 20000 for its default 96K budget; we mirror that here (scaled to our cap).
 const COMPACTION_PRESERVE_RECENT_TOKENS = 12_000;
+
+/** Shared skills are user-level capabilities, never workspace-local state. */
+const uniqueDirectories = (directories: string[]): string[] => {
+  const seen = new Set<string>();
+  return directories.filter((directory) => {
+    const key = process.platform === "win32" ? directory.toLowerCase() : directory;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const globalSkillDirectories = (dataDir?: string): string[] => {
+  const home = homedir();
+  const xdgConfigHome = process.env.XDG_CONFIG_HOME?.trim();
+  return uniqueDirectories([
+    ...(dataDir ? [join(dataDir, "skills")] : []),
+    join(home, ".config", "opencode", "skills"),
+    ...(xdgConfigHome ? [join(xdgConfigHome, "opencode", "skills")] : []),
+    join(home, ".codex", "skills"),
+    join(home, ".claude", "skills"),
+    join(home, ".agents", "skills"),
+  ]);
+};
+
+const compatibleSkillDirectories = (dataDir: string): string[] => globalSkillDirectories(dataDir);
+
+const markdownFilesUnder = (directory: string): string[] => {
+  if (!existsSync(directory)) return [];
+  const files: string[] = [];
+  const directories = [directory];
+  while (directories.length > 0) {
+    const current = directories.pop();
+    if (!current) continue;
+    try {
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        const filePath = join(current, entry.name);
+        if (entry.isDirectory()) {
+          directories.push(filePath);
+        } else if (entry.isFile() && entry.name.endsWith(".md")) {
+          files.push(filePath);
+        }
+      }
+    } catch {
+      // An unreadable global skill directory should not hide the remaining catalog.
+    }
+  }
+  return files;
+};
 
 // Read-only tools are auto-approved by default; mutations require approval.
 // Keys must match the SDK's resolved tool IDs (getCoreBuiltinToolCatalog):
@@ -143,6 +193,10 @@ interface CreateSessionArgs {
   enableAgentTeams?: boolean;
   teamName?: string;
   compactionStrategy?: "basic" | "agentic";
+  /** Max cumulative total tokens for the session (input + output + cacheRead);
+   *  0 or omitted = unlimited. Enforced in afterModelHook against the
+   *  per-session accumulated usage. */
+  maxTotalTokens?: number;
 }
 
 /** Per-tool policy persisted globally in the YZPZ Agent data dir. */
@@ -214,6 +268,13 @@ export class AgentHarness {
   /** Sessions currently alive in the SDK's in-memory runtime (resumable in place). */
   private activeSessions = new Set<string>();
   /**
+   * Sessions with a model turn currently in flight. This is deliberately
+   * separate from `activeSessions`: a freshly created or completed session is
+   * alive, but its next user message must start a normal turn rather than be
+   * queued as a follow-up steer message.
+   */
+  private runningSessions = new Set<string>();
+  /**
    * Per-session pending user messages received while a turn is in flight.
    * Delivered to the runtime via `delivery: "steer"` (the SDK's native
    * pendingPromptsController drains these after the current turn) and mirrored
@@ -222,6 +283,17 @@ export class AgentHarness {
   private steeringBySession = new Map<string, string[]>();
   /** Workspace root per session — used to resolve relative file paths correctly. */
   private sessionCwd = new Map<string, string>();
+  /**
+   * Cumulative token usage per session, accumulated from `usage` /
+   * `usage-updated` agent events. Drives the live usage meter and the
+   * total-token budget enforced in afterModelHook.
+   */
+  private usageBySession = new Map<
+    string,
+    { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; totalCost: number }
+  >();
+  /** Per-session max total tokens (0 = unlimited). */
+  private budgets = new Map<string, number>();
   readonly dataDir: string;
   private prefsFile: string;
   private prefs: Record<string, unknown>;
@@ -453,18 +525,69 @@ export class AgentHarness {
     if (!this.cline) return;
     this.cline.subscribe((event: CoreSessionEvent) => {
       this.sink("session-event", event);
+      // Cumulative usage telemetry: intercept usage deltas from the SDK and
+      // accumulate them per session so the frontend can render a live meter
+      // and the afterModelHook budget guard can enforce a total-token cap.
+      // The inner event shape is event.payload.event (see the `done` handling
+      // below); malformed payloads are skipped, never thrown on.
+      if (
+        event.type === "agent_event" &&
+        (event.payload?.event?.type === "usage" || event.payload?.event?.type === "usage-updated")
+      ) {
+        const sessionId =
+          typeof event.payload?.sessionId === "string" ? event.payload.sessionId : undefined;
+        const inner = (event.payload?.event ?? {}) as Record<string, unknown>;
+        if (sessionId) {
+          const prev = this.usageBySession.get(sessionId) ?? {
+            inputTokens: 0,
+            outputTokens: 0,
+            cacheReadTokens: 0,
+            cacheWriteTokens: 0,
+            totalCost: 0,
+          };
+          const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+          const cost = typeof inner.totalCost === "number" ? inner.totalCost : inner.cost;
+          const usage = {
+            inputTokens: prev.inputTokens + num(inner.inputTokens),
+            outputTokens: prev.outputTokens + num(inner.outputTokens),
+            cacheReadTokens: prev.cacheReadTokens + num(inner.cacheReadTokens),
+            cacheWriteTokens: prev.cacheWriteTokens + num(inner.cacheWriteTokens),
+            totalCost: prev.totalCost + num(cost),
+          };
+          this.usageBySession.set(sessionId, usage);
+          this.sink("usage-updated", { sessionId, usage });
+          // Keep the current provider-request size separate from cumulative
+          // session usage. A compacted conversation can have a small prompt
+          // while its lifetime usage is large; displaying the latter as
+          // "Context" made successful compaction look like a failure.
+          this.sink("context-updated", {
+            sessionId,
+            inputTokens: num(inner.inputTokens),
+            cacheReadTokens: num(inner.cacheReadTokens),
+            totalTokens: num(inner.inputTokens) + num(inner.cacheReadTokens),
+          });
+        }
+      }
       if (event.type === "status") {
+        const status = String(event.payload.status ?? "").toLowerCase();
+        if (["running", "working", "starting"].includes(status)) {
+          this.runningSessions.add(event.payload.sessionId);
+        } else if (["idle", "completed", "failed", "aborted", "stopped"].includes(status)) {
+          this.runningSessions.delete(event.payload.sessionId);
+        }
         this.sink("session-status", { sessionId: event.payload.sessionId, status: event.payload.status });
       } else if (event.type === "ended") {
         // The SDK removes the session from its in-memory runtime when it ends
         // (failure / teardown). Keep our tracking in sync so a later send can
         // transparently rehydrate it from disk.
         this.activeSessions.delete(event.payload.sessionId);
+        this.runningSessions.delete(event.payload.sessionId);
         this.steeringBySession.delete(event.payload.sessionId);
         this.sink("session-ended", event.payload);
       } else if (event.type === "team_progress") {
         this.sink("team-progress", event.payload);
       } else if (event.type === "agent_event" && event.payload?.event?.type === "done") {
+        this.runningSessions.delete(event.payload.sessionId);
         // PI-style completion guard: if the model stopped while the visible
         // task list still has unfinished items, steer a follow-up so it keeps
         // working instead of stopping prematurely. Native `delivery:"steer"`
@@ -515,8 +638,7 @@ export class AgentHarness {
   private async buildUserInstructionService(cwd: string): Promise<UserInstructionConfigService> {
     const svc = createUserInstructionConfigService({
       skills: {
-        workspacePath: cwd,
-        directories: [join(this.dataDir, "skills")],
+        directories: compatibleSkillDirectories(this.dataDir),
       },
       rules: {
         workspacePath: cwd,
@@ -535,7 +657,7 @@ export class AgentHarness {
   private getGlobalUserInstructionService(): UserInstructionConfigService {
     if (!this.globalUserInstructionService) {
       this.globalUserInstructionService = createUserInstructionConfigService({
-        skills: { directories: [join(this.dataDir, "skills")] },
+        skills: { directories: compatibleSkillDirectories(this.dataDir) },
         rules: { directories: [join(this.dataDir, "rules")] },
         workflows: { directories: [join(this.dataDir, "workflows")] },
       });
@@ -631,7 +753,20 @@ export class AgentHarness {
     const sessionId = args.sessionId?.trim() || `yzpz-${randomUUID()}`;
     this.sessionCwd.set(sessionId, args.cwd);
 
-    // Per-workspace skills/workflows/rules (global dirs are included inside).
+    // Per-session cumulative token budget (0 = unlimited). afterModelHook
+    // enforces it against the accumulated usage tracked in usageBySession.
+    this.budgets.set(sessionId, args.maxTotalTokens ?? 0);
+    this.usageBySession.delete(sessionId); // clear any stale entry from a prior run
+    this.usageBySession.set(sessionId, {
+      inputTokens: 0,
+      outputTokens: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      totalCost: 0,
+    });
+
+    // Skills are global user capabilities; workflows and rules remain scoped
+    // to the current workspace.
     const userInstructionService = await this.buildUserInstructionService(args.cwd);
 
     try {
@@ -643,6 +778,7 @@ export class AgentHarness {
           providerId: args.providerId,
           modelId: args.modelId,
           yzpz: true,
+          maxTotalTokens: args.maxTotalTokens ?? 0,
         },
         config: {
           providerId: args.providerId,
@@ -654,7 +790,11 @@ export class AgentHarness {
           workspaceRoot: args.cwd,
           enableTools: true,
           enableSpawnAgent: true,
-          enableAgentTeams: args.enableAgentTeams ?? false,
+          // Team tools are available to every session, but only orchestration
+          // mode instructs the model to delegate. This lets a user switch into
+          // orchestration after creating an agent without silently disabling
+          // the runtime capability it needs.
+          enableAgentTeams: args.enableAgentTeams ?? true,
           teamName: args.teamName ?? "YZPZ",
           maxTokensPerTurn: DEFAULT_MAX_OUTPUT_TOKENS,
           maxIterations: DEFAULT_MAX_ITERATIONS,
@@ -821,7 +961,13 @@ export class AgentHarness {
     return { resumed: true, sessionId };
   }
 
-  async sendMessage(sessionId: string, prompt: string, mode?: string): Promise<unknown> {
+  async sendMessage(
+    sessionId: string,
+    prompt: string,
+    mode?: string,
+    userImages: string[] = [],
+    userFiles: string[] = [],
+  ): Promise<unknown> {
     const cline = this.requireCline();
 
     // If the session is not alive in the SDK's runtime (closed pane, app
@@ -849,12 +995,28 @@ export class AgentHarness {
           : mode === "orchestrator"
             ? "act"
             : undefined;
+    const runtimePrompt =
+      mode === "orchestrator"
+        ? [
+            "ORCHESTRATION MODE",
+            "You are the coordinating lead. For work that benefits from parallel or independent investigation, create and direct focused teammates through the available team tools. Keep ownership clear, monitor their results, and integrate the final answer yourself. Do not delegate a tiny task merely for show.",
+            "User request:",
+            prompt,
+          ].join("\n\n")
+        : prompt;
 
-    // PI-style steering: if the session is mid-turn, deliver via the SDK's
-    // "steer" channel (injected after the current turn) and also mirror into
-    // our consumePendingUserMessage buffer so the message survives rehydrates.
-    if (this.activeSessions.has(sessionId)) {
-      this.steerSession(sessionId, prompt);
+    // PI-style steering: only an in-flight turn receives a follow-up through
+    // the SDK's "steer" channel. `activeSessions` only tells us the session
+    // exists in memory; treating it as "running" left a new chat's first
+    // message queued forever with no turn to drain it.
+    const isRunning = this.runningSessions.has(sessionId);
+    if (isRunning) {
+      this.steerSession(sessionId, runtimePrompt);
+    } else {
+      // Mark this before the asynchronous send begins so a quick second
+      // message is correctly queued as a follow-up rather than starting a
+      // competing turn.
+      this.runningSessions.add(sessionId);
     }
 
     // Fire-and-forget: the turn runs in the background and streams events via
@@ -864,11 +1026,14 @@ export class AgentHarness {
     void cline
       .send({
         sessionId,
-        prompt,
+        prompt: runtimePrompt,
         mode: sdkMode as never,
-        delivery: this.activeSessions.has(sessionId) ? ("steer" as never) : undefined,
+        userImages,
+        userFiles,
+        delivery: isRunning ? ("steer" as never) : undefined,
       })
       .catch((err: unknown) => {
+        this.runningSessions.delete(sessionId);
         this.sink("session-error", {
           sessionId,
           error: err instanceof Error ? err.message : String(err),
@@ -1030,6 +1195,23 @@ export class AgentHarness {
     sessionId: string,
     ctx: { finishReason?: string },
   ): { stop?: boolean; reason?: string } | undefined {
+    // Enforce the cumulative total-token budget (0 = unlimited). Count input +
+    // output + cache-read tokens; once the limit is hit, stop the loop and tell
+    // the UI why instead of letting the session keep burning tokens.
+    const u = this.usageBySession.get(sessionId);
+    const limit = this.budgets.get(sessionId) ?? 0;
+    if (limit > 0 && u) {
+      const total = u.inputTokens + u.outputTokens + u.cacheReadTokens;
+      if (total >= limit) {
+        this.sink("session-ended", { sessionId, reason: "token-budget-exceeded", ts: Date.now() });
+        this.sink("notice", {
+          sessionId,
+          message: `Token budget exceeded — stopped at ${total} / ${limit} tokens to prevent runaway usage.`,
+        });
+        this.sink("session-status", { sessionId, status: "done" });
+        return { stop: true, reason: "token-budget-exceeded" };
+      }
+    }
     if (ctx.finishReason === "max-tokens") {
       this.sink("notice", {
         sessionId,
@@ -1124,20 +1306,33 @@ export class AgentHarness {
     },
   ): Promise<unknown> {
     const cline = this.requireCline();
+    const session = (await cline.get(sessionId)) as { metadata?: Record<string, unknown> } | undefined;
+    const metadata = session?.metadata ?? {};
+    const targetProviderId = (update.providerId ?? metadata.providerId) as string | undefined;
+    const savedProviderConfig = targetProviderId ? this.getProviderStore().get(targetProviderId) : undefined;
+
     // Build the SDK update explicitly, dropping undefined/null for the reasoning
     // fields so a model switch never clears an effort the user already chose.
     const sdkUpdate: Record<string, unknown> = {};
     if (update.providerId !== undefined) sdkUpdate.providerId = update.providerId;
     if (update.modelId !== undefined) sdkUpdate.modelId = update.modelId;
-    if (update.apiKey !== undefined) sdkUpdate.apiKey = update.apiKey;
-    if (update.baseUrl !== undefined) sdkUpdate.baseUrl = update.baseUrl;
+    if (update.apiKey !== undefined) {
+      sdkUpdate.apiKey = update.apiKey;
+    } else if (update.providerId !== undefined && savedProviderConfig?.apiKey) {
+      // A UI provider switch does not send secrets back through the renderer.
+      // Reuse the key held by the harness for the newly-selected provider.
+      sdkUpdate.apiKey = savedProviderConfig.apiKey;
+    }
+    if (update.baseUrl !== undefined) {
+      sdkUpdate.baseUrl = update.baseUrl;
+    } else if (update.providerId !== undefined && savedProviderConfig?.baseUrl) {
+      sdkUpdate.baseUrl = savedProviderConfig.baseUrl;
+    }
     if (update.thinking !== undefined && update.thinking !== null) sdkUpdate.thinking = update.thinking;
     if (update.reasoningEffort !== undefined && update.reasoningEffort !== null) sdkUpdate.reasoningEffort = update.reasoningEffort;
     await cline.updateSessionConnection(sessionId, sdkUpdate);
 
     // Persist the new connection in session metadata so it survives restores.
-    const session = (await cline.get(sessionId)) as { metadata?: Record<string, unknown> } | undefined;
-    const metadata = session?.metadata ?? {};
     await cline.update(sessionId, {
       metadata: {
         ...metadata,
@@ -1165,6 +1360,7 @@ export class AgentHarness {
 
   async abort(sessionId: string): Promise<void> {
     await this.requireCline().abort(sessionId);
+    this.runningSessions.delete(sessionId);
   }
 
   /** Unlink a provider (removes its credentials from the global store). */
@@ -1295,6 +1491,8 @@ export class AgentHarness {
     this.sessionModes.delete(sessionId);
     this.steeringBySession.delete(sessionId);
     this.completionNudges.delete(sessionId);
+    this.usageBySession.delete(sessionId);
+    this.budgets.delete(sessionId);
   }
 
   async deleteSession(sessionId: string): Promise<boolean> {
@@ -1303,11 +1501,14 @@ export class AgentHarness {
       this.sink("session-deleted", { sessionId });
     }
     this.activeSessions.delete(sessionId);
+    this.runningSessions.delete(sessionId);
     this.sessionModes.delete(sessionId);
     this.steeringBySession.delete(sessionId);
     this.completionNudges.delete(sessionId);
     this.todosBySession.delete(sessionId);
     this.sessionCwd.delete(sessionId);
+    this.usageBySession.delete(sessionId);
+    this.budgets.delete(sessionId);
     this.userInstructionServices.get(sessionId)?.stop();
     this.userInstructionServices.delete(sessionId);
     return deleted;
@@ -1453,22 +1654,19 @@ export class AgentHarness {
       instructions: r.item.instructions,
     }));
 
-    // Merge a direct filesystem scan so files written by this harness are
-    // visible immediately, independent of the config watcher's debounce.
-    const dir =
+    // Merge a direct scan so global skill packages (normally nested as
+    // `<skill>/SKILL.md`) are visible immediately, independent of the config
+    // watcher's debounce.
+    const directories =
       type === "skill"
-        ? join(this.dataDir, "skills")
-        : type === "workflow"
-          ? join(this.dataDir, "workflows")
-          : join(this.dataDir, "rules");
-    if (existsSync(dir)) {
-      for (const file of readdirSync(dir)) {
-        if (!file.endsWith(".md")) continue;
-        const filePath = join(dir, file);
+        ? compatibleSkillDirectories(this.dataDir)
+        : [join(this.dataDir, type === "workflow" ? "workflows" : "rules")];
+    for (const directory of directories) {
+      for (const filePath of markdownFilesUnder(directory)) {
         if (out.some((r) => r.filePath === filePath)) continue;
         try {
           const raw = readFileSync(filePath, "utf8");
-          const fallback = file.replace(/\.md$/, "");
+          const fallback = basename(filePath).replace(/\.md$/, "");
           const item =
             type === "skill"
               ? parseSkillConfigFromMarkdown(raw, fallback)
@@ -1566,9 +1764,12 @@ export class AgentHarness {
     this.questions.clear();
     this.sessionModes.clear();
     this.activeSessions.clear();
+    this.runningSessions.clear();
     this.steeringBySession.clear();
     this.completionNudges.clear();
     this.todosBySession.clear();
+    this.usageBySession.clear();
+    this.budgets.clear();
     for (const svc of this.userInstructionServices.values()) {
       try {
         svc.stop();

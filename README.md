@@ -6,7 +6,7 @@
 
 <p><strong>Your AI Coding Squad, One Window Away.</strong></p>
 
-<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, and Pi together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, and an AI-powered designer.<br>Now with a built-in AI coding agent (YZPZ Agent), powered by the Cline SDK.</i></p>
+<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, and Pi together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, an AI-powered designer,<br>and a Photoshop-style built-in image editor — plus a built-in AI coding agent (YZPZ Agent), powered by the Cline SDK.</i></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=for-the-badge&logo=github&color=yellow)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app)
@@ -116,6 +116,12 @@
 <td><b>Agent Teams & Approvals</b><br><sub>Orchestrate sub-agents, approve tool requests, and track todos in real time.</sub></td>
 <td><b>Rich Prompt Editor</b><br><sub>Formatting toolbar plus `@` file mentions that resolve to workspace paths.</sub></td>
 <td><b>Inspector Quick Prompts</b><br><sub>One-click preset prompts (Enhance / Adjust) for the element inspector — fully customizable.</sub></td>
+</tr>
+<tr>
+<td><b>Image Editor</b><br><sub>Photoshop-style built-in editor with a layer system, painting, selections, and undo history.</sub></td>
+<td><b>Layer System</b><br><sub>Raster, image, text, and shape layers with opacity, locking, and 16 blend modes.</sub></td>
+<td><b>Full Toolset</b><br><sub>Move, marquee, lasso, crop, brush, eraser, fill, text, shapes, eyedropper, zoom & hand tools.</sub></td>
+<td><b>Image View</b><br><sub>Open PNG, JPG, WebP, SVG, GIF, BMP, AVIF & TIFF files right in the workspace.</sub></td>
 </tr>
 </table>
 
@@ -354,7 +360,7 @@ Generates a native installer for your platform. Small, fast, no bloat.
 
 | Layer | Stack |
 |:-----:|-------|
-| **Frontend** | React 19 + TypeScript · Vite 6 · Tailwind CSS v4 · Zustand 5 · xterm.js 6 · Monaco Editor · framer-motion |
+| **Frontend** | React 19 + TypeScript · Vite 6 · Tailwind CSS v4 · Zustand 5 · xterm.js 6 · Monaco Editor · Konva (react-konva) · framer-motion |
 | **Backend** | Tauri v2 (Rust) · portable-pty · Tokio · WebSocket (tokio-tungstenite) · discord-rich-presence · anyhow/serde |
 | **Agent Sidecar** | Node.js 22+ · Cline SDK (@cline/sdk) · WebSocket server |
 
@@ -375,6 +381,7 @@ graph TB
         Editor[File Editor]
         AgentView[Agent View]
         Settings[Settings Screen]
+        ImageEditor[Image Editor]
     end
 
     subgraph Backend["Backend — Rust + Tauri v2"]
@@ -432,6 +439,7 @@ graph TB
     Browser --> Store
     Designer --> Store
     Settings --> Store
+    ImageEditor --> Store
     
     Store <-->|Tauri IPC| Commands
     Commands --> PTY
@@ -488,6 +496,7 @@ app/
 │   │   ├── workspace/              # Terminal grid, agent view, browser, sessions
 │   │   ├── explorer/               # File explorer & git panels
 │   │   ├── editor/                 # Monaco code editor + rich file previews
+│   │   ├── image/                  # Built-in image editor (layers, paint, Konva)
 │   │   ├── designer/               # AI-powered design tools
 │   │   ├── settings/               # 12-section settings panel
 │   │   ├── common/                 # Shared UI components
@@ -505,11 +514,12 @@ app/
 ## - Features Deep Dive
 
 ### Workspace Views
-Switch between four views in any workspace:
+Switch between five views in any workspace:
 1. **Terminal View** — Multi-pane PTY terminal grid
 2. **Agent View** — Built-in YZPZ Agent chat with tool logs, approvals, and usage gauges
 3. **Editor View** — Monaco-based multi-tab editor with syntax highlighting and rich file previews
 4. **Browser View** — In-app web browser with dev tools
+5. **Image View** — Photoshop-style image editor with layers, painting, selections, and history
 
 ### Multi-Workspace Tabs
 Open multiple workspaces and switch between them with dedicated tabs. Each workspace maintains its own terminal sessions, open files, browser state, and active view.
@@ -525,6 +535,21 @@ Format prompts with a rich-text toolbar (bold, italic, code, quotes, lists, link
 
 ### Spreadsheet & Diagram Editing
 Edit XLSX/CSV spreadsheets directly in-app with a Glide-Data-Grid-based spreadsheet editor, and preview `.drawio` diagrams with the bundled draw.io viewer (fetched and verified at install time, no CDN needed at runtime).
+
+### Built-in Image Editor
+A Photoshop-style image editor lives right inside the workspace — open any image file (PNG, JPG, WebP, SVG, GIF, BMP, AVIF, TIFF) or create a new document to start editing:
+
+- **Layer System**: Raster, image, text, and shape layers with thumbnails, visibility, locking, opacity, rotation, and 16 blend modes
+- **Full Toolset**: Move, rectangular/elliptical marquee, lasso, crop, brush, eraser, flood fill, eyedropper, text, shapes (rect/ellipse/line), and hand & zoom tools — with keyboard shortcuts
+- **Selections**: Rect, ellipse, and lasso selection masks with inversion
+- **Pixel-Accurate Painting**: Painting runs on offscreen per-layer canvases in document space
+- **Undo History**: Full-document snapshots captured at every operation boundary
+- **Properties & Color**: Layer properties panel and a built-in color picker
+- **Survives View Switches**: The editor stays mounted across workspace view changes — documents, layers, and undo history are preserved
+- **New / Open / Save**: Create documents (transparent/white/black background), open files, and export flattened images
+
+### Terminal Fonts
+Choose from bundled monospace fonts (Cascadia Mono, JetBrains Mono, Fira Code) or platform-native options — the terminal settings panel shows which fonts are built into your OS, which ship bundled with the app, and which need a manual install, complete with download links and per-OS install steps.
 
 ### Discord Rich Presence
 Show what you're working on in your Discord profile — workspace name, activity details, and current state with timestamps.

@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAgentHost } from './useAgentHost';
 import { useAppStore } from '../stores/appStore';
 import type {
+  AgentAttachment,
   AgentAccumulatedUsage,
   AgentApprovalRequest,
   AgentMode,
   AgentQuestion,
   AgentSubAgentActivity,
+  AgentSubAgentEvent,
   AgentTeamProgressSummary,
   AgentTodo,
 } from '../types';
@@ -21,10 +23,11 @@ export interface ClineMessage {
 
 export type ClineContentBlock =
   | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_use'; id: string; name: string; input: unknown; status?: 'running' | 'done'; result?: unknown; isError?: boolean }
   | { type: 'tool_result'; toolUseId?: string; content?: unknown; isError?: boolean }
   | { type: 'thinking' | 'reasoning'; text?: string; thinking?: string; content?: string }
-  | { type: 'image'; source?: unknown; mediaType?: string; data?: string };
+  | { type: 'image'; source?: unknown; mediaType?: string; data?: string; name?: string; path?: string }
+  | { type: 'attachment'; attachment: AgentAttachment };
 
 export type AgentPaneStatus = 'idle' | 'starting' | 'running' | 'done' | 'error';
 
@@ -38,6 +41,14 @@ export interface ToolLogEntry {
   isError?: boolean;
 }
 
+export interface AgentCompactionStatus {
+  phase: 'working' | 'completed' | 'skipped' | 'failed';
+  tokensBefore?: number;
+  tokensAfter?: number;
+  messagesBefore?: number;
+  messagesAfter?: number;
+}
+
 export interface AgentSessionState {
   messages: ClineMessage[];
   streamingText: string;
@@ -48,6 +59,8 @@ export interface AgentSessionState {
   approvals: AgentApprovalRequest[];
   mode: AgentMode;
   usage: AgentAccumulatedUsage | null;
+  contextTokens: number | null;
+  compaction: AgentCompactionStatus | null;
   aggregateUsage: AgentAccumulatedUsage | null;
   team: AgentTeamProgressSummary | null;
   subAgents: AgentSubAgentActivity[];
@@ -82,6 +95,61 @@ const pick = (obj: Record<string, unknown>, keys: string[]): unknown => {
 };
 
 const toNumber = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/** Runtime adapters may send either a delta or the accumulated text on each event. */
+const mergeStreamChunk = (previous: string, chunk: string, accumulated = ''): string => {
+  if (accumulated) return accumulated;
+  const isRepeatedMessage = chunk.trim().length > 24 && previous.includes(chunk);
+  if (!chunk || previous.endsWith(chunk) || isRepeatedMessage) return previous;
+  return previous + chunk;
+};
+
+const reasoningText = (block: ClineContentBlock | undefined): string => {
+  if (!block || (block.type !== 'thinking' && block.type !== 'reasoning')) return '';
+  return block.text ?? block.thinking ?? block.content ?? '';
+};
+
+const normalizedReasoningText = (text: string): string => text.replace(/\s+/g, ' ').trim();
+
+const MAX_SUB_AGENT_EVENTS = 18;
+
+const summarizeSubAgentEvent = (
+  event: Record<string, unknown>,
+): { kind: AgentSubAgentEvent['kind']; summary: string; status?: AgentSubAgentActivity['status']; isTask: boolean } => {
+  const type = extractString(event, ['type']).toLowerCase();
+  const toolName = extractString(event, ['toolName', 'tool_name', 'name']);
+  const detail = extractString(event, ['text', 'content', 'message', 'thinking', 'reasoning', 'summary', 'error']);
+  const conciseDetail = detail.replace(/\s+/g, ' ').trim().slice(0, 480);
+
+  if (type.includes('error') || type.includes('fail')) {
+    return { kind: 'status', summary: conciseDetail || 'Reported an error', status: 'error', isTask: false };
+  }
+  if (toolName) {
+    const finished = type.includes('end') || type.includes('result') || type.includes('complete');
+    return {
+      kind: finished ? 'result' : 'tool',
+      summary: `${finished ? 'Finished' : 'Using'} ${toolName}${conciseDetail ? ` — ${conciseDetail}` : ''}`,
+      isTask: false,
+    };
+  }
+  if (type.includes('think') || type.includes('reason')) {
+    return { kind: 'reasoning', summary: conciseDetail || 'Reviewing the task', isTask: false };
+  }
+  if (type.includes('done') || type.includes('agent_end') || type.includes('task_end')) {
+    return { kind: 'status', summary: conciseDetail || 'Completed assigned work', status: 'done', isTask: false };
+  }
+  if (type.includes('task') || type.includes('start')) {
+    return { kind: 'status', summary: conciseDetail || 'Started assigned work', status: 'running', isTask: true };
+  }
+  return { kind: 'message', summary: conciseDetail || 'Working on assigned task', isTask: false };
+};
+
+/** Runtime and persisted transports can both report a finalized reasoning item. */
+const isRepeatedReasoning = (previous: ClineContentBlock | undefined, next: ClineContentBlock): boolean => {
+  const previousText = normalizedReasoningText(reasoningText(previous));
+  const nextText = normalizedReasoningText(reasoningText(next));
+  return Boolean(previousText && nextText && previousText === nextText);
+};
 
 /** Strip runtime-injected XML wrappers from persisted user text. */
 const cleanUserText = (text: string): string => {
@@ -138,7 +206,7 @@ const normalizeClineMessages = (raw: ClineMessage[]): ClineMessage[] => {
       // empty/internal runtime messages are dropped
     } else if (msg.role === 'assistant') {
       const content: unknown = msg.content;
-      const blocks = Array.isArray(content)
+      const rawBlocks = Array.isArray(content)
         ? (content as ClineContentBlock[])
             .map((b) => {
               if (b.type === 'text' && typeof b.text === 'string') {
@@ -151,6 +219,15 @@ const normalizeClineMessages = (raw: ClineMessage[]): ClineMessage[] => {
         : typeof content === 'string' && content.trim()
           ? [{ type: 'text' as const, text: cleanUserText(content) }]
           : [];
+      const blocks = rawBlocks.filter((block, index) => {
+        const precedingMessage = out[out.length - 1];
+        const previous = index > 0
+          ? rawBlocks[index - 1]
+          : precedingMessage?.role === 'assistant'
+            ? precedingMessage.content[precedingMessage.content.length - 1]
+            : undefined;
+        return !isRepeatedReasoning(previous, block);
+      });
       if (blocks.length === 0) continue;
       out.push({ role: 'assistant', content: blocks, providerId: msg.providerId, modelId: msg.modelId });
     }
@@ -180,6 +257,7 @@ export const useAgentSession = (
     onTeamProgress,
     onQuestionRequest,
     onTodoUpdated,
+    onContextUpdated,
   } = useAgentHost();
   const removeAgentSessionForWorkspace = useAppStore((s) => s.removeAgentSessionForWorkspace);
 
@@ -194,6 +272,8 @@ export const useAgentSession = (
   const [approvals, setApprovals] = useState<AgentApprovalRequest[]>([]);
   const [mode, setMode] = useState<AgentMode>('act');
   const [usage, setUsage] = useState<AgentAccumulatedUsage | null>(null);
+  const [contextTokens, setContextTokens] = useState<number | null>(null);
+  const [compaction, setCompaction] = useState<AgentCompactionStatus | null>(null);
   const [aggregateUsage, setAggregateUsage] = useState<AgentAccumulatedUsage | null>(null);
   const [team, setTeam] = useState<AgentTeamProgressSummary | null>(null);
   const [subAgents, setSubAgents] = useState<AgentSubAgentActivity[]>([]);
@@ -206,6 +286,7 @@ export const useAgentSession = (
   const [thinkingEffort, setThinkingEffort] = useState<string | null>(null);
 
   const sessionIdRef = useRef(sessionId);
+  const activeToolIdRef = useRef<string | null>(null);
   sessionIdRef.current = sessionId;
 
   // ── Message helpers ────────────────────────────────────────────────
@@ -227,6 +308,37 @@ export const useAgentSession = (
     });
   }, []);
 
+  /** Keep tool activity in the same chronological transcript as the prose. */
+  const appendAssistantTool = useCallback((id: string, name: string, input: unknown) => {
+    setMessages((prev) => {
+      const copy = [...prev];
+      const last = copy[copy.length - 1];
+      const block: ClineContentBlock = { type: 'tool_use', id, name, input, status: 'running' };
+      if (last?.role === 'assistant') {
+        copy[copy.length - 1] = { ...last, content: [...last.content, block] };
+      } else {
+        copy.push({ role: 'assistant', content: [block] });
+      }
+      return copy;
+    });
+  }, []);
+
+  const updateAssistantTool = useCallback((id: string, updates: {
+    input?: unknown;
+    status?: 'running' | 'done';
+    result?: unknown;
+    isError?: boolean;
+  }) => {
+    setMessages((prev) => prev.map((message) => {
+      if (message.role !== 'assistant') return message;
+      const index = message.content.findIndex((block) => block.type === 'tool_use' && block.id === id);
+      if (index < 0) return message;
+      const content = [...message.content];
+      content[index] = { ...content[index], ...updates } as ClineContentBlock;
+      return { ...message, content };
+    }));
+  }, []);
+
   const finalizeStream = useCallback((providerId?: string, modelId?: string) => {
     setStreamingText((stream) => {
       const text = stream.trim();
@@ -246,7 +358,10 @@ export const useAgentSession = (
       const copy = [...prev];
       const last = copy[copy.length - 1];
       if (last && last.role === 'assistant') {
-        last.content.push({ type: 'reasoning', text: trimmed });
+        const nextBlock: ClineContentBlock = { type: 'reasoning', text: trimmed };
+        const previousBlock = last.content[last.content.length - 1];
+        if (isRepeatedReasoning(previousBlock, nextBlock)) return prev;
+        copy[copy.length - 1] = { ...last, content: [...last.content, nextBlock] };
         return copy;
       }
       copy.push({ role: 'assistant', content: [{ type: 'reasoning', text: trimmed }] });
@@ -269,6 +384,7 @@ export const useAgentSession = (
     setToolLog([]);
     setStreamingThinking('');
     setActiveTool(null);
+    activeToolIdRef.current = null;
   }, []);
 
   const refreshMessages = useCallback(async () => {
@@ -313,14 +429,37 @@ export const useAgentSession = (
   const handleAgentEvent = useCallback(
     (event: Record<string, unknown>) => {
       const type = extractString(event, ['type']);
+      const noticeMetadata = (pick(event, ['metadata']) ?? {}) as Record<string, unknown>;
+      const noticeMessage = extractString(event, ['message', 'notice']);
+      const compactionPhase = extractString(noticeMetadata, ['phase']);
+      const compactionText = `${type} ${noticeMessage}`.toLowerCase();
+      if (compactionPhase || compactionText.includes('compacting') || compactionText.includes('compacted')) {
+        const phase: AgentCompactionStatus['phase'] =
+          compactionPhase === 'completed' || compactionText.includes('compacted')
+            ? 'completed'
+            : compactionPhase === 'skipped' || compactionText.includes('compaction-skipped')
+              ? 'skipped'
+              : compactionPhase === 'failed'
+                ? 'failed'
+                : 'working';
+        setCompaction({
+          phase,
+          tokensBefore: toNumber(noticeMetadata.tokensBefore),
+          tokensAfter: toNumber(noticeMetadata.tokensAfter),
+          messagesBefore: toNumber(noticeMetadata.messagesBefore),
+          messagesAfter: toNumber(noticeMetadata.messagesAfter),
+        });
+      }
       switch (type) {
         case 'content_start': {
           const contentType = extractString(event, ['contentType', 'content_type']);
           const toolName = extractString(event, ['toolName', 'tool_name']);
           if (contentType === 'tool' && toolName) {
             const toolInput = pick(event, ['toolInput', 'tool_input', 'input']);
-            setActiveTool({ name: toolName, input: toolInput });
             const id = `t${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+            activeToolIdRef.current = id;
+            setActiveTool({ name: toolName, input: toolInput });
+            appendAssistantTool(id, toolName, toolInput);
             setToolLog((prev) => [
               ...prev,
               { id, name: toolName, input: toolInput, startedAt: Date.now(), status: 'running' },
@@ -328,10 +467,12 @@ export const useAgentSession = (
             setToolCount((c) => c + 1);
           } else if (contentType === 'reasoning') {
             const reasoning = extractString(event, ['reasoning', 'text']);
-            if (reasoning) setStreamingThinking((prev) => prev + reasoning);
+            const accumulated = extractString(event, ['accumulated']);
+            if (reasoning) setStreamingThinking((prev) => mergeStreamChunk(prev, reasoning, accumulated));
           } else if (contentType === 'text') {
             const text = extractString(event, ['text']);
-            if (text) setStreamingText((prev) => prev + text);
+            const accumulated = extractString(event, ['accumulated']);
+            if (text) setStreamingText((prev) => mergeStreamChunk(prev, text, accumulated));
           }
           break;
         }
@@ -341,12 +482,29 @@ export const useAgentSession = (
           if (contentType === 'tool' && toolName) {
             const toolInput = pick(event, ['toolInput', 'tool_input', 'input', 'update']);
             setActiveTool((prev) => ({ name: toolName, input: toolInput ?? prev?.input }));
+            // Tool arguments stream after content_start in some SDK providers.
+            // Keep the live activity card in sync so completed editor actions
+            // retain their actual patch instead of an empty initial payload.
+            if (toolInput !== undefined) {
+              const id = activeToolIdRef.current;
+              if (id) updateAssistantTool(id, { input: toolInput });
+              setToolLog((prev) => {
+                const copy = [...prev];
+                const latest = copy[copy.length - 1];
+                if (latest?.status === 'running' && latest.name === toolName) {
+                  copy[copy.length - 1] = { ...latest, input: toolInput };
+                }
+                return copy;
+              });
+            }
           } else if (contentType === 'reasoning') {
             const reasoning = extractString(event, ['reasoning', 'text']);
-            if (reasoning) setStreamingThinking((prev) => prev + reasoning);
+            const accumulated = extractString(event, ['accumulated']);
+            if (reasoning) setStreamingThinking((prev) => mergeStreamChunk(prev, reasoning, accumulated));
           } else {
             const text = extractString(event, ['text']);
-            if (text) setStreamingText((prev) => prev + text);
+            const accumulated = extractString(event, ['accumulated']);
+            if (text) setStreamingText((prev) => mergeStreamChunk(prev, text, accumulated));
           }
           break;
         }
@@ -355,6 +513,10 @@ export const useAgentSession = (
           if (contentType === 'tool') {
             const output = pick(event, ['output', 'result']);
             const toolError = extractString(event, ['error']);
+            const id = activeToolIdRef.current;
+            if (id) {
+              updateAssistantTool(id, { status: 'done', result: output, isError: !!toolError || undefined });
+            }
             setToolLog((prev) => {
               if (prev.length === 0) return prev;
               const copy = [...prev];
@@ -370,6 +532,7 @@ export const useAgentSession = (
               return copy;
             });
             setActiveTool(null);
+            activeToolIdRef.current = null;
           } else if (contentType === 'reasoning') {
             setStreamingThinking((prev) => {
               const text = prev.trim();
@@ -406,8 +569,11 @@ export const useAgentSession = (
           break;
         }
         case 'notice': {
-          const msg = extractString(event, ['message', 'notice']);
-          if (msg) setNotice(msg);
+          const msg = noticeMessage;
+          // SDK compaction notices use concise machine labels such as
+          // "auto-compacting". The dedicated lifecycle card is clearer and
+          // keeps those internals out of the conversational timeline.
+          if (msg && !compactionPhase && !compactionText.includes('compaction') && !compactionText.includes('compacting') && !compactionText.includes('compacted')) setNotice(msg);
           break;
         }
         case 'done': {
@@ -436,7 +602,7 @@ export const useAgentSession = (
           break;
       }
     },
-    [appendAssistantReasoning, appendAssistantText, applyUsageDelta, finalizeStream, finalizeThinking, resetLiveStream, refreshMessages, refreshUsage]
+    [appendAssistantReasoning, appendAssistantText, appendAssistantTool, applyUsageDelta, finalizeStream, finalizeThinking, resetLiveStream, refreshMessages, refreshUsage, updateAssistantTool]
   );
 
   const modeRef = useRef(mode);
@@ -462,30 +628,30 @@ export const useAgentSession = (
             const teamRole = innerPayload.teamRole as 'lead' | 'teammate' | undefined;
             const teamAgentId = innerPayload.teamAgentId as string | undefined;
             if (teamRole && teamAgentId) {
-              const toolName = extractString(inner, ['toolName', 'tool_name']);
-              const type = extractString(inner, ['type']);
-              if (toolName) {
-                if (type.includes('start')) {
-                  setSubAgents((prev) => {
-                    const existing = prev.find((a) => a.agentId === teamAgentId);
-                    const entry: AgentSubAgentActivity = {
-                      agentId: teamAgentId,
-                      role: teamRole,
-                      task: toolName,
-                      status: 'running',
-                      ts: Date.now(),
-                    };
-                    const rest = existing ? prev.filter((a) => a.agentId !== teamAgentId) : prev;
-                    return [entry, ...rest].slice(0, 20);
-                  });
-                } else if (type.includes('end') || type.includes('finish') || type.includes('result')) {
-                  setSubAgents((prev) =>
-                    prev.map((a) =>
-                      a.agentId === teamAgentId && a.status === 'running' ? { ...a, status: 'done' } : a,
-                    ),
-                  );
-                }
-              }
+              const activity = summarizeSubAgentEvent(inner);
+              const now = Date.now();
+              setSubAgents((prev) => {
+                const existing = prev.find((agent) => agent.agentId === teamAgentId);
+                const previousEvents = existing?.events ?? [];
+                const lastEvent = previousEvents[previousEvents.length - 1];
+                const isDuplicate = lastEvent?.kind === activity.kind && lastEvent.summary === activity.summary;
+                const events = isDuplicate
+                  ? previousEvents
+                  : [...previousEvents, { id: `${teamAgentId}-${now}-${activity.kind}`, kind: activity.kind, summary: activity.summary, ts: now }].slice(-MAX_SUB_AGENT_EVENTS);
+                const entry: AgentSubAgentActivity = {
+                  agentId: teamAgentId,
+                  role: teamRole,
+                  task: activity.isTask ? activity.summary : existing?.task ?? activity.summary,
+                  status: activity.status ?? existing?.status ?? 'running',
+                  ts: now,
+                  lastActivity: activity.summary,
+                  events,
+                };
+                return [entry, ...prev.filter((agent) => agent.agentId !== teamAgentId)].slice(0, 20);
+              });
+              // Teammate output has its own inspector. Keeping it out of the
+              // lead transcript prevents interleaved, hard-to-follow chat.
+              if (teamRole === 'teammate') return;
             }
             handleAgentEvent(inner);
           }
@@ -564,6 +730,12 @@ export const useAgentSession = (
         setTodos(Array.isArray(event.payload.todos) ? event.payload.todos : []);
       })
     );
+    unlisteners.push(
+      onContextUpdated((event) => {
+        if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
+        setContextTokens(Number.isFinite(event.payload.totalTokens) ? event.payload.totalTokens : null);
+      })
+    );
 
     void refreshMessages();
     void refreshUsage();
@@ -577,20 +749,22 @@ export const useAgentSession = (
 
   // ── Actions ────────────────────────────────────────────────────────
   const send = useCallback(
-    async (prompt: string) => {
+    async (prompt: string, attachments: AgentAttachment[] = []) => {
       const sid = sessionIdRef.current;
       if (!sid || !prompt.trim()) return;
       setError(null);
       setNotice(null);
+      setCompaction(null);
       setStreamingText('');
       setStreamingThinking('');
       setToolLog([]);
+      activeToolIdRef.current = null;
       setStatus('running');
-      appendUserMessage(prompt);
+      appendUserMessage(prompt, attachments);
       try {
         const m = modeRef.current;
         const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'act' : undefined;
-        await sendMessage(sid, prompt, modeToSend);
+        await sendMessage(sid, prompt, modeToSend, attachments);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStatus('error');
@@ -599,8 +773,17 @@ export const useAgentSession = (
     [sendMessage]
   );
 
-  const appendUserMessage = useCallback((prompt: string) => {
-    setMessages((prev) => [...prev, { role: 'user', content: [{ type: 'text', text: prompt }] }]);
+  const appendUserMessage = useCallback((prompt: string, attachments: AgentAttachment[] = []) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          ...attachments.map((attachment): ClineContentBlock => ({ type: 'attachment', attachment })),
+        ],
+      },
+    ]);
   }, []);
 
   const abort = useCallback(async () => {
@@ -653,15 +836,17 @@ export const useAgentSession = (
       thinkingEffort?: string;
     }) => {
       const sid = sessionIdRef.current;
-      if (!sid) return;
+      if (!sid) return false;
       if (next.providerId) setProviderId(next.providerId);
       if (next.modelId) setModelId(next.modelId);
       if (next.thinkingEffort !== undefined) setThinkingEffort(next.thinkingEffort);
       try {
         await hostUpdateConnection(sid, next);
+        return true;
       } catch (err) {
         console.error('[agent] update connection failed:', err);
         setError(err instanceof Error ? err.message : String(err));
+        return false;
       }
     },
     [hostUpdateConnection]
@@ -689,6 +874,8 @@ export const useAgentSession = (
     mode,
     setMode,
     usage,
+    contextTokens,
+    compaction,
     aggregateUsage,
     team,
     subAgents,

@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
+  AgentAttachment,
   AgentApprovalRequest,
   AgentCoreSessionEvent,
   AgentHostStatus,
@@ -28,6 +29,7 @@ export interface CreateAgentSessionParams {
   enableAgentTeams?: boolean;
   teamName?: string;
   compactionStrategy?: 'basic' | 'agentic';
+  maxTotalTokens?: number;
 }
 
 export interface CreateAgentSessionResult {
@@ -47,13 +49,24 @@ export const useAgentHost = () => {
 
   const createSession = useCallback(
     async (request: CreateAgentSessionParams): Promise<CreateAgentSessionResult> => {
-      return invoke<CreateAgentSessionResult>('create_agent_session', { request });
+      return invoke<CreateAgentSessionResult>('create_agent_session', {
+        request: {
+          ...request,
+          maxTotalTokens: request.maxTotalTokens ?? null,
+        },
+      });
     },
     []
   );
 
-  const sendMessage = useCallback(async (sessionId: string, prompt: string, mode?: string) => {
-    return invoke('send_agent_message', { sessionId, prompt, mode: mode ?? null });
+  const sendMessage = useCallback(async (sessionId: string, prompt: string, mode?: string, attachments: AgentAttachment[] = []) => {
+    return invoke('send_agent_message', {
+      sessionId,
+      prompt,
+      mode: mode ?? null,
+      userImages: attachments.filter((attachment) => attachment.kind === 'image').map((attachment) => attachment.path),
+      userFiles: attachments.filter((attachment) => attachment.kind === 'file').map((attachment) => attachment.path),
+    });
   }, []);
 
   const resumeSession = useCallback(async (sessionId: string) => {
@@ -236,7 +249,7 @@ export const useAgentHost = () => {
   );
 
   const listProviderConfigs = useCallback(async () => {
-    const result = await invoke<{ configs: Array<{ providerId: string; apiKey?: string; baseUrl?: string; modelId?: string }> }>(
+    const result = await invoke<{ configs: Array<{ providerId: string; hasApiKey: boolean; baseUrl?: string; modelId?: string }> }>(
       'list_agent_provider_configs'
     );
     return result.configs;
@@ -306,6 +319,11 @@ export const useAgentHost = () => {
       listen<{ sessionId: string; todos: AgentTodo[] }>('yzpz-agent:todo-updated', cb),
     []
   );
+  const onContextUpdated = useCallback(
+    (cb: (event: { payload: { sessionId: string; inputTokens: number; cacheReadTokens: number; totalTokens: number } }) => void): Promise<UnlistenFn> =>
+      listen<{ sessionId: string; inputTokens: number; cacheReadTokens: number; totalTokens: number }>('yzpz-agent:context-updated', cb),
+    []
+  );
 
   return {
     ensureHost,
@@ -353,5 +371,6 @@ export const useAgentHost = () => {
     onTeamProgress,
     onQuestionRequest,
     onTodoUpdated,
+    onContextUpdated,
   };
 };

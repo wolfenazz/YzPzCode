@@ -5,6 +5,8 @@ interface UsageMeterProps {
   usage: AgentAccumulatedUsage | null;
   aggregateUsage?: AgentAccumulatedUsage | null;
   contextWindow?: number | null;
+  contextTokens?: number | null;
+  budget?: number | null;
 }
 
 export const formatTokens = (n: number): string => {
@@ -39,14 +41,32 @@ const Stat: React.FC<{ label: string; value: string; accent?: boolean }> = ({ la
   </span>
 );
 
-export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, contextWindow }) => {
+export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, contextWindow, contextTokens, budget }) => {
   const primary = usage ?? aggregateUsage ?? null;
   const showAggregate = !!aggregateUsage && !!usage;
   const ctx = contextWindow && contextWindow > 0 ? contextWindow : 200_000;
   const total = usageTotals(primary);
-  const pct = Math.min(100, (total / ctx) * 100);
+  const hasCurrentContext = typeof contextTokens === 'number';
+  const currentContext = contextTokens ?? 0;
+
+  // When a cumulative token budget is set, the gauge reflects the budget
+  // (red at 100%, amber at 90%); otherwise it falls back to the
+  // context-window view.
+  const budgetValue = typeof budget === 'number' && budget > 0 ? budget : null;
+  const pct =
+    budgetValue !== null
+      ? Math.min(100, (total / budgetValue) * 100)
+      : hasCurrentContext
+        ? Math.min(100, (currentContext / ctx) * 100)
+        : 0;
   const warn = pct >= 90;
   const danger = pct >= 100;
+  const gaugeTitle =
+    budgetValue !== null
+      ? `Token budget: ${formatTokens(total)} / ${formatTokens(budgetValue)}`
+      : hasCurrentContext
+        ? `Current provider request: ${formatTokens(currentContext)} / ${formatTokens(ctx)} tokens (${pct.toFixed(1)}%). Session totals are shown at left.`
+        : 'Current provider context will appear after the next model request. Session totals are shown at left.';
 
   if (!primary && !aggregateUsage) {
     return (
@@ -60,7 +80,7 @@ export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, c
   return (
     <div
       className="flex items-center gap-2.5 px-2 py-1 rounded-sm bg-[var(--bg-tertiary)]/40 min-w-0"
-      title={`Context window: ${formatTokens(ctx)} tokens — ${formatTokens(total)} / ${formatTokens(ctx)} (${pct.toFixed(1)}%)`}
+      title={gaugeTitle}
     >
       <Stat label="in" value={formatTokens(primary?.inputTokens ?? 0)} />
       <Stat label="out" value={formatTokens(primary?.outputTokens ?? 0)} />
@@ -78,7 +98,7 @@ export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, c
           className={`font-mono text-[9px] font-bold tabular-nums ${danger ? 'text-rose-500' : warn ? 'text-amber-400' : 'text-[var(--text-secondary)]'}`}
           title={`${formatTokens(total)} / ${formatTokens(ctx)} tokens`}
         >
-          {pct.toFixed(0)}%
+          {budgetValue !== null || hasCurrentContext ? `${pct.toFixed(0)}%` : '—'}
         </span>
       </div>
     </div>

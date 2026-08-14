@@ -487,6 +487,7 @@ export interface AgentSessionSummary {
   messageCount: number | null;
   preview: string | null;
   status?: string;
+  maxTotalTokens?: number | null;
 }
 
 export interface AgentApprovalRequest {
@@ -524,6 +525,14 @@ export interface AgentModelInfo {
   maxOutput: number | null;
   capabilities?: string[];
   reasoningOptions?: AgentModelReasoningOption[];
+}
+
+/** A local file supplied with a user turn. The agent runtime receives its path
+ * and only forwards rich media when the selected model supports it. */
+export interface AgentAttachment {
+  path: string;
+  name: string;
+  kind: 'image' | 'file';
 }
 
 /** One MCP server linked to the agent (from the sidecar). */
@@ -643,6 +652,15 @@ export interface AgentSubAgentActivity {
   role: 'lead' | 'teammate';
   task: string;
   status: 'running' | 'done' | 'error';
+  ts: number;
+  lastActivity: string;
+  events: AgentSubAgentEvent[];
+}
+
+export interface AgentSubAgentEvent {
+  id: string;
+  kind: 'message' | 'reasoning' | 'tool' | 'result' | 'status';
+  summary: string;
   ts: number;
 }
 

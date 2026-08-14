@@ -35,6 +35,7 @@ pub async fn create_agent_session(
                 "enableAgentTeams": request.enable_agent_teams,
                 "teamName": request.team_name,
                 "compactionStrategy": request.compaction_strategy,
+                "maxTotalTokens": request.max_total_tokens,
             })),
         )
         .await
@@ -49,11 +50,19 @@ pub async fn send_agent_message(
     session_id: String,
     prompt: String,
     mode: Option<String>,
+    user_images: Option<Vec<String>>,
+    user_files: Option<Vec<String>>,
 ) -> Result<Value, String> {
     manager
         .quick_command(
             "send-message",
-            Some(json!({ "sessionId": session_id, "prompt": prompt, "mode": mode })),
+            Some(json!({
+                "sessionId": session_id,
+                "prompt": prompt,
+                "mode": mode,
+                "userImages": user_images.unwrap_or_default(),
+                "userFiles": user_files.unwrap_or_default(),
+            })),
         )
         .await
         .map_err(|e| e.to_string())

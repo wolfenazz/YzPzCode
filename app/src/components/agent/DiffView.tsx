@@ -3,9 +3,15 @@ import React, { useMemo, useState } from 'react';
 interface DiffViewProps {
   toolName: string;
   input: unknown;
+  result?: unknown;
 }
 
-type DiffLine = { type: 'ctx' | 'add' | 'del' | 'hunk'; text: string };
+type DiffLine = {
+  type: 'ctx' | 'add' | 'del' | 'hunk';
+  text: string;
+  oldNumber?: number;
+  newNumber?: number;
+};
 
 /** LCS line diff (bounded) — no external dependency. */
 const lcsDiff = (oldLines: string[], newLines: string[]): DiffLine[] => {
@@ -68,17 +74,41 @@ const parseUnifiedDiff = (diff: string): DiffLine[] => {
   return out;
 };
 
-const extractPath = (input: unknown): string | null => {
-  if (input && typeof input === 'object') {
-    const obj = input as Record<string, unknown>;
-    if (typeof obj.path === 'string' && obj.path) return obj.path;
-    if (typeof obj.filePath === 'string' && obj.filePath) return obj.filePath;
-    if (typeof obj.file_path === 'string' && obj.file_path) return obj.file_path;
+const asRecord = (value: unknown): Record<string, unknown> | null => (
+  value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+);
+
+const pathFromText = (value: string): string | null => {
+  const queryPath = value.match(/(?:edit|write|create|delete|rename|move)\s*:\s*([^\r\n"}]+)/i)?.[1]?.trim();
+  if (queryPath) return queryPath;
+  const resultPath = value.match(/(?:edited|created|deleted|moved)\s+([^\r\n"}]+)/i)?.[1]?.trim();
+  return resultPath || null;
+};
+
+const extractPath = (value: unknown, depth = 0): string | null => {
+  if (depth > 3) return null;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      if (parsed !== value) return extractPath(parsed, depth + 1) ?? pathFromText(value);
+    } catch {
+      // The result is plain text, which can still contain an editor path.
+    }
+    return pathFromText(value);
+  }
+  const obj = asRecord(value);
+  if (!obj) return null;
+  for (const key of ['path', 'filePath', 'file_path', 'target_path', 'new_path', 'directory', 'dir']) {
+    if (typeof obj[key] === 'string' && obj[key]) return obj[key] as string;
+  }
+  for (const key of ['query', 'result', 'output', 'message', 'data']) {
+    const path = extractPath(obj[key], depth + 1);
+    if (path) return path;
   }
   return null;
 };
 
-const EDIT_TOOLS = new Set(['editor', 'apply_patch', 'write_file', 'create_file', 'delete_file', 'rename_file']);
+const EDIT_TOOLS = new Set(['editor', 'apply_patch', 'write_file', 'create_file', 'delete_file', 'rename_file', 'create_directory', 'mkdir']);
 
 const LINE_COLORS: Record<DiffLine['type'], string> = {
   ctx: 'text-[var(--text-secondary)] bg-transparent',
@@ -89,19 +119,28 @@ const LINE_COLORS: Record<DiffLine['type'], string> = {
 
 const MARK: Record<DiffLine['type'], string> = { ctx: ' ', add: '+', del: '-', hunk: '@' };
 
-export const DiffView: React.FC<DiffViewProps> = ({ toolName, input }) => {
+export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) => {
   const { path, lines, stats } = useMemo(() => {
-    const p = extractPath(input);
-    if (!input || typeof input !== 'object') return { path: p, lines: [] as DiffLine[], stats: { add: 0, del: 0 } };
-
-    const obj = input as Record<string, unknown>;
+    const p = extractPath(input) ?? extractPath(result);
+    const obj = asRecord(input) ?? asRecord(result);
     let computed: DiffLine[] = [];
 
-    if (toolName === 'apply_patch' && typeof obj.diff === 'string' && obj.diff) {
+    if (toolName === 'apply_patch' && typeof obj?.input === 'string' && obj.input) {
+      computed = parseUnifiedDiff(obj.input);
+    } else if (toolName === 'apply_patch' && typeof obj?.diff === 'string' && obj.diff) {
       computed = parseUnifiedDiff(obj.diff);
     } else if (toolName === 'editor') {
-      const ops = Array.isArray(obj.operations) ? obj.operations : obj.operation ? [obj.operation] : [];
+      const ops = Array.isArray(obj?.operations) ? obj.operations : obj?.operation ? [obj.operation] : [];
       const chunks: { old: string[]; new: string[] }[] = [];
+      // The Cline editor's normal wire format is a single `old_text` /
+      // `new_text` replacement. Capture it before handling older batched
+      // operation formats used by other providers.
+      if (typeof obj?.new_text === 'string') {
+        chunks.push({
+          old: typeof obj.old_text === 'string' ? obj.old_text.split('\n') : [],
+          new: obj.new_text.split('\n'),
+        });
+      }
       for (const op of ops as Record<string, unknown>[]) {
         if (typeof op?.old_str === 'string' && typeof op?.new_str === 'string') {
           chunks.push({ old: op.old_str.split('\n'), new: op.new_str.split('\n') });
@@ -109,18 +148,63 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input }) => {
           chunks.push({ old: op.old_str.split('\n'), new: [] });
         } else if (typeof op?.new_str === 'string' && op?.op === 'insert') {
           chunks.push({ old: [], new: op.new_str.split('\n') });
+        } else {
+          // The current Cline runtime folds all workspace mutations into the
+          // `editor` tool. Keep non-text operations visible too, rather than
+          // leaving a blank panel when it creates, moves, or removes a folder.
+          const operation = typeof op?.op === 'string' ? op.op : typeof op?.type === 'string' ? op.type : '';
+          const target = [op?.path, op?.file_path, op?.directory, op?.dir, op?.new_path].find(
+            (value): value is string => typeof value === 'string' && value.length > 0,
+          );
+          if (/mkdir|create.*dir|create_directory/i.test(operation)) {
+            computed.push({ type: 'add', text: `Created folder: ${target ?? 'new folder'}` });
+          } else if (/delete|remove/i.test(operation)) {
+            computed.push({ type: 'del', text: `Deleted: ${target ?? 'file'}` });
+          } else if (/rename|move/i.test(operation)) {
+            const source = typeof op?.old_path === 'string' ? op.old_path : typeof op?.from === 'string' ? op.from : 'source';
+            computed.push({ type: 'del', text: `Moved from: ${source}` });
+            computed.push({ type: 'add', text: `Moved to: ${target ?? 'destination'}` });
+          } else if (typeof op?.content === 'string' || typeof op?.new_content === 'string') {
+            const content = typeof op.content === 'string' ? op.content : op.new_content as string;
+            chunks.push({ old: [], new: content.split('\n') });
+          }
         }
       }
       for (const chunk of chunks) computed = computed.concat(lcsDiff(chunk.old, chunk.new));
     } else if (toolName === 'write_file' || toolName === 'create_file') {
-      const content = typeof obj.content === 'string' ? obj.content : '';
+      const content = typeof obj?.content === 'string' ? obj.content : '';
       computed = content.split('\n').map((t): DiffLine => ({ type: 'add', text: t }));
+    } else if (toolName === 'create_directory' || toolName === 'mkdir') {
+      computed = [{ type: 'add', text: `Created folder: ${p ?? 'new folder'}` }];
+    } else if (toolName === 'delete_file') {
+      computed = [{ type: 'del', text: `Deleted file: ${p ?? 'file'}` }];
+    } else if (toolName === 'rename_file') {
+      const oldPath = typeof obj?.old_path === 'string' ? obj.old_path : typeof obj?.from === 'string' ? obj.from : 'source';
+      const newPath = typeof obj?.new_path === 'string' ? obj.new_path : typeof obj?.to === 'string' ? obj.to : p ?? 'destination';
+      computed = [
+        { type: 'del', text: `Moved from: ${oldPath}` },
+        { type: 'add', text: `Moved to: ${newPath}` },
+      ];
+    } else if (obj && typeof obj.content === 'string') {
+      computed = obj.content.split('\n').map((t): DiffLine => ({ type: 'ctx', text: t }));
     } else {
-      const content = typeof obj.content === 'string' ? obj.content : JSON.stringify(input, null, 2);
-      computed = content.split('\n').map((t): DiffLine => ({ type: 'ctx', text: t }));
+      // Some SDK editor events only report "Edited <path>". Show the confirmed
+      // file and make the missing patch explicit rather than exposing raw JSON
+      // or inventing a diff that the tool did not supply.
+      computed = [{ type: 'ctx', text: 'Change completed — a line-by-line patch was not returned by this tool.' }];
     }
 
-    const stats = computed.reduce(
+    let oldNumber = 1;
+    let newNumber = 1;
+    const numbered = computed.map((line) => {
+      if (line.type === 'hunk') return line;
+      const next: DiffLine = { ...line };
+      if (line.type !== 'add') next.oldNumber = oldNumber++;
+      if (line.type !== 'del') next.newNumber = newNumber++;
+      return next;
+    });
+
+    const stats = numbered.reduce(
       (acc, l) => {
         if (l.type === 'add') acc.add++;
         if (l.type === 'del') acc.del++;
@@ -128,8 +212,8 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input }) => {
       },
       { add: 0, del: 0 },
     );
-    return { path: p, lines: computed, stats };
-  }, [toolName, input]);
+    return { path: p, lines: numbered, stats };
+  }, [toolName, input, result]);
 
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
@@ -169,6 +253,8 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input }) => {
         <pre className="min-w-max font-mono text-[10px] leading-[1.6]">
           {lines.map((line, i) => (
             <div key={i} className={`flex ${LINE_COLORS[line.type]}`}>
+              <span className="w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8] opacity-40">{line.oldNumber ?? ''}</span>
+              <span className="w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8] opacity-40">{line.newNumber ?? ''}</span>
               <span className="w-4 flex-shrink-0 text-center select-none opacity-70">{MARK[line.type]}</span>
               <span className="flex-1 whitespace-pre-wrap break-all px-1">{line.text || ' '}</span>
             </div>

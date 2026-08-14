@@ -49,6 +49,15 @@ const TOOL_SNIPPETS = [
   "- todo_write: Maintain a visible task list",
 ].join("\n");
 
+const SKILL_DISCOVERY_DIRECTIVE = [
+  "",
+  "SKILL DISCOVERY",
+  "Skills are global user capabilities. Do not inspect this workspace's `.opencode/plugins`, `.opencode/archive`, or project folders to decide whether skills exist.",
+  "The `skills` tool is the source of truth for available skills. For a task that is specialized, domain-specific, or likely governed by an established workflow, inspect it before you start work.",
+  "Select and load only the skills that materially help the task, then follow their instructions. Do this autonomously; do not wait for the user to name a skill.",
+  "Do not load unrelated skills or treat every listed skill as mandatory.",
+].join("\n");
+
 export function buildSystemPrompt(custom?: string | null, workspaceRoot?: string | null): string {
   let base: string;
   try {
@@ -66,5 +75,5 @@ export function buildSystemPrompt(custom?: string | null, workspaceRoot?: string
         "This is the folder the user opened in YzPzCode — the base directory for ALL file operations. Resolve relative paths returned by search results against this root, and use absolute paths under this root when a tool requires them.",
       ].join("\n")
     : "";
-  return [base, "", YZPZ_BRANDING, workspace, TOOL_SNIPPETS, EFFICIENCY_DIRECTIVE, custom ? `\n${custom}` : ""].join("\n");
+  return [base, "", YZPZ_BRANDING, workspace, TOOL_SNIPPETS, SKILL_DISCOVERY_DIRECTIVE, EFFICIENCY_DIRECTIVE, custom ? `\n${custom}` : ""].join("\n");
 }

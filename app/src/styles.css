@@ -1422,6 +1422,45 @@ html.has-custom-cursor *::after {
   border-radius: 3px;
 }
 
+/* Arabic and mixed RTL responses need their own text treatment. The app's
+   terminal font is excellent for code but makes Arabic feel cramped and can
+   scramble punctuation around inline code. Keep prose in a native UI Arabic
+   fallback, isolate each bidi paragraph, and force code back to LTR. */
+.agent-rich-text[dir="rtl"] {
+  font-family: "Segoe UI", "Noto Naskh Arabic", Tahoma, Arial, sans-serif;
+  text-align: right;
+  line-height: 1.9;
+  letter-spacing: normal;
+  unicode-bidi: plaintext;
+}
+.agent-rich-text[dir="rtl"] h1,
+.agent-rich-text[dir="rtl"] h2,
+.agent-rich-text[dir="rtl"] h3,
+.agent-rich-text[dir="rtl"] h4,
+.agent-rich-text[dir="rtl"] h5,
+.agent-rich-text[dir="rtl"] h6 {
+  font-family: inherit;
+  letter-spacing: normal;
+}
+.agent-rich-text[dir="rtl"] ul,
+.agent-rich-text[dir="rtl"] ol {
+  padding-inline-start: 1.5em;
+  padding-left: 0;
+}
+.agent-rich-text[dir="rtl"] blockquote {
+  border-left: 0;
+  border-right: 2px solid var(--accent-border);
+  border-radius: 6px 0 0 6px;
+}
+.agent-rich-text[dir="rtl"] th,
+.agent-rich-text[dir="rtl"] td { text-align: right; }
+.agent-rich-text pre,
+.agent-rich-text code {
+  direction: ltr;
+  text-align: left;
+  unicode-bidi: isolate;
+}
+
 /* Mermaid — diagrams */
 .mermaid-diagram {
   display: flex;

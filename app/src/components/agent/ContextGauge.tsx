@@ -1,11 +1,12 @@
 import React from 'react';
 import type { AgentAccumulatedUsage } from '../../types';
-import { formatTokens, usageTotals } from './UsageMeter';
+import { formatTokens } from './UsageMeter';
 
 interface ContextGaugeProps {
   usage: AgentAccumulatedUsage | null;
   aggregateUsage?: AgentAccumulatedUsage | null;
   contextWindow?: number | null;
+  contextTokens?: number | null;
   /** Slim one-line readout (used when the pane is short). */
   slim?: boolean;
 }
@@ -20,9 +21,10 @@ const formatCost = (c: number): string => {
  * Full-width context-window gauge shown under the agent header: tokens used,
  * capacity, a color-coded percentage bar, and total cost (plus team aggregate).
  */
-export const ContextGauge: React.FC<ContextGaugeProps> = ({ usage, aggregateUsage, contextWindow, slim = false }) => {
+export const ContextGauge: React.FC<ContextGaugeProps> = ({ usage, aggregateUsage, contextWindow, contextTokens, slim = false }) => {
   const ctx = contextWindow && contextWindow > 0 ? contextWindow : 200_000;
-  const total = usageTotals(usage);
+  const hasCurrentContext = typeof contextTokens === 'number';
+  const total = contextTokens ?? 0;
   const pct = Math.min(100, (total / ctx) * 100);
   const warn = pct >= 90;
   const danger = pct >= 100;
@@ -37,7 +39,9 @@ export const ContextGauge: React.FC<ContextGaugeProps> = ({ usage, aggregateUsag
         </span>
         <div
           className={`flex-1 min-w-0 rounded-full bg-[var(--border-primary)] overflow-hidden ${slim ? 'h-1' : 'h-1.5'}`}
-          title={`${formatTokens(total)} / ${formatTokens(ctx)} tokens (${pct.toFixed(1)}%)`}
+          title={hasCurrentContext
+            ? `Current provider request: ${formatTokens(total)} / ${formatTokens(ctx)} tokens (${pct.toFixed(1)}%). This resets after compaction.`
+            : 'Current provider context will appear after the next model request.'}
         >
           <div
             className={`h-full rounded-full transition-all duration-300 ${danger ? 'bg-rose-500' : warn ? 'bg-amber-400' : 'bg-[var(--accent)]'}`}
@@ -45,10 +49,10 @@ export const ContextGauge: React.FC<ContextGaugeProps> = ({ usage, aggregateUsag
           />
         </div>
         <span className={`font-mono font-bold tabular-nums shrink-0 ${slim ? 'text-[8px]' : 'text-[9px]'} ${danger ? 'text-rose-500' : warn ? 'text-amber-400' : 'text-[var(--text-primary)]'}`}>
-          {formatTokens(total)} / {formatTokens(ctx)}
+          {hasCurrentContext ? `${formatTokens(total)} / ${formatTokens(ctx)}` : '—'}
         </span>
         <span className={`font-mono font-bold tabular-nums shrink-0 ${slim ? 'text-[8px]' : 'text-[9px]'} ${danger ? 'text-rose-500' : warn ? 'text-amber-400' : 'text-[var(--accent)]'}`}>
-          {pct.toFixed(1)}%
+          {hasCurrentContext ? `${pct.toFixed(1)}%` : '—'}
         </span>
         {!slim && (
           <span className="font-mono text-[9px] tabular-nums text-[var(--text-secondary)] shrink-0" title="Total cost">

@@ -37,6 +37,7 @@ const toSummary = (raw: unknown, fallbackWorkspaceId: string): AgentSessionSumma
     messageCount: null,
     preview: null,
     status: s.status,
+    maxTotalTokens: typeof metadata.maxTotalTokens === 'number' && metadata.maxTotalTokens > 0 ? metadata.maxTotalTokens : null,
   };
 };
 

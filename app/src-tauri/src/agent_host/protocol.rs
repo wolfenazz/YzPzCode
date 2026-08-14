@@ -72,6 +72,8 @@ pub struct CreateAgentSessionRequest {
     pub team_name: Option<String>,
     #[serde(default)]
     pub compaction_strategy: Option<String>,
+    #[serde(default)]
+    pub max_total_tokens: Option<u64>,
 }
 
 #[cfg(test)]
@@ -143,5 +145,22 @@ mod tests {
         assert_eq!(req.provider_id, "anthropic");
         assert_eq!(req.model_id, "claude-sonnet-4-6");
         assert!(req.api_key.is_none());
+    }
+
+    #[test]
+    fn parses_create_session_request_with_max_total_tokens() {
+        let raw = r#"{"workspaceId":"w1","cwd":"C:\\dev","providerId":"anthropic","modelId":"claude-sonnet-4-6","maxTotalTokens":1000000}"#;
+        let req: CreateAgentSessionRequest = serde_json::from_str(raw).unwrap();
+        assert_eq!(req.max_total_tokens, Some(1_000_000));
+        assert!(req.compaction_strategy.is_none());
+
+        // Absent field defaults to None (backwards compatible).
+        let raw2 = r#"{"workspaceId":"w2","cwd":"C:\\dev","providerId":"openai","modelId":"gpt-5"}"#;
+        let req2: CreateAgentSessionRequest = serde_json::from_str(raw2).unwrap();
+        assert!(req2.max_total_tokens.is_none());
+
+        // Serializes back out as camelCase `maxTotalTokens`.
+        let out: serde_json::Value = serde_json::to_value(&req).unwrap();
+        assert_eq!(out["maxTotalTokens"], 1_000_000);
     }
 }

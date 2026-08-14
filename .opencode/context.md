@@ -1,35 +1,46 @@
-# Project Context
+# Project Context — YzPzCode
 
-## Environment
-- Repo: yzpzcode (Tauri v2 desktop app, React 19 frontend + Rust backend)
-- CI: GitHub Actions — `.github/workflows/release.yml` (tag-triggered release workflow)
-- App dir: `app/` (npm root), subproject `app/agent-harness/` (Cline SDK sidecar, own package.json)
-- Platform: win32 (local), CI: macos/ubuntu/windows
+## Mission (completed 2026-08-14)
+Added a **cumulative token budget + live telemetry** to the YZPZ Agent host to
+prevent 1M-token runaway burns (a README task consumed ~1M tokens because the
+harness capped *per-request* size but never the *cumulative* total).
 
-## Build Commands (from CLAUDE.md / AGENTS.md)
-- `cd app && npm run build` = `node scripts/ensure-drawio.mjs && tsc && vite build`
-- `npm run build:agent` = `npm --prefix agent-harness run build` (NEW in v3.3.0)
-- Tauri build invoked via `tauri-apps/tauri-action@v0` with beforeBuildCommand `npm run build && npm run build:agent`
+## Root cause
+- Token burn lives in `app/agent-harness/` (Cline SDK sidecar, Node ≥22).
+- harness.ts already capped per-request: DEFAULT_CONTEXT_TOKEN_BUDGET=96_000,
+  DEFAULT_MAX_OUTPUT_TOKENS=8192, DEFAULT_MAX_ITERATIONS=20, tool-output
+  truncation, compaction — but 20 iterations × ~50–96K input = ~1M tokens.
+- Legacy `app/src-tauri/src/agent/executor.rs` (single-command executor) is a
+  SEPARATE older system — NOT where the burn happened. Do not confuse the two.
 
-## Diagnosis (2026-08-14) — Failed run #31752764187 (v3.3.0)
-- **4 errors**: all 4 build jobs fail identically with `TS2688: Cannot find type definition file for 'node'`
-- **5 warnings**: Node 20 deprecation on `actions/checkout@v4`, `actions/setup-node@v4`, `softprops/action-gh-release@v1`
+## What was implemented
+1. **harness.ts**: `usageBySession` map accumulates `usage`/`usage-updated`
+   deltas from `agent_event` subscriptions; `budgets` map (sessionId →
+   maxTotalTokens, 0 = unlimited); `afterModelHook` hard-stops the loop when
+   input+output+cacheRead ≥ limit, returning `{stop:true, reason:
+   "token-budget-exceeded"}` + emits session-ended/notice/session-status;
+   `maxTotalTokens` persisted in sessionMetadata; cleanup in stop/delete/dispose.
+2. **server.ts**: create-session passes `maxTotalTokens` through.
+3. **Rust**: `protocol.rs` CreateAgentSessionRequest.max_total_tokens (Option<u64>,
+   camelCase → maxTotalTokens); `agent_host_commands.rs` forwards it.
+4. **Frontend**: useAgentHost params+payload; NewAgentDialog numeric input
+   (0 = unlimited); UsageMeter `budget` prop (red ≥100%, amber ≥90%);
+   budget flows through AgentSessionSummary → SessionHistory → AgentGrid →
+   AgentPane `<UsageMeter budget={session.maxTotalTokens ?? null} />`.
 
-### Root cause (errors)
-- The v3.3.0 "The New update" added `app/agent-harness/` subproject + `build:agent` script.
-- `agent-harness/tsconfig.json` has `"types": ["node"]` → requires `@types/node` in `agent-harness/node_modules`.
-- CI workflow only runs `npm ci` in `app/` (root). `agent-harness` deps never installed → tsc fails TS2688.
-- Local builds work because `agent-harness/node_modules` exists locally (gitignored).
+## Verification (all PASS, exit 0)
+- `npm run build` + `npm run typecheck` in app/agent-harness
+- `npx tsc --noEmit` in app
+- `cargo check` + `cargo test agent_host` (7/7) + `cargo clippy` (no NEW warnings)
+- Pre-existing clippy `too_many_arguments` on `update_agent_session_connection`
+  (9 args, untouched) — acceptable.
 
-### Root cause (warnings)
-- Actions target Node 20, forced to Node 24 via `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true`.
-- Fix: bump `actions/checkout@v4`→`v7.0.1`, `actions/setup-node@v4`→`v7.0.0`, `softprops/action-gh-release@v1`→`v3.0.2` (verified latest via GitHub API; all run Node 24 natively, no input breaking changes).
-
-## Fix Plan
-1. Add `npm ci` step for `app/agent-harness` in the `build` job (after root `npm ci`).
-2. Bump deprecated actions to latest majors.
-3. Verify: YAML parses, actionlint if available, workflow diff correct.
-
-## Verification Commands
-- `npx actionlint` (if installed) or YAML parse of release.yml
-- Local sanity: `npm --prefix app/agent-harness ci && npm --prefix app/agent-harness run build` (Windows; proves the new step works)
+## Key architecture notes
+- Rust ↔ sidecar: WebSocket JSON; `CommandMessage`/`SidecarMessage` in
+  `agent_host/protocol.rs`; events forwarded as `yzpz-agent:<name>`.
+- Harness hooks: beforeTool/beforeModel/afterTool/afterModel in localRuntime;
+  `afterModel` returns `{stop?, reason?}` — the budget stop uses this.
+- sessionId access in subscribe callback: `event.payload.sessionId`; inner
+  agent_event is `event.payload.event` (type `usage`/`usage-updated`/`done`).
+- TODO list + completion guard (`maybeAutoContinue`, MAX 2 nudges) can extend
+  runs — budget stop overrides it (afterModelHook returns stop:true).

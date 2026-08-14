@@ -13,10 +13,16 @@ import type {
 
 interface ProviderConfigView {
   providerId: string;
-  apiKey?: string;
+  hasApiKey?: boolean;
   baseUrl?: string;
   modelId?: string;
 }
+
+/** Supports a live UI update while an older harness is still running. New
+ * harnesses send only `hasApiKey`, never credential values. */
+const hasSavedProviderKey = (config: ProviderConfigView): boolean =>
+  config.hasApiKey === true ||
+  (!Object.prototype.hasOwnProperty.call(config, 'hasApiKey') && Object.prototype.hasOwnProperty.call(config, 'apiKey'));
 
 const PROVIDER_DISPLAY: Record<string, string> = {
   anthropic: 'Anthropic',
@@ -194,7 +200,7 @@ export const SettingsAgent: React.FC = () => {
   }, [load, loadInstructions, loadMcp]);
 
   // ── Provider selection & model loading ─────────────────────────
-  const configuredIds = new Set(configs.map((c) => c.providerId));
+  const configuredIds = new Set(configs.filter(hasSavedProviderKey).map((c) => c.providerId));
   const selectedCfg = configs.find((c) => c.providerId === selectedProvider);
   const selectedInfo = providers.find((p) => p.id === selectedProvider);
   const isCustomBaseUrl = !selectedInfo?.baseUrl;
@@ -208,7 +214,7 @@ export const SettingsAgent: React.FC = () => {
       return {
         ...prev,
         [selectedProvider]: {
-          apiKey: cfg?.apiKey ?? '',
+          apiKey: '',
           baseUrl: cfg?.baseUrl ?? '',
           modelId: cfg?.modelId ?? info?.defaultModelId ?? '',
         },
@@ -879,7 +885,7 @@ export const SettingsAgent: React.FC = () => {
                 <div key={cfg.providerId} className="flex items-center">
                   <button
                     onClick={() => setSelectedProvider(cfg.providerId)}
-                    title={cfg.apiKey ? 'Key saved' : 'No key yet'}
+                    title={hasSavedProviderKey(cfg) ? 'Key saved' : 'No key yet'}
                     className={`px-2 h-6 rounded-l-md border font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer ${
                       isSelected
                         ? 'border-[var(--accent-border)] text-[var(--accent)] bg-[var(--accent-light)]/20'
@@ -887,7 +893,7 @@ export const SettingsAgent: React.FC = () => {
                     }`}
                   >
                     {PROVIDER_DISPLAY[cfg.providerId] ?? cfg.providerId}
-                    {cfg.apiKey ? <span className="text-emerald-500"> ✓</span> : <span className="text-[var(--text-secondary)]/40"> ○</span>}
+                    {hasSavedProviderKey(cfg) ? <span className="text-emerald-500"> ✓</span> : <span className="text-[var(--text-secondary)]/40"> ○</span>}
                   </button>
                   <button
                     onClick={() => void handleSetDefault(isDefault ? null : cfg.providerId)}
@@ -925,8 +931,8 @@ export const SettingsAgent: React.FC = () => {
                 ★ default
               </span>
             )}
-            <span className={`ml-auto font-mono text-[9px] ${selectedCfg?.apiKey ? 'text-emerald-500' : 'text-amber-400'}`}>
-              {selectedCfg?.apiKey ? 'key set' : 'no key'}
+            <span className={`ml-auto font-mono text-[9px] ${selectedCfg && hasSavedProviderKey(selectedCfg) ? 'text-emerald-500' : 'text-amber-400'}`}>
+              {selectedCfg && hasSavedProviderKey(selectedCfg) ? 'key set' : 'no key'}
             </span>
           </div>
           <div className="px-5 py-4 space-y-3.5">

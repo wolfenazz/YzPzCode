@@ -47,6 +47,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [maxTotalTokens, setMaxTotalTokens] = useState<number>(0);
 
   useEffect(() => {
     let mounted = true;
@@ -64,9 +65,9 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         const info = prov.find((p) => p.id === defaultId);
 
         setProviderId(defaultId);
-        setApiKey(cfg?.apiKey ?? '');
+        setApiKey('');
         setBaseUrl(cfg?.baseUrl ?? '');
-        setHasSavedKey(!!cfg?.apiKey);
+        setHasSavedKey(Boolean(cfg?.hasApiKey));
         setModelId(cfg?.modelId ?? info?.defaultModelId ?? '');
       } catch (err) {
         if (mounted) setError(err instanceof Error ? err.message : String(err));
@@ -113,9 +114,8 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
       .then((configs) => {
         const cfg = configs.find((c) => c.providerId === next);
         if (cfg) {
-          setApiKey(cfg.apiKey ?? '');
           setBaseUrl(cfg.baseUrl ?? '');
-          setHasSavedKey(!!cfg.apiKey);
+          setHasSavedKey(Boolean(cfg.hasApiKey));
           setModelId(cfg.modelId ?? '');
         }
       })
@@ -147,6 +147,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         modelId,
         apiKey: apiKey.trim() || undefined,
         baseUrl: baseUrl.trim() || undefined,
+        maxTotalTokens: maxTotalTokens > 0 ? maxTotalTokens : undefined,
       });
       onClose();
     } catch (err) {
@@ -154,7 +155,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
     } finally {
       setCreating(false);
     }
-  }, [modelId, onCreate, workspaceId, cwd, providerId, apiKey, baseUrl, setProviderConfig, onClose]);
+  }, [modelId, onCreate, workspaceId, cwd, providerId, apiKey, baseUrl, setProviderConfig, onClose, maxTotalTokens]);
 
   return (
     <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center font-mono" onClick={onClose}>
@@ -249,6 +250,22 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
                   />
                 </div>
               )}
+
+              {/* Max total tokens budget (0 = unlimited) */}
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                  Max Total Tokens (0 = unlimited)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  step={10000}
+                  value={maxTotalTokens}
+                  onChange={(e) => setMaxTotalTokens(Math.max(0, Number(e.target.value) || 0))}
+                  placeholder="0 = unlimited"
+                  className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                />
+              </div>
 
               {error && (
                 <div className="rounded-md border border-rose-900/50 bg-rose-950/20 px-3 py-2 text-[10px] text-rose-500">
