@@ -3,7 +3,11 @@ export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
-export type WorkspaceView = "terminal" | "agent" | "editor" | "browser";
+export type WorkspaceView = "terminal" | "agent" | "editor" | "browser" | "image";
+
+export interface ImageEditorWorkspaceState {
+  path: string | null;
+}
 
 export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 

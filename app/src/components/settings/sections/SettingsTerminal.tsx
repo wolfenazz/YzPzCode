@@ -1,11 +1,90 @@
 import React from 'react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useAppStore } from '../../../stores/appStore';
 import { SettingsToggle } from '../../common/SettingsToggle';
 import { SettingsSlider } from '../../common/SettingsSlider';
 
-const FONT_FAMILIES = [
-  'Cascadia Mono',
+type Platform = 'win' | 'mac' | 'linux';
+
+interface FontOption {
+  name: string;
+  source: 'bundled' | 'win' | 'mac' | 'linux' | 'win-mac' | 'fallback';
+  downloadUrl?: string;
+  downloadLabel?: string;
+  note?: string;
+}
+
+const FONT_OPTIONS: FontOption[] = [
+  { name: 'Cascadia Mono', source: 'bundled' },
+  { name: 'JetBrains Mono', source: 'bundled' },
+  { name: 'Fira Code', source: 'bundled' },
+  {
+    name: 'Cascadia Code',
+    source: 'win',
+    downloadUrl: 'https://github.com/microsoft/cascadia-code/releases',
+    downloadLabel: 'GitHub (Microsoft)',
+  },
+  {
+    name: 'Consolas',
+    source: 'win',
+    note: 'ships with Windows; copy the .ttf from a Windows PC for other systems.',
+  },
+  { name: 'Courier New', source: 'win-mac', note: 'bundled with Windows and macOS.' },
+  { name: 'Menlo', source: 'mac', note: 'Apple font; only available on macOS.' },
+  { name: 'Monaco', source: 'mac', note: 'Apple font; only available on macOS.' },
+  { name: 'SF Mono', source: 'mac', note: 'Apple font; ships with macOS (Xcode).' },
+  {
+    name: 'DejaVu Sans Mono',
+    source: 'linux',
+    downloadUrl: 'https://dejavu-fonts.github.io/',
+    downloadLabel: 'dejavu-fonts.github.io',
+  },
+  {
+    name: 'Ubuntu Mono',
+    source: 'linux',
+    downloadUrl: 'https://font.ubuntu.com/',
+    downloadLabel: 'font.ubuntu.com',
+  },
+  { name: 'Monospace', source: 'fallback' },
 ];
+
+const NATIVE_PLATFORMS: Record<FontOption['source'], Platform[]> = {
+  bundled: ['win', 'mac', 'linux'],
+  fallback: ['win', 'mac', 'linux'],
+  win: ['win'],
+  mac: ['mac'],
+  linux: ['linux'],
+  'win-mac': ['win', 'mac'],
+};
+
+const PLATFORM_LABELS: Record<Platform, string> = {
+  win: 'Windows',
+  mac: 'macOS',
+  linux: 'Linux',
+};
+
+const INSTALL_STEPS: Record<Platform, string> = {
+  mac: 'Download, unzip, double-click the font and choose "Install Font", then relaunch the app.',
+  win: 'Download, unzip, right-click the font and choose Install, then relaunch the app.',
+  linux: 'Download, unzip into ~/.local/share/fonts, run fc-cache -f, then relaunch the app.',
+};
+
+const getPlatform = (): Platform => {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('windows')) return 'win';
+  if (ua.includes('mac')) return 'mac';
+  return 'linux';
+};
+
+const statusOf = (
+  font: FontOption,
+  platform: Platform
+): { label: string; tone: 'good' | 'neutral' | 'warn' } => {
+  if (font.source === 'bundled') return { label: 'Bundled', tone: 'good' };
+  if (font.source === 'fallback') return { label: 'Fallback', tone: 'neutral' };
+  if (NATIVE_PLATFORMS[font.source].includes(platform)) return { label: 'Built-in', tone: 'neutral' };
+  return { label: 'Install', tone: 'warn' };
+};
 
 const CURSOR_STYLES = [
   { value: 'block' as const, label: 'Block' },
@@ -43,6 +122,9 @@ export const SettingsTerminal: React.FC = () => {
     setIndependentGridResize,
   } = useAppStore();
 
+  const platform = getPlatform();
+  const needsInstall = FONT_OPTIONS.filter((f) => !NATIVE_PLATFORMS[f.source].includes(platform));
+
   return (
     <div className="space-y-8 font-mono">
       <div>
@@ -62,21 +144,80 @@ export const SettingsTerminal: React.FC = () => {
 
           <div>
             <p className="text-xs text-zinc-300 font-mono mb-2">Font Family</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              {FONT_FAMILIES.map((font) => (
-                <button
-                  key={font}
-                  onClick={() => setTerminalFontFamily(font)}
-                  className={`px-3 py-1.5 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
-                    terminalFontFamily === font
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
-                  }`}
-                  style={{ fontFamily: font }}
-                >
-                  {font}
-                </button>
-              ))}
+            <div className="flex items-start gap-2 flex-wrap">
+              {FONT_OPTIONS.map((font) => {
+                const status = statusOf(font, platform);
+                return (
+                  <button
+                    key={font.name}
+                    onClick={() => setTerminalFontFamily(font.name)}
+                    className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
+                      terminalFontFamily === font.name
+                        ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
+                        : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
+                    }`}
+                  >
+                    <span style={{ fontFamily: font.name }}>{font.name}</span>
+                    <span
+                      className={`px-1.5 py-px rounded text-[8px] uppercase tracking-wider ${
+                        status.tone === 'good'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : status.tone === 'warn'
+                            ? 'bg-amber-500/10 text-amber-400'
+                            : 'bg-zinc-500/10 text-zinc-500'
+                      }`}
+                    >
+                      {status.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <div className="flex items-center gap-3 flex-wrap text-[9px] font-mono text-zinc-500">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400/70" />
+                  Bundled — works everywhere
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-zinc-500/70" />
+                  Built-in — included with your OS
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-400/70" />
+                  Install — not included on {PLATFORM_LABELS[platform]}
+                </span>
+              </div>
+
+              {needsInstall.length > 0 && (
+                <div className="border border-amber-500/20 bg-amber-500/5 rounded-md p-3 space-y-2">
+                  <p className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider">
+                    Fonts to install for {PLATFORM_LABELS[platform]}
+                  </p>
+                  <ul className="space-y-1.5">
+                    {needsInstall.map((font) => (
+                      <li key={font.name} className="text-[10px] font-mono text-zinc-400 leading-relaxed">
+                        <span className="text-zinc-200">{font.name}</span>
+                        {font.downloadUrl ? (
+                          <>
+                            {' — '}
+                            <button
+                              onClick={() => openUrl(font.downloadUrl as string)}
+                              className="text-[var(--accent)] underline hover:opacity-80 cursor-pointer"
+                            >
+                              {font.downloadLabel ?? 'Download'}
+                            </button>
+                            <span className="text-zinc-600"> {INSTALL_STEPS[platform]}</span>
+                          </>
+                        ) : (
+                          <span> — {font.note}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 

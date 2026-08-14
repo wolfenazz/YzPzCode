@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession } from '../../types';
 import { QuickActions } from './QuickActions';
-import { AGENT_COMMANDS } from '../../data/agentCommands';
+import { AGENT_COMMANDS, getCommandIcon } from '../../data/agentCommands';
 
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
@@ -245,9 +245,12 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                         e.stopPropagation();
                         runCommand(cmd.command);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition-colors duration-100 cursor-pointer flex items-baseline gap-3 group"
+                      className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition-colors duration-100 cursor-pointer flex items-center gap-3 group"
                       title={cmd.description}
                     >
+                      <span className="flex items-center justify-center w-4 h-4 shrink-0 text-zinc-500 group-hover:text-cyan-400 transition-colors duration-100">
+                        <Icon icon={getCommandIcon(cmd.command)} className="w-3.5 h-3.5" />
+                      </span>
                       <span className="text-xs font-mono text-cyan-400 shrink-0 group-hover:text-cyan-300">
                         {cmd.command}
                       </span>

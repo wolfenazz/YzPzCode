@@ -1007,6 +1007,21 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [terminalFontFamily, terminalFontSize, terminalCursorBlink, terminalCursorStyle, handleFitAndResize]);
 
   useEffect(() => {
+    if (!('fonts' in document)) return;
+    const term = xtermRef.current;
+    if (!term) return;
+    let cancelled = false;
+    document.fonts.ready.then(() => {
+      if (cancelled) return;
+      handleFitAndResize();
+      term.refresh(0, term.rows - 1);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [terminalFontFamily, handleFitAndResize]);
+
+  useEffect(() => {
     let mounted = true;
 
     invoke<ManagedTerminalCommandState | null>('get_managed_terminal_command_state', {

@@ -5,6 +5,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession } from '../../types';
+import { useAppStore } from '../../stores/appStore';
 import '@xterm/xterm/css/xterm.css';
 
 interface InlineTerminalProps {
@@ -118,7 +119,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
         const xterm = new XTerm({
           theme: TERMINAL_THEME,
-          fontFamily: 'Cascadia Mono',
+          fontFamily: useAppStore.getState().terminalFontFamily,
           fontSize: 14,
           fontWeight: '400',
           lineHeight: 1,

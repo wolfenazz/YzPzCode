@@ -8,6 +8,9 @@ const BINARY_EXTENSIONS = new Set([
   'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt',
 ]);
 
+// Images open in the built-in Image Editor (layer-based) rather than the read-only preview.
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg', 'avif', 'tiff', 'tif']);
+
 const LARGE_FILE_THRESHOLD = 10 * 1024 * 1024;
 
 function isLikelyBinary(entry: FileEntry): boolean {
@@ -71,6 +74,8 @@ export const useFileEditor = () => {
             openFileTab(tab);
           }
         }
+      } else if (IMAGE_EXTENSIONS.has(entry.extension?.toLowerCase() ?? '')) {
+        useAppStore.getState().openInImageEditor(entry.path);
       } else if (isLikelyBinary(entry)) {
         const tab: FileTab = {
           path: entry.path,

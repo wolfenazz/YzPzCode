@@ -329,6 +329,22 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                 </svg>
                 Browser
               </button>
+              <button
+                onClick={() => onViewChange('image')}
+                className={`flex items-center gap-1.5 px-2.5 h-full text-[9px] font-bold uppercase tracking-[0.14em] transition-colors duration-100 cursor-pointer ${
+                  activeView === 'image'
+                    ? 'bg-[var(--text-primary)] text-[var(--bg-primary)]'
+                    : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+                }`}
+                title="Image editor"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <rect strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} x="3" y="3" width="18" height="18" rx="2" />
+                  <circle strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} cx="9" cy="9" r="2" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 15l-4.5-4.5L7 20" />
+                </svg>
+                Image
+              </button>
             </div>
           </div>
 

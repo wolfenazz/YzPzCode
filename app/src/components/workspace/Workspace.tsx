@@ -3,6 +3,7 @@ import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { BrowserPane } from './BrowserPane';
 import { AgentGrid } from '../agent/AgentGrid';
+import { ImageEditorPane } from '../image/ImageEditorPane';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { FileEditor } from '../editor/FileEditor';
@@ -363,6 +364,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               >
                 <div className="h-full w-full overflow-hidden">
                   {currentWorkspace && <AgentGrid workspaceId={currentWorkspace.id} />}
+                </div>
+              </div>
+
+              {/* Image editor stays MOUNTED across view switches (hidden via CSS)
+                  so in-memory documents, undo history and the Konva scene survive. */}
+              <div
+                className={activeView === "image" ? "h-full w-full" : "hidden"}
+                aria-hidden={activeView !== "image"}
+              >
+                <div className="h-full w-full overflow-hidden">
+                  <ImageEditorPane workspaceId={activeWorkspaceId} />
                 </div>
               </div>
 

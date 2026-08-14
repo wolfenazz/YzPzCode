@@ -5,6 +5,58 @@ export interface AgentCommand {
   description: string;
 }
 
+const COMMAND_ICONS: Record<string, string> = {
+  '/new': 'material-symbols:note-add-rounded',
+  '/init': 'material-symbols:construction-rounded',
+  '/compact': 'material-symbols:compress-rounded',
+  '/undo': 'material-symbols:undo-rounded',
+  '/redo': 'material-symbols:redo-rounded',
+  '/models': 'material-symbols:memory-rounded',
+  '/sessions': 'material-symbols:history-rounded',
+  '/share': 'material-symbols:share-rounded',
+  '/export': 'material-symbols:download-rounded',
+  '/connect': 'material-symbols:link-rounded',
+  '/themes': 'material-symbols:palette-outline-rounded',
+  '/thinking': 'material-symbols:psychology-rounded',
+  '/details': 'material-symbols:list-alt-rounded',
+  '/help': 'material-symbols:help-rounded',
+  '/exit': 'material-symbols:logout-rounded',
+  '/clear': 'material-symbols:clear-all-rounded',
+  '/model': 'material-symbols:memory-rounded',
+  '/memory': 'material-symbols:database-rounded',
+  '/mcp': 'material-symbols:hub-rounded',
+  '/permissions': 'material-symbols:shield-rounded',
+  '/config': 'material-symbols:settings-rounded',
+  '/context': 'material-symbols:query-stats-rounded',
+  '/cost': 'material-symbols:payments-rounded',
+  '/plan': 'material-symbols:checklist-rounded',
+  '/resume': 'material-symbols:play-circle-rounded',
+  '/rewind': 'material-symbols:fast-rewind-rounded',
+  '/doctor': 'material-symbols:medical-services-rounded',
+  '/review': 'material-symbols:rate-review-rounded',
+  '/diff': 'material-symbols:compare-rounded',
+  '/status': 'material-symbols:monitor-heart-rounded',
+  '/agents': 'material-symbols:groups-rounded',
+  '/feedback': 'material-symbols:feedback-rounded',
+  '/memories': 'material-symbols:auto-stories-rounded',
+  '/compress': 'material-symbols:compress-rounded',
+  '/auth': 'material-symbols:key-rounded',
+  '/bug': 'material-symbols:bug-report-rounded',
+  '/quit': 'material-symbols:logout-rounded',
+  '/login': 'material-symbols:login-rounded',
+  '/session': 'material-symbols:description-rounded',
+  '/tree': 'material-symbols:account-tree-rounded',
+  '/fork': 'material-symbols:call-split-rounded',
+  '/settings': 'material-symbols:settings-rounded',
+  '/trust': 'material-symbols:verified-user-rounded',
+  '/reload': 'material-symbols:refresh-rounded',
+  '/hotkeys': 'material-symbols:keyboard-rounded',
+  '/changelog': 'material-symbols:update-rounded',
+};
+
+export const getCommandIcon = (command: string): string =>
+  COMMAND_ICONS[command] ?? 'material-symbols:terminal-rounded';
+
 export const AGENT_COMMANDS: Record<AgentType, AgentCommand[]> = {
   opencode: [
     { command: '/new', description: 'Start a new session' },

@@ -1,6 +1,12 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import '@fontsource/cascadia-mono/latin-400.css';
+import '@fontsource/cascadia-mono/latin-700.css';
+import '@fontsource/jetbrains-mono/latin-400.css';
+import '@fontsource/jetbrains-mono/latin-700.css';
+import '@fontsource/fira-code/latin-400.css';
+import '@fontsource/fira-code/latin-700.css';
 import './styles.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 

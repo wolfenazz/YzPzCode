@@ -1,11 +1,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState } from '../types';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
   !value || value.trim() === '' || value.trim() === 'about:blank';
+
+const getPlatformDefaultTerminalFont = (): string => {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('windows')) return 'Cascadia Mono';
+  if (ua.includes('mac')) return 'Menlo';
+  return 'DejaVu Sans Mono';
+};
 
 const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
   currentUrl: DEFAULT_BROWSER_URL,
@@ -261,6 +268,7 @@ interface AppState {
   activeFileByWorkspace: Record<string, string | null>;
   activeViewByWorkspace: Record<string, WorkspaceView>;
   browserStateByWorkspace: Record<string, BrowserWorkspaceState>;
+  imageEditorByWorkspace: Record<string, ImageEditorWorkspaceState>;
   explorerClipboard: { operation: 'copy' | 'cut'; entries: { path: string; name: string; isDir: boolean }[] } | null;
   restoredFilePathsByWorkspace: Record<string, string[]>;
   recentDirectories: string[];
@@ -270,6 +278,9 @@ interface AppState {
   setExplorerClipboard: (entry: { operation: 'copy' | 'cut'; entries: { path: string; name: string; isDir: boolean }[] } | null) => void;
   clearRestoredFilePaths: (workspaceId: string) => void;
   setActiveView: (view: WorkspaceView) => void;
+  openInImageEditor: (path: string) => void;
+  setImageEditorPathForWorkspace: (workspaceId: string, path: string | null) => void;
+  clearImageEditorForWorkspace: (workspaceId: string) => void;
   ensureBrowserState: (workspaceId: string) => void;
   agentSessionsByWorkspace: Record<string, AgentSessionSummary[]>;
   activeAgentSessionByWorkspace: Record<string, string | null>;
@@ -379,7 +390,7 @@ export const useAppStore = create<AppState>()(
       accentColor: "default",
       uiDensity: "comfortable",
       animationsEnabled: true,
-      terminalFontFamily: "Cascadia Mono",
+      terminalFontFamily: getPlatformDefaultTerminalFont(),
       terminalFontSize: 14,
       terminalCursorStyle: "block",
       terminalCursorBlink: true,
@@ -671,6 +682,8 @@ export const useAppStore = create<AppState>()(
           const remainingWorkspaces = state.openWorkspaces.filter(w => w.id !== workspaceId);
           const nextWorkspace = remainingWorkspaces.length > 0 ? remainingWorkspaces[0] : null;
           const nextId = nextWorkspace?.id ?? null;
+          const imageEditorByWorkspace = { ...state.imageEditorByWorkspace };
+          delete imageEditorByWorkspace[workspaceId];
           return {
             openWorkspaces: remainingWorkspaces,
             activeWorkspaceId: nextId,
@@ -681,6 +694,7 @@ export const useAppStore = create<AppState>()(
             openFiles: nextId ? (state.filesByWorkspace[nextId] || []) : [],
             activeFilePath: nextId ? (state.activeFileByWorkspace[nextId] ?? null) : null,
             activeView: nextId ? (state.activeViewByWorkspace[nextId] || "terminal") : "terminal",
+            imageEditorByWorkspace,
           };
         }),
 
@@ -747,6 +761,7 @@ export const useAppStore = create<AppState>()(
           activeFileByWorkspace: {},
           activeViewByWorkspace: {},
           browserStateByWorkspace: {},
+          imageEditorByWorkspace: {},
           agentSessionsByWorkspace: {},
           activeAgentSessionByWorkspace: {},
         }),
@@ -831,6 +846,7 @@ export const useAppStore = create<AppState>()(
       activeFileByWorkspace: {} as Record<string, string | null>,
       activeViewByWorkspace: {} as Record<string, WorkspaceView>,
       browserStateByWorkspace: {} as Record<string, BrowserWorkspaceState>,
+      imageEditorByWorkspace: {} as Record<string, ImageEditorWorkspaceState>,
       agentSessionsByWorkspace: {} as Record<string, AgentSessionSummary[]>,
       activeAgentSessionByWorkspace: {} as Record<string, string | null>,
       agentPaneUIModes: {} as Record<string, AgentPaneUIMode>,
@@ -867,6 +883,38 @@ export const useAppStore = create<AppState>()(
               [wsId]: view,
             },
           };
+        }),
+
+      openInImageEditor: (path) =>
+        set((state) => {
+          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
+          if (!wsId) return state;
+          return {
+            imageEditorByWorkspace: {
+              ...state.imageEditorByWorkspace,
+              [wsId]: { path },
+            },
+            activeView: 'image' as const,
+            activeViewByWorkspace: {
+              ...state.activeViewByWorkspace,
+              [wsId]: 'image' as const,
+            },
+          };
+        }),
+
+      setImageEditorPathForWorkspace: (workspaceId, path) =>
+        set((state) => ({
+          imageEditorByWorkspace: {
+            ...state.imageEditorByWorkspace,
+            [workspaceId]: { path },
+          },
+        })),
+
+      clearImageEditorForWorkspace: (workspaceId) =>
+        set((state) => {
+          const next = { ...state.imageEditorByWorkspace };
+          delete next[workspaceId];
+          return { imageEditorByWorkspace: next };
         }),
 
       setAgentSessionsForWorkspace: (workspaceId, sessions) =>
@@ -1514,6 +1562,17 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
+      version: 2,
+      migrate: (persistedState: unknown, version: number) => {
+        const state = (persistedState ?? {}) as { terminalFontFamily?: string };
+        if (version < 2) {
+          const ua = navigator.userAgent.toLowerCase();
+          if (state.terminalFontFamily === 'Cascadia Mono' && !ua.includes('windows')) {
+            state.terminalFontFamily = ua.includes('mac') ? 'Menlo' : 'DejaVu Sans Mono';
+          }
+        }
+        return state;
+      },
       partialize: (state) => {
         const base = {
           cliStatuses: state.cliStatuses,
@@ -1574,6 +1633,7 @@ export const useAppStore = create<AppState>()(
             activeAgentSessionByWorkspace: state.activeAgentSessionByWorkspace,
             agentSessionsByWorkspace: state.agentSessionsByWorkspace,
             activeFileByWorkspace: state.activeFileByWorkspace,
+            imageEditorByWorkspace: state.imageEditorByWorkspace,
             browserStateByWorkspace: Object.fromEntries(
               Object.entries(state.browserStateByWorkspace).map(([wsId, browserState]) => [
                 wsId,
