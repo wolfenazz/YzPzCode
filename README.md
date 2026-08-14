@@ -6,7 +6,7 @@
 
 <p><strong>Your AI Coding Squad, One Window Away.</strong></p>
 
-<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, and Hermes together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, and an AI-powered designer.</i></p>
+<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, and Pi together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, and an AI-powered designer.<br>Now with a built-in AI coding agent (YZPZ Agent), powered by the Cline SDK.</i></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=for-the-badge&logo=github&color=yellow)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app)
@@ -43,7 +43,7 @@
 | [!] The Old Way | [+] The YzPzCode Way |
 |:--------------:|:-------------------:|
 | Three terminal windows | **One app** |
-| Three different CLIs | **All 7 AI agents inside** |
+| Three different CLIs | **All 8 AI agents inside** |
 | Alt-tabbing like a maniac | **Side-by-side grid** |
 | Separate browser for devtools | **In-app browser with inspector** |
 | Copy-pasting between them | **Compare instantly** |
@@ -82,7 +82,7 @@
 
 <table>
 <tr>
-<td><b>Multi-Agent Grid</b><br><sub>Run Claude, Gemini, Codex, Kilo, and more in synchronized, side-by-side views.</sub></td>
+<td><b>Multi-Agent Grid</b><br><sub>Run Claude, Gemini, Codex, Kilo, Pi, and more in synchronized, side-by-side views.</sub></td>
 <td><b>Automated Initialization</b><br><sub>Instantly detect and configure locally installed CLIs.</sub></td>
 <td><b>Workspace Presets</b><br><sub>Save and restore optimal agent combinations for specific workflows.</sub></td>
 <td><b>Native Terminals</b><br><sub>Powered by actual PTY sessions for authentic CLI interaction.</sub></td>
@@ -94,7 +94,7 @@
 <td><b>Git Integration</b><br><sub>Monitor repository status and diff statistics at a glance.</sub></td>
 </tr>
 <tr>
-<td><b>Multi-Tab Editor</b><br><sub>Built-in CodeMirror 6 with syntax highlighting, minimap, and file previews.</sub></td>
+<td><b>Monaco Editor</b><br><sub>Built-in Monaco-based multi-tab editor with syntax highlighting, find/replace, and rich file previews (PDF, DOCX, XLSX, PPTX, DrawIO, images).</sub></td>
 <td><b>IDE Integration</b><br><sub>Seamlessly launch into over 10 supported development environments.</sub></td>
 <td><b>Authentication Tracking</b><br><sub>Monitor credential states across all active CLI tools.</sub></td>
 <td><b>Continuous Delivery</b><br><sub>Automated update mechanisms ensure access to the latest features.</sub></td>
@@ -110,6 +110,12 @@
 <td><b>Multi-Workspace</b><br><sub>Multiple open workspaces with tab switching and per-workspace state.</sub></td>
 <td><b>Managed Commands</b><br><sub>Run non-interactive commands with status tracking and PID monitoring.</sub></td>
 <td><b>UI Customization</b><br><sub>8 accent colors, 3 density levels, custom cursor, and animations toggle.</sub></td>
+</tr>
+<tr>
+<td><b>YZPZ Agent</b><br><sub>Built-in AI coding agent (Cline SDK sidecar) with streaming chat, tool logs, and session history.</sub></td>
+<td><b>Agent Teams & Approvals</b><br><sub>Orchestrate sub-agents, approve tool requests, and track todos in real time.</sub></td>
+<td><b>Rich Prompt Editor</b><br><sub>Formatting toolbar plus `@` file mentions that resolve to workspace paths.</sub></td>
+<td><b>Inspector Quick Prompts</b><br><sub>One-click preset prompts (Enhance / Adjust) for the element inspector — fully customizable.</sub></td>
 </tr>
 </table>
 
@@ -148,6 +154,10 @@
 <td align="center" width="120">
 <img src="app/src/assets/Hermes-logo.png" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Hermes</b><br><code>hermes</code><br><sub>Fast, efficient coding agent</sub>
+</td>
+<td align="center" width="120">
+<img src="app/src/assets/pi.svg" width="48" height="48" style="border-radius:12px"/>
+<br><br><b>Pi</b><br><code>pi</code><br><sub>Minimal terminal coding harness</sub>
 </td>
 </tr>
 </table>
@@ -198,6 +208,7 @@ Built directly into the workspace — no more switching windows for web developm
 - **Pick Style Mode**: Click to capture computed CSS styles (with pseudo-elements) to a clipboard
 - **Pick UI Element Mode**: Deep-capture an entire UI component — structure tree (up to 8 levels deep), layout grid, spacing, typography, colors, box model, assets, and auto-generated design intent analysis
 - **Apply Mode**: Apply captured styles to target elements with undo support and CSS class generation
+- **Quick Prompts**: One-click preset prompt chips (Enhance / Adjust groups) that pre-fill the instruction editor — fully customizable and resettable from Settings → Quick Prompts
 
 ---
 
@@ -214,6 +225,25 @@ Generate complete UI designs from natural language prompts:
 - **Code Export**: Export generated HTML/CSS/JS code
 - **Design History**: Browse and restore previous design iterations
 - **Skills Management**: Manage prompt engineering skills for better results
+
+---
+
+## - YZPZ Agent (Built-In AI Agent)
+
+YzPzCode now ships with its own AI coding agent — no external CLI required:
+
+- **Agent View**: A dedicated workspace view for chat-driven coding sessions, alongside the terminal, editor, and browser views
+- **Powered by the Cline SDK**: A Node.js sidecar harness (bundled with the app, started and supervised automatically by the Rust host) runs the agent engine
+- **Streaming Chat**: Real-time message streaming with rich rendering of text, tool calls, results, and images
+- **Tool Execution Logs**: Watch every tool call as it runs — status, input, and results in a live log
+- **Approvals & Permissions**: Interactively approve or reject tool requests before they execute
+- **Todos & Sub-Agents**: Live task lists and sub-agent activity tracking, plus **Agent Teams** that orchestrate multiple sub-agents on a task
+- **Provider & Model Selection**: Choose any supported provider/model (with optional custom API keys and base URLs) and set a custom system prompt
+- **Session History & Resume**: Sessions are scoped per workspace — browse history and resume anytime
+- **Compaction Strategies**: Control context compaction to keep long-running sessions efficient
+- **Usage & Context Gauges**: Track token usage and context budget in real time as you work
+- **Rich Prompt Editor**: Format prompts (bold, italic, code, quotes, lists, links) and type `@` to fuzzy-search and attach workspace files
+- **Per-Agent Slash Commands**: An in-app reference of available `/commands` for each supported agent CLI
 
 ---
 
@@ -324,8 +354,9 @@ Generates a native installer for your platform. Small, fast, no bloat.
 
 | Layer | Stack |
 |:-----:|-------|
-| **Frontend** | React 19 + TypeScript · Vite 6 · Tailwind CSS v4 · Zustand 5 · xterm.js 6 · CodeMirror 6 · framer-motion |
-| **Backend** | Tauri v2 (Rust) · portable-pty · Tokio · discord-rich-presence · anyhow/serde |
+| **Frontend** | React 19 + TypeScript · Vite 6 · Tailwind CSS v4 · Zustand 5 · xterm.js 6 · Monaco Editor · framer-motion |
+| **Backend** | Tauri v2 (Rust) · portable-pty · Tokio · WebSocket (tokio-tungstenite) · discord-rich-presence · anyhow/serde |
+| **Agent Sidecar** | Node.js 22+ · Cline SDK (@cline/sdk) · WebSocket server |
 
 </div>
 
@@ -342,6 +373,7 @@ graph TB
         Store[Zustand Store]
         Explorer[File Explorer]
         Editor[File Editor]
+        AgentView[Agent View]
         Settings[Settings Screen]
     end
 
@@ -359,6 +391,11 @@ graph TB
         Agent[Agent Executor]
         Discord[Discord Presence]
         BrowserMgr[Browser Manager]
+        AgentHost[Agent Host]
+    end
+
+    subgraph Sidecar["Agent Sidecar — Node.js (Cline SDK)"]
+        Harness[Cline SDK Harness]
     end
 
     subgraph CLIs["AI CLI Tools"]
@@ -369,6 +406,7 @@ graph TB
         Cursor[Cursor CLI]
         Kilo[Kilo CLI]
         Hermes[Hermes CLI]
+        Pi[Pi CLI]
     end
 
     subgraph Tools["Tool CLIs"]
@@ -384,11 +422,13 @@ graph TB
     UI --> Setup
     UI --> Explorer
     UI --> Editor
+    UI --> AgentView
     UI --> Settings
     Grid --> Store
     Setup --> Store
     Explorer --> Store
     Editor --> Store
+    AgentView --> Store
     Browser --> Store
     Designer --> Store
     Settings --> Store
@@ -406,6 +446,8 @@ graph TB
     Commands --> Agent
     Commands --> Discord
     Commands --> BrowserMgr
+    Commands --> AgentHost
+    AgentHost <-->|WebSocket| Harness
     
     PTY -->|Spawns| Claude
     PTY -->|Spawns| Gemini
@@ -414,6 +456,7 @@ graph TB
     PTY -->|Spawns| Cursor
     PTY -->|Spawns| Kilo
     PTY -->|Spawns| Hermes
+    PTY -->|Spawns| Pi
     Managed -->|Runs| Gh
     Managed -->|Runs| Stripe
     Managed -->|Runs| Supabase
@@ -431,6 +474,7 @@ app/
 │       ├── agent/                  # Agent task execution & orchestration
 │       ├── agent_cli/              # CLI detection, installation & launching
 │       │   └── providers/          # 17 provider-specific implementations
+│       ├── agent_host/             # Built-in YZPZ Agent engine host (Cline SDK sidecar supervision)
 │       ├── browser/                # In-app web browser + design inspector
 │       ├── commands/               # Tauri IPC handlers (100+ commands)
 │       ├── terminal/               # PTY sessions + managed command runner
@@ -441,17 +485,18 @@ app/
 ├── src/                            # React frontend
 │   ├── components/
 │   │   ├── setup/                  # Setup & configuration screens
-│   │   ├── workspace/              # Terminal grid, browser, sessions
+│   │   ├── workspace/              # Terminal grid, agent view, browser, sessions
 │   │   ├── explorer/               # File explorer & git panels
-│   │   ├── editor/                 # Multi-tab code editor + file previews
+│   │   ├── editor/                 # Monaco code editor + rich file previews
 │   │   ├── designer/               # AI-powered design tools
-│   │   ├── settings/               # 11-section settings panel
+│   │   ├── settings/               # 12-section settings panel
 │   │   ├── common/                 # Shared UI components
 │   │   ├── feedback/               # User feedback modal
 │   │   └── docs/                   # Built-in documentation viewer
 │   ├── hooks/                      # Custom React hooks
 │   ├── stores/                     # Zustand state management
 │   └── types/                      # TypeScript definitions
+├── agent-harness/                  # Node.js sidecar running the Cline SDK (@cline/sdk)
 └── docs/                           # Documentation
 ```
 
@@ -460,10 +505,11 @@ app/
 ## - Features Deep Dive
 
 ### Workspace Views
-Switch between three views in any workspace:
+Switch between four views in any workspace:
 1. **Terminal View** — Multi-pane PTY terminal grid
-2. **Editor View** — CodeMirror 6 with syntax highlighting and file previews
-3. **Browser View** — In-app web browser with dev tools
+2. **Agent View** — Built-in YZPZ Agent chat with tool logs, approvals, and usage gauges
+3. **Editor View** — Monaco-based multi-tab editor with syntax highlighting and rich file previews
+4. **Browser View** — In-app web browser with dev tools
 
 ### Multi-Workspace Tabs
 Open multiple workspaces and switch between them with dedicated tabs. Each workspace maintains its own terminal sessions, open files, browser state, and active view.
@@ -473,6 +519,12 @@ Run non-interactive shell commands inside the app with full status tracking (Sta
 
 ### Agent Task Execution
 Describe a task in natural language — the app generates the appropriate shell command using your AI CLI, executes it, and retries up to 3 times on failure.
+
+### Rich Prompt Editor
+Format prompts with a rich-text toolbar (bold, italic, code, quotes, lists, links) and type `@` to fuzzy-search and attach workspace files to your prompt — used across the terminal and the built-in YZPZ Agent.
+
+### Spreadsheet & Diagram Editing
+Edit XLSX/CSV spreadsheets directly in-app with a Glide-Data-Grid-based spreadsheet editor, and preview `.drawio` diagrams with the bundled draw.io viewer (fetched and verified at install time, no CDN needed at runtime).
 
 ### Discord Rich Presence
 Show what you're working on in your Discord profile — workspace name, activity details, and current state with timestamps.
@@ -492,8 +544,8 @@ Launch native OS terminals with any AI CLI pre-configured. Windows terminals are
 - Automatic check on launch, configurable auto-download
 - Download progress bar and one-click install with relaunch
 
-### 11 Settings Sections
-Appearance, Terminal, Editor, Agents, Workspace, IDE, Updates, Environment, Data, About, Shortcuts
+### 12 Settings Sections
+Appearance, Terminal, Editor, Agents, **AI Agents (Provider Configs)**, Workspace, IDE, Updates, Environment, Data, About, Shortcuts
 
 ---
 
