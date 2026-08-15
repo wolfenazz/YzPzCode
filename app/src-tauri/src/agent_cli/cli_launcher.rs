@@ -64,15 +64,6 @@ impl CliLauncher {
         // terminal::session::PtySession::create), so the agent binary resolves
         // exactly like it would in a native shell window. Launch it with the
         // plain binary name — no environment setup prefix required.
-        #[cfg(target_os = "windows")]
-        let launch_command = format!("{}\r\n", binary_name);
-
-        #[cfg(target_os = "macos")]
-        let launch_command = format!("{}\n", binary_name);
-
-        #[cfg(target_os = "linux")]
-        let launch_command = format!("{}\n", binary_name);
-
         let state = CliLaunchState {
             session_id: session_id.to_string(),
             agent,
@@ -93,8 +84,25 @@ impl CliLauncher {
                 "[CLI] Attempting to launch '{}' in session {}",
                 binary_name, sid
             );
-            match tm.write_to_session(&sid, &launch_command) {
+            match tm.write_to_session(&sid, binary_name) {
                 Ok(()) => {
+                    // Send Enter in a separate PTY write. Interactive TUIs
+                    // such as OpenCode and Kilo can ignore an initial submit
+                    // when it arrives in the same byte frame as the command.
+                    std::thread::sleep(std::time::Duration::from_millis(120));
+                    if let Err(e) = tm.write_to_session(&sid, "\r") {
+                        eprintln!("[CLI] Failed to submit launch command in session {}: {}", sid, e);
+                        state_clone.status = CliLaunchStatus::Error;
+                        state_clone.error = Some(e.to_string());
+                        {
+                            let mut states = launcher.launch_states.lock().unwrap();
+                            if let Some(s) = states.iter_mut().find(|s| s.session_id == sid) {
+                                *s = state_clone.clone();
+                            }
+                        }
+                        launcher.emit_state_change(&state_clone);
+                        return;
+                    }
                     println!("[CLI] Successfully wrote launch command to session {}", sid);
                     state_clone.status = CliLaunchStatus::Running;
                     {

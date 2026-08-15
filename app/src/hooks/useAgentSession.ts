@@ -111,15 +111,31 @@ const reasoningText = (block: ClineContentBlock | undefined): string => {
 
 const normalizedReasoningText = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
-const MAX_SUB_AGENT_EVENTS = 18;
+// Teammate streams can emit a partial content event for every token. Keep the
+// activity model intentionally small because the team rail is a supervision
+// surface, not a second transcript.
+const MAX_SUB_AGENT_EVENTS = 8;
 
 const summarizeSubAgentEvent = (
   event: Record<string, unknown>,
-): { kind: AgentSubAgentEvent['kind']; summary: string; status?: AgentSubAgentActivity['status']; isTask: boolean } => {
+): {
+  kind: AgentSubAgentEvent['kind'];
+  summary: string;
+  status?: AgentSubAgentActivity['status'];
+  isTask: boolean;
+  transient?: boolean;
+} => {
   const type = extractString(event, ['type']).toLowerCase();
   const toolName = extractString(event, ['toolName', 'tool_name', 'name']);
   const detail = extractString(event, ['text', 'content', 'message', 'thinking', 'reasoning', 'summary', 'error']);
   const conciseDetail = detail.replace(/\s+/g, ' ').trim().slice(0, 480);
+
+  // Streaming chunks such as `}`, `80`, or a single partial word are neither
+  // useful progress reports nor stable UI content. Ignoring them prevents a
+  // busy team from constantly re-rendering the entire activity rail.
+  if ((type === 'content_update' || type === 'content_start') && conciseDetail.length < 16) {
+    return { kind: 'message', summary: 'Working on assigned task', isTask: false, transient: true };
+  }
 
   if (type.includes('error') || type.includes('fail')) {
     return { kind: 'status', summary: conciseDetail || 'Reported an error', status: 'error', isTask: false };
@@ -238,7 +254,7 @@ const normalizeClineMessages = (raw: ClineMessage[]): ClineMessage[] => {
 
 export const useAgentSession = (
   sessionId: string | null,
-  initial?: { providerId?: string | null; modelId?: string | null },
+  initial?: { providerId?: string | null; modelId?: string | null; mode?: AgentMode | null; fastMode?: boolean | null },
 ) => {
   const {
     sendMessage,
@@ -246,31 +262,62 @@ export const useAgentSession = (
     approveTool,
     readMessages,
     updateConnection: hostUpdateConnection,
+    setFastMode: setFastModeCommand,
     getUsage,
     answerQuestion: hostAnswerQuestion,
     onSessionEvent,
     onApprovalRequest,
     onSessionStatus,
     onSessionError,
+    onNotice,
     onSessionEnded,
     onApprovalResolved,
     onTeamProgress,
     onQuestionRequest,
     onTodoUpdated,
     onContextUpdated,
+    onUsageUpdated,
   } = useAgentHost();
   const removeAgentSessionForWorkspace = useAppStore((s) => s.removeAgentSessionForWorkspace);
 
   const [messages, setMessages] = useState<ClineMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
   const [streamingThinking, setStreamingThinking] = useState('');
+
+  // ── Streaming throttle ──────────────────────────────────────────────
+  // Streaming deltas arrive many times per second; re-parsing ReactMarkdown on
+  // every single delta is the hottest render path in the chat. Coalesce pending
+  // text/thinking into a ref and push to React at most once per animation
+  // frame. The ref always holds the latest merged text, so finalize/end
+  // handlers read it directly (flushing synchronously) instead of the state.
+  const streamRef = useRef({ text: '', thinking: '' });
+  const streamRafRef = useRef<number | null>(null);
+
+  const flushStreamState = useCallback(() => {
+    streamRafRef.current = null;
+    const { text, thinking } = streamRef.current;
+    setStreamingText(text);
+    setStreamingThinking(thinking);
+  }, []);
+
+  const scheduleStreamFlush = useCallback(() => {
+    if (streamRafRef.current !== null) return;
+    streamRafRef.current = requestAnimationFrame(flushStreamState);
+  }, [flushStreamState]);
+
+  const clearStreamFlush = useCallback(() => {
+    if (streamRafRef.current !== null) {
+      cancelAnimationFrame(streamRafRef.current);
+      streamRafRef.current = null;
+    }
+  }, []);
   const [notice, setNotice] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<{ name: string; input: unknown } | null>(null);
   const [toolLog, setToolLog] = useState<ToolLogEntry[]>([]);
   const [status, setStatus] = useState<AgentPaneStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [approvals, setApprovals] = useState<AgentApprovalRequest[]>([]);
-  const [mode, setMode] = useState<AgentMode>('act');
+  const [mode, setMode] = useState<AgentMode>(initial?.mode ?? 'act');
   const [usage, setUsage] = useState<AgentAccumulatedUsage | null>(null);
   const [contextTokens, setContextTokens] = useState<number | null>(null);
   const [compaction, setCompaction] = useState<AgentCompactionStatus | null>(null);
@@ -283,11 +330,16 @@ export const useAgentSession = (
   const [toolCount, setToolCount] = useState(0);
   const [providerId, setProviderId] = useState<string | null>(initial?.providerId ?? null);
   const [modelId, setModelId] = useState<string | null>(initial?.modelId ?? null);
+  const [fastMode, setFastModeState] = useState<boolean>(initial?.fastMode === true);
   const [thinkingEffort, setThinkingEffort] = useState<string | null>(null);
 
   const sessionIdRef = useRef(sessionId);
   const activeToolIdRef = useRef<string | null>(null);
   sessionIdRef.current = sessionId;
+  // Last user prompt, for one-click "Continue" recovery after an error.
+  const lastPromptRef = useRef('');
+  const statusRef = useRef<AgentPaneStatus>('idle');
+  statusRef.current = status;
 
   // ── Message helpers ────────────────────────────────────────────────
   const appendAssistantText = useCallback((text: string, providerId?: string, modelId?: string) => {
@@ -340,15 +392,15 @@ export const useAgentSession = (
   }, []);
 
   const finalizeStream = useCallback((providerId?: string, modelId?: string) => {
-    setStreamingText((stream) => {
-      const text = stream.trim();
-      if (text) {
-        appendAssistantText(text, providerId, modelId);
-      }
-      return '';
-    });
+    clearStreamFlush();
+    const text = streamRef.current.text.trim();
+    streamRef.current = { ...streamRef.current, text: '' };
+    setStreamingText('');
+    if (text) {
+      appendAssistantText(text, providerId, modelId);
+    }
     setActiveTool(null);
-  }, [appendAssistantText]);
+  }, [appendAssistantText, clearStreamFlush]);
 
   /** Append a finalized reasoning/thinking block to the running assistant message. */
   const appendAssistantReasoning = useCallback((text: string) => {
@@ -370,22 +422,25 @@ export const useAgentSession = (
   }, []);
 
   const finalizeThinking = useCallback(() => {
-    setStreamingThinking((stream) => {
-      const text = stream.trim();
-      if (text) {
-        appendAssistantReasoning(text);
-      }
-      return '';
-    });
-  }, [appendAssistantReasoning]);
+    clearStreamFlush();
+    const text = streamRef.current.thinking.trim();
+    streamRef.current = { ...streamRef.current, thinking: '' };
+    setStreamingThinking('');
+    if (text) {
+      appendAssistantReasoning(text);
+    }
+  }, [appendAssistantReasoning, clearStreamFlush]);
 
   /** Clear live-render state (persisted history covers it after completion). */
   const resetLiveStream = useCallback(() => {
+    clearStreamFlush();
+    streamRef.current = { text: '', thinking: '' };
     setToolLog([]);
+    setStreamingText('');
     setStreamingThinking('');
     setActiveTool(null);
     activeToolIdRef.current = null;
-  }, []);
+  }, [clearStreamFlush]);
 
   const refreshMessages = useCallback(async () => {
     const sid = sessionIdRef.current;
@@ -411,19 +466,6 @@ export const useAgentSession = (
       console.error('[agent] failed to read usage:', err);
     }
   }, [getUsage]);
-
-  const applyUsageDelta = useCallback((delta: Partial<AgentAccumulatedUsage>) => {
-    setUsage((prev) => {
-      const base = prev ?? { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCost: 0 };
-      return {
-        inputTokens: base.inputTokens + toNumber(delta.inputTokens),
-        outputTokens: base.outputTokens + toNumber(delta.outputTokens),
-        cacheReadTokens: base.cacheReadTokens + toNumber(delta.cacheReadTokens),
-        cacheWriteTokens: base.cacheWriteTokens + toNumber(delta.cacheWriteTokens),
-        totalCost: base.totalCost + toNumber(delta.totalCost),
-      };
-    });
-  }, []);
 
   // ── Event dispatch ─────────────────────────────────────────────────
   const handleAgentEvent = useCallback(
@@ -468,11 +510,17 @@ export const useAgentSession = (
           } else if (contentType === 'reasoning') {
             const reasoning = extractString(event, ['reasoning', 'text']);
             const accumulated = extractString(event, ['accumulated']);
-            if (reasoning) setStreamingThinking((prev) => mergeStreamChunk(prev, reasoning, accumulated));
+            if (reasoning) {
+              streamRef.current.thinking = mergeStreamChunk(streamRef.current.thinking, reasoning, accumulated);
+              scheduleStreamFlush();
+            }
           } else if (contentType === 'text') {
             const text = extractString(event, ['text']);
             const accumulated = extractString(event, ['accumulated']);
-            if (text) setStreamingText((prev) => mergeStreamChunk(prev, text, accumulated));
+            if (text) {
+              streamRef.current.text = mergeStreamChunk(streamRef.current.text, text, accumulated);
+              scheduleStreamFlush();
+            }
           }
           break;
         }
@@ -500,11 +548,17 @@ export const useAgentSession = (
           } else if (contentType === 'reasoning') {
             const reasoning = extractString(event, ['reasoning', 'text']);
             const accumulated = extractString(event, ['accumulated']);
-            if (reasoning) setStreamingThinking((prev) => mergeStreamChunk(prev, reasoning, accumulated));
+            if (reasoning) {
+              streamRef.current.thinking = mergeStreamChunk(streamRef.current.thinking, reasoning, accumulated);
+              scheduleStreamFlush();
+            }
           } else {
             const text = extractString(event, ['text']);
             const accumulated = extractString(event, ['accumulated']);
-            if (text) setStreamingText((prev) => mergeStreamChunk(prev, text, accumulated));
+            if (text) {
+              streamRef.current.text = mergeStreamChunk(streamRef.current.text, text, accumulated);
+              scheduleStreamFlush();
+            }
           }
           break;
         }
@@ -534,40 +588,39 @@ export const useAgentSession = (
             setActiveTool(null);
             activeToolIdRef.current = null;
           } else if (contentType === 'reasoning') {
-            setStreamingThinking((prev) => {
-              const text = prev.trim();
-              if (text) appendAssistantReasoning(text);
-              return '';
-            });
+            clearStreamFlush();
+            const text = streamRef.current.thinking.trim();
+            streamRef.current = { ...streamRef.current, thinking: '' };
+            setStreamingThinking('');
+            if (text) appendAssistantReasoning(text);
           } else {
-            setStreamingText((prev) => {
-              const text = prev.trim();
-              if (text) {
-                const providerId = extractString(event, ['providerId', 'provider_id']) || undefined;
-                const modelId = extractString(event, ['modelId', 'model_id']) || undefined;
-                appendAssistantText(text, providerId, modelId);
-              }
-              return '';
-            });
+            clearStreamFlush();
+            const text = streamRef.current.text.trim();
+            streamRef.current = { ...streamRef.current, text: '' };
+            setStreamingText('');
+            if (text) {
+              const providerId = extractString(event, ['providerId', 'provider_id']) || undefined;
+              const modelId = extractString(event, ['modelId', 'model_id']) || undefined;
+              appendAssistantText(text, providerId, modelId);
+            }
           }
           break;
         }
         case 'iteration_start':
           setIterations((i) => i + 1);
           setStatus('running');
+          // The harness auto-recovers after errors; clear the error card as
+          // soon as a new turn begins so the chat never looks dead.
+          setError(null);
           break;
+        // Usage is tracked authoritatively by the harness, which re-emits a
+        // `usage-updated` event (cumulative per-session totals) for every raw
+        // SDK usage event. Applying the raw delta here too would transiently
+        // double-count between the two events — the harness event always
+        // follows and overwrites with the correct absolute value.
         case 'usage':
-        case 'usage-updated': {
-          const usageObj = (pick(event, ['usage', 'delta']) ?? event) as Record<string, unknown>;
-          applyUsageDelta({
-            inputTokens: toNumber(usageObj.inputTokens),
-            outputTokens: toNumber(usageObj.outputTokens),
-            cacheReadTokens: toNumber(usageObj.cacheReadTokens),
-            cacheWriteTokens: toNumber(usageObj.cacheWriteTokens),
-            totalCost: toNumber(usageObj.totalCost ?? usageObj.cost),
-          });
+        case 'usage-updated':
           break;
-        }
         case 'notice': {
           const msg = noticeMessage;
           // SDK compaction notices use concise machine labels such as
@@ -585,6 +638,7 @@ export const useAgentSession = (
           resetLiveStream();
           setStatus('done');
           setNotice(null);
+          setError(null);
           void refreshMessages();
           void refreshUsage();
           break;
@@ -602,7 +656,7 @@ export const useAgentSession = (
           break;
       }
     },
-    [appendAssistantReasoning, appendAssistantText, appendAssistantTool, applyUsageDelta, finalizeStream, finalizeThinking, resetLiveStream, refreshMessages, refreshUsage, updateAssistantTool]
+    [appendAssistantReasoning, appendAssistantText, appendAssistantTool, clearStreamFlush, finalizeStream, finalizeThinking, resetLiveStream, refreshMessages, refreshUsage, scheduleStreamFlush, updateAssistantTool]
   );
 
   const modeRef = useRef(mode);
@@ -635,7 +689,11 @@ export const useAgentSession = (
                 const previousEvents = existing?.events ?? [];
                 const lastEvent = previousEvents[previousEvents.length - 1];
                 const isDuplicate = lastEvent?.kind === activity.kind && lastEvent.summary === activity.summary;
-                const events = isDuplicate
+                const isRapidReasoning = activity.kind === 'reasoning' && !!lastEvent && now - lastEvent.ts < 1_500;
+
+                if ((activity.transient || isRapidReasoning) && existing && !activity.status) return prev;
+
+                const events = isDuplicate || isRapidReasoning
                   ? previousEvents
                   : [...previousEvents, { id: `${teamAgentId}-${now}-${activity.kind}`, kind: activity.kind, summary: activity.summary, ts: now }].slice(-MAX_SUB_AGENT_EVENTS);
                 const entry: AgentSubAgentActivity = {
@@ -644,7 +702,7 @@ export const useAgentSession = (
                   task: activity.isTask ? activity.summary : existing?.task ?? activity.summary,
                   status: activity.status ?? existing?.status ?? 'running',
                   ts: now,
-                  lastActivity: activity.summary,
+                  lastActivity: activity.transient ? existing?.lastActivity ?? activity.summary : activity.summary,
                   events,
                 };
                 return [entry, ...prev.filter((agent) => agent.agentId !== teamAgentId)].slice(0, 20);
@@ -674,6 +732,9 @@ export const useAgentSession = (
         if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
         if (event.payload.status === 'running' || event.payload.status === 'working') {
           setStatus('running');
+          // A resumed turn (e.g. after auto-recovery) means the failure is
+          // being handled — drop the stale error state.
+          setError(null);
         } else if (event.payload.status === 'idle') {
           setStatus('idle');
         }
@@ -688,6 +749,16 @@ export const useAgentSession = (
         setError(event.payload.error || 'Agent failed');
         setStatus('error');
         setNotice(null);
+      })
+    );
+    // Harness-generated notices (auto-recovery progress, compaction,
+    // completion-guard nudges) arrive on their own channel; surface them in
+    // the timeline so the user always knows what the agent is doing.
+    unlisteners.push(
+      onNotice((event) => {
+        if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
+        const message = event.payload.message;
+        if (message) setNotice(message);
       })
     );
     unlisteners.push(
@@ -736,6 +807,16 @@ export const useAgentSession = (
         setContextTokens(Number.isFinite(event.payload.totalTokens) ? event.payload.totalTokens : null);
       })
     );
+    // Authoritative cumulative usage from the harness. Setting the absolute
+    // value (not applying a delta) fixes meter inflation from double-counting
+    // raw SDK usage events and keeps the budget bar live.
+    unlisteners.push(
+      onUsageUpdated((event) => {
+        if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
+        const u = event.payload.usage;
+        if (u && typeof u === 'object') setUsage(u);
+      })
+    );
 
     void refreshMessages();
     void refreshUsage();
@@ -747,6 +828,16 @@ export const useAgentSession = (
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
+  // Sync the harness's in-memory fast-mode flag when a pane restores a
+  // persisted fast-mode session (the map is lost on sidecar restart, so the
+  // UI toggle alone would not apply the speed directive to the next send).
+  useEffect(() => {
+    if (sessionId && initial?.fastMode === true) {
+      void setFastModeCommand(sessionId, true).catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
+
   // ── Actions ────────────────────────────────────────────────────────
   const send = useCallback(
     async (prompt: string, attachments: AgentAttachment[] = []) => {
@@ -755,22 +846,25 @@ export const useAgentSession = (
       setError(null);
       setNotice(null);
       setCompaction(null);
+      clearStreamFlush();
+      streamRef.current = { text: '', thinking: '' };
       setStreamingText('');
       setStreamingThinking('');
       setToolLog([]);
       activeToolIdRef.current = null;
       setStatus('running');
+      lastPromptRef.current = prompt;
       appendUserMessage(prompt, attachments);
       try {
         const m = modeRef.current;
-        const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'act' : undefined;
+        const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'orchestrator' : undefined;
         await sendMessage(sid, prompt, modeToSend, attachments);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStatus('error');
       }
     },
-    [sendMessage]
+    [clearStreamFlush, sendMessage]
   );
 
   const appendUserMessage = useCallback((prompt: string, attachments: AgentAttachment[] = []) => {
@@ -795,11 +889,24 @@ export const useAgentSession = (
       console.error('[agent] abort failed:', err);
     }
     finalizeStream();
+    clearStreamFlush();
+    streamRef.current = { text: '', thinking: '' };
     setStatus('idle');
     setActiveTool(null);
     setToolLog([]);
     setStreamingThinking('');
-  }, [abortSession, finalizeStream]);
+    setError(null);
+  }, [abortSession, clearStreamFlush, finalizeStream]);
+
+  /** One-click recovery: re-send the last user prompt after an error. */
+  const resendLastPrompt = useCallback(async (): Promise<boolean> => {
+    const sid = sessionIdRef.current;
+    const prompt = lastPromptRef.current;
+    if (!sid || !prompt.trim()) return false;
+    if (statusRef.current === 'running' || statusRef.current === 'starting') return false;
+    await send(prompt);
+    return true;
+  }, [send]);
 
   const approve = useCallback(
     async (requestId: string, approved: boolean, reason?: string) => {
@@ -852,6 +959,21 @@ export const useAgentSession = (
     [hostUpdateConnection]
   );
 
+  /** Toggle Fast mode (persisted in the harness so it survives resume). */
+  const setFastMode = useCallback(
+    async (enabled: boolean) => {
+      setFastModeState(enabled);
+      const sid = sessionIdRef.current;
+      if (!sid) return;
+      try {
+        await setFastModeCommand(sid, enabled);
+      } catch (err) {
+        console.error('[agent] set fast mode failed:', err);
+      }
+    },
+    [setFastModeCommand]
+  );
+
   const removeSession = useCallback(
     (workspaceId: string) => {
       if (sessionIdRef.current) {
@@ -886,8 +1008,11 @@ export const useAgentSession = (
     providerId,
     modelId,
     thinkingEffort,
+    fastMode,
+    setFastMode,
     send,
     abort,
+    resendLastPrompt,
     approve,
     answerQuestion,
     updateConnection,

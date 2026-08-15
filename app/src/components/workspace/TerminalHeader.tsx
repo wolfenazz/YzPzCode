@@ -53,7 +53,6 @@ interface TerminalHeaderProps {
   cliStatusBadge: React.ReactNode;
   dragListeners?: Record<string, unknown>;
   mouseTrackingEnabled?: boolean;
-  mouseAlwaysOn?: boolean;
   onToggleMouseTracking?: () => void;
   onNewSession?: () => void;
   onRunCommand?: (command: string) => void;
@@ -69,7 +68,6 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   cliStatusBadge,
   dragListeners,
   mouseTrackingEnabled = false,
-  mouseAlwaysOn = false,
   onToggleMouseTracking,
   onNewSession,
   onRunCommand,
@@ -77,16 +75,11 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   isActive = false,
 }) => {
   // The effective agent combines the fleet-assigned agent with a runtime
-  // detection of an agent launched manually inside the terminal, so the badge,
-  // mouse always-on behavior and New Session button appear in both cases.
+  // detection of an agent launched manually inside the terminal, so the badge
+  // and New Session button appear in both cases.
   const effectiveAgent = agentOverride ?? session.agent;
-  // AI agent terminals (opencode, kilo, claude, ...) keep mouse tracking on by
-  // default via Always-On Mouse, but expose the same On/Off button so it can be
-  // disabled per-session.
   const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
-  // For AI agents the button reflects the Always-On state; for shell/tool
-  // terminals it reflects whether xterm currently has mouse tracking enabled.
-  const mouseOn = isAiAgent ? mouseAlwaysOn : mouseTrackingEnabled;
+  const mouseOn = mouseTrackingEnabled;
 
   const [commandsOpen, setCommandsOpen] = useState(false);
   const commandsRef = useRef<HTMLDivElement>(null);
@@ -186,9 +179,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
               : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
           }`}
           title={mouseOn
-            ? (isAiAgent
-              ? 'Always-On Mouse enabled (click to disable)'
-              : 'Mouse mode enabled (click to disable)')
+            ? 'Mouse mode enabled (click to disable)'
             : 'Mouse mode disabled (click to enable manually)'}
         >
           Mouse {mouseOn ? 'On' : 'Off'}

@@ -482,6 +482,10 @@ export interface AgentSessionSummary {
   title: string | null;
   providerId: string | null;
   modelId: string | null;
+  /** Last-known read-only/team mode (ask/plan/orchestrator), persisted in session metadata. */
+  mode?: AgentMode | null;
+  /** Fast mode toggle — forces speed over deliberation (persisted in session metadata). */
+  fastMode?: boolean | null;
   createdAt: number | null;
   updatedAt: number | null;
   messageCount: number | null;

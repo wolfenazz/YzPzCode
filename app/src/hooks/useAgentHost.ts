@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import type {
+  AgentAccumulatedUsage,
   AgentAttachment,
   AgentApprovalRequest,
   AgentCoreSessionEvent,
@@ -81,6 +82,10 @@ export const useAgentHost = () => {
     return invoke('stop_agent_session', { sessionId });
   }, []);
 
+  const closeSession = useCallback(async (sessionId: string) => {
+    return invoke('close_agent_session', { sessionId });
+  }, []);
+
   const deleteSession = useCallback(async (sessionId: string) => {
     return invoke('delete_agent_session', { sessionId });
   }, []);
@@ -110,6 +115,10 @@ export const useAgentHost = () => {
 
   const updateModel = useCallback(async (sessionId: string, modelId: string) => {
     return invoke('update_agent_session_model', { sessionId, modelId });
+  }, []);
+
+  const setFastMode = useCallback(async (sessionId: string, enabled: boolean) => {
+    return invoke('set_agent_fast_mode', { sessionId, enabled });
   }, []);
 
   const updateConnection = useCallback(
@@ -289,6 +298,11 @@ export const useAgentHost = () => {
       listen<{ sessionId: string; error: string }>('yzpz-agent:session-error', cb),
     []
   );
+  const onNotice = useCallback(
+    (cb: (event: { payload: { sessionId: string; message: string } }) => void): Promise<UnlistenFn> =>
+      listen<{ sessionId: string; message: string }>('yzpz-agent:notice', cb),
+    []
+  );
   const onSessionEnded = useCallback(
     (cb: (event: { payload: { sessionId: string; reason: string; ts: number } }) => void): Promise<UnlistenFn> =>
       listen<{ sessionId: string; reason: string; ts: number }>('yzpz-agent:session-ended', cb),
@@ -329,6 +343,11 @@ export const useAgentHost = () => {
       listen<{ sessionId: string; inputTokens: number; cacheReadTokens: number; totalTokens: number }>('yzpz-agent:context-updated', cb),
     []
   );
+  const onUsageUpdated = useCallback(
+    (cb: (event: { payload: { sessionId: string; usage: AgentAccumulatedUsage } }) => void): Promise<UnlistenFn> =>
+      listen<{ sessionId: string; usage: AgentAccumulatedUsage }>('yzpz-agent:usage-updated', cb),
+    []
+  );
 
   return {
     ensureHost,
@@ -338,12 +357,14 @@ export const useAgentHost = () => {
     resumeSession,
     abortSession,
     stopSession,
+    closeSession,
     deleteSession,
     listSessions,
     readMessages,
     getSessionPreview,
     updateTitle,
     updateModel,
+    setFastMode,
     updateConnection,
     approveTool,
     getProviders,
@@ -370,6 +391,7 @@ export const useAgentHost = () => {
     onApprovalRequest,
     onSessionStatus,
     onSessionError,
+    onNotice,
     onSessionEnded,
     onApprovalResolved,
     onLog,
@@ -378,5 +400,6 @@ export const useAgentHost = () => {
     onQuestionRequest,
     onTodoUpdated,
     onContextUpdated,
+    onUsageUpdated,
   };
 };

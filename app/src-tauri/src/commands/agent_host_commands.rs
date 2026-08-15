@@ -102,6 +102,17 @@ pub async fn stop_agent_session(
 }
 
 #[tauri::command]
+pub async fn close_agent_session(
+    manager: State<'_, AgentHostManager>,
+    session_id: String,
+) -> Result<(), String> {
+    manager
+        .close_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn delete_agent_session(
     manager: State<'_, AgentHostManager>,
     session_id: String,
@@ -212,6 +223,21 @@ pub async fn update_agent_session_model(
         .quick_command(
             "update-model",
             Some(json!({ "sessionId": session_id, "modelId": model_id })),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn set_agent_fast_mode(
+    manager: State<'_, AgentHostManager>,
+    session_id: String,
+    enabled: bool,
+) -> Result<Value, String> {
+    manager
+        .quick_command(
+            "set-fast-mode",
+            Some(json!({ "sessionId": session_id, "enabled": enabled })),
         )
         .await
         .map_err(|e| e.to_string())

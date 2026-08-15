@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::State;
 
-use crate::agent_cli::CliLauncher;
 use crate::terminal::{ManagedCommandManager, ManagedCommandState, TerminalManager};
 use crate::types::{AgentType, CreateSessionsRequest, TerminalSession};
 
@@ -18,7 +17,6 @@ pub struct CreateSingleSessionRequest {
 #[tauri::command]
 pub async fn create_single_terminal_session(
     manager: State<'_, TerminalManager>,
-    launcher: State<'_, CliLauncher>,
     request: CreateSingleSessionRequest,
 ) -> Result<TerminalSession, String> {
     let session = manager
@@ -31,15 +29,6 @@ pub async fn create_single_terminal_session(
         )
         .map_err(|e| e.to_string())?;
 
-    if let Some(agent) = request.agent {
-        if let Err(e) = launcher.launch_cli(&session.id, agent) {
-            eprintln!(
-                "Warning: failed to launch CLI for session {}: {}",
-                session.id, e
-            );
-        }
-    }
-
     Ok(session)
 }
 
@@ -47,7 +36,6 @@ pub async fn create_single_terminal_session(
 pub async fn create_terminal_sessions(
     manager: State<'_, TerminalManager>,
     managed_manager: State<'_, ManagedCommandManager>,
-    launcher: State<'_, CliLauncher>,
     request: CreateSessionsRequest,
 ) -> Result<Vec<TerminalSession>, String> {
     if let Err(e) = manager.kill_sessions_by_workspace(&request.workspace_id) {
@@ -70,17 +58,10 @@ pub async fn create_terminal_sessions(
         )
         .map_err(|e| e.to_string())?;
 
-    for session in &sessions {
-        if let Some(agent) = session.agent {
-            if let Err(e) = launcher.launch_cli(&session.id, agent) {
-                eprintln!(
-                    "Warning: failed to launch CLI for session {}: {}",
-                    session.id, e
-                );
-            }
-        }
-    }
-
+    // The frontend starts assigned agents only after it has mounted xterm and
+    // subscribed to this session's output. Launching here races that setup on
+    // app restore, so the first full-screen TUI frame can be emitted before a
+    // terminal exists to render it (most visible on macOS).
     Ok(sessions)
 }
 

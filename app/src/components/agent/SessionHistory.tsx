@@ -60,7 +60,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
   onDelete,
   onClose,
 }) => {
-  const { ensureHost, listSessions, getSessionPreview } = useAgentHost();
+  const { ensureHost, listSessions, getSessionPreview, updateTitle } = useAgentHost();
   const [sessions, setSessions] = useState<AgentSessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +68,8 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
   const [search, setSearch] = useState('');
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const confirmTimerRef = useRef<number | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -133,6 +135,23 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
       setSessions((prev) => prev.filter((s) => s.sessionId !== sessionId));
     },
     [confirmingId, onDelete],
+  );
+
+  const handleRename = useCallback(
+    (session: AgentSessionSummary) => {
+      const trimmed = renameDraft.trim();
+      setRenamingId(null);
+      if (!trimmed || trimmed === session.title) return;
+      // Persist through the sidecar; reflect the rename locally regardless.
+      void updateTitle(session.sessionId, trimmed)
+        .then(() => {
+          setSessions((prev) => prev.map((s) => (s.sessionId === session.sessionId ? { ...s, title: trimmed } : s)));
+        })
+        .catch(() => {
+          setSessions((prev) => prev.map((s) => (s.sessionId === session.sessionId ? { ...s, title: trimmed } : s)));
+        });
+    },
+    [renameDraft, updateTitle],
   );
 
   const visible = useMemo(() => {
@@ -220,10 +239,52 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                 className="group flex items-start gap-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)]/60 hover:border-[var(--accent-border)] transition-colors duration-100 px-3 py-2.5"
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] font-bold text-theme-main truncate">
-                      {s.title || `Session ${s.sessionId.slice(0, 8)}`}
-                    </span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {renamingId === s.sessionId ? (
+                      <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onBlur={() => handleRename(s)}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRename(s);
+                          else if (e.key === 'Escape') setRenamingId(null);
+                        }}
+                        placeholder="Session title"
+                        className="w-full max-w-[260px] h-5 rounded border border-[var(--accent-border)] bg-[var(--bg-main)] px-1.5 font-mono text-[11px] font-bold text-theme-main focus:outline-none"
+                      />
+                    ) : (
+                      <span
+                        className="group/title flex items-center gap-1 min-w-0 cursor-text"
+                        title="Double-click or click ✎ to rename"
+                        onDoubleClick={() => {
+                          setRenameDraft(s.title || '');
+                          setRenamingId(s.sessionId);
+                        }}
+                      >
+                        <span className="font-mono text-[11px] font-bold text-theme-main truncate">
+                          {s.title || `Session ${s.sessionId.slice(0, 8)}`}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setRenameDraft(s.title || '');
+                            setRenamingId(s.sessionId);
+                          }}
+                          className="shrink-0 p-0.5 rounded text-[var(--text-secondary)]/0 group-hover/title:text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-100 cursor-pointer"
+                          title="Rename session"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={1.5}
+                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                            />
+                          </svg>
+                        </button>
+                      </span>
+                    )}
                     {isOpen && (
                       <span className="shrink-0 px-1.5 h-4 rounded-sm bg-emerald-950/40 border border-emerald-900/50 text-[8px] font-bold uppercase tracking-widest text-emerald-500">
                         open

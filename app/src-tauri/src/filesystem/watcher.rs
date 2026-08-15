@@ -166,32 +166,60 @@ mod tests {
     use super::*;
     use std::path::Path;
 
+    // Platform-neutral cases (forward-slash relative paths) must hold on every
+    // OS. Windows-only `C:\`-style assertions are gated behind `#[cfg(windows)]`
+    // because a backslash is NOT a separator on Unix — `Path::new(r"C:\a\b")`
+    // is a single component there, which made these tests fail on macOS/Linux.
+
     #[test]
     fn detects_direct_children() {
-        let root = Path::new(r"C:\workspace");
-        assert!(is_top_level_child(Path::new(r"C:\workspace\src"), root));
-        assert!(is_top_level_child(
-            Path::new(r"C:\workspace\package.json"),
-            root
-        ));
+        let root = Path::new("workspace");
+        assert!(is_top_level_child(Path::new("workspace/src"), root));
+        assert!(is_top_level_child(Path::new("workspace/package.json"), root));
+
+        #[cfg(windows)]
+        {
+            let win_root = Path::new(r"C:\workspace");
+            assert!(is_top_level_child(Path::new(r"C:\workspace\src"), win_root));
+            assert!(is_top_level_child(
+                Path::new(r"C:\workspace\package.json"),
+                win_root
+            ));
+        }
     }
 
     #[test]
     fn rejects_nested_paths_and_root_itself() {
-        let root = Path::new(r"C:\workspace");
-        assert!(!is_top_level_child(
-            Path::new(r"C:\workspace\src\deep"),
-            root
-        ));
-        assert!(!is_top_level_child(Path::new(r"C:\workspace"), root));
-        assert!(!is_top_level_child(Path::new(r"C:\other"), root));
+        let root = Path::new("workspace");
+        assert!(!is_top_level_child(Path::new("workspace/src/deep"), root));
+        assert!(!is_top_level_child(Path::new("workspace"), root));
+        assert!(!is_top_level_child(Path::new("other"), root));
+
+        #[cfg(windows)]
+        {
+            let win_root = Path::new(r"C:\workspace");
+            assert!(!is_top_level_child(
+                Path::new(r"C:\workspace\src\deep"),
+                win_root
+            ));
+            assert!(!is_top_level_child(Path::new(r"C:\workspace"), win_root));
+            assert!(!is_top_level_child(Path::new(r"C:\other"), win_root));
+        }
     }
 
     #[test]
     fn handles_trailing_separator_and_case() {
-        let root = Path::new(r"C:\workspace");
+        let root = Path::new("workspace");
         // Trailing-separator spelling of the root itself is NOT a child.
-        assert!(!is_top_level_child(Path::new(r"C:\workspace\"), root));
-        assert!(is_top_level_child(Path::new(r"C:\WORKSPACE\SRC"), root));
+        assert!(!is_top_level_child(Path::new("workspace/"), root));
+        // Case differences are normalized away (Windows-safety fallback).
+        assert!(is_top_level_child(Path::new("WORKSPACE/SRC"), root));
+
+        #[cfg(windows)]
+        {
+            let win_root = Path::new(r"C:\workspace");
+            assert!(!is_top_level_child(Path::new(r"C:\workspace\"), win_root));
+            assert!(is_top_level_child(Path::new(r"C:\WORKSPACE\SRC"), win_root));
+        }
     }
 }

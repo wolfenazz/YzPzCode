@@ -5,7 +5,7 @@ import { SessionHistory } from './SessionHistory';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
 import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
-import type { AgentSessionSummary } from '../../types';
+import type { AgentMode, AgentSessionSummary } from '../../types';
 
 interface AgentGridProps {
   workspaceId: string;
@@ -20,7 +20,20 @@ function getDims(count: number): { cols: number; rows: number } {
 }
 
 export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
-  const { ensureHost, onBootstrap, createSession, listSessions, stopSession, deleteSession, resumeSession } = useAgentHost();
+  const {
+    ensureHost,
+    onBootstrap,
+    createSession,
+    listSessions,
+    stopSession,
+    closeSession,
+    deleteSession,
+    resumeSession,
+    getProviders,
+    getModels,
+    listProviderConfigs,
+    getSettings,
+  } = useAgentHost();
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const agentSessionsByWorkspace = useAppStore((s) => s.agentSessionsByWorkspace);
   const setAgentSessionsForWorkspace = useAppStore((s) => s.setAgentSessionsForWorkspace);
@@ -86,6 +99,8 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
             preview: null,
             status: record.status,
             maxTotalTokens: typeof metadata.maxTotalTokens === 'number' && metadata.maxTotalTokens > 0 ? metadata.maxTotalTokens : null,
+            mode: typeof metadata.mode === 'string' ? (metadata.mode as AgentMode) : null,
+            fastMode: metadata.fastMode === true,
           };
         });
         // Keep only previously-open panes (preserving their order), and drop
@@ -121,12 +136,11 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   }, [init]);
 
   const handleCreate = useCallback(
-    async (params: CreateAgentSessionParams & { initialPrompt?: string }) => {
+    async (params: CreateAgentSessionParams) => {
       setCreating(true);
       setHostError(null);
       try {
-        const { initialPrompt, ...sessionParams } = params;
-        const result = await createSession(sessionParams);
+        const result = await createSession(params);
         const now = Date.now();
         const summary: AgentSessionSummary = {
           sessionId: result.sessionId,
@@ -139,18 +153,10 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           messageCount: 0,
           preview: null,
           maxTotalTokens: params.maxTotalTokens ?? null,
+          mode: null,
         };
         addAgentSessionForWorkspace(params.workspaceId, summary);
 
-        // The harness auto-starts new sessions, so an initial prompt can be
-        // sent right away. Failures here are surfaced via the pane events.
-        if (initialPrompt?.trim()) {
-          try {
-            await sendMessage(result.sessionId, initialPrompt.trim());
-          } catch (err) {
-            console.error('[agent] initial prompt failed:', err);
-          }
-        }
       } catch (err) {
         setHostError(err instanceof Error ? err.message : String(err));
         throw err;
@@ -158,21 +164,65 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
         setCreating(false);
       }
     },
-    [createSession, sendMessage, addAgentSessionForWorkspace]
+    [createSession, addAgentSessionForWorkspace]
   );
+
+  const handleNewAgent = useCallback(async () => {
+    if (!hostReady || creating) return;
+    setCreating(true);
+    setHostError(null);
+    try {
+      const [providers, configs, settings] = await Promise.all([getProviders(), listProviderConfigs(), getSettings()]);
+      const providerId = settings.global.defaultProviderId ?? configs[0]?.providerId ?? providers[0]?.id ?? 'anthropic';
+      const config = configs.find((item) => item.providerId === providerId);
+      const provider = providers.find((item) => item.id === providerId);
+      const models = await getModels(providerId);
+      const modelId = config?.modelId ?? provider?.defaultModelId ?? models[0]?.id ?? '';
+
+      // Keep the quick path truly one-click when a saved connection exists.
+      // If setup is incomplete, let the focused dialog collect it instead.
+      if (!config?.hasApiKey || !modelId) {
+        setShowNewDialog(true);
+        return;
+      }
+
+      await handleCreate({
+        workspaceId,
+        cwd: currentWorkspace?.path ?? '',
+        providerId,
+        modelId,
+      });
+    } catch (err) {
+      setHostError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCreating(false);
+    }
+  }, [
+    hostReady,
+    creating,
+    getProviders,
+    listProviderConfigs,
+    getSettings,
+    getModels,
+    handleCreate,
+    workspaceId,
+    currentWorkspace?.path,
+  ]);
 
   const handleClose = useCallback(
     async (sessionId: string) => {
       // Close detaches the pane but KEEPS the session persisted so it can be
       // resumed later from History. Use History → Delete to destroy it.
+      // The backend stops the session and, if this was the last one open,
+      // shuts down the agent-harness sidecar process.
       try {
-        await stopSession(sessionId);
+        await closeSession(sessionId);
       } catch (err) {
-        console.error('[agent] stop failed:', err);
+        console.error('[agent] close failed:', err);
       }
       removeAgentSessionForWorkspace(workspaceId, sessionId);
     },
-    [stopSession, removeAgentSessionForWorkspace, workspaceId]
+    [closeSession, removeAgentSessionForWorkspace, workspaceId]
   );
 
   const handleResume = useCallback(
@@ -233,6 +283,8 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           messageCount: 0,
           preview: null,
           maxTotalTokens: existing.maxTotalTokens ?? null,
+          mode: null,
+          fastMode: existing.fastMode === true,
         });
       } catch (err) {
         setHostError(err instanceof Error ? err.message : String(err));
@@ -299,7 +351,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
             History
           </button>
           <button
-            onClick={() => setShowNewDialog(true)}
+            onClick={() => void handleNewAgent()}
             disabled={!hostReady || creating}
             className="flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)] hover:bg-[var(--accent-light)]/40 disabled:opacity-40 disabled:cursor-not-allowed text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
           >
@@ -325,7 +377,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
               Spawn a YZPZ Agent to edit files, run commands, and inspect your codebase with a visual chat interface.
             </p>
             <button
-              onClick={() => setShowNewDialog(true)}
+              onClick={() => void handleNewAgent()}
               disabled={!hostReady}
               className="px-6 py-2.5 border font-mono text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer border-[var(--accent-border)] text-[var(--accent)] hover:bg-[var(--accent-light)]/30 disabled:opacity-40"
             >
@@ -350,7 +402,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
 
             {hasSpareCell && (
               <button
-                onClick={() => setShowNewDialog(true)}
+                onClick={() => void handleNewAgent()}
                 disabled={!hostReady}
                 className="min-h-0 rounded-lg border border-dashed border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30 hover:bg-[var(--bg-tertiary)]/60 hover:border-[var(--accent-border)] disabled:opacity-40 transition-colors duration-200 cursor-pointer flex flex-col items-center justify-center gap-2"
               >

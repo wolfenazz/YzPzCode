@@ -2,11 +2,13 @@
 // question, capture streaming events + usage, and verify get-session-preview.
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const SIDECAR = "C:/Users/nasee/Desktop/files/CODING/yzpzcode/app/agent-harness/dist/index.js";
+const SIDECAR = join(import.meta.dirname, "dist", "index.js");
 // Use the real data dir so the user's provider configs (e.g. opencode-go) are found.
-const DATA_DIR = "C:/Users/nasee/.yzpzcode/agent";
-const CWD = "C:/Users/nasee/Desktop/files/CODING/yzpzcode/app/agent-harness";
+const DATA_DIR = join(homedir(), ".yzpzcode", "agent");
+const CWD = import.meta.dirname;
 
 const child = spawn(process.execPath, [SIDECAR, "--data-dir", DATA_DIR], { stdio: ["ignore", "pipe", "inherit"] });
 const ready = await new Promise((resolve, reject) => {

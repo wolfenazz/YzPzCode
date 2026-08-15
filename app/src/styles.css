@@ -1471,3 +1471,138 @@ html.has-custom-cursor *::after {
   height: auto;
 }
 
+
+/* ── Electric charge theme (Fast mode + session controls) ─────────── */
+/* Live "electric charge" effect for the Fast-mode toggle: an irregular
+   flickering bolt, a periodic bright flash, and a charge beam sweeping
+   across the button. */
+@keyframes electric-flicker {
+  0%, 100% { filter: brightness(1); opacity: 1; }
+  5% { filter: brightness(2); opacity: .85; }
+  7% { filter: brightness(1); opacity: 1; }
+  26% { filter: brightness(1.7); opacity: .92; }
+  28% { filter: brightness(1); opacity: 1; }
+  54% { filter: brightness(2.2); opacity: .8; }
+  56% { filter: brightness(1); opacity: 1; }
+  77% { filter: brightness(1.55); opacity: .94; }
+  79% { filter: brightness(1); opacity: 1; }
+}
+@keyframes electric-flash {
+  0%, 84%, 100% {
+    box-shadow: 0 0 3px rgba(56,189,248,.28), 0 0 10px rgba(56,189,248,.12), inset 0 0 5px rgba(56,189,248,.10);
+    border-color: rgba(56,189,248,.5);
+  }
+  88%, 92% {
+    box-shadow: 0 0 10px rgba(56,189,248,.9), 0 0 34px rgba(56,189,248,.5), inset 0 0 12px rgba(56,189,248,.4);
+    border-color: rgba(165,243,252,.95);
+  }
+  90% {
+    box-shadow: 0 0 6px rgba(56,189,248,.6), 0 0 22px rgba(56,189,248,.3), inset 0 0 8px rgba(56,189,248,.25);
+  }
+}
+@keyframes electric-beam {
+  0% { transform: translateX(-160%) skewX(-18deg); }
+  55%, 100% { transform: translateX(320%) skewX(-18deg); }
+}
+.electric-charge {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(56,189,248,.55);
+  background: radial-gradient(120% 120% at 50% 0%, rgba(56,189,248,.22), rgba(34,211,238,.05) 55%, rgba(56,189,248,.10));
+  color: #a5e8fd;
+  animation: electric-flash 4.8s ease-in-out infinite;
+}
+.electric-charge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    115deg,
+    transparent 0 6px,
+    rgba(165,243,252,.05) 6px 7px,
+    transparent 7px 14px
+  );
+  pointer-events: none;
+}
+.electric-charge::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgba(165,243,252,.4), transparent);
+  transform: translateX(-160%) skewX(-18deg);
+  animation: electric-beam 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.electric-charge .electric-icon {
+  animation: electric-flicker 3.4s linear infinite;
+  filter: drop-shadow(0 0 5px rgba(56,189,248,.95));
+}
+
+/* Subtle electric theme shared by the other session controls: cyan charge
+   glow on hover, icon flicker, and a beam sweep while hovered. */
+@keyframes electric-btn-flicker {
+  0%, 100% { filter: brightness(1); }
+  8% { filter: brightness(1.45); }
+  10% { filter: brightness(1); }
+  62% { filter: brightness(1.25); }
+  64% { filter: brightness(1); }
+}
+.electric-btn {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: border-color .15s ease, box-shadow .15s ease, color .15s ease;
+}
+.electric-btn:hover {
+  border-color: rgba(56,189,248,.55) !important;
+  box-shadow: 0 0 10px rgba(56,189,248,.3), inset 0 0 7px rgba(56,189,248,.10);
+}
+.electric-btn:hover .electric-icon {
+  animation: electric-btn-flicker .9s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(56,189,248,.85));
+}
+.electric-btn::after {
+  content: '';
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: 0;
+  width: 30%;
+  background: linear-gradient(90deg, transparent, rgba(165,243,252,.18), transparent);
+  transform: translateX(-160%) skewX(-18deg);
+  opacity: 0;
+  transition: opacity .15s ease;
+  pointer-events: none;
+}
+.electric-btn:hover::after {
+  opacity: 1;
+  animation: electric-beam 1.6s ease-in-out infinite;
+}
+/* Small "fast on" status chip in the pane header */
+.electric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #a5e8fd;
+  border-color: rgba(56,189,248,.45);
+  box-shadow: 0 0 8px rgba(56,189,248,.35), inset 0 0 5px rgba(56,189,248,.15);
+  animation: electric-flash 4.8s ease-in-out infinite;
+}
+.electric-chip .electric-icon {
+  animation: electric-flicker 3.4s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(56,189,248,.9));
+}
+
+/* Fast mode ON: full-intensity charge — brighter, faster flash, so the
+   isolated electric-blue look clearly reads as "active". */
+.agent-fast-active {
+  filter: brightness(1.28) saturate(1.25);
+  animation: electric-flash 3.2s ease-in-out infinite;
+}
+.agent-fast-active .electric-icon {
+  animation: electric-flicker 1.8s linear infinite;
+}

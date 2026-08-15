@@ -1,9 +1,13 @@
 // Smoke probe: sidecar boots + core commands + create-session validation.
+// Resolves the harness from its own location so it runs on any machine
+// (the old hardcoded Windows paths made the probe fail elsewhere).
 import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import WebSocket from "ws";
 
-const SIDECAR = "C:/Users/nasee/Desktop/files/CODING/yzpzcode/app/agent-harness/dist/index.js";
-const DATA_DIR = "C:/Users/nasee/AppData/Local/Temp/opencode/yzpz-agent-probe-ask";
+const SIDECAR = join(import.meta.dirname, "dist", "index.js");
+const DATA_DIR = join(tmpdir(), `yzpz-agent-probe-ask-${process.pid}`);
 
 let nextId = 1;
 let pending = new Map();

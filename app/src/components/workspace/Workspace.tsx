@@ -52,7 +52,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const { detectAllClis } = useAgentCli();
   const { checkAllAuth } = useCliLauncher();
   const { closeBrowserView } = useBrowser();
-  const { stopSession: stopAgentSession } = useAgentHost();
+  const { closeSession: closeAgentSession } = useAgentHost();
   const { openFile } = useFileEditor();
   const shouldWatchFiles = !!currentWorkspace?.path && (explorerOpen || activeView === 'editor');
   useFileWatcher(shouldWatchFiles ? currentWorkspace?.path ?? null : null);
@@ -234,19 +234,20 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     });
 
     // Stop running YZPZ Agent sessions for this workspace. Sessions are KEPT
-    // persisted so they can be resumed later from Agent → History.
+    // persisted so they can be resumed later from Agent → History. If this was
+    // the last session anywhere, the agent-harness sidecar shuts down too.
     const agentSessions = useAppStore.getState().agentSessionsByWorkspace[workspaceId] || [];
     await Promise.allSettled(
       agentSessions.map(async (s) => {
         try {
-          await stopAgentSession(s.sessionId);
+          await closeAgentSession(s.sessionId);
         } catch (err) {
-          console.error('Error stopping agent session:', err);
+          console.error('Error closing agent session:', err);
         }
       })
     );
     useAppStore.getState().setAgentSessionsForWorkspace(workspaceId, []);
-  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView, stopAgentSession]);
+  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView, closeAgentSession]);
 
   const handleNewWorkspace = useCallback(() => {
     setView('setup');

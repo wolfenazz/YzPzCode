@@ -181,6 +181,15 @@ impl AgentHostManager {
     }
 
     async fn start_sidecar(&self) -> Result<(), AgentHostError> {
+        // A previous sidecar may still be alive (a transient WS drop ends the
+        // client loop without killing the process). Never spawn a second one on
+        // top of it — kill the old process tree first so we don't leak Node
+        // processes that keep holding their ports.
+        let old_child = { self.inner.state.lock().unwrap().child.take() };
+        if let Some(old) = old_child {
+            kill_process_tree(old);
+        }
+
         // Resolve node binary and version.
         let node = which::which("node").map_err(|_| {
             AgentHostError::NodeMissing(
@@ -373,24 +382,48 @@ impl AgentHostManager {
     }
 
     /// Remove a session from the workspace-scoped index (after deletion).
+    /// If no sessions remain anywhere, shut the sidecar down so the
+    /// agent-harness process doesn't linger once the user closed everything.
     pub fn remove_session_from_workspace(&self, session_id: &str) {
-        let mut map = self.inner.workspace_sessions.lock().unwrap();
-        for sessions in map.values_mut() {
-            sessions.retain(|s| s != session_id);
+        let empty = {
+            let mut map = self.inner.workspace_sessions.lock().unwrap();
+            for sessions in map.values_mut() {
+                sessions.retain(|s| s != session_id);
+            }
+            map.values().all(|v| v.is_empty())
+        };
+        if empty {
+            self.shutdown();
         }
+    }
+
+    /// Stop a session and drop it from the open-session index (pane closed).
+    /// The session stays persisted for resume; if this was the last open one
+    /// the sidecar is shut down so the agent-harness process doesn't linger.
+    pub async fn close_session(&self, session_id: &str) -> Result<(), AgentHostError> {
+        self.quick_command("stop", Some(json!({ "sessionId": session_id })))
+            .await
+            .map(|_| ())?;
+        self.remove_session_from_workspace(session_id);
+        Ok(())
     }
 
     /// Shut down the sidecar process and all agent sessions.
     pub fn shutdown(&self) {
-        let mut state = self.inner.state.lock().unwrap();
-        if let Some(child) = state.child.take() {
-            kill_process_tree(child);
-        }
-        state.connected = false;
-        state.port = None;
-        self.inner.send_tx.lock().unwrap().take();
-        self.inner.workspace_sessions.lock().unwrap().clear();
+        shutdown_host(&self.inner);
     }
+}
+
+/// Kill the sidecar child process and reset all host state.
+fn shutdown_host(inner: &HostInner) {
+    let mut state = inner.state.lock().unwrap();
+    if let Some(child) = state.child.take() {
+        kill_process_tree(child);
+    }
+    state.connected = false;
+    state.port = None;
+    inner.send_tx.lock().unwrap().take();
+    inner.workspace_sessions.lock().unwrap().clear();
 }
 
 fn handle_sidecar_text(inner: &HostInner, text: &str) {
@@ -445,9 +478,15 @@ fn forward_event(inner: &HostInner, name: &str, payload: Value) {
         }
         "session-deleted" => {
             if let Some(session_id) = payload.get("sessionId").and_then(|v| v.as_str()) {
-                let mut map = inner.workspace_sessions.lock().unwrap();
-                for sessions in map.values_mut() {
-                    sessions.retain(|s| s != session_id);
+                let empty = {
+                    let mut map = inner.workspace_sessions.lock().unwrap();
+                    for sessions in map.values_mut() {
+                        sessions.retain(|s| s != session_id);
+                    }
+                    map.values().all(|v| v.is_empty())
+                };
+                if empty {
+                    shutdown_host(inner);
                 }
             }
         }

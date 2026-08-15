@@ -1,11 +1,14 @@
 // Probe: send a real message, then dump the raw persisted transcript shape to
 // validate the frontend normalization (XML-wrapped user text, block types).
+// Resolves the harness from its own location so it runs on any machine.
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
-const SIDECAR = "C:/Users/nasee/Desktop/files/CODING/yzpzcode/app/agent-harness/dist/index.js";
-const DATA_DIR = "C:/Users/nasee/.yzpzcode/agent";
-const CWD = "C:/Users/nasee/Desktop/files/CODING/yzpzcode/app/agent-harness";
+const SIDECAR = join(import.meta.dirname, "dist", "index.js");
+const DATA_DIR = join(homedir(), ".yzpzcode", "agent");
+const CWD = import.meta.dirname;
 
 const child = spawn(process.execPath, [SIDECAR, "--data-dir", DATA_DIR], { stdio: ["ignore", "pipe", "inherit"] });
 const ready = await new Promise((resolve, reject) => {

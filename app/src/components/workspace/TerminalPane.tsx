@@ -13,7 +13,7 @@ import { useAppStore } from '../../stores/appStore';
 import { registerTerminal } from '../../utils/terminalRegistry';
 import '@xterm/xterm/css/xterm.css';
 
-import { TerminalHeader, isAgentType } from './TerminalHeader';
+import { TerminalHeader } from './TerminalHeader';
 import { CliStatusBadge } from './CliStatusBadge';
 import { AuthModal } from './AuthModal';
 
@@ -51,7 +51,6 @@ const DARK_TERMINAL_THEME = {
 
 const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
 const DEFAULT_MOUSE_TRACKING_MODES = [1000, 1002, 1006] as const;
-const EMPTY_MOUSE_MODES: number[] = [];
 const MANAGED_COMMAND_PREFIXES = [
   'npm run dev',
   'npm run build',
@@ -234,10 +233,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const mouseModesRef = useRef<Set<number>>(new Set());
   const lineBufferRef = useRef('');
   const lineTrackingReliableRef = useRef(true);
-  const savedMouseModes = useAppStore((state) => state.terminalMouseModesBySession[session.id] ?? EMPTY_MOUSE_MODES);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
-  const mouseAlwaysOnDisabled = useAppStore((state) => state.terminalMouseAlwaysOnDisabledBySession[session.id] ?? false);
-  const setMouseAlwaysOnDisabled = useAppStore((state) => state.setTerminalMouseAlwaysOnDisabled);
   const manualAgent = useAppStore((state) => state.manualAgentBySession[session.id]);
   const setManualAgent = useAppStore((state) => state.setManualAgent);
   const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
@@ -261,22 +257,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   // Refs mirroring store settings so the xterm lifecycle effect (which only
   // re-runs per session) can read the latest values without being re-created.
   const effectiveAgent = manualAgent ?? session.agent;
-  // AI agent sessions always keep mouse tracking locked on by default; the
-  // header button lets the user turn it off per-session. Shell/tool sessions
-  // use the per-session toggle state.
-  const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
-  const isAiAgentRef = useRef(isAiAgent);
-  const mouseAlwaysOnRef = useRef(isAiAgent && !mouseAlwaysOnDisabled);
   const pasteOnRightClickRef = useRef(terminalPasteOnRightClick);
   const effectiveAgentRef = useRef(effectiveAgent);
   const promoteToAgentRef = useRef<((agent: AgentType) => void) | null>(null);
   useEffect(() => {
     effectiveAgentRef.current = effectiveAgent;
   }, [effectiveAgent]);
-  useEffect(() => {
-    isAiAgentRef.current = isAiAgent;
-    mouseAlwaysOnRef.current = isAiAgent && !mouseAlwaysOnDisabled;
-  }, [isAiAgent, mouseAlwaysOnDisabled]);
   useEffect(() => {
     pasteOnRightClickRef.current = terminalPasteOnRightClick;
   }, [terminalPasteOnRightClick]);
@@ -454,30 +440,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     return normalizedModes;
   }, [session.id, setTerminalMouseModes]);
 
-  const replayMouseModes = useCallback((modes: Iterable<number>) => {
-    const normalizedModes = syncMouseModes(modes);
-    if (normalizedModes.length === 0) return;
-
-    const term = xtermRef.current;
-    if (!term) return;
-
-    const sequence = buildMouseModeSequence(normalizedModes, 'h');
-    term.write(sequence);
-
-    // These are terminal *output* control sequences. They must be written to
-    // xterm only: sending them to the PTY makes a macOS shell receive them as
-    // ordinary input, which corrupts the command used to launch an AI agent.
-  }, [syncMouseModes]);
-
-  const forceEnableMouse = useCallback(() => {
-    const modes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
-    syncMouseModes(modes);
-    const sequence = buildMouseModeSequence(modes, 'h');
-    xtermRef.current?.write(sequence);
-    // Do not write DECSET mouse-mode sequences to the PTY. xterm will forward
-    // real mouse reports through onData once mouse tracking is active.
-  }, [syncMouseModes]);
-
   const handleRunCommand = useCallback(async (command: string) => {
     try {
       // Write the command text and the Enter separately with a small gap.
@@ -501,15 +463,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const promoteToAgent = useCallback((agent: AgentType) => {
     if (effectiveAgentRef.current) return;
     setManualAgent(session.id, agent);
-    setMouseAlwaysOnDisabled(session.id, false);
-    mouseAlwaysOnRef.current = true;
-    // Write the mouse-enable sequence AFTER the user's Enter has submitted the
-    // agent command — writing it synchronously interleaved the escape sequence
-    // with the \r and made the shell swallow the first Enter.
-    setTimeout(() => {
-      forceEnableMouse();
-    }, 1500);
-  }, [session.id, setManualAgent, setMouseAlwaysOnDisabled, forceEnableMouse]);
+  }, [session.id, setManualAgent]);
 
   promoteToAgentRef.current = promoteToAgent;
 
@@ -544,8 +498,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     // Match CSI private mode set/reset such as: ESC[?1000h, ESC[?1002;1006l, CSI ? 1006 h
     const regex = /(?:\x1b\[|\x9b)\?([0-9;]+)([hl])/g;
     let match: RegExpExecArray | null = regex.exec(output);
-    let needsReenable = false;
-
     while (match) {
       const [, params, op] = match;
       const codes = params.split(';').map((n) => Number(n)).filter((n) => !Number.isNaN(n));
@@ -556,12 +508,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
             mouseModesRef.current.add(code);
           } else {
             mouseModesRef.current.delete(code);
-            // Always-On Mouse is locked: ignore the app's disable and re-send
-            // the enable sequence to the PTY so TUI agents never lose mouse.
-            if (mouseAlwaysOnRef.current) {
-              mouseModesRef.current.add(code);
-              needsReenable = true;
-            }
           }
         }
       }
@@ -570,34 +516,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
 
     syncMouseModes(mouseModesRef.current);
-
-    if (needsReenable) {
-      forceEnableMouse();
-    }
-  }, [syncMouseModes, forceEnableMouse]);
+  }, [syncMouseModes]);
 
   const handleToggleMouseTracking = useCallback(() => {
-    // AI agent sessions: the button turns Always-On Mouse off (or back on).
-    if (isAiAgentRef.current) {
-      if (mouseAlwaysOnRef.current) {
-        // Turn OFF — disable mouse reporting on the PTY and xterm, and stop
-        // the always-on re-lock so the running app keeps it off.
-        mouseAlwaysOnRef.current = false;
-        setMouseAlwaysOnDisabled(session.id, true);
-        const disableModes = normalizeMouseModes(mouseModesRef.current);
-        const disableSequence = buildMouseModeSequence(disableModes, 'l');
-        xtermRef.current?.write(disableSequence);
-        syncMouseModes([]);
-        return;
-      }
-
-      // Turn back ON — restore Always-On Mouse.
-      mouseAlwaysOnRef.current = true;
-      setMouseAlwaysOnDisabled(session.id, false);
-      forceEnableMouse();
-      return;
-    }
-
     const enableModes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
     const disableModes = normalizeMouseModes(mouseModesRef.current);
     const enableSequence = buildMouseModeSequence(enableModes, 'h');
@@ -610,7 +531,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       xtermRef.current?.write(enableSequence);
       syncMouseModes(enableModes);
     }
-  }, [session.id, mouseTrackingEnabled, syncMouseModes, forceEnableMouse, setMouseAlwaysOnDisabled]);
+  }, [mouseTrackingEnabled, syncMouseModes]);
 
   const startManagedCommand = useCallback(async (command: string) => {
     await invoke('run_managed_terminal_command', {
@@ -691,6 +612,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   );
 
   useEffect(() => {
+    terminalReadyRef.current = false;
     if (!terminalRef.current || xtermRef.current) return;
     const terminalElement = terminalRef.current;
 
@@ -739,18 +661,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     xterm.unicode.activeVersion = '11';
 
     xterm.open(terminalElement);
-    if (savedMouseModes.length > 0) {
-      replayMouseModes(savedMouseModes);
-    }
-
-    // Always-On Mouse: after the terminal is up, force-enable mouse tracking
-    // on the PTY so agents like opencode/kilo accept mouse events from the
-    // very start.
-    if (mouseAlwaysOnRef.current) {
-      setTimeout(() => {
-        forceEnableMouse();
-      }, 150);
-    }
 
     const handlePasteCapture = (e: Event) => {
       e.preventDefault();
@@ -968,11 +878,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       terminalElement.removeEventListener('contextmenu', handleContextMenu);
       unregisterTerminal();
       xterm.dispose();
+      terminalReadyRef.current = false;
       xtermRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, replayMouseModes, savedMouseModes, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand, forceEnableMouse, pasteToTerminal, pasteClipboardText]);
+  }, [session.id, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand, pasteToTerminal, pasteClipboardText]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
@@ -1077,32 +988,18 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   useEffect(() => {
     setCliLaunched(false);
-    terminalReadyRef.current = false;
     firstOutputFitDoneRef.current = false;
     launchAttemptsRef.current = 0;
     lastSentSizeRef.current = null;
     terminalHiddenRef.current = false;
-    mouseModesRef.current = new Set(savedMouseModes);
-    setMouseTrackingEnabled(savedMouseModes.length > 0);
+    mouseModesRef.current = new Set();
+    setMouseTrackingEnabled(false);
+    setTerminalMouseModes(session.id, []);
     if (launchTimeoutRef.current) {
       clearTimeout(launchTimeoutRef.current);
       launchTimeoutRef.current = null;
     }
-  }, [session.id, savedMouseModes]);
-
-  useEffect(() => {
-    mouseModesRef.current = new Set(savedMouseModes);
-    setMouseTrackingEnabled(savedMouseModes.length > 0);
-
-    if (mouseAlwaysOnRef.current) {
-      forceEnableMouse();
-      return;
-    }
-
-    if (savedMouseModes.length > 0 && xtermRef.current) {
-      replayMouseModes(savedMouseModes);
-    }
-  }, [savedMouseModes, replayMouseModes, forceEnableMouse]);
+  }, [session.id, setTerminalMouseModes]);
 
   useEffect(() => {
     if (!session.agent) return;
@@ -1196,12 +1093,63 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const handleWindowResize = () => handleResize();
     window.addEventListener('resize', handleWindowResize);
 
+    // A macOS WebView does not reliably emit a ResizeObserver notification
+    // when an ancestor switches from `display: none` back to visible. The
+    // terminal canvas consequently keeps its zero-sized backing store until a
+    // native window resize (for example minimise/restore) happens. Observe
+    // visibility directly and refit after the browser has completed layout.
+    let firstFrame: number | null = null;
+    let secondFrame: number | null = null;
+    let visibleFitTimeout: ReturnType<typeof setTimeout> | null = null;
+    const scheduleVisibleFit = () => {
+      if (document.visibilityState === 'hidden') return;
+
+      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
+      if (visibleFitTimeout) clearTimeout(visibleFitTimeout);
+
+      const fitVisibleTerminal = () => {
+        const rect = terminalRef.current?.getBoundingClientRect();
+        if (rect && rect.width >= 2 && rect.height >= 2) {
+          terminalHiddenRef.current = false;
+          handleFitAndResize(true);
+        }
+      };
+
+      firstFrame = requestAnimationFrame(() => {
+        firstFrame = requestAnimationFrame(fitVisibleTerminal);
+      });
+      // WebKit can apply the final canvas dimensions after the next paint, so
+      // keep one short settled-layout pass in addition to the double rAF.
+      visibleFitTimeout = setTimeout(fitVisibleTerminal, 160);
+    };
+
+    const handleWindowFocus = () => scheduleVisibleFit();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') scheduleVisibleFit();
+    };
+    const visibilityObserver = typeof IntersectionObserver === 'undefined'
+      ? null
+      : new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting)) scheduleVisibleFit();
+        });
+
+    if (terminalRef.current) visibilityObserver?.observe(terminalRef.current);
+    window.addEventListener('focus', handleWindowFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       if (resizeTimeoutRef.current) {
         clearTimeout(resizeTimeoutRef.current);
       }
       resizeObserver.disconnect();
       window.removeEventListener('resize', handleWindowResize);
+      visibilityObserver?.disconnect();
+      window.removeEventListener('focus', handleWindowFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
+      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
+      if (visibleFitTimeout) clearTimeout(visibleFitTimeout);
     };
   }, [handleFitAndResize]);
 
@@ -1261,7 +1209,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         isRefreshing={isRefreshing}
         onClose={onClose}
         mouseTrackingEnabled={mouseTrackingEnabled}
-        mouseAlwaysOn={isAiAgent && !mouseAlwaysOnDisabled}
         onToggleMouseTracking={handleToggleMouseTracking}
         onNewSession={handleNewSession}
         onRunCommand={handleRunCommand}

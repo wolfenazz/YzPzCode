@@ -190,6 +190,11 @@ export class AgentServer {
         await this.harness.updateModel(args.sessionId as string, args.modelId as string);
         return {};
       },
+      "set-fast-mode": async (args) => {
+        if (!args.sessionId) throw new Error("sessionId is required");
+        await this.harness.setFastMode(args.sessionId as string, args.enabled !== false);
+        return {};
+      },
       "approve-tool": async (args) => {
         if (!args.requestId) throw new Error("requestId is required");
         const resolved = this.harness.resolveApproval(

@@ -26,6 +26,16 @@ interface AgentChatProps {
   compaction?: AgentCompactionStatus | null;
   pendingQuestion?: AgentQuestion | null;
   onAnswerQuestion?: (requestId: string, answer: string) => void;
+  /** Last error from the current turn (auto-cleared when the agent resumes). */
+  error?: string | null;
+  /** One-click recovery: re-send the last user prompt. */
+  onContinue?: () => void;
+  /** Clickable example prompts shown when the conversation is empty. */
+  onSuggestion?: (prompt: string) => void;
+  /** True when the last run finished successfully (drives the done banner). */
+  completed?: boolean;
+  elapsedSec?: number;
+  toolCount?: number;
   autoScroll?: boolean;
 }
 
@@ -398,12 +408,17 @@ const getToolInputDetails = (name: string, input: unknown): ToolInputDetails => 
 };
 
 /** Bordered output card: header (label + expand + copy) over a scrollable body. */
-const OutputBlock: React.FC<{ label: string; text: string; isError?: boolean; highlight?: string }> = ({
+const OutputBlock = React.memo(function OutputBlock({
   label,
   text,
   isError,
   highlight,
-}) => {
+}: {
+  label: string;
+  text: string;
+  isError?: boolean;
+  highlight?: string;
+}) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const isLong = text.split('\n').length > 40 || text.length > 1200;
@@ -478,11 +493,12 @@ const OutputBlock: React.FC<{ label: string; text: string; isError?: boolean; hi
       </div>
     </div>
   );
-};
+});
 
 const markdownComponents = { code: CodeBlock } as const;
 
-const UserBubble: React.FC<{ text: string; attachments?: AgentAttachment[] }> = ({ text, attachments = [] }) => (
+const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { text: string; attachments?: AgentAttachment[] }) {
+  return (
   <div className="flex justify-end gap-2 animate-fade-in-up">
     <div className="max-w-[85%] rounded-xl rounded-br-sm border border-[var(--accent-border)] bg-[var(--accent-light)]/25 px-3.5 py-2.5 shadow-sm">
       <div className="agent-rich-text text-[12px] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(text)}>
@@ -505,7 +521,8 @@ const UserBubble: React.FC<{ text: string; attachments?: AgentAttachment[] }> = 
       <Icon icon="lucide:user-round" className="h-3.5 w-3.5" aria-hidden="true" />
     </div>
   </div>
-);
+  );
+});
 
 const AgentAvatar: React.FC = () => (
   <div className="w-6 h-6 rounded-lg border border-[var(--accent-border)] bg-[var(--accent-light)]/20 flex items-center justify-center shrink-0 mt-0.5 shadow-sm overflow-hidden">
@@ -513,7 +530,7 @@ const AgentAvatar: React.FC = () => (
   </div>
 );
 
-const ReasoningBlock: React.FC<{ text: string; active?: boolean }> = ({ text, active }) => {
+const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { text: string; active?: boolean }) {
   const [open, setOpen] = useState(() => Boolean(active));
   const wasActiveRef = useRef(Boolean(active));
 
@@ -569,7 +586,7 @@ const ReasoningBlock: React.FC<{ text: string; active?: boolean }> = ({ text, ac
       )}
     </div>
   );
-};
+});
 
 /** Human-readable tool parameters with raw transport data kept deliberately secondary. */
 const ToolInputDetails: React.FC<{ name: string; input: unknown }> = ({ name, input }) => {
@@ -751,7 +768,7 @@ const ToolInputDetails: React.FC<{ name: string; input: unknown }> = ({ name, in
   );
 };
 
-const ToolBlock: React.FC<{ name: string; input: unknown; result?: unknown; running?: boolean }> = ({ name, input, result, running }) => {
+const ToolBlock = React.memo(function ToolBlock({ name, input, result, running }: { name: string; input: unknown; result?: unknown; running?: boolean }) {
   // Edits are the useful part of an agent turn. Keep their patch visible by
   // default so the user never has to dig through a generic tool payload.
   const editTool = isEditTool(name);
@@ -867,9 +884,9 @@ const ToolBlock: React.FC<{ name: string; input: unknown; result?: unknown; runn
       </AnimatePresence>
     </motion.div>
   );
-};
+});
 
-const ToolResultBlock: React.FC<{ content: unknown; isError?: boolean }> = ({ content, isError }) => {
+const ToolResultBlock = React.memo(function ToolResultBlock({ content, isError }: { content: unknown; isError?: boolean }) {
   const [open, setOpen] = useState(false);
   const text = formatToolResult(content);
   if (!text) return null;
@@ -899,9 +916,9 @@ const ToolResultBlock: React.FC<{ content: unknown; isError?: boolean }> = ({ co
     );
   }
   return <OutputBlock label={isError ? 'Error' : 'Output'} text={text} isError={isError} />;
-};
+});
 
-const ThinkingLoader: React.FC = () => {
+const ThinkingLoader = React.memo(function ThinkingLoader() {
   const [phase, setPhase] = useState(0);
   const labels = ['Understanding your request', 'Checking the project', 'Preparing the next step'];
 
@@ -921,13 +938,53 @@ const ThinkingLoader: React.FC = () => {
       </span>
     </div>
   );
-};
+});
 
 const StreamingCursor: React.FC = () => (
   <span className="inline-block w-[7px] h-[13px] rounded-[1px] ml-0.5 align-middle streaming-cursor bg-[var(--accent)]" />
 );
 
-const CompactionStatusCard: React.FC<{ status: AgentCompactionStatus }> = ({ status }) => {
+/**
+ * Graceful failure card. Replaces the dead-end "agent stopped" experience:
+ * shows the error, explains the agent can auto-recover, and offers a one-click
+ * Continue that re-sends the last prompt. Auto-disappears when a new turn
+ * starts (the harness clears the error state on resume).
+ */
+const ErrorCard = React.memo(function ErrorCard({ message, onContinue }: { message: string; onContinue?: () => void }) {
+  return (
+    <div className="rounded-lg border border-rose-500/25 bg-rose-950/10 px-3 py-2.5 animate-fade-in-up" role="alert">
+      <div className="flex items-center gap-2">
+        <Icon icon="lucide:triangle-alert" className="h-3.5 w-3.5 shrink-0 text-rose-400" aria-hidden="true" />
+        <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-rose-400">
+          The agent hit an error
+        </span>
+      </div>
+      <p className="mt-1.5 text-[10.5px] leading-relaxed text-[var(--text-secondary)] break-words whitespace-pre-wrap max-h-32 overflow-y-auto">
+        {message}
+      </p>
+      <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--text-secondary)]/60">
+        This is usually temporary — the agent often fixes it and keeps going on its own.
+      </p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {onContinue && (
+          <button
+            type="button"
+            onClick={() => onContinue()}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 text-[var(--accent)] hover:bg-[var(--accent-light)]/30 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+          >
+            <Icon icon="lucide:refresh-cw" className="h-3 w-3" aria-hidden="true" />
+            Continue task
+          </button>
+        )}
+        <span className="font-mono text-[9px] text-[var(--text-secondary)]/50">
+          You can also just type a new message.
+        </span>
+      </div>
+    </div>
+  );
+});
+
+const CompactionStatusCard = React.memo(function CompactionStatusCard({ status }: { status: AgentCompactionStatus }) {
   const details =
     status.phase === 'completed' && status.tokensBefore && status.tokensAfter
       ? `Reduced the prompt from ${(status.tokensBefore / 1000).toFixed(1)}k to ${(status.tokensAfter / 1000).toFixed(1)}k tokens.`
@@ -955,9 +1012,9 @@ const CompactionStatusCard: React.FC<{ status: AgentCompactionStatus }> = ({ sta
       {active && <span className="ml-auto mt-1 h-3 w-3 shrink-0 rounded-full border-[1.5px] border-current border-t-transparent animate-spin" aria-label="In progress" />}
     </div>
   );
-};
+});
 
-const AssistantBlock: React.FC<{ block: ClineMessage['content'][number] }> = ({ block }) => {
+const AssistantBlock = React.memo(function AssistantBlock({ block }: { block: ClineMessage['content'][number] }) {
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   if (block.type === 'text' && typeof block.text === 'string') {
     if (!block.text.trim()) return null;
@@ -990,7 +1047,41 @@ const AssistantBlock: React.FC<{ block: ClineMessage['content'][number] }> = ({ 
     return <ReasoningBlock text={text} />;
   }
   return null;
-};
+});
+
+export /**
+ * Example prompts for first-time users. Clicking one sends it as a normal
+ * message in the current mode — no need to know the tools or the mode system.
+ */
+const SUGGESTIONS: Array<{ prompt: string; hint: string; icon: string }> = [
+  { prompt: "What's in this project?", hint: 'short summary', icon: 'lucide:book-open' },
+  { prompt: 'Explain the code in simple words', hint: 'no jargon', icon: 'lucide:message-square-text' },
+  { prompt: 'Find any bugs and fix them', hint: 'review + fix', icon: 'lucide:bug' },
+  { prompt: 'Make the tests pass', hint: 'run + fix failures', icon: 'lucide:flask-conical' },
+  { prompt: 'Add a new feature', hint: 'describe what you want', icon: 'lucide:sparkles' },
+  { prompt: 'Summarize my recent changes', hint: 'git history', icon: 'lucide:git-commit-horizontal' },
+];
+
+const SuggestionGrid: React.FC<{ onSuggestion: (prompt: string) => void }> = ({ onSuggestion }) => (
+  <div className="grid grid-cols-2 gap-2 w-full max-w-[420px] mt-5">
+    {SUGGESTIONS.map((suggestion) => (
+      <button
+        key={suggestion.prompt}
+        type="button"
+        onClick={() => onSuggestion(suggestion.prompt)}
+        className="group flex items-start gap-2 rounded-lg border border-[var(--border-primary)]/80 bg-[var(--bg-tertiary)]/30 px-2.5 py-2 text-left transition-all duration-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/10 cursor-pointer"
+      >
+        <Icon icon={suggestion.icon} className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[var(--accent)]" aria-hidden="true" />
+        <span className="min-w-0">
+          <span className="block text-[10.5px] leading-snug text-[var(--text-primary)]">{suggestion.prompt}</span>
+          <span className="mt-0.5 block font-mono text-[8.5px] uppercase tracking-wider text-[var(--text-secondary)]/50">
+            {suggestion.hint}
+          </span>
+        </span>
+      </button>
+    ))}
+  </div>
+);
 
 export const AgentChat: React.FC<AgentChatProps> = ({
   messages,
@@ -1003,6 +1094,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   compaction,
   pendingQuestion,
   onAnswerQuestion,
+  error,
+  onContinue,
+  onSuggestion,
+  completed,
+  elapsedSec,
+  toolCount,
   autoScroll = true,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -1103,8 +1200,16 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             Ready when you are
           </div>
           <p className="max-w-xs font-mono text-[10px] text-[var(--text-secondary)]/50">
-            Ask a question, describe a change, or attach a file to get started.
+            Just type what you want done — or tap an example below to get started.
           </p>
+          {onSuggestion && (
+            <>
+              <SuggestionGrid onSuggestion={onSuggestion} />
+              <p className="font-mono text-[9px] text-[var(--text-secondary)]/40">
+                Tip: use Ask for questions · Act (default) to make changes · Plan to check first
+              </p>
+            </>
+          )}
         </div>
       )}
       <div className="mx-auto w-full max-w-[860px] space-y-3.5">
@@ -1117,6 +1222,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             <span className="truncate">{notice}</span>
           </div>
         )}
+        {error && <ErrorCard message={error} onContinue={onContinue} />}
         {compaction && <CompactionStatusCard status={compaction} />}
         {showLiveReasoning && <ReasoningBlock key="live-reasoning" text={streamingThinking} active />}
         {unplacedToolLog.map((t) => (
@@ -1144,6 +1250,23 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         {isThinking && !streamingText && !showLiveReasoning && <ThinkingLoader />}
         {pendingQuestion && onAnswerQuestion && (
           <QuestionCard question={pendingQuestion} onAnswer={onAnswerQuestion} />
+        )}
+        {completed && (
+          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.045] px-3 py-2 animate-fade-in-up">
+            <Icon icon="lucide:check-circle-2" className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+            <span className="text-[11px] font-medium text-[var(--text-primary)]">All done</span>
+            {typeof elapsedSec === 'number' && elapsedSec >= 1 && (
+              <span className="font-mono text-[9px] text-[var(--text-secondary)]/60 tabular-nums">
+                {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+              </span>
+            )}
+            {typeof toolCount === 'number' && toolCount > 0 && (
+              <span className="font-mono text-[9px] text-[var(--text-secondary)]/50">· {toolCount} step{toolCount === 1 ? '' : 's'}</span>
+            )}
+            <span className="ml-auto font-mono text-[9px] text-[var(--text-secondary)]/40">
+              ask me to adjust anything
+            </span>
+          </div>
         )}
       </div>
       </div>

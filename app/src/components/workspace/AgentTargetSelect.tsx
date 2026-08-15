@@ -9,11 +9,14 @@ import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
+import yzpzLogo from '../../assets/YzPzCodeLogo.png';
 
 export interface AgentTargetOption {
   id: string;
   label: string;
   agent: CliType | null;
+  /** 'terminal' = a TTY/CLI agent session, 'yzpz' = a built-in YZPZ Agent session. */
+  kind?: 'terminal' | 'yzpz';
 }
 
 const AGENT_LOGO: Record<string, string> = {
@@ -25,6 +28,11 @@ const AGENT_LOGO: Record<string, string> = {
   kilo: kiloLogo,
   hermes: hermesLogo,
   pi: piLogo,
+};
+
+const optionLogo = (option: AgentTargetOption): string | null => {
+  if (option.kind === 'yzpz') return yzpzLogo;
+  return option.agent ? AGENT_LOGO[option.agent] : null;
 };
 
 interface AgentTargetSelectProps {
@@ -55,7 +63,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
   }, []);
 
   const selected = options.find((option) => option.id === value) ?? null;
-  const selectedLogo = selected?.agent ? AGENT_LOGO[selected.agent] : null;
+  const selectedLogo = selected ? optionLogo(selected) : null;
 
   return (
     <div ref={rootRef} className="relative">
@@ -66,7 +74,11 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           {selectedLogo ? (
-            <img src={selectedLogo} alt={selected?.agent ?? 'terminal'} className="h-4 w-4 object-contain" />
+            <img
+              src={selectedLogo}
+              alt={selected?.kind === 'yzpz' ? 'YZPZ Agent' : selected?.agent ?? 'terminal'}
+              className="h-4 w-4 object-contain"
+            />
           ) : (
             <Icon icon="material-symbols:terminal-rounded" className="h-4 w-4 text-zinc-500" aria-hidden="true" />
           )}
@@ -87,7 +99,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
             <div className="px-2.5 py-2 font-mono text-[10px] text-zinc-600">no agent sessions available</div>
           )}
           {options.map((option) => {
-            const logo = option.agent ? AGENT_LOGO[option.agent] : null;
+            const logo = optionLogo(option);
             const isSelected = option.id === value;
             return (
               <button
@@ -103,7 +115,11 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center">
                   {logo ? (
-                    <img src={logo} alt={option.agent ?? 'terminal'} className="h-4 w-4 object-contain" />
+                    <img
+                      src={logo}
+                      alt={option.kind === 'yzpz' ? 'YZPZ Agent' : option.agent ?? 'terminal'}
+                      className="h-4 w-4 object-contain"
+                    />
                   ) : (
                     <Icon icon="material-symbols:terminal-rounded" className="h-4 w-4 text-zinc-500" aria-hidden="true" />
                   )}

@@ -9,7 +9,7 @@ interface NewAgentDialogProps {
   defaultProviderId?: string;
   defaultModelId?: string;
   onClose: () => void;
-  onCreate: (params: CreateAgentSessionParams & { initialPrompt?: string }) => Promise<void>;
+  onCreate: (params: CreateAgentSessionParams) => Promise<void>;
 }
 
 const PROVIDER_DISPLAY: Record<string, { name: string; needsBaseUrl: boolean }> = {
@@ -28,16 +28,6 @@ const PROVIDER_DISPLAY: Record<string, { name: string; needsBaseUrl: boolean }> 
  * default provider (or first saved provider), its saved model and API key, so
  * creating an agent normally requires just clicking "Create Agent".
  */
-/** Derive a short session title from the first non-empty line of a prompt. */
-const deriveTitle = (prompt: string): string => {
-  const line = prompt
-    .split(/\r?\n/)
-    .map((l) => l.trim().replace(/^#+\s*/, ''))
-    .find((l) => l.length > 0);
-  if (!line) return '';
-  return line.length > 60 ? `${line.slice(0, 57)}…` : line;
-};
-
 export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   workspaceId,
   cwd,
@@ -59,7 +49,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [maxTotalTokens, setMaxTotalTokens] = useState<number>(0);
   const [title, setTitle] = useState('');
-  const [initialPrompt, setInitialPrompt] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -81,6 +71,9 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         setBaseUrl(cfg?.baseUrl ?? '');
         setHasSavedKey(Boolean(cfg?.hasApiKey));
         setModelId(cfg?.modelId ?? info?.defaultModelId ?? '');
+        // A saved default makes the normal path a one-field flow. Open the
+        // connection controls only when the user still needs to configure it.
+        setShowAdvanced(!cfg?.hasApiKey);
       } catch (err) {
         if (mounted) setError(err instanceof Error ? err.message : String(err));
       } finally {
@@ -115,6 +108,9 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   }, [providerId, getModels]);
 
   const providerMeta = PROVIDER_DISPLAY[providerId] ?? { name: providerId, needsBaseUrl: false };
+  const providerName = PROVIDER_DISPLAY[providerId]?.name ?? providerId;
+  const selectedModel = models.find((model) => model.id === modelId);
+  const modelName = selectedModel?.name ?? modelId;
 
   const handleProviderChange = useCallback((next: string) => {
     setProviderId(next);
@@ -160,8 +156,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         apiKey: apiKey.trim() || undefined,
         baseUrl: baseUrl.trim() || undefined,
         maxTotalTokens: maxTotalTokens > 0 ? maxTotalTokens : undefined,
-        title: title.trim() || deriveTitle(initialPrompt) || undefined,
-        initialPrompt: initialPrompt.trim() || undefined,
+        title: title.trim() || undefined,
       });
       onClose();
     } catch (err) {
@@ -169,7 +164,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
     } finally {
       setCreating(false);
     }
-  }, [modelId, onCreate, workspaceId, cwd, providerId, apiKey, baseUrl, setProviderConfig, onClose, maxTotalTokens, title, initialPrompt]);
+  }, [modelId, onCreate, workspaceId, cwd, providerId, apiKey, baseUrl, setProviderConfig, onClose, maxTotalTokens, title]);
 
   return (
     <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center font-mono" onClick={onClose}>
@@ -177,10 +172,10 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         className="w-[460px] max-w-[92vw] rounded-xl border border-theme bg-[var(--bg-card)] shadow-2xl overflow-hidden animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-theme">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-theme">
           <div>
             <h3 className="text-sm font-bold text-theme-main tracking-widest uppercase">New YZPZ Agent</h3>
-            <p className="text-[10px] text-[var(--text-secondary)]">Configure the agent harness provider</p>
+            <p className="mt-0.5 text-[10px] text-[var(--text-secondary)]">Start with your saved setup. Change it only when you need to.</p>
           </div>
           <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-pointer">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -196,119 +191,117 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
             </div>
           ) : (
             <>
-              {/* Session label */}
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                  Session Label <span className="normal-case tracking-normal opacity-60">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={80}
-                  placeholder="e.g. Refactor auth flow"
-                  className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
-                />
-              </div>
-
-              {/* First task */}
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                  First Task <span className="normal-case tracking-normal opacity-60">(optional — starts immediately)</span>
-                </label>
-                <textarea
-                  value={initialPrompt}
-                  onChange={(e) => setInitialPrompt(e.target.value)}
-                  rows={3}
-                  placeholder="Describe what this agent should work on first… leave empty for a blank chat"
-                  className="w-full rounded-md border border-theme bg-[var(--bg-main)] px-2.5 py-2 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)] resize-y min-h-[60px] max-h-[160px] custom-scrollbar"
-                />
-              </div>
-
-              {hasSavedKey && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-emerald-900/50 bg-emerald-950/20">
-                  <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              <div className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 ${hasSavedKey ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-amber-900/50 bg-amber-950/20'}`}>
+                <div className="min-w-0 flex items-center gap-2">
+                  <svg className={`h-3.5 w-3.5 shrink-0 ${hasSavedKey ? 'text-emerald-500' : 'text-amber-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    {hasSavedKey ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /> : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 3h.01M10.3 3.9l-7.1 12.3A2 2 0 004.9 19h14.2a2 2 0 001.7-2.8l-7.1-12.3a2 2 0 00-3.4 0z" />}
                   </svg>
-                  <span className="font-mono text-[10px] text-emerald-500">
-                    Using saved credentials for {PROVIDER_DISPLAY[providerId]?.name ?? providerId} ✓
-                  </span>
+                  <div className="min-w-0">
+                    <p className={`truncate text-[10px] font-medium ${hasSavedKey ? 'text-emerald-500' : 'text-amber-300'}`}>
+                      {hasSavedKey ? 'Ready to start' : 'Connection needs an API key'}
+                    </p>
+                    <p className="truncate text-[9px] text-[var(--text-secondary)]">{providerName}{modelName ? ` · ${modelName}` : ''}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced((visible) => !visible)}
+                  className="shrink-0 text-[9px] font-bold text-[var(--accent)] hover:opacity-80 focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--accent)] rounded-sm cursor-pointer"
+                  aria-expanded={showAdvanced}
+                >
+                  {showAdvanced ? 'Hide setup' : hasSavedKey ? 'Change setup' : 'Set up'}
+                </button>
+              </div>
+
+              {showAdvanced && (
+                <div className="space-y-4 border-l border-[var(--border-primary)] pl-3.5 animate-fade-in">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">Customize setup</span>
+                    <span className="h-px flex-1 bg-[var(--border-primary)]" />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Provider</label>
+                    <AgentSelect
+                      value={providerId}
+                      onChange={handleProviderChange}
+                      searchPlaceholder="Search providers…"
+                      options={providers.map((p) => ({
+                        value: p.id,
+                        label: PROVIDER_DISPLAY[p.id]?.name ?? p.name,
+                      }))}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Model</label>
+                    <AgentSelect
+                      value={modelId}
+                      onChange={setModelId}
+                      disabled={models.length === 0}
+                      placeholder="No models for provider"
+                      searchPlaceholder="Search models…"
+                      options={models.map((m) => ({
+                        value: m.id,
+                        label: m.contextWindow ? `${m.name} (${Math.round(m.contextWindow / 1000)}k context)` : m.name,
+                      }))}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+                      API Key {providerMeta.needsBaseUrl ? '(required)' : hasSavedKey ? '(saved)' : '(add a key)'}
+                    </label>
+                    <input
+                      type="password"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder={hasSavedKey ? '•••••••••• Saved securely' : 'Paste your API key'}
+                      className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                    />
+                  </div>
+
+                  {providerMeta.needsBaseUrl && (
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Base URL</label>
+                      <input
+                        type="text"
+                        value={baseUrl}
+                        onChange={(e) => setBaseUrl(e.target.value)}
+                        placeholder="https://api.example.com/v1"
+                        className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                      />
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-[minmax(0,1fr)_8.5rem] gap-3">
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Session name</label>
+                      <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        maxLength={80}
+                        placeholder="Auto from task"
+                        className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Token limit</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={10000}
+                        value={maxTotalTokens}
+                        onChange={(e) => setMaxTotalTokens(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder="Unlimited"
+                        aria-label="Token limit, zero for unlimited"
+                        className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
-
-              {/* Provider */}
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Provider</label>
-                <AgentSelect
-                  value={providerId}
-                  onChange={handleProviderChange}
-                  searchPlaceholder="Search providers…"
-                  options={providers.map((p) => ({
-                    value: p.id,
-                    label: `${PROVIDER_DISPLAY[p.id]?.name ?? p.name} (${p.id})`,
-                  }))}
-                />
-              </div>
-
-              {/* Model */}
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Model</label>
-                <AgentSelect
-                  value={modelId}
-                  onChange={setModelId}
-                  disabled={models.length === 0}
-                  placeholder="No models for provider"
-                  searchPlaceholder="Search models…"
-                  options={models.map((m) => ({
-                    value: m.id,
-                    label: m.contextWindow ? `${m.name} (${Math.round(m.contextWindow / 1000)}k ctx)` : m.name,
-                  }))}
-                />
-              </div>
-
-              {/* API Key */}
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                  API Key {providerMeta.needsBaseUrl ? '(required)' : hasSavedKey ? '(saved ✓ — optional)' : '(optional)'}
-                </label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={hasSavedKey ? '•••••••••• (saved key)' : 'sk-…'}
-                  className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
-                />
-              </div>
-
-              {/* Base URL (openai-compatible) */}
-              {providerMeta.needsBaseUrl && (
-                <div className="space-y-1.5">
-                  <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Base URL</label>
-                  <input
-                    type="text"
-                    value={baseUrl}
-                    onChange={(e) => setBaseUrl(e.target.value)}
-                    placeholder="https://api.example.com/v1"
-                    className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
-                  />
-                </div>
-              )}
-
-              {/* Max total tokens budget (0 = unlimited) */}
-              <div className="space-y-1.5">
-                <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-                  Max Total Tokens (0 = unlimited)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  step={10000}
-                  value={maxTotalTokens}
-                  onChange={(e) => setMaxTotalTokens(Math.max(0, Number(e.target.value) || 0))}
-                  placeholder="0 = unlimited"
-                  className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
-                />
-              </div>
 
               {error && (
                 <div className="rounded-md border border-rose-900/50 bg-rose-950/20 px-3 py-2 text-[10px] text-rose-500">
@@ -321,7 +314,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
 
         <div className="px-5 py-4 border-t border-theme flex items-center justify-between gap-3">
           <span className="text-[9px] text-[var(--text-secondary)]/60">
-            Keys are stored locally in ~/.yzpzcode/agent
+            {hasSavedKey ? 'Uses your saved connection' : 'Your key is saved locally'}
           </span>
           <div className="flex items-center gap-2">
             <button
@@ -335,7 +328,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
               disabled={creating || loading || !modelId}
               className="px-4 h-9 rounded-md bg-[var(--accent)] text-white text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all duration-100 cursor-pointer"
             >
-              {creating ? 'Starting…' : initialPrompt.trim() ? 'Create & Start' : 'Create Agent'}
+              {creating ? 'Creating…' : 'Create Session'}
             </button>
           </div>
         </div>

@@ -23,6 +23,7 @@ import type {
 import { useAppStore } from '../../stores/appStore';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useTerminal } from '../../hooks/useTerminal';
+import { useAgentHost } from '../../hooks/useAgentHost';
 import { htmlToPlainText } from '../../utils/richText';
 import { BrowserTabBar } from './BrowserTabBar';
 import { StyleClipboardPanel } from './StyleClipboardPanel';
@@ -30,7 +31,7 @@ import { UiReferenceClipboardPanel } from './UiReferenceClipboardPanel';
 import { ApplyModeToolbar } from './ApplyModeToolbar';
 import { RichPromptEditor } from './RichPromptEditor';
 import { ElementInspectorPanel } from './ElementInspectorPanel';
-import { AgentTargetSelect } from './AgentTargetSelect';
+import { AgentTargetSelect, type AgentTargetOption } from './AgentTargetSelect';
 
 interface BrowserPaneProps {
   workspaceId: string;
@@ -511,6 +512,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const browserStateByWorkspace = useAppStore((state) => state.browserStateByWorkspace);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspace = useAppStore((state) => state.currentWorkspace);
+  const agentSessionsByWorkspace = useAppStore((state) => state.agentSessionsByWorkspace);
   const ensureBrowserState = useAppStore((state) => state.ensureBrowserState);
   const setBrowserCurrentUrl = useAppStore((state) => state.setBrowserCurrentUrl);
   const setBrowserDraftUrl = useAppStore((state) => state.setBrowserDraftUrl);
@@ -573,6 +575,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     undoBrowserStyle,
   } = useBrowser();
   const { writeToTerminal } = useTerminal();
+  const { ensureHost, resumeSession, sendMessage } = useAgentHost();
 
   const effectiveState = browserState ?? {
     currentUrl: FALLBACK_URL,
@@ -611,16 +614,51 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     return agentSessions.length > 0 ? agentSessions : sessions;
   }, [sessions]);
 
+  // Built-in YZPZ Agent sessions (Cline-SDK harness) — they can receive
+  // handoff prompts too, so they are merged into the target-agent options.
+  const yzpzSessions = useMemo(
+    () => agentSessionsByWorkspace[workspaceId] ?? [],
+    [agentSessionsByWorkspace, workspaceId],
+  );
+
+  const sessionOptions = useMemo<AgentTargetOption[]>(() => {
+    const terminals: AgentTargetOption[] = targetableSessions.map((session) => ({
+      id: session.id,
+      label: sessionDisplayName(session),
+      agent: session.agent ?? null,
+      kind: 'terminal',
+    }));
+    const yzpz: AgentTargetOption[] = yzpzSessions.map((session) => ({
+      id: session.sessionId,
+      label: session.title ? `YZPZ Agent · ${session.title}` : 'YZPZ Agent',
+      agent: null,
+      kind: 'yzpz',
+    }));
+    return [...terminals, ...yzpz];
+  }, [targetableSessions, yzpzSessions]);
+
   const defaultSessionId = useMemo(() => {
-    if (activeSessionId && targetableSessions.some((session) => session.id === activeSessionId)) {
+    if (activeSessionId && sessionOptions.some((option) => option.id === activeSessionId)) {
       return activeSessionId;
     }
-    return targetableSessions[0]?.id ?? null;
-  }, [activeSessionId, targetableSessions]);
+    return sessionOptions[0]?.id ?? null;
+  }, [activeSessionId, sessionOptions]);
 
-  const sessionOptions = useMemo(
-    () => targetableSessions.map((session) => ({ id: session.id, label: sessionDisplayName(session), agent: session.agent ?? null })),
-    [targetableSessions],
+  const agentSessionIds = useMemo(() => new Set(yzpzSessions.map((session) => session.sessionId)), [yzpzSessions]);
+
+  /** Route a handoff prompt to the chosen target: terminal sessions get the
+   * bracketed-paste write, YZPZ Agent sessions go through the harness RPC. */
+  const sendPromptToTarget = useCallback(
+    async (targetSessionId: string, prompt: string) => {
+      if (agentSessionIds.has(targetSessionId)) {
+        await ensureHost();
+        await resumeSession(targetSessionId);
+        await sendMessage(targetSessionId, prompt);
+        return;
+      }
+      await writeToTerminal(targetSessionId, buildBracketedPasteInput(prompt));
+    },
+    [agentSessionIds, ensureHost, resumeSession, sendMessage, writeToTerminal],
   );
 
   const activeDevice = useMemo(
@@ -1125,7 +1163,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
     setIsSubmitting(true);
     try {
-      await writeToTerminal(targetSessionId, buildBracketedPasteInput(formattedPrompt));
+      await sendPromptToTarget(targetSessionId, formattedPrompt);
       setBrowserPrompt(workspaceId, '');
       setError(null);
     } catch (err) {
@@ -1141,9 +1179,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     effectiveState.selectedElement,
     effectiveState.targetSessionId,
     effectiveState.zoomFactor,
+    sendPromptToTarget,
     setBrowserPrompt,
     workspaceId,
-    writeToTerminal,
   ]);
 
   const handleInspectorTargetSessionChange = useCallback((sessionId: string | null) => {
@@ -1334,7 +1372,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
     setIsSubmitting(true);
     try {
-      await writeToTerminal(targetSessionId, buildBracketedPasteInput(formattedPrompt));
+      await sendPromptToTarget(targetSessionId, formattedPrompt);
       setBrowserUiReferencePrompt(workspaceId, '');
       setError(null);
     } catch (err) {
@@ -1350,9 +1388,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     effectiveState.uiReferenceClipboard,
     effectiveState.uiReferenceMode,
     effectiveState.uiReferencePrompt,
+    sendPromptToTarget,
     setBrowserUiReferencePrompt,
     workspaceId,
-    writeToTerminal,
   ]);
 
   const handleAddTab = useCallback(() => {
@@ -2252,23 +2290,19 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                         <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
                           <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">target agent</span>
                           <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
-                            {targetableSessions.length} avail
+                            {sessionOptions.length} avail
                           </span>
                         </div>
                         <div className="p-3">
                           <AgentTargetSelect
                             value={effectiveState.targetSessionId ?? ''}
-                            options={targetableSessions.map((session) => ({
-                              id: session.id,
-                              label: sessionDisplayName(session),
-                              agent: session.agent ?? null,
-                            }))}
+                            options={sessionOptions}
                             onChange={(sessionId) => setBrowserTargetSession(workspaceId, sessionId)}
                           />
                           <p className="mt-1.5 text-[9px] leading-4 text-zinc-600">
-                            {targetableSessions.length === 0
-                              ? 'open an agent terminal tab (claude, codex, gemini…) to enable rebuild'
-                              : 'handoff goes directly into the chosen terminal context'}
+                            {targetableSessions.length === 0 && yzpzSessions.length === 0
+                              ? 'open an agent terminal tab (claude, codex, gemini…) or a YZPZ Agent to enable rebuild'
+                              : 'handoff goes directly into the chosen agent context'}
                           </p>
                         </div>
                       </section>

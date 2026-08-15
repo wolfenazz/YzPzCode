@@ -59,7 +59,15 @@ async function main(): Promise<void> {
   process.on("SIGINT", () => void shutdown("SIGINT"));
   process.on("SIGTERM", () => void shutdown("SIGTERM"));
   process.on("uncaughtException", (err) => {
+    // A caught exception usually leaves the harness in an unknown state. Exit
+    // (with best-effort dispose) rather than silently serving a broken sidecar.
     console.error(`[yzpz-agent] uncaught exception: ${err}`);
+    try {
+      void harness.dispose();
+    } catch {
+      // best-effort
+    }
+    process.exit(1);
   });
 }
 

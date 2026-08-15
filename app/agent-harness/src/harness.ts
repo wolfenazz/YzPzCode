@@ -39,6 +39,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import { homedir } from "node:os";
 import { basename, isAbsolute, join } from "node:path";
 import { buildSystemPrompt } from "./branding.js";
+import { accumulateUsage, enforceBudget, usageTotal, zeroUsage, type UsageTotals } from "./budget.js";
 import { ProviderConfigStore } from "./store.js";
 import {
   DEFAULT_MAX_BYTES,
@@ -67,11 +68,14 @@ const APPROVAL_TIMEOUT_MS = 600_000; // 10 min; auto-deny on timeout
 // smaller local budget makes a 1M-token session compact around 90k tokens.
 // Cap model output per API call so turns cannot ramble.
 const DEFAULT_MAX_OUTPUT_TOKENS = 8192;
-// Hard ceiling on loop iterations (prevents runaway tool loops).
-const DEFAULT_MAX_ITERATIONS = 20;
-// Recent context preserved verbatim after compaction. PI uses keepRecentTokens
-// = 20000 for its default 96K budget; we mirror that here (scaled to our cap).
-const COMPACTION_PRESERVE_RECENT_TOKENS = 12_000;
+// Hard ceiling on loop iterations (prevents runaway tool loops). 40 lets a
+// single turn grind through a genuinely long multi-file task; the completion
+// guard + error recovery drive additional turns when needed.
+const DEFAULT_MAX_ITERATIONS = 40;
+// Recent context preserved verbatim after compaction. Scaled to today's larger
+// context windows: 12k was proportionally tiny and made long tasks lose track
+// of what they had just done after a compaction.
+const COMPACTION_PRESERVE_RECENT_TOKENS = 24_000;
 
 /** Shared skills are user-level capabilities, never workspace-local state. */
 const uniqueDirectories = (directories: string[]): string[] => {
@@ -98,6 +102,63 @@ const globalSkillDirectories = (dataDir?: string): string[] => {
 };
 
 const compatibleSkillDirectories = (dataDir: string): string[] => globalSkillDirectories(dataDir);
+
+/**
+ * Compact one-line hints for every installed skill, read from the skill
+ * directories so the model knows what is available without probing the tool
+ * catalog. Scans `<skill>/SKILL.md` packages (one level deep) plus loose
+ * `.md` files. Returns `name: short description` lines, deduped, disabled
+ * skills skipped, bounded to keep the prompt cheap.
+ */
+const skillHints = (dataDir: string): string[] => {
+  const MAX_SKILL_HINTS = 40;
+  const hints: string[] = [];
+  const seen = new Set<string>();
+  const consider = (name: string, raw: string): void => {
+    const key = name.trim().toLowerCase();
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    try {
+      const item = parseSkillConfigFromMarkdown(raw, name);
+      if (item.disabled) return;
+      const desc = (item.description ?? "").replace(/\s+/g, " ").trim().slice(0, 140);
+      hints.push(desc ? `${name}: ${desc}` : name);
+    } catch {
+      hints.push(name);
+    }
+  };
+  for (const directory of compatibleSkillDirectories(dataDir)) {
+    if (!existsSync(directory)) continue;
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (hints.length >= MAX_SKILL_HINTS) return hints;
+      if (entry.isDirectory()) {
+        const skillFile = join(directory, entry.name, "SKILL.md");
+        if (existsSync(skillFile)) {
+          try {
+            consider(entry.name, readFileSync(skillFile, "utf8"));
+          } catch {
+            // unparsable — skip
+          }
+        }
+      } else if (entry.isFile() && entry.name.endsWith(".md")) {
+        const name = entry.name.replace(/\.md$/, "");
+        try {
+          consider(name, readFileSync(join(directory, entry.name), "utf8"));
+        } catch {
+          // unparsable — skip
+        }
+      }
+    }
+  }
+  return hints;
+};
+
 
 const markdownFilesUnder = (directory: string): string[] => {
   if (!existsSync(directory)) return [];
@@ -148,6 +209,7 @@ interface PendingApproval {
 interface PendingQuestion {
   resolve: (answer: string) => void;
   timer: NodeJS.Timeout;
+  sessionId: string;
   question: string;
   options: string[];
 }
@@ -161,22 +223,52 @@ const TODO_INSTRUCTION = [
   "If the user asks a follow-up that extends the task, add the new steps. Never invent todos for work you are not planning to do.",
 ].join("\n");
 
-/** Tools that are blocked while a session is in "ask" mode (read-only Q&A). */
-const ASK_BLOCKED_TOOLS = new Set([
+/** Per-message directive prepended when the session is in Fast mode. */
+const FAST_MODE_DIRECTIVE = [
+  "",
+  "FAST MODE — SPEED IS THE PRIORITY",
+  "The user enabled Fast mode: complete this request as fast as possible. Follow these rules strictly:",
+  "- Do not think out loud or show chain-of-thought. Skip deliberation entirely and act.",
+  "- Pick the simplest correct approach on the first try and execute it immediately. Do not explore alternatives.",
+  "- Minimize tool round-trips: read only what you strictly need (no full-file dumps), make edits in the fewest operations, and never re-read files you already saw.",
+  "- Do not ask clarifying questions unless the task is genuinely impossible to start — make the most reasonable assumption and proceed.",
+  "- Do not create a task list for simple tasks. Only use todo_write for genuinely multi-step work, and keep it short.",
+  "- Do not run tests or extra verification unless the change is risky or the user asked for it.",
+  "- Final reply: one or two short sentences on what was done. No step-by-step narration.",
+  "Execute now, fast.",
+].join("\n");
+
+/**
+ * Tools that are blocked while a session is in a read-only mode ("ask" Q&A or
+ * "plan" planning). Mirrors the SDK's real built-in tool names (read_files,
+ * search_codebase, run_commands, fetch_web_content, apply_patch, editor,
+ * skills, ask_question, submit_and_exit). Extra aliases are kept defensively in
+ * case tool naming changes between SDK versions. `team_*` tools are blocked
+ * separately (prefix match) because spawning/running teammates would let an
+ * agent side-step read-only enforcement.
+ */
+const READONLY_BLOCKED_TOOLS = new Set([
   "editor",
   "apply_patch",
-  "write_file",
-  "create_file",
-  "delete_file",
-  "rename_file",
   "run_commands",
   "skills",
   "spawn_agent",
   "submit_and_exit",
+  // Defensive aliases (older/newer SDK tool names)
+  "write_file",
+  "create_file",
+  "delete_file",
+  "rename_file",
 ]);
 
+/** True when a session's mode is hard-enforced read-only. */
+const isReadOnlyMode = (mode: string | undefined): boolean => mode === "ask" || mode === "plan";
+
 const ASK_MODE_REASON =
-  "Ask mode is read-only — it answers questions and can read/search/fetch, but it never edits files or runs commands. Switch to Act or Plan to modify files or execute commands.";
+  "Ask mode is read-only — it answers questions and can read/search/fetch, but it never edits files or runs commands. Switch to Act to modify files or execute commands.";
+
+const PLAN_MODE_REASON =
+  "Plan mode is read-only — explore, analyze, and present a plan. You may read/search/fetch, but you never edit, create, or delete files and you never run commands. Switch to Act to execute changes.";
 
 interface CreateSessionArgs {
   sessionId?: string;
@@ -257,6 +349,12 @@ export class AgentHarness {
   private approvals = new Map<string, PendingApproval>();
   private questions = new Map<string, PendingQuestion>();
   private sessionModes = new Map<string, string>();
+  /**
+   * Per-session team state captured from `team_progress` events. Drives the
+   * completion-guard dedup (skip todo nudges while teammates still work) and
+   * the "teammates still running" notice on abort/stop.
+   */
+  private teamStateBySession = new Map<string, { activeRunIds: string[]; activeTasks: number }>();
   private mcpManager: InMemoryMcpManager | null = null;
   private stores = new Map<string, ProviderConfigStore>();
   private toolPolicyStore: ToolPolicyStore | null = null;
@@ -286,12 +384,29 @@ export class AgentHarness {
    * `usage-updated` agent events. Drives the live usage meter and the
    * total-token budget enforced in afterModelHook.
    */
-  private usageBySession = new Map<
-    string,
-    { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; totalCost: number }
-  >();
+  private usageBySession = new Map<string, UsageTotals>();
   /** Per-session max total tokens (0 = unlimited). */
   private budgets = new Map<string, number>();
+  /**
+   * Sessions whose cumulative token budget was hit. Suppresses the completion
+   * guard / auto-continue so a budget stop doesn't burn extra model calls
+   * chasing unfinished todos. Cleared when the session is (re)started.
+   */
+  private budgetStoppedSessions = new Set<string>();
+  /**
+   * Automatic error-recovery state. When a run fails, the harness steers a
+   * bounded recovery turn (retry transient provider errors, otherwise continue
+   * unfinished work) so a transient failure never dead-ends the session.
+   */
+  private recoveryAttempts = new Map<string, number>();
+  /** Timestamp of the last recovery steer per session — dedups the same error surfacing via multiple channels (agent_event + status + send rejection). */
+  private recoveryWindow = new Map<string, number>();
+  /** Sessions the user explicitly aborted/stopped — never auto-recover those. */
+  private suppressRecovery = new Set<string>();
+  /** Sessions with Fast mode enabled (persisted in session metadata). */
+  private fastModes = new Map<string, boolean>();
+  /** Sessions that already got the "recovery exhausted" notice (emit once). */
+  private recoveryExhausted = new Set<string>();
   readonly dataDir: string;
   private prefsFile: string;
   private prefs: Record<string, unknown>;
@@ -422,7 +537,7 @@ export class AgentHarness {
         this.questions.delete(requestId);
         resolve(payload.options[0]);
       }, 600_000); // 10 min; auto-pick first option on timeout
-      this.questions.set(requestId, { resolve, timer, question, options });
+      this.questions.set(requestId, { resolve, timer, sessionId: context.sessionId ?? "", question, options });
       this.sink("question-request", payload);
     });
     this.questions.delete(requestId);
@@ -536,28 +651,15 @@ export class AgentHarness {
           typeof event.payload?.sessionId === "string" ? event.payload.sessionId : undefined;
         const inner = (event.payload?.event ?? {}) as Record<string, unknown>;
         if (sessionId) {
-          const prev = this.usageBySession.get(sessionId) ?? {
-            inputTokens: 0,
-            outputTokens: 0,
-            cacheReadTokens: 0,
-            cacheWriteTokens: 0,
-            totalCost: 0,
-          };
-          const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
-          const cost = typeof inner.totalCost === "number" ? inner.totalCost : inner.cost;
-          const usage = {
-            inputTokens: prev.inputTokens + num(inner.inputTokens),
-            outputTokens: prev.outputTokens + num(inner.outputTokens),
-            cacheReadTokens: prev.cacheReadTokens + num(inner.cacheReadTokens),
-            cacheWriteTokens: prev.cacheWriteTokens + num(inner.cacheWriteTokens),
-            totalCost: prev.totalCost + num(cost),
-          };
+          const prev = this.usageBySession.get(sessionId) ?? zeroUsage();
+          const usage = accumulateUsage(prev, inner);
           this.usageBySession.set(sessionId, usage);
           this.sink("usage-updated", { sessionId, usage });
           // Keep the current provider-request size separate from cumulative
           // session usage. A compacted conversation can have a small prompt
           // while its lifetime usage is large; displaying the latter as
           // "Context" made successful compaction look like a failure.
+          const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
           this.sink("context-updated", {
             sessionId,
             inputTokens: num(inner.inputTokens),
@@ -574,6 +676,16 @@ export class AgentHarness {
           this.runningSessions.delete(event.payload.sessionId);
         }
         this.sink("session-status", { sessionId: event.payload.sessionId, status: event.payload.status });
+        // A run that ended in "failed" without a matching error agent_event
+        // (e.g. loop-detection hard stop) still deserves recovery. The dedup
+        // window keeps this from double-steering when the error event also
+        // fired for the same failure.
+        if (status === "failed") {
+          this.maybeRecoverAfterError(
+            event.payload.sessionId,
+            "The task stopped before completing.",
+          );
+        }
       } else if (event.type === "ended") {
         // The SDK removes the session from its in-memory runtime when it ends
         // (failure / teardown). Keep our tracking in sync so a later send can
@@ -581,8 +693,10 @@ export class AgentHarness {
         this.activeSessions.delete(event.payload.sessionId);
         this.runningSessions.delete(event.payload.sessionId);
         this.steeringBySession.delete(event.payload.sessionId);
+        this.teamStateBySession.delete(event.payload.sessionId);
         this.sink("session-ended", event.payload);
       } else if (event.type === "team_progress") {
+        this.recordTeamProgress(event.payload);
         this.sink("team-progress", event.payload);
       } else if (event.type === "agent_event" && event.payload?.event?.type === "done") {
         this.runningSessions.delete(event.payload.sessionId);
@@ -591,12 +705,99 @@ export class AgentHarness {
         // working instead of stopping prematurely. Native `delivery:"steer"`
         // drains after the current turn and starts the next one automatically.
         this.maybeAutoContinue(event.payload.sessionId);
+      } else if (event.type === "agent_event" && event.payload?.event?.type === "error") {
+        // Automatic error recovery: never leave the user at a dead end after a
+        // failed turn. Retry transient provider errors, or steer a recovery
+        // turn when there is unfinished work (bounded + deduped + suppressed
+        // after a user abort).
+        this.runningSessions.delete(event.payload.sessionId);
+        const inner = (event.payload?.event ?? {}) as Record<string, unknown>;
+        const errorMessage =
+          typeof inner.error === "string"
+            ? inner.error
+            : typeof inner.message === "string"
+              ? inner.message
+              : "The task stopped unexpectedly.";
+        this.maybeRecoverAfterError(event.payload.sessionId, errorMessage);
       }
     });
   }
 
-  /** Max follow-up nudges per session before we trust the model's stop. */
-  private static MAX_COMPLETION_NUDGES = 2;
+  /** Max follow-up nudges per session before we trust the model's stop. 5 lets
+   *  long, multi-step tasks keep going instead of stopping at the first pause. */
+  private static MAX_COMPLETION_NUDGES = 5;
+
+  /** Max automatic recovery turns after errors before handing control back to the user. */
+  private static MAX_RECOVERY_ATTEMPTS = 2;
+  /** Dedup window: the same failure often surfaces via agent_event + status + send rejection. */
+  private static RECOVERY_DEDUP_MS = 3000;
+  /** Transient provider failures worth an automatic retry even with no unfinished todos. */
+  private static RETRYABLE_ERROR_RE =
+    /(429|5\d\d|rate.?limit|quota|timeout|timed out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network|temporarily|overloaded|unavailable|too many requests|try again|busy)/i;
+
+  private isRetryableError(message: string): boolean {
+    return AgentHarness.RETRYABLE_ERROR_RE.test(message);
+  }
+
+  /**
+   * Automatic error recovery. After a failed turn:
+   *   - transient provider errors (rate limits, 5xx, timeouts) are retried
+   *     even with no unfinished todos;
+   *   - any other failure steers a recovery turn ONLY when the task list
+   *     clearly still has unfinished work (so a Q&A error doesn't spawn a
+   *     pointless model call);
+   *   - bounded per session (MAX_RECOVERY_ATTEMPTS), deduped across the
+   *     multiple channels a failure can surface through, and suppressed after
+   *     an explicit user abort/stop.
+   */
+  private maybeRecoverAfterError(sessionId: string, errorMessage: string): void {
+    if (this.budgetStoppedSessions.has(sessionId)) return;
+    if (this.teamWorkPending(sessionId)) return;
+    if (this.suppressRecovery.has(sessionId)) return;
+
+    const now = Date.now();
+    const lastRecovery = this.recoveryWindow.get(sessionId) ?? 0;
+    if (now - lastRecovery < AgentHarness.RECOVERY_DEDUP_MS) return;
+
+    const attempts = this.recoveryAttempts.get(sessionId) ?? 0;
+    if (attempts >= AgentHarness.MAX_RECOVERY_ATTEMPTS) {
+      // Tell the user once that auto-recovery gave up, so they know a manual
+      // nudge is needed instead of silently stopping.
+      if (!this.recoveryExhausted.has(sessionId)) {
+        this.recoveryExhausted.add(sessionId);
+        this.sink("notice", {
+          sessionId,
+          message: "Automatic recovery is exhausted for this task — the agent needs your input to continue.",
+        });
+      }
+      return;
+    }
+
+    const retryable = this.isRetryableError(errorMessage);
+    const todos = this.todosBySession.get(sessionId);
+    const unfinished =
+      todos?.filter((t) => t.status === "pending" || t.status === "in_progress") ?? [];
+    const hasUnfinishedWork = unfinished.length > 0;
+    if (!retryable && !hasUnfinishedWork) return;
+
+    this.recoveryWindow.set(sessionId, now);
+    this.recoveryAttempts.set(sessionId, attempts + 1);
+
+    const brief = errorMessage.trim().replace(/\s+/g, " ").slice(0, 160);
+    const mode = this.sessionModes.get(sessionId) ?? "act";
+    this.sink("notice", {
+      sessionId,
+      message: retryable
+        ? `The provider request failed (${brief}). Retrying automatically — no action needed.`
+        : `The agent hit an error (${brief}). Recovering and continuing the task.`,
+    });
+    const followUp = retryable
+      ? `Your previous attempt was interrupted by a transient provider error: ${errorMessage}. Retry the last step and continue the task.`
+      : `Your previous attempt failed with: ${errorMessage}. Recover from this error and continue the task to completion.`;
+    // Steer with the session's own mode so read-only/orchestrator enforcement
+    // is preserved on the recovery turn.
+    void this.sendMessage(sessionId, followUp, mode, [], [], true).catch(() => undefined);
+  }
 
   /**
    * When the agent reports `done` but the todo list still has pending or
@@ -605,6 +806,16 @@ export class AgentHarness {
    * level so it works regardless of which runtime backend the SDK selects.
    */
   private maybeAutoContinue(sessionId: string): void {
+    // A token-budget stop is final for this run: never steer follow-ups (each
+    // would burn another model call just to hit the same limit again).
+    if (this.budgetStoppedSessions.has(sessionId)) return;
+    // The user explicitly stopped this session — don't restart it behind
+    // their back.
+    if (this.suppressRecovery.has(sessionId)) return;
+    // Orchestration: the SDK's own team completion guard already steers the
+    // lead while teammates have active runs or unfinished tasks. Nudging the
+    // same todos from here would double-steer with competing instructions.
+    if (this.teamWorkPending(sessionId)) return;
     const todos = this.todosBySession.get(sessionId);
     if (!todos || todos.length === 0) return;
     const unfinished = todos.filter((t) => t.status === "pending" || t.status === "in_progress");
@@ -620,15 +831,57 @@ export class AgentHarness {
       .slice(0, 5)
       .map((t) => t.content ?? `#${t.id ?? "?"}`)
       .join("; ");
-    const followUp = `The task list still has ${unfinished.length} unfinished item(s): ${items}. Use todo_write to mark them completed as you finish them, and do not stop until the task list is fully completed.`;
-    void this.sendMessage(sessionId, followUp, "act").catch(() => undefined);
+    const followUp = `The task list still has ${unfinished.length} unfinished item(s): ${items}. Use todo_write to mark them completed as you finish them, and do not stop until the ENTIRE task is fully completed in this run. Stopping early is a failure.`;
+    // Steer with the session's own mode so an orchestrator follow-up keeps
+    // its delegation directive instead of silently dropping to act.
+    const mode = this.sessionModes.get(sessionId) ?? "act";
+    void this.sendMessage(sessionId, followUp, mode, [], [], true).catch(() => undefined);
   }
 
-  /** Merge global per-tool policies over the built-in defaults. */
+  /** Capture active teammate runs/tasks from a `team_progress` payload. */
+  private recordTeamProgress(payload: unknown): void {
+    const body = (payload ?? {}) as { sessionId?: unknown; summary?: Record<string, unknown> };
+    const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
+    const summary = (body.summary ?? {}) as Record<string, unknown>;
+    const runs = (summary.runs ?? {}) as Record<string, unknown>;
+    const activeRunIds = Array.isArray(runs.activeRunIds)
+      ? (runs.activeRunIds as unknown[]).filter((id): id is string => typeof id === "string")
+      : [];
+    const tasks = (summary.tasks ?? {}) as Record<string, unknown>;
+    const byStatus = (tasks.byStatus ?? {}) as Record<string, unknown>;
+    const activeTasks = Object.entries(byStatus).reduce(
+      (sum, [status, count]) =>
+        sum + (["pending", "in_progress", "running"].includes(status) && typeof count === "number" ? count : 0),
+      0,
+    );
+    if (sessionId) {
+      this.teamStateBySession.set(sessionId, { activeRunIds, activeTasks });
+    }
+  }
+
+  /** True while the session's team still has active runs or unfinished tasks. */
+  private teamWorkPending(sessionId: string): boolean {
+    const state = this.teamStateBySession.get(sessionId);
+    if (!state) return false;
+    return state.activeRunIds.length > 0 || state.activeTasks > 0;
+  }
+
+  /**
+   * Merge global per-tool policies over the built-in defaults. The SDK runtime
+   * decides approval purely from this map (it only asks when a tool's effective
+   * policy explicitly sets `autoApprove: false`) and never reads the persisted
+   * `toolAutoApprove` global setting — so the "Global tool auto-approve" toggle
+   * is folded into the policies here.
+   */
   private buildToolPolicies(): Record<string, ToolPolicy> {
     const policies: Record<string, ToolPolicy> = { ...DEFAULT_TOOL_POLICIES };
     for (const [name, entry] of Object.entries(this.getToolPolicyStore().getAll())) {
       policies[name] = { ...(policies[name] ?? {}), enabled: entry.enabled, autoApprove: entry.autoApprove };
+    }
+    if (readGlobalSettings().toolAutoApprove === true) {
+      for (const name of Object.keys(policies)) {
+        policies[name] = { ...policies[name], autoApprove: true };
+      }
     }
     return policies;
   }
@@ -667,6 +920,23 @@ export class AgentHarness {
   }
 
   private async handleApproval(request: ToolApprovalRequest): Promise<ToolApprovalResult> {
+    // Read-only modes ("ask"/"plan") must never mutate. The beforeTool guard
+    // blocks the known mutating tools before approval; this check is a second
+    // line for in-flight requests and re-checks after a mid-run mode switch.
+    const mode = this.sessionModes.get(request.sessionId) ?? "act";
+    if (
+      isReadOnlyMode(mode) &&
+      (READONLY_BLOCKED_TOOLS.has(request.toolName) || request.toolName.startsWith("team_"))
+    ) {
+      return { approved: false, reason: mode === "plan" ? PLAN_MODE_REASON : ASK_MODE_REASON };
+    }
+    // Read-only modes must ALSO never silently execute unknown tools (e.g. MCP
+    // write tools whose names the guard cannot enumerate): skip the global
+    // auto-approve short-circuit and force explicit user consent instead.
+    const globalAutoApprove = readGlobalSettings().toolAutoApprove === true;
+    if (!isReadOnlyMode(mode) && globalAutoApprove) {
+      return { approved: true, reason: "Global tool auto-approve is enabled" };
+    }
     const requestId = randomUUID();
     const payload: ApprovalRequestPayload = {
       requestId,
@@ -739,6 +1009,36 @@ export class AgentHarness {
   }
 
   /**
+   * Fail fast on a bogus provider instead of creating a session that only
+   * errors (confusingly) on the first message. A provider is considered valid
+   * when the SDK catalog knows it, or the user has saved credentials or passed
+   * an apiKey/baseUrl (custom OpenAI-compatible providers live outside the
+   * catalog). The model id is intentionally NOT validated against the catalog:
+   * providers accept arbitrary model ids (aliases, previews, custom endpoints)
+   * that the catalog may not list yet.
+   */
+  private async validateConnection(
+    providerId: string,
+    apiKey?: string,
+    baseUrl?: string,
+  ): Promise<void> {
+    const saved = this.getProviderStore().get(providerId);
+    if (saved?.apiKey || saved?.baseUrl) return;
+    if (apiKey || baseUrl) return;
+    let ids: string[] = [];
+    try {
+      ids = await Llms.getProviderIds();
+    } catch {
+      ids = [];
+    }
+    if (!ids.includes(providerId)) {
+      throw new Error(
+        `Unknown provider "${providerId}". Pick one from the provider list, or add its API key in Settings → Agent to use a custom provider.`,
+      );
+    }
+  }
+
+  /**
    * Shared session bootstrap for both fresh creation and resume. Sessions are
    * started as `interactive: true` so the SDK keeps them alive across turns
    * (non-interactive sessions are torn down after the FIRST turn, which made
@@ -748,6 +1048,7 @@ export class AgentHarness {
     args: CreateSessionArgs,
     opts: { initialMessages?: unknown[] } = {},
   ): Promise<{ sessionId: string; manifestPath: string; messagesPath: string }> {
+    await this.validateConnection(args.providerId, args.apiKey, args.baseUrl);
     const cline = this.requireCline();
     const store = this.getProviderStore();
     const stored = store.get(args.providerId);
@@ -759,14 +1060,9 @@ export class AgentHarness {
     // Per-session cumulative token budget (0 = unlimited). afterModelHook
     // enforces it against the accumulated usage tracked in usageBySession.
     this.budgets.set(sessionId, args.maxTotalTokens ?? 0);
+    this.budgetStoppedSessions.delete(sessionId); // a new run may spend more
     this.usageBySession.delete(sessionId); // clear any stale entry from a prior run
-    this.usageBySession.set(sessionId, {
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheReadTokens: 0,
-      cacheWriteTokens: 0,
-      totalCost: 0,
-    });
+    this.usageBySession.set(sessionId, zeroUsage());
 
     // Skills are global user capabilities; workflows and rules remain scoped
     // to the current workspace.
@@ -788,7 +1084,9 @@ export class AgentHarness {
           modelId: args.modelId,
           apiKey: args.apiKey ?? stored?.apiKey,
           baseUrl: args.baseUrl ?? stored?.baseUrl,
-          systemPrompt: buildSystemPrompt(args.systemPrompt, args.cwd) + TODO_INSTRUCTION,
+          systemPrompt:
+            buildSystemPrompt(args.systemPrompt, args.cwd, skillHints(this.dataDir)) +
+            TODO_INSTRUCTION,
           cwd: args.cwd,
           workspaceRoot: args.cwd,
           enableTools: true,
@@ -869,6 +1167,12 @@ export class AgentHarness {
       };
     } catch (err) {
       userInstructionService.stop();
+      // A failed start must not leave orphaned budget/usage/cwd state behind —
+      // those maps key on sessionId and would otherwise linger until delete.
+      this.budgets.delete(sessionId);
+      this.usageBySession.delete(sessionId);
+      this.budgetStoppedSessions.delete(sessionId);
+      this.sessionCwd.delete(sessionId);
       throw err;
     }
   }
@@ -948,9 +1252,49 @@ export class AgentHarness {
           title: typeof metadata.title === "string" ? metadata.title : undefined,
           enableAgentTeams: persisted.enableTeams,
           teamName: persisted.teamName,
+          // Restore the session's cumulative token budget. `sessionMetadata`
+          // persists it at creation time; WITHOUT this, a resumed session would
+          // silently become unlimited (0 = no cap), defeating the runaway-cost
+          // guard after any stop→resume or app restart.
+          maxTotalTokens:
+            typeof metadata.maxTotalTokens === "number" && metadata.maxTotalTokens > 0
+              ? metadata.maxTotalTokens
+              : undefined,
         },
         { initialMessages: messages },
       );
+
+      // Re-seed the usage tracker from the SDK's cumulative totals. The SDK
+      // resets per-run usage on every start, so without this the budget would
+      // compare against only post-resume deltas instead of the full lifetime.
+      try {
+        const acc = await cline.getAccumulatedUsage(sessionId);
+        const u = acc?.usage;
+        if (u) {
+          const n = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+          this.usageBySession.set(sessionId, {
+            inputTokens: n(u.inputTokens),
+            outputTokens: n(u.outputTokens),
+            cacheReadTokens: n(u.cacheReadTokens),
+            cacheWriteTokens: n(u.cacheWriteTokens),
+            totalCost: n(u.totalCost),
+          });
+        }
+      } catch {
+        // Best-effort: if the SDK can't report cumulative usage, keep the
+        // zeroed tracker; the budget then enforces post-resume usage only.
+      }
+
+      // Restore the session's mode so read-only (ask/plan) enforcement survives
+      // stop→resume and app restarts; the frontend restores the mode tab from
+      // the same persisted metadata.
+      const persistedMode = typeof metadata.mode === "string" ? metadata.mode : undefined;
+      if (persistedMode === "ask" || persistedMode === "plan" || persistedMode === "orchestrator") {
+        this.sessionModes.set(sessionId, persistedMode);
+      }
+      // Restore Fast mode so auto-continue / recovery follow-ups keep the
+      // speed directive after a stop→resume or app restart.
+      this.fastModes.set(sessionId, metadata.fastMode === true);
     } catch (err) {
       return {
         resumed: false,
@@ -970,8 +1314,19 @@ export class AgentHarness {
     mode?: string,
     userImages: string[] = [],
     userFiles: string[] = [],
+    // Internal: set by the completion-guard's auto-continue so it does not
+    // reset the nudge budget it just incremented (see maybeAutoContinue).
+    autoContinue = false,
   ): Promise<unknown> {
     const cline = this.requireCline();
+
+    // A fresh user request (not an auto-continue) resets the completion-guard
+    // nudge budget and re-enables automatic recovery, so long tasks keep
+    // getting follow-ups after the user intervenes.
+    if (!autoContinue) {
+      this.completionNudges.delete(sessionId);
+      this.suppressRecovery.delete(sessionId);
+    }
 
     // If the session is not alive in the SDK's runtime (closed pane, app
     // restart, prior teardown), rehydrate it from disk first so sending never
@@ -984,9 +1339,19 @@ export class AgentHarness {
       }
     }
 
-    // Remember the mode for this session so the read-only (ask-mode) guard can
+    // Remember the mode for this session so the read-only (ask/plan) guard can
     // block mutating tools on the current turn.
     this.sessionModes.set(sessionId, mode ?? "act");
+
+    // Fast mode wraps every prompt (including auto-continue and recovery
+    // follow-ups, which re-enter sendMessage and read the same map).
+    const fastMode = this.fastModes.get(sessionId) ?? false;
+
+    // Persist the mode in session metadata so stop→resume / app-restart keeps
+    // read-only (ask/plan) enforcement instead of silently falling back to act.
+    if (mode === "ask" || mode === "plan" || mode === "orchestrator") {
+      void this.persistSessionMode(sessionId, mode).catch(() => undefined);
+    }
 
     // The SDK has no "ask" mode: reuse "plan" (read-only preset + guarded shell)
     // and enforce hard read-only via the beforeTool guard above.
@@ -1007,6 +1372,9 @@ export class AgentHarness {
             prompt,
           ].join("\n\n")
         : prompt;
+    const finalPrompt = fastMode
+      ? `${FAST_MODE_DIRECTIVE}\n\nUser request:\n${runtimePrompt}`
+      : runtimePrompt;
 
     // PI-style steering: only an in-flight turn receives a follow-up through
     // the SDK's "steer" channel. `activeSessions` only tells us the session
@@ -1014,7 +1382,7 @@ export class AgentHarness {
     // message queued forever with no turn to drain it.
     const isRunning = this.runningSessions.has(sessionId);
     if (isRunning) {
-      this.steerSession(sessionId, runtimePrompt);
+      this.steerSession(sessionId, finalPrompt);
     } else {
       // Mark this before the asynchronous send begins so a quick second
       // message is correctly queued as a follow-up rather than starting a
@@ -1026,33 +1394,53 @@ export class AgentHarness {
     // the subscription. Never block the caller on turn completion. When the
     // session is already running, `delivery: "steer"` queues the message and
     // our consumePendingUserMessage hook feeds it in at the next iteration.
-    void cline
-      .send({
-        sessionId,
-        prompt: runtimePrompt,
-        mode: sdkMode as never,
-        userImages,
-        userFiles,
-        delivery: isRunning ? ("steer" as never) : undefined,
-      })
-      .catch((err: unknown) => {
-        this.runningSessions.delete(sessionId);
-        this.sink("session-error", {
+    try {
+      void cline
+        .send({
           sessionId,
-          error: err instanceof Error ? err.message : String(err),
+          prompt: finalPrompt,
+          mode: sdkMode as never,
+          userImages,
+          userFiles,
+          delivery: isRunning ? ("steer" as never) : undefined,
+        })
+        .catch((err: unknown) => {
+          this.runningSessions.delete(sessionId);
+          const message = err instanceof Error ? err.message : String(err);
+          this.sink("session-error", {
+            sessionId,
+            error: message,
+          });
+          // The run loop also emits an error agent_event in most cases; the
+          // dedup window keeps this from double-steering the same failure.
+          this.maybeRecoverAfterError(sessionId, message);
         });
-      });
+    } catch (err) {
+      // A synchronous throw from cline.send (or argument validation) must not
+      // leave the session stuck in `runningSessions` — otherwise every later
+      // message would be queued as a steer with no turn to drain it.
+      this.runningSessions.delete(sessionId);
+      const message = err instanceof Error ? err.message : String(err);
+      this.sink("session-error", { sessionId, error: message });
+      return { accepted: false, error: message };
+    }
     return { accepted: true };
   }
 
   /**
-   * Blocks mutating tools while a session is in "ask" mode so the agent answers
-   * questions without ever editing files or running commands.
+   * Blocks mutating tools while a session is in a read-only mode ("ask" Q&A or
+   * "plan" planning) so the agent never edits files or runs commands. The SDK's
+   * own plan-mode guard only inspects run_commands AND only registers when a
+   * session is STARTED in plan mode — this harness starts sessions in act mode
+   * and switches per-send, so this hook is the only reliable enforcement. It
+   * also inherits to subagents/teammates (the SDK reuses the parent session's
+   * hooks), closing the "spawn a subagent to edit files in plan mode" bypass.
    */
   private beforeToolGuard(sessionId: string, toolName: string): { skip: boolean; reason: string } | undefined {
-    if ((this.sessionModes.get(sessionId) ?? "act") !== "ask") return undefined;
-    if (ASK_BLOCKED_TOOLS.has(toolName) || toolName.startsWith("team_")) {
-      return { skip: true, reason: ASK_MODE_REASON };
+    const mode = this.sessionModes.get(sessionId) ?? "act";
+    if (!isReadOnlyMode(mode)) return undefined;
+    if (READONLY_BLOCKED_TOOLS.has(toolName) || toolName.startsWith("team_")) {
+      return { skip: true, reason: mode === "plan" ? PLAN_MODE_REASON : ASK_MODE_REASON };
     }
     return undefined;
   }
@@ -1203,17 +1591,16 @@ export class AgentHarness {
     // the UI why instead of letting the session keep burning tokens.
     const u = this.usageBySession.get(sessionId);
     const limit = this.budgets.get(sessionId) ?? 0;
-    if (limit > 0 && u) {
-      const total = u.inputTokens + u.outputTokens + u.cacheReadTokens;
-      if (total >= limit) {
-        this.sink("session-ended", { sessionId, reason: "token-budget-exceeded", ts: Date.now() });
-        this.sink("notice", {
-          sessionId,
-          message: `Token budget exceeded — stopped at ${total} / ${limit} tokens to prevent runaway usage.`,
-        });
-        this.sink("session-status", { sessionId, status: "done" });
-        return { stop: true, reason: "token-budget-exceeded" };
-      }
+    const stop = enforceBudget(u, limit);
+    if (stop) {
+      this.budgetStoppedSessions.add(sessionId);
+      this.sink("session-ended", { sessionId, reason: stop.reason, ts: Date.now() });
+      this.sink("notice", {
+        sessionId,
+        message: `Token budget exceeded — stopped at ${u ? usageTotal(u) : 0} / ${limit} tokens to prevent runaway usage.`,
+      });
+      this.sink("session-status", { sessionId, status: "done" });
+      return stop;
     }
     if (ctx.finishReason === "max-tokens") {
       this.sink("notice", {
@@ -1289,11 +1676,16 @@ export class AgentHarness {
    * stopping prematurely.
    */
   private completionGuard(sessionId: string): string | undefined {
+    // A token-budget stop is final: don't nudge the loop back into more calls.
+    if (this.budgetStoppedSessions.has(sessionId)) return undefined;
+    // Orchestration: defer to the SDK's team completion guard while teammates
+    // still have active runs or unfinished tasks.
+    if (this.teamWorkPending(sessionId)) return undefined;
     const todos = this.todosBySession.get(sessionId);
     if (!todos || todos.length === 0) return undefined;
     const unfinished = todos.filter((t) => t.status === "pending" || t.status === "in_progress");
     if (unfinished.length === 0) return undefined;
-    return `The task list still has ${unfinished.length} unfinished item(s). Use todo_write to mark them completed as you finish them, and do not stop until the task list is fully completed.`;
+    return `The task list still has ${unfinished.length} unfinished item(s). Use todo_write to mark them completed as you finish them, and do not stop until the ENTIRE task is fully completed in this run. Stopping early is a failure.`;
   }
 
   /** Live switch of provider/model/credentials on an existing session. */
@@ -1316,19 +1708,25 @@ export class AgentHarness {
 
     // Build the SDK update explicitly, dropping undefined/null for the reasoning
     // fields so a model switch never clears an effort the user already chose.
+    // `null` (sent by the renderer for "not provided") also means no change —
+    // a partial update must never wipe the session's provider/model/key.
     const sdkUpdate: Record<string, unknown> = {};
-    if (update.providerId !== undefined) sdkUpdate.providerId = update.providerId;
-    if (update.modelId !== undefined) sdkUpdate.modelId = update.modelId;
-    if (update.apiKey !== undefined) {
+    if (update.providerId !== undefined && update.providerId !== null) {
+      sdkUpdate.providerId = update.providerId;
+    }
+    if (update.modelId !== undefined && update.modelId !== null) {
+      sdkUpdate.modelId = update.modelId;
+    }
+    if (update.apiKey !== undefined && update.apiKey !== null) {
       sdkUpdate.apiKey = update.apiKey;
-    } else if (update.providerId !== undefined && savedProviderConfig?.apiKey) {
+    } else if (update.providerId && savedProviderConfig?.apiKey) {
       // A UI provider switch does not send secrets back through the renderer.
       // Reuse the key held by the harness for the newly-selected provider.
       sdkUpdate.apiKey = savedProviderConfig.apiKey;
     }
-    if (update.baseUrl !== undefined) {
+    if (update.baseUrl !== undefined && update.baseUrl !== null) {
       sdkUpdate.baseUrl = update.baseUrl;
-    } else if (update.providerId !== undefined && savedProviderConfig?.baseUrl) {
+    } else if (update.providerId && savedProviderConfig?.baseUrl) {
       sdkUpdate.baseUrl = savedProviderConfig.baseUrl;
     }
     if (update.thinking !== undefined && update.thinking !== null) sdkUpdate.thinking = update.thinking;
@@ -1362,8 +1760,27 @@ export class AgentHarness {
   }
 
   async abort(sessionId: string): Promise<void> {
+    // A user abort is intentional: never auto-recover afterwards (a failed
+    // status event or send rejection would otherwise restart the task the
+    // user just stopped). A new user message re-enables recovery.
+    this.suppressRecovery.add(sessionId);
     await this.requireCline().abort(sessionId);
     this.runningSessions.delete(sessionId);
+    this.emitTeammatesStillWorking(sessionId);
+  }
+
+  /**
+   * The SDK only aborts the lead run; async teammate runs keep going until the
+   * session is deleted. Surface that explicitly so it isn't mistaken for a
+   * full stop.
+   */
+  private emitTeammatesStillWorking(sessionId: string): void {
+    const active = this.teamStateBySession.get(sessionId)?.activeRunIds ?? [];
+    if (active.length === 0) return;
+    this.sink("notice", {
+      sessionId,
+      message: `The lead agent was stopped, but ${active.length} teammate run(s) are still active. Closing the session stops them.`,
+    });
   }
 
   /** Unlink a provider (removes its credentials from the global store). */
@@ -1490,12 +1907,16 @@ export class AgentHarness {
     // it can be resumed instantly later. `cline.stop()` tears the session down
     // (removing it from memory and breaking later sends); `deleteSession` is
     // the real teardown.
+    this.suppressRecovery.add(sessionId);
     await this.requireCline().abort(sessionId);
     this.sessionModes.delete(sessionId);
     this.steeringBySession.delete(sessionId);
     this.completionNudges.delete(sessionId);
-    this.usageBySession.delete(sessionId);
-    this.budgets.delete(sessionId);
+    this.emitTeammatesStillWorking(sessionId);
+    // Keep budgets + usageBySession intact: `stop` only PAUSES the session
+    // (it stays alive for instant resume). Wiping them here would silently
+    // disable the token budget for every follow-up send (0 = unlimited) and
+    // reset the live usage meter.
   }
 
   async deleteSession(sessionId: string): Promise<boolean> {
@@ -1508,10 +1929,33 @@ export class AgentHarness {
     this.sessionModes.delete(sessionId);
     this.steeringBySession.delete(sessionId);
     this.completionNudges.delete(sessionId);
+    this.recoveryAttempts.delete(sessionId);
+    this.recoveryWindow.delete(sessionId);
+    this.recoveryExhausted.delete(sessionId);
+    this.suppressRecovery.delete(sessionId);
+    this.fastModes.delete(sessionId);
     this.todosBySession.delete(sessionId);
     this.sessionCwd.delete(sessionId);
     this.usageBySession.delete(sessionId);
     this.budgets.delete(sessionId);
+    this.budgetStoppedSessions.delete(sessionId);
+    this.teamStateBySession.delete(sessionId);
+    // Resolve any pending approvals/questions for the deleted session so the
+    // UI is never left waiting on a dead session's decision.
+    for (const [requestId, pending] of this.approvals) {
+      if (pending.request.sessionId === sessionId) {
+        clearTimeout(pending.timer);
+        this.approvals.delete(requestId);
+        pending.resolve({ approved: false, reason: "Session deleted" });
+      }
+    }
+    for (const [requestId, pending] of this.questions) {
+      if (pending.sessionId === sessionId) {
+        clearTimeout(pending.timer);
+        this.questions.delete(requestId);
+        pending.resolve(pending.options[0] ?? "");
+      }
+    }
     this.userInstructionServices.get(sessionId)?.stop();
     this.userInstructionServices.delete(sessionId);
     return deleted;
@@ -1522,7 +1966,52 @@ export class AgentHarness {
   }
 
   async getSession(sessionId: string): Promise<unknown> {
-    return this.requireCline().get(sessionId);
+    const session = (await this.requireCline().get(sessionId)) as
+      | { metadata?: Record<string, unknown> }
+      | undefined;
+    if (!session) return session;
+    // Surface the live session mode (falling back to persisted metadata) so the
+    // frontend can restore the correct read-only tab after re-attach/resume.
+    const metadata = session.metadata ?? {};
+    const mode = this.sessionModes.get(sessionId) ?? metadata.mode;
+    const fastMode = this.fastModes.get(sessionId) ?? metadata.fastMode === true;
+    return { ...session, mode, fastMode };
+  }
+
+  /**
+   * Best-effort persist of a session's mode into the SDK manifest metadata so
+   * stop→resume and app restarts can restore read-only enforcement. Written only
+   * when the value changed to avoid redundant manifest writes.
+   */
+  private async persistSessionMode(sessionId: string, mode: string): Promise<void> {
+    try {
+      const cline = this.requireCline();
+      const session = (await cline.get(sessionId)) as { metadata?: Record<string, unknown> } | undefined;
+      const metadata = session?.metadata ?? {};
+      if (metadata.mode === mode) return;
+      await cline.update(sessionId, { metadata: { ...metadata, mode } });
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to persist mode for ${sessionId}: ${err}`);
+    }
+  }
+
+  /**
+   * Toggle Fast mode for a session and persist it in the SDK manifest metadata
+   * so it survives stop→resume and app restarts. Every later send (including
+   * auto-continue and error-recovery follow-ups) then prepends the speed
+   * directive to the prompt.
+   */
+  async setFastMode(sessionId: string, enabled: boolean): Promise<void> {
+    this.fastModes.set(sessionId, enabled);
+    const cline = this.requireCline();
+    try {
+      const session = (await cline.get(sessionId)) as { metadata?: Record<string, unknown> } | undefined;
+      const metadata = session?.metadata ?? {};
+      if (metadata.fastMode === enabled) return;
+      await cline.update(sessionId, { metadata: { ...metadata, fastMode: enabled } });
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to persist fast mode for ${sessionId}: ${err}`);
+    }
   }
 
   async readMessages(sessionId: string): Promise<unknown[]> {
@@ -1773,6 +2262,13 @@ export class AgentHarness {
     this.todosBySession.clear();
     this.usageBySession.clear();
     this.budgets.clear();
+    this.budgetStoppedSessions.clear();
+    this.teamStateBySession.clear();
+    this.recoveryAttempts.clear();
+    this.recoveryWindow.clear();
+    this.recoveryExhausted.clear();
+    this.suppressRecovery.clear();
+    this.fastModes.clear();
     for (const svc of this.userInstructionServices.values()) {
       try {
         svc.stop();

@@ -19,6 +19,9 @@ interface AgentInputProps {
   compact?: boolean;
   /** Models advertise vision inconsistently; only block images when we know it is unavailable. */
   supportsImages?: boolean;
+  /** Fast mode: forces the agent to skip extra thinking and work as fast as possible. */
+  fastMode?: boolean;
+  onToggleFastMode?: () => void;
 }
 
 const MODE_ORDER: AgentMode[] = ['ask', 'act', 'plan', 'orchestrator'];
@@ -122,6 +125,8 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   placeholder = 'Describe a task for YZPZ Agent…',
   compact = false,
   supportsImages = true,
+  fastMode = false,
+  onToggleFastMode,
 }) => {
   const [value, setValue] = useState('');
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
@@ -317,7 +322,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
               onClick={() => (compact ? cycleMode(1) : onModeChange(tab.id))}
               title={tab.title}
               aria-label={tab.label}
-              className={`flex items-center justify-center gap-1 rounded-md border font-mono text-[9px] font-bold uppercase tracking-widest transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
+              className={`electric-btn flex items-center justify-center gap-1 rounded-md border font-mono text-[9px] font-bold uppercase tracking-widest transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
                 compact ? 'px-2 h-6 text-[8px]' : 'px-2 h-8'
               } ${
                 active
@@ -332,6 +337,33 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           );
         })}
         <div className="ml-auto flex items-center gap-1 pl-1.5 border-l border-[var(--border-primary)]/60">
+          {onToggleFastMode && (
+            <button
+              type="button"
+              onClick={() => onToggleFastMode()}
+              title={
+                fastMode
+                  ? 'Fast mode is ON — the agent skips extra thinking and works as fast as possible. Click to turn off.'
+                  : 'Fast mode: the agent skips extra thinking and completes the task as fast as possible.'
+              }
+              aria-pressed={fastMode}
+              className={`electric-btn electric-charge relative flex items-center justify-center gap-1 rounded-md border transition-all duration-100 cursor-pointer select-none active:scale-[0.96] ${
+                compact ? 'px-1.5 h-6' : 'px-2 h-8'
+              } ${fastMode ? 'agent-fast-active' : ''}`}
+            >
+              <Icon icon="lucide:zap" className="electric-icon h-3.5 w-3.5" aria-hidden="true" />
+              {!compact && fastMode && (
+                <span className="font-mono text-[8px] font-bold uppercase tracking-widest">fast</span>
+              )}
+              {/* Active indicator: small amber charge dot so ON/OFF is obvious */}
+              <span
+                className={`absolute w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)] transition-opacity duration-150 ${
+                  compact ? 'top-0 right-0' : 'top-0.5 right-0.5'
+                } ${fastMode ? 'opacity-100' : 'opacity-0'}`}
+                aria-hidden="true"
+              />
+            </button>
+          )}
           {isRunning && !compact && (
             <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--accent)] animate-pulse">
               ● running
@@ -414,19 +446,19 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           type="button"
           onClick={() => void handleAttach()}
           disabled={disabled || isRunning}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="electric-btn flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
           title="Attach images or files"
           aria-label="Attach images or files"
         >
-          <Icon icon="material-symbols:attach-file-rounded" className="h-4 w-4" aria-hidden="true" />
+          <Icon icon="material-symbols:attach-file-rounded" className="electric-icon h-4 w-4" aria-hidden="true" />
         </button>
         <button
           onClick={() => void handleSend()}
           disabled={disabled || isRunning || !value.trim()}
           title={isRunning ? 'Agent is running' : value.trim() ? 'Send prompt (Enter)' : 'Type a prompt first'}
-          className={`flex items-center gap-1.5 h-9 rounded-lg text-white font-mono text-[10px] font-bold uppercase tracking-widest transition-all duration-100 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${compact ? 'px-2.5' : 'px-3.5'} ${style.send}`}
+          className={`electric-btn flex items-center gap-1.5 h-9 rounded-lg text-white font-mono text-[10px] font-bold uppercase tracking-widest transition-all duration-100 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${compact ? 'px-2.5' : 'px-3.5'} ${style.send}`}
         >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="electric-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
           </svg>
           {!compact && 'Send'}

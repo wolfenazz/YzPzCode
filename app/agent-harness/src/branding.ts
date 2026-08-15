@@ -52,13 +52,51 @@ const TOOL_SNIPPETS = [
 const SKILL_DISCOVERY_DIRECTIVE = [
   "",
   "SKILL DISCOVERY",
-  "Skills are global user capabilities. Do not inspect this workspace's `.opencode/plugins`, `.opencode/archive`, or project folders to decide whether skills exist.",
-  "The `skills` tool is the source of truth for available skills. For a task that is specialized, domain-specific, or likely governed by an established workflow, inspect it before you start work.",
-  "Select and load only the skills that materially help the task, then follow their instructions. Do this autonomously; do not wait for the user to name a skill.",
-  "Do not load unrelated skills or treat every listed skill as mandatory.",
+  "Skills are global user capabilities. See the INSTALLED SKILLS list below — that is what is actually available.",
+  "When the task matches an installed skill, load it with the `skills` tool and FOLLOW its instructions. Do not hand-roll a workflow the skill already encodes, and do not wait for the user to name a skill.",
+  "Only load skills that genuinely match the task; never load unrelated ones or treat every listed skill as mandatory.",
 ].join("\n");
 
-export function buildSystemPrompt(custom?: string | null, workspaceRoot?: string | null): string {
+// Compact list of installed skill names + one-line descriptions, injected into
+// the system prompt so the model knows what is available WITHOUT having to
+// discover it by calling the skills tool (reliable "use the right skill"
+// behavior for one-shot tasks).
+const INSTALLED_SKILLS = (skills: string[]): string => {
+  if (skills.length === 0) {
+    return [
+      "",
+      "INSTALLED SKILLS",
+      "No named skills are installed. Do not claim to use a skill that does not exist.",
+    ].join("\n");
+  }
+  return [
+    "",
+    "INSTALLED SKILLS",
+    "These skills are installed and ready. When the task matches one, load it with the `skills` tool and follow it.",
+    ...skills.map((hint) => `- ${hint}`),
+  ].join("\n");
+};
+
+// One-shot completion + plain-language communication. The agent's job is to
+// FINISH the user's request autonomously — not to start it and hand back —
+// and to talk like a helpful human to non-developers.
+const TASK_EXECUTION_DIRECTIVE = [
+  "",
+  "TASK EXECUTION & COMMUNICATION",
+  "Your job is to actually COMPLETE the user's request in this run — not just start it and stop.",
+  "- For anything with more than one step, open with todo_write: break the request into small steps, then keep the list updated as you go.",
+  "- Keep working until every step is finished. Stopping with work half-done counts as a failure — only stop when the task is truly complete (or the user tells you to).",
+  "- Prefer finishing autonomously: if a step fails, diagnose and recover yourself; try a different approach before asking the user. Only ask when you genuinely need a decision only they can make.",
+  "- Verify your own work when it makes sense: after making changes, run the tests or a build and fix what you broke before reporting done.",
+  "- The user may not be a developer. Write in plain, simple language: avoid jargon, and when you must use a technical term, explain it in one short sentence.",
+  "- When everything is done, give a short plain-language summary: what you did, what changed, and how the user can check it worked.",
+].join("\n");
+
+export function buildSystemPrompt(
+  custom?: string | null,
+  workspaceRoot?: string | null,
+  availableSkills: string[] = [],
+): string {
   let base: string;
   try {
     base = getClineDefaultSystemPrompt({});
@@ -75,5 +113,16 @@ export function buildSystemPrompt(custom?: string | null, workspaceRoot?: string
         "This is the folder the user opened in YzPzCode — the base directory for ALL file operations. Resolve relative paths returned by search results against this root, and use absolute paths under this root when a tool requires them.",
       ].join("\n")
     : "";
-  return [base, "", YZPZ_BRANDING, workspace, TOOL_SNIPPETS, SKILL_DISCOVERY_DIRECTIVE, EFFICIENCY_DIRECTIVE, custom ? `\n${custom}` : ""].join("\n");
+  return [
+    base,
+    "",
+    YZPZ_BRANDING,
+    workspace,
+    TOOL_SNIPPETS,
+    SKILL_DISCOVERY_DIRECTIVE,
+    INSTALLED_SKILLS(availableSkills),
+    EFFICIENCY_DIRECTIVE,
+    TASK_EXECUTION_DIRECTIVE,
+    custom ? `\n${custom}` : "",
+  ].join("\n");
 }

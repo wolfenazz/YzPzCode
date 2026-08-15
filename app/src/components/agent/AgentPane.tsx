@@ -24,11 +24,11 @@ interface AgentPaneProps {
 }
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
-  idle: { label: 'idle', color: 'text-[var(--text-secondary)]/60' },
+  idle: { label: 'ready', color: 'text-[var(--text-secondary)]/60' },
   starting: { label: 'starting', color: 'text-[var(--accent)]' },
-  running: { label: 'running', color: 'text-[var(--accent)] animate-pulse' },
-  done: { label: 'done', color: 'text-emerald-500' },
-  error: { label: 'error', color: 'text-rose-500' },
+  running: { label: 'working', color: 'text-[var(--accent)] animate-pulse' },
+  done: { label: 'complete', color: 'text-emerald-500' },
+  error: { label: 'needs attention', color: 'text-rose-500' },
 };
 
 const MODE_ICON_META: Record<AgentMode, { icon: string; colorClass: string; glow: string }> = {
@@ -105,7 +105,7 @@ const EffortSelect: React.FC<{
         ref={anchorRef}
         onClick={() => setOpen((v) => !v)}
         title="Thinking effort"
-        className={`flex items-center gap-1 px-1.5 h-6 rounded-md border text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer shrink-0 ${
+        className={`electric-btn flex items-center gap-1 px-1.5 h-6 rounded-md border text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer shrink-0 ${
           open
             ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)]'
             : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
@@ -172,23 +172,30 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     providerId,
     modelId,
     thinkingEffort,
+    fastMode,
+    setFastMode,
     send,
     abort,
+    resendLastPrompt,
     approve,
     answerQuestion,
     updateConnection,
   } = useAgentSession(session.sessionId, {
     providerId: session.providerId,
     modelId: session.modelId,
+    mode: session.mode,
+    fastMode: session.fastMode,
   });
 
-  const { getProviders, getModels, listProviderConfigs, listMcpServers } = useAgentHost();
+  const { getProviders, getModels, listProviderConfigs, listMcpServers, updateTitle, setToolPolicy } = useAgentHost();
   const [providers, setProviders] = useState<AgentProviderInfo[]>([]);
   const [models, setModels] = useState<AgentModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [configuredProviders, setConfiguredProviders] = useState<Set<string>>(new Set());
   const [freeModeNotice, setFreeModeNotice] = useState<string | null>(null);
   const [switchingToFree, setSwitchingToFree] = useState(false);
+  /** Provider/model in use before Free mode was toggled ON, so toggling OFF restores it. */
+  const freeModePreviousRef = useRef<{ providerId: string | null; modelId: string | null } | null>(null);
   const [mcpServers, setMcpServers] = useState<AgentMcpServer[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
   const [todosVisible, setTodosVisible] = useState(true);
@@ -196,12 +203,16 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const [menuOpen, setMenuOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLButtonElement>(null);
   const runStartedAtRef = useRef<number | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState('');
+  const skipTitleCommitRef = useRef(false);
 
   // Per-pane UI density (defaults to minimal so new agent panes start relaxed).
   const agentPaneUIModes = useAppStore((s) => s.agentPaneUIModes);
   const setAgentPaneUIMode = useAppStore((s) => s.setAgentPaneUIMode);
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   const setShowAgentReasoning = useAppStore((s) => s.setShowAgentReasoning);
+  const updateAgentSessionForWorkspace = useAppStore((s) => s.updateAgentSessionForWorkspace);
   const uiMode: AgentPaneUIMode = agentPaneUIModes[session.sessionId] ?? 'minimal';
   const setUiMode = useCallback(
     (next: AgentPaneUIMode) => setAgentPaneUIMode(session.sessionId, next),
@@ -289,8 +300,63 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const handleSend = useCallback(
     async (prompt: string, attachments: AgentAttachment[] = []) => {
       await send(prompt, attachments);
+      // Auto-title the session from the first real prompt so the pane header
+      // and History list are human-readable without a rename.
+      if (!session.title && messages.length === 0) {
+        const title =
+          prompt.replace(/\s+/g, ' ').trim().slice(0, 48) || 'New task';
+        void updateTitle(session.sessionId, title)
+          .then(() => {
+            updateAgentSessionForWorkspace(session.workspaceId, session.sessionId, { title });
+          })
+          .catch(() => {
+            updateAgentSessionForWorkspace(session.workspaceId, session.sessionId, { title });
+          });
+      }
     },
-    [send]
+    [
+      send,
+      session.title,
+      session.sessionId,
+      session.workspaceId,
+      messages.length,
+      updateTitle,
+      updateAgentSessionForWorkspace,
+    ]
+  );
+
+  const handleRename = useCallback(
+    (next: string) => {
+      const trimmed = next.trim();
+      setEditingTitle(false);
+      if (!trimmed || trimmed === (session.title || '')) {
+        setTitleDraft(session.title || '');
+        return;
+      }
+      setTitleDraft(trimmed);
+      // Persist through the sidecar; update the grid/store locally regardless
+      // so the pane label reflects the change even if persistence fails.
+      void updateTitle(session.sessionId, trimmed)
+        .then(() => {
+          updateAgentSessionForWorkspace(session.workspaceId, session.sessionId, { title: trimmed });
+        })
+        .catch(() => {
+          updateAgentSessionForWorkspace(session.workspaceId, session.sessionId, { title: trimmed });
+        });
+    },
+    [session.title, session.sessionId, session.workspaceId, updateTitle, updateAgentSessionForWorkspace]
+  );
+
+  const handleAlwaysAllow = useCallback(
+    (toolName: string, requestId: string) => {
+      // Persist "always allow" through the sidecar's tool-policy store, then
+      // approve the pending request so the agent proceeds immediately.
+      void setToolPolicy(toolName, { autoApprove: true }).catch((err) => {
+        console.error('[agent] failed to set tool policy:', err);
+      });
+      void approve(requestId, true);
+    },
+    [setToolPolicy, approve]
   );
 
   const handleProviderChange = useCallback(
@@ -308,16 +374,52 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     [updateConnection]
   );
 
+  /** True while the session is connected to the OpenRouter Free Models Router. */
+  const isFreeActive = providerId === OPENROUTER_PROVIDER_ID && modelId === OPENROUTER_FREE_MODEL_ID;
+
   const handleFreeMode = useCallback(async () => {
     if (switchingToFree) return;
     const configs = await listProviderConfigs().catch(() => []);
     const savedProviders = new Set(configs.filter(hasSavedProviderKey).map((config) => config.providerId));
     setConfiguredProviders(savedProviders);
+
+    // Toggle OFF: restore the connection that was in use before Free mode.
+    if (isFreeActive) {
+      const previous = freeModePreviousRef.current;
+      const restored =
+        previous && (previous.providerId || previous.modelId)
+          ? previous
+          : session.providerId || session.modelId
+            ? { providerId: session.providerId, modelId: session.modelId }
+            : null;
+      freeModePreviousRef.current = null;
+      if (!restored?.providerId && !restored?.modelId) {
+        setFreeModeNotice('No previous connection to restore — pick a provider and model to leave Free mode.');
+        return;
+      }
+      setSwitchingToFree(true);
+      setFreeModeNotice(null);
+      setModels([]);
+      const switched = await updateConnection({
+        providerId: restored.providerId ?? undefined,
+        modelId: restored.modelId ?? undefined,
+      });
+      setSwitchingToFree(false);
+      setFreeModeNotice(
+        switched
+          ? `Free mode is off — restored ${restored.providerId ?? 'previous provider'} · ${restored.modelId ?? 'previous model'}.`
+          : 'Could not restore the previous connection. Choose a provider and model manually.'
+      );
+      return;
+    }
+
+    // Toggle ON.
     if (!savedProviders.has(OPENROUTER_PROVIDER_ID)) {
       setFreeModeNotice('Add an OpenRouter API key in the agent provider settings, then try Free mode again.');
       return;
     }
-
+    // Remember what was in use so toggling off can restore it.
+    freeModePreviousRef.current = { providerId, modelId };
     setSwitchingToFree(true);
     setFreeModeNotice(null);
     setModels([]);
@@ -328,10 +430,19 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     setSwitchingToFree(false);
     setFreeModeNotice(
       switched
-        ? 'Free mode is active — OpenRouter will route this session to a compatible free model.'
+        ? 'Free mode is active — OpenRouter will route this session to a compatible free model. Click again to restore your previous connection.'
         : 'Could not switch to Free mode. Check the OpenRouter provider connection and try again.'
     );
-  }, [listProviderConfigs, switchingToFree, updateConnection]);
+  }, [
+    isFreeActive,
+    listProviderConfigs,
+    switchingToFree,
+    updateConnection,
+    providerId,
+    modelId,
+    session.providerId,
+    session.modelId,
+  ]);
 
   const handleAnswerQuestion = useCallback(
     (requestId: string, answer: string) => {
@@ -367,6 +478,10 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const showSlimLine =
     uiMode === 'minimal' &&
     (isWorking || status === 'error' || !!error || approvals.length > 0 || !!activeTool);
+  // Orchestrator work needs an always-visible activity surface. Replace the
+  // otherwise-empty task rail with the teammate rail when there is enough
+  // room, and keep a compact disclosure above the composer in narrow panes.
+  const showTeamSidebar = mode === 'orchestrator' && width >= NARROW_WIDTH;
   const ctxPct = contextPercent(
     contextTokens === null ? usage : { inputTokens: contextTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCost: 0 },
     contextWindow,
@@ -425,22 +540,63 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
         <button
           onClick={() => setUiMode(uiMode === 'full' ? 'minimal' : 'full')}
           title={uiMode === 'full' ? 'Collapse controls (minimal UI)' : 'Expand controls (full UI)'}
-          className="w-5 h-5 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer shrink-0"
+          className="electric-btn w-5 h-5 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer shrink-0"
         >
           {uiMode === 'full' ? (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
             </svg>
           ) : (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
             </svg>
           )}
         </button>
 
-        <span className="text-[11px] font-medium text-[var(--text-primary)] truncate min-w-0 max-w-[160px] md:max-w-[280px]" title={title}>
-          {title}
-        </span>
+        {editingTitle ? (
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={() => {
+              if (skipTitleCommitRef.current) {
+                skipTitleCommitRef.current = false;
+                return;
+              }
+              handleRename(titleDraft);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleRename(titleDraft);
+              if (e.key === 'Escape') {
+                skipTitleCommitRef.current = true;
+                setEditingTitle(false);
+                setTitleDraft(title);
+              }
+            }}
+            maxLength={80}
+            className="min-w-0 flex-1 max-w-[160px] md:max-w-[280px] h-6 rounded-md border border-[var(--accent-border)] bg-[var(--bg-main)] px-1.5 text-[11px] font-medium text-[var(--text-primary)] focus:outline-none"
+            aria-label="Rename session"
+          />
+        ) : (
+          <span
+            className="group flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)] truncate min-w-0 flex-1 max-w-[160px] md:max-w-[280px] cursor-text"
+            title={`${title} — double-click to rename`}
+            onDoubleClick={() => {
+              setTitleDraft(title);
+              setEditingTitle(true);
+            }}
+          >
+            {title}
+            <svg
+              className="w-3 h-3 shrink-0 text-[var(--text-secondary)]/50 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </span>
+        )}
         {showHeaderExtras && <span className="hidden xl:inline-flex items-center gap-1 shrink-0">{MODE_ICON[mode]}</span>}
         {!showHeaderExtras && (
           <span
@@ -488,19 +644,19 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               <button
                 onClick={() => setShowAgentReasoning(!showAgentReasoning)}
                 title={showAgentReasoning ? 'Hide reasoning/thinking blocks' : 'Show reasoning/thinking blocks'}
-                className={`w-5 h-5 flex items-center justify-center rounded-md border transition-colors duration-100 cursor-pointer shrink-0 ${
+                className={`electric-btn w-5 h-5 flex items-center justify-center rounded-md border transition-colors duration-100 cursor-pointer shrink-0 ${
                   showAgentReasoning
                     ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)]'
                     : 'border-[var(--border-primary)] text-[var(--text-secondary)]/60 hover:text-[var(--text-primary)]'
                 }`}
               >
                 {showAgentReasoning ? (
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                 ) : (
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
                   </svg>
                 )}
@@ -522,7 +678,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                     void updateConnection({ thinking: !enabled, reasoningEffort: !enabled ? 'medium' : undefined });
                   }}
                   title="Toggle model thinking/reasoning"
-                  className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded-md border cursor-pointer transition-colors duration-100 shrink-0 ${
+                  className={`electric-btn px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest rounded-md border cursor-pointer transition-colors duration-100 shrink-0 ${
                     thinkingEffort !== 'none'
                       ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)]'
                       : 'border-[var(--border-primary)] text-[var(--text-secondary)]/60 hover:text-[var(--text-primary)]'
@@ -538,6 +694,15 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               {statusMeta.label}
             </span>
           )}
+          {fastMode && (
+            <span
+              className="electric-chip font-mono text-[9px] font-bold uppercase tracking-widest rounded-md border px-1.5 py-0.5 shrink-0"
+              title="Fast mode is ON — the agent skips extra thinking and works as fast as possible (toggle in ⋯ menu)."
+            >
+              <Icon icon="lucide:zap" className="electric-icon h-3 w-3" aria-hidden="true" />
+              {!isVeryNarrow && <span>Fast</span>}
+            </span>
+          )}
           {error && uiMode === 'full' && !isVeryNarrow && (
             <span className="font-mono text-[9px] text-rose-500 truncate max-w-[100px]" title={error}>
               {error}
@@ -549,31 +714,31 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             onClick={() => void handleFreeMode()}
             disabled={switchingToFree}
             title={
-              configuredProviders.has(OPENROUTER_PROVIDER_ID)
-                ? 'Switch this session to OpenRouter Free Models Router'
-                : 'Configure OpenRouter to enable Free mode'
+              isFreeActive
+                ? 'Free mode is active. Click to switch back to your previous provider and model.'
+                : 'Switch this session to OpenRouter Free Models Router (click again to restore your previous connection)'
             }
-            className={`h-6 flex items-center gap-1 rounded-md border px-1.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 ${
-              providerId === OPENROUTER_PROVIDER_ID && modelId === OPENROUTER_FREE_MODEL_ID
+            className={`electric-btn h-6 flex items-center gap-1 rounded-md border px-1.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 ${
+              isFreeActive
                 ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
                 : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-400'
             } ${switchingToFree ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}
           >
             <Icon
               icon={switchingToFree ? 'svg-spinners:3-dots-fade' : 'material-symbols:bolt-rounded'}
-              className="h-3.5 w-3.5"
+              className="electric-icon h-3.5 w-3.5"
               aria-hidden="true"
             />
-            {!isVeryNarrow && <span>{providerId === OPENROUTER_PROVIDER_ID && modelId === OPENROUTER_FREE_MODEL_ID ? 'Free active' : 'Free mode'}</span>}
+            {!isVeryNarrow && <span>{isFreeActive ? 'Free active' : 'Free mode'}</span>}
           </button>
 
           {/* Start a new chat (clears all context for this agent) */}
           <button
             onClick={() => onNewChat(session.sessionId)}
-            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-100 cursor-pointer"
+            className="electric-btn w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-100 cursor-pointer"
             title="Start a new chat (clear context)"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="electric-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h8m-4-4v8" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 21a9 9 0 10-8.5-6L2 22l7.1-1.5a9 9 0 002.9.5z" />
             </svg>
@@ -583,10 +748,10 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
           <button
             ref={menuAnchorRef}
             onClick={() => setMenuOpen((v) => !v)}
-            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
+            className="electric-btn w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
             title="More options"
           >
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+            <svg className="electric-icon w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
               <circle cx="5" cy="12" r="1.6" />
               <circle cx="12" cy="12" r="1.6" />
               <circle cx="19" cy="12" r="1.6" />
@@ -594,7 +759,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
           </button>
           <button
             onClick={() => onClose(session.sessionId)}
-            className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
+            className="electric-btn w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
             title="Close agent"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -667,44 +832,61 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
         />
       )}
 
-      {/* Body: chat + right task list */}
+      {/* The lead conversation keeps its own stable column. Orchestrator
+          details live in a side rail rather than displacing the composer or
+          flooding the transcript with teammate event noise. */}
       <div className="flex flex-1 min-h-0">
-        <div className="flex flex-col flex-1 min-w-0">
-          <AgentChat
-            messages={messages}
-            streamingText={streamingText}
-            streamingThinking={streamingThinking}
-            activeTool={activeTool}
-            toolLog={toolLog}
-            isThinking={isWorking && !streamingText && !streamingThinking && !activeTool}
-            notice={notice}
-            compaction={compaction}
-            pendingQuestion={pendingQuestion}
-            onAnswerQuestion={handleAnswerQuestion}
-          />
+        <div className="flex min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 flex-col">
+            <AgentChat
+              messages={messages}
+              streamingText={streamingText}
+              streamingThinking={streamingThinking}
+              activeTool={activeTool}
+              toolLog={toolLog}
+              isThinking={isWorking && !streamingText && !streamingThinking && !activeTool}
+              notice={notice}
+              compaction={compaction}
+              pendingQuestion={pendingQuestion}
+              onAnswerQuestion={handleAnswerQuestion}
+              error={error}
+              onContinue={() => void resendLastPrompt()}
+              onSuggestion={(prompt) => void send(prompt)}
+              completed={status === 'done' && messages.length > 0}
+              elapsedSec={elapsed}
+              toolCount={toolCount}
+            />
 
-          {/* Tool approval */}
-          <AgentApprovalBar approvals={approvals} onApprove={(rid, ok) => void approve(rid, ok)} />
+            <AgentApprovalBar
+              approvals={approvals}
+              onApprove={(rid, ok) => void approve(rid, ok)}
+              onAlwaysAllow={handleAlwaysAllow}
+            />
 
-          {/* Team progress (orchestrator) */}
-          {mode === 'orchestrator' && <TeamProgressPanel team={team} subAgents={subAgents} />}
+            {mode === 'orchestrator' && !showTeamSidebar && (
+              <TeamProgressPanel team={team} subAgents={subAgents} layout="inline" />
+            )}
 
-          {/* Input */}
-          <AgentInput
-            disabled={!session.sessionId}
-            isRunning={isWorking}
-            mode={mode}
-            onModeChange={setMode}
-            onSend={handleSend}
-            onAbort={abort}
-            placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
-            compact={inputCompact}
-            supportsImages={supportsImages}
-          />
+            <AgentInput
+              disabled={!session.sessionId}
+              isRunning={isWorking}
+              mode={mode}
+              onModeChange={setMode}
+              onSend={handleSend}
+              onAbort={abort}
+              placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
+              compact={inputCompact}
+              supportsImages={supportsImages}
+              fastMode={fastMode}
+              onToggleFastMode={() => void setFastMode(!fastMode)}
+            />
+          </div>
+
+          {showTeamSidebar && <TeamProgressPanel team={team} subAgents={subAgents} layout="sidebar" />}
         </div>
 
-        {/* Agent task list (full mode only; auto-collapses to a thin strip on narrow panes) */}
-        {uiMode === 'full' && (
+        {/* The regular task rail stays available for Ask, Act, and Plan. */}
+        {mode !== 'orchestrator' && uiMode === 'full' && (
           <TodoPanel
             todos={todos}
             visible={todosVisible && width >= TODO_MIN_WIDTH}
@@ -735,7 +917,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setMenuOpen(false);
               onNewChat(session.sessionId);
             }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 hover:bg-[var(--accent-light)]/30 transition-colors duration-100 cursor-pointer text-left"
+            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 hover:bg-[var(--accent-light)]/30 transition-colors duration-100 cursor-pointer text-left"
             title="Clear all context and start a fresh conversation"
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--accent)]">
@@ -751,7 +933,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setUiMode(uiMode === 'full' ? 'minimal' : 'full');
               setMenuOpen(false);
             }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
+            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
             title={uiMode === 'full' ? 'Hide extra controls and focus on the chat' : 'Show all agent controls'}
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
@@ -767,7 +949,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setShowAgentReasoning(!showAgentReasoning);
               setMenuOpen(false);
             }}
-            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
+            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
             title="Show or hide the model's reasoning/thinking blocks in the chat"
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
@@ -775,6 +957,23 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             </span>
             <span className="ml-auto font-mono text-[8px] text-[var(--text-secondary)]/50">
               {showAgentReasoning ? 'on' : 'off'}
+            </span>
+          </button>
+
+          <button
+            onClick={() => {
+              setTitleDraft(title);
+              setEditingTitle(true);
+              setMenuOpen(false);
+            }}
+            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
+            title="Rename this session"
+          >
+            <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
+              Rename session
+            </span>
+            <span className="ml-auto font-mono text-[8px] text-[var(--text-secondary)]/50">
+              double-click title
             </span>
           </button>
 

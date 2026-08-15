@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 export interface ProviderConfigEntry {
@@ -15,7 +15,8 @@ export class ProviderConfigStore {
   private configs: Record<string, ProviderConfigEntry> = {};
 
   constructor(dataDir: string) {
-    mkdirSync(dataDir, { recursive: true });
+    // 0700 so the directory (and the secrets inside it) stay user-private.
+    mkdirSync(dataDir, { recursive: true, mode: 0o700 });
     this.file = join(dataDir, "providers.json");
     this.load();
   }
@@ -32,7 +33,9 @@ export class ProviderConfigStore {
 
   private save(): void {
     try {
-      writeFileSync(this.file, JSON.stringify(this.configs, null, 2), "utf8");
+      // Provider API keys are secrets: 0600, never world-readable.
+      writeFileSync(this.file, JSON.stringify(this.configs, null, 2), { mode: 0o600 });
+      chmodSync(this.file, 0o600); // also tighten a file created before this fix
     } catch (err) {
       console.warn(`[yzpz-agent] failed to persist provider config: ${err}`);
     }

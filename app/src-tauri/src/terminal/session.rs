@@ -409,3 +409,41 @@ impl PtySession {
         &self.session
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests {
+    use super::PtySession;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn pty_executes_a_command_when_text_and_enter_are_written_separately() {
+        let cwd = env!("CARGO_MANIFEST_DIR").to_string();
+        let (mut session, output_rx) =
+            PtySession::create("pty-input-test".to_string(), 0, cwd, None, Some("/bin/zsh".to_string()))
+                .expect("create zsh PTY session");
+
+        std::thread::sleep(Duration::from_millis(250));
+        session
+            .write(b"printf '__YZPZ_PTY_INPUT_OK__'")
+            .expect("write command text");
+        std::thread::sleep(Duration::from_millis(120));
+        session.write(b"\r").expect("write Enter");
+
+        let deadline = Instant::now() + Duration::from_secs(3);
+        let mut output = Vec::new();
+        while Instant::now() < deadline {
+            if let Ok(chunk) = output_rx.recv_timeout(Duration::from_millis(100)) {
+                output.extend_from_slice(&chunk);
+                if String::from_utf8_lossy(&output).contains("__YZPZ_PTY_INPUT_OK__") {
+                    break;
+                }
+            }
+        }
+
+        session.kill();
+        assert!(
+            String::from_utf8_lossy(&output).contains("__YZPZ_PTY_INPUT_OK__"),
+            "the PTY did not execute the split command and Enter input"
+        );
+    }
+}
