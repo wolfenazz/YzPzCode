@@ -4,6 +4,7 @@ import { NewAgentDialog } from './NewAgentDialog';
 import { SessionHistory } from './SessionHistory';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
 import { useAppStore } from '../../stores/appStore';
+import SoftAurora from '../effects/SoftAurora';
 import logo from '../../assets/YzPzCodeLogo.png';
 import type { AgentMode, AgentSessionSummary } from '../../types';
 
@@ -35,6 +36,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
     getSettings,
   } = useAgentHost();
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
+  const animationsEnabled = useAppStore((s) => s.animationsEnabled);
   const agentSessionsByWorkspace = useAppStore((s) => s.agentSessionsByWorkspace);
   const setAgentSessionsForWorkspace = useAppStore((s) => s.setAgentSessionsForWorkspace);
   const addAgentSessionForWorkspace = useAppStore((s) => s.addAgentSessionForWorkspace);
@@ -309,7 +311,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
     <div className="h-full w-full flex flex-col bg-[var(--bg-main)] relative overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] select-none shrink-0">
-        <span className="font-mono text-[10px] font-black tracking-[0.2em] uppercase text-[var(--text-primary)]">
+        <span className="font-mono text-[10px] font-black tracking-[0.2em] uppercase text-[var(--text-primary)] premium-shimmer">
           YZPZ Agent
         </span>
         <span className="w-px h-3.5 bg-[var(--border-primary)]" />
@@ -318,7 +320,11 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
         </span>
         <span className="ml-auto flex items-center gap-1.5">
           {!hostReady && !hostError && (
-            <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--accent)] animate-pulse">
+            <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--accent)]">
+              <svg className="animate-spin h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
               {preparing ? 'preparing harness…' : 'starting harness…'}
             </span>
           )}
@@ -332,7 +338,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
                   setHostError(null);
                   void init();
                 }}
-                className="shrink-0 h-5 px-2 rounded border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-border)] font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+                className="premium-btn-ghost shrink-0 h-5 px-2 rounded-md font-mono text-[9px] font-bold uppercase tracking-widest cursor-pointer"
                 title="Retry starting the YZPZ Agent"
               >
                 Retry
@@ -342,7 +348,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           <button
             onClick={() => setShowHistory(true)}
             disabled={!hostReady}
-            className="flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--accent-border)] disabled:opacity-40 disabled:cursor-not-allowed text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+            className="premium-btn-ghost flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             title="Browse previous agent sessions and resume or delete them"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -353,7 +359,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           <button
             onClick={() => void handleNewAgent()}
             disabled={!hostReady || creating}
-            className="flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)] hover:bg-[var(--accent-light)]/40 disabled:opacity-40 disabled:cursor-not-allowed text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+            className="premium-btn-primary flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
           >
             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -365,8 +371,29 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
 
       {/* Grid */}
       <div className="flex-1 min-h-0 relative p-2">
+        {/* Ambient aurora backdrop — faint WebGL glow over a CSS fallback so
+            there is never a hard void when motion is reduced or GL fails. */}
+        <div className="absolute inset-0 aurora-fallback" aria-hidden="true">
+          {animationsEnabled && (
+            <SoftAurora
+              speed={0.5}
+              brightness={0.42}
+              scale={1.4}
+              color1="#d87757"
+              color2="#547ea8"
+              noiseFrequency={2.2}
+              bandHeight={0.42}
+              bandSpread={1.0}
+              octaveDecay={0.12}
+              layerOffset={0.35}
+              colorSpeed={1.0}
+              enableMouseInteraction={false}
+            />
+          )}
+        </div>
+
         {sessions.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center gap-4">
+          <div className="relative h-full flex flex-col items-center justify-center gap-4">
             <div className="w-12 h-12 flex items-center justify-center rounded-xl border border-[var(--accent-border)] bg-[var(--accent-light)]/20 overflow-hidden">
               <img src={logo} alt="YzPzCode Agent" className="w-9 h-9 object-contain" draggable={false} />
             </div>
@@ -376,21 +403,33 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
             <p className="max-w-sm text-center font-mono text-[10px] text-[var(--text-secondary)]/50">
               Spawn a YZPZ Agent to edit files, run commands, and inspect your codebase with a visual chat interface.
             </p>
-            <button
-              onClick={() => void handleNewAgent()}
-              disabled={!hostReady}
-              className="px-6 py-2.5 border font-mono text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer border-[var(--accent-border)] text-[var(--accent)] hover:bg-[var(--accent-light)]/30 disabled:opacity-40"
-            >
-              + New Agent
-            </button>
+            {!hostReady && !hostError ? (
+              <div className="flex items-center gap-2 text-[var(--accent)]">
+                <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="font-mono text-[10px] uppercase tracking-widest">
+                  {preparing ? 'Preparing agent runtime…' : 'Starting agent runtime…'}
+                </span>
+              </div>
+            ) : (
+              <button
+                onClick={() => void handleNewAgent()}
+                disabled={!hostReady}
+                className="premium-btn-primary px-6 py-2.5 rounded-lg font-mono text-[11px] font-bold uppercase tracking-widest disabled:opacity-40 cursor-pointer"
+              >
+                + New Agent
+              </button>
+            )}
           </div>
         ) : (
           <div
-            className="h-full w-full grid gap-2"
+            className="relative h-full w-full grid gap-2"
             style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }}
           >
             {sessions.map((session, i) => (
-              <div key={session.sessionId} className="min-h-0 min-w-0 overflow-hidden rounded-lg border border-[var(--border-primary)]">
+              <div key={session.sessionId} className="min-h-0 min-w-0">
                 <AgentPane
                   session={session}
                   index={i}
@@ -417,6 +456,20 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           </div>
         )}
       </div>
+
+      {creating && (
+        <div className="fixed inset-0 z-[1000] bg-black/50 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 px-6 py-5 rounded-xl premium-surface">
+            <svg className="animate-spin h-7 w-7 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+              Creating agent session…
+            </span>
+          </div>
+        </div>
+      )}
 
       {showNewDialog && (
         <NewAgentDialog

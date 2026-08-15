@@ -101,7 +101,7 @@ export const parseUiEditRequest = (text: string): UiEditRequest | null => {
 const Chip: React.FC<{ icon?: string; title?: string; children: React.ReactNode }> = ({ icon, title, children }) => (
   <span
     title={title}
-    className="inline-flex max-w-full items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/60 px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-secondary)]"
+    className="premium-chip inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] text-[var(--text-secondary)]"
   >
     {icon && <Icon icon={icon} className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/60" aria-hidden="true" />}
     <span className="truncate">{children}</span>
@@ -140,7 +140,7 @@ const CollapsibleSection = memo(function CollapsibleSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40">
+    <div className="premium-surface overflow-hidden rounded-lg border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40">
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
@@ -183,7 +183,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
   return (
     <div className="flex justify-end gap-2 animate-fade-in-up">
       <div className="min-w-0 max-w-[88%]">
-        <div className="overflow-hidden rounded-xl rounded-br-sm border border-[var(--accent-border)] bg-[var(--bg-secondary)]/70 shadow-sm">
+        <div className="premium-surface overflow-hidden rounded-2xl rounded-br-sm border-[var(--accent-border)]">
           {/* ── Header ─────────────────────────────────────────────────── */}
           <div className="flex items-center gap-2 border-b border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/50 px-3 py-2">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[var(--accent-light)] text-[var(--accent)]">
@@ -300,7 +300,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
                       {copied ? 'copied ✓' : 'copy'}
                     </button>
                   </div>
-                  <pre className="max-h-44 overflow-y-auto whitespace-pre-wrap break-all rounded-md border border-[var(--border-primary)]/60 bg-[var(--bg-secondary)]/80 p-2 font-mono text-[9px] leading-relaxed text-[var(--text-secondary)]">
+                  <pre className="premium-scrollbar max-h-44 overflow-y-auto whitespace-pre-wrap break-all rounded-md border border-[var(--border-primary)]/60 bg-[var(--bg-secondary)]/80 p-2 font-mono text-[9px] leading-relaxed text-[var(--text-secondary)]">
                     {request.htmlSnippet}
                   </pre>
                 </>

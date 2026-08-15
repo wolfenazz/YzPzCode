@@ -223,9 +223,10 @@ impl AgentHostManager {
         }
 
         // Prefer a usable system Node installation, then bootstrap a private
-        // Node 22 runtime when this is a fresh machine.
-        let node = resolve_node_binary(&self.inner).await?;
-        let node_major = node_major_version(&node)?;
+        // Node 22 runtime when this is a fresh machine. The version is resolved
+        // once here (a spawn of `node --version`) so `resolve_node_binary` does
+        // not have to be followed by a second, duplicate version check.
+        let (node, node_major) = resolve_node_binary(&self.inner).await?;
 
         let harness_dir = normalize_windows_process_path(&locate_harness_dir(&self.inner)?);
         ensure_harness_ready(&self.inner, &node, &harness_dir).await?;
@@ -427,25 +428,22 @@ impl AgentHostManager {
         self.command(name, args, QUICK_COMMAND_TIMEOUT).await
     }
 
-    /// Remove a session from the workspace-scoped index (after deletion).
-    /// If no sessions remain anywhere, shut the sidecar down so the
-    /// agent-harness process doesn't linger once the user closed everything.
+    /// Remove a session from the workspace-scoped index (after closing a pane
+    /// or permanently deleting a session). The sidecar is deliberately KEPT
+    /// running: killing it on the last close made the next "New Agent" or
+    /// "Resume" pay the full Node + ClineCore cold start again (seconds of
+    /// waiting). It is shut down on app exit and via the explicit shutdown
+    /// command instead.
     pub fn remove_session_from_workspace(&self, session_id: &str) {
-        let empty = {
-            let mut map = self.inner.workspace_sessions.lock().unwrap();
-            for sessions in map.values_mut() {
-                sessions.retain(|s| s != session_id);
-            }
-            map.values().all(|v| v.is_empty())
-        };
-        if empty {
-            self.shutdown();
+        let mut map = self.inner.workspace_sessions.lock().unwrap();
+        for sessions in map.values_mut() {
+            sessions.retain(|s| s != session_id);
         }
     }
 
     /// Stop a session and drop it from the open-session index (pane closed).
-    /// The session stays persisted for resume; if this was the last open one
-    /// the sidecar is shut down so the agent-harness process doesn't linger.
+    /// The session stays persisted for resume. The sidecar stays warm so
+    /// reopening a session later is fast (see remove_session_from_workspace).
     pub async fn close_session(&self, session_id: &str) -> Result<(), AgentHostError> {
         self.quick_command("stop", Some(json!({ "sessionId": session_id })))
             .await
@@ -524,15 +522,9 @@ fn forward_event(inner: &HostInner, name: &str, payload: Value) {
         }
         "session-deleted" => {
             if let Some(session_id) = payload.get("sessionId").and_then(|v| v.as_str()) {
-                let empty = {
-                    let mut map = inner.workspace_sessions.lock().unwrap();
-                    for sessions in map.values_mut() {
-                        sessions.retain(|s| s != session_id);
-                    }
-                    map.values().all(|v| v.is_empty())
-                };
-                if empty {
-                    shutdown_host(inner);
+                let mut map = inner.workspace_sessions.lock().unwrap();
+                for sessions in map.values_mut() {
+                    sessions.retain(|s| s != session_id);
                 }
             }
         }
@@ -589,11 +581,13 @@ fn node_major_version(node: &std::path::Path) -> Result<u32, AgentHostError> {
     Ok(major)
 }
 
-async fn resolve_node_binary(inner: &HostInner) -> Result<PathBuf, AgentHostError> {
+async fn resolve_node_binary(inner: &HostInner) -> Result<(PathBuf, u32), AgentHostError> {
     if let Ok(node) = which::which("node") {
         let node = normalize_windows_process_path(&node);
-        if matches!(node_major_version(&node), Ok(major) if major >= NODE_MIN_MAJOR) {
-            return Ok(node);
+        if let Ok(major) = node_major_version(&node) {
+            if major >= NODE_MIN_MAJOR {
+                return Ok((node, major));
+            }
         }
         emit_log(
             inner,
@@ -606,7 +600,9 @@ async fn resolve_node_binary(inner: &HostInner) -> Result<PathBuf, AgentHostErro
         );
     }
 
-    ensure_managed_node(inner).await
+    let node = ensure_managed_node(inner).await?;
+    let major = node_major_version(&node)?;
+    Ok((node, major))
 }
 
 async fn ensure_managed_node(inner: &HostInner) -> Result<PathBuf, AgentHostError> {

@@ -167,7 +167,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
   return (
     <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center font-mono" onClick={onClose}>
       <div
-        className="w-[720px] max-w-[94vw] h-[76vh] flex flex-col rounded-xl border border-theme bg-[var(--bg-card)] shadow-2xl overflow-hidden animate-scale-in"
+        className="premium-surface w-[720px] max-w-[94vw] h-[76vh] flex flex-col rounded-2xl border border-theme bg-[var(--bg-card)] shadow-2xl overflow-hidden animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -178,7 +178,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
               {sessions.length} session{sessions.length !== 1 ? 's' : ''} · resume any past conversation
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-pointer">
+          <button onClick={onClose} className="premium-btn-icon p-1.5 text-[var(--text-secondary)] cursor-pointer">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -187,14 +187,14 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
 
         {/* Toolbar */}
         <div className="flex items-center gap-2 px-4 py-2 border-b border-theme bg-[var(--bg-secondary)]/50 shrink-0">
-          <div className="flex items-center gap-0.5 p-0.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)]">
+          <div className="premium-segmented flex items-center">
             {(['all', 'this'] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`px-2.5 h-6 rounded-[5px] font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer ${
+                className={`premium-segmented-item px-2.5 h-6 rounded-[5px] font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer ${
                   filter === f
-                    ? 'bg-[var(--accent-light)]/40 text-[var(--accent)]'
+                    ? 'is-active bg-[var(--accent-light)]/40 text-[var(--accent)]'
                     : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                 }`}
               >
@@ -206,12 +206,12 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search title, model, preview…"
-            className="flex-1 h-7 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] px-2.5 text-[10px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+            className="premium-input flex-1 h-7 px-2.5 text-[10px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
           />
         </div>
 
         {/* List */}
-        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar p-3 space-y-2">
+        <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar premium-scrollbar p-3 space-y-2">
           {loading && (
             <div className="py-12 text-center text-[10px] uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
               Loading sessions…
@@ -236,7 +236,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
             return (
               <div
                 key={s.sessionId}
-                className="group flex items-start gap-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)]/60 hover:border-[var(--accent-border)] transition-colors duration-100 px-3 py-2.5"
+                className="premium-surface premium-lift group flex items-start gap-3 rounded-lg px-3 py-2.5"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
@@ -286,13 +286,13 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                       </span>
                     )}
                     {isOpen && (
-                      <span className="shrink-0 px-1.5 h-4 rounded-sm bg-emerald-950/40 border border-emerald-900/50 text-[8px] font-bold uppercase tracking-widest text-emerald-500">
+                      <span className="premium-badge shrink-0 h-4 bg-emerald-950/40 text-emerald-500">
                         open
                       </span>
                     )}
                     {isOther && (
                       <span
-                        className="shrink-0 px-1.5 h-4 rounded-sm bg-[var(--accent-light)]/20 border border-[var(--accent-border)]/50 text-[8px] font-bold uppercase tracking-widest text-[var(--accent)]"
+                        className="premium-badge shrink-0 h-4 bg-[var(--accent-light)]/20 text-[var(--accent)]"
                         title="Belongs to a different workspace — resuming runs it in its original directory"
                       >
                         other ws
@@ -322,7 +322,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => onResume(s)}
-                    className="flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)] hover:bg-[var(--accent-light)]/40 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+                    className="premium-btn-ghost flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-[var(--accent-border)]! bg-[var(--accent-light)]/20! text-[var(--accent)]! hover:bg-[var(--accent-light)]/40! font-mono text-[9px] font-bold uppercase tracking-widest cursor-pointer"
                     title={isOther ? 'Open this session in the current grid (runs in its original directory)' : 'Resume this session'}
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -333,10 +333,10 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                   </button>
                   <button
                     onClick={() => void handleDelete(s.sessionId)}
-                    className={`flex items-center gap-1.5 h-7 px-2.5 rounded-md border font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer ${
+                    className={`premium-btn-ghost flex items-center gap-1.5 h-7 px-2.5 rounded-lg font-mono text-[9px] font-bold uppercase tracking-widest cursor-pointer ${
                       confirmingId === s.sessionId
-                        ? 'border-rose-500 bg-rose-950/40 text-rose-400'
-                        : 'border-[var(--border-primary)] text-[var(--text-secondary)]/70 hover:text-rose-400 hover:border-rose-900/60'
+                        ? 'border-rose-500! bg-rose-950/40! text-rose-400!'
+                        : 'text-[var(--text-secondary)]/70 hover:text-rose-400! hover:border-rose-900/60!'
                     }`}
                     title="Permanently delete this session and its history"
                   >

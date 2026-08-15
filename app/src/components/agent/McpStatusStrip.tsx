@@ -39,7 +39,7 @@ export const McpStatusStrip: React.FC<McpStatusStripProps> = ({ servers, onRefre
           <span className="font-mono text-[9px] text-[var(--text-secondary)]/40">none</span>
         ) : (
           <span
-            className="flex items-center gap-1.5 px-2 h-5 rounded-full border border-[var(--border-primary)] bg-[var(--bg-main)]/70"
+            className="premium-chip px-2 h-5"
             title={servers.map((s) => `${s.name} - ${s.status}`).join('\n')}
           >
             <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${errored > 0 ? 'bg-rose-500' : connected > 0 ? 'bg-emerald-500' : 'bg-[var(--text-secondary)]/30'}`} />
@@ -65,7 +65,7 @@ export const McpStatusStrip: React.FC<McpStatusStripProps> = ({ servers, onRefre
   }
 
   return (
-    <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/20 select-none overflow-x-auto custom-scrollbar">
+    <div className="shrink-0 flex items-center gap-1.5 px-2.5 py-1 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/20 select-none overflow-x-auto custom-scrollbar premium-scrollbar">
       <span className="font-mono text-[8px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]/50 shrink-0">
         MCP
       </span>
@@ -82,7 +82,7 @@ export const McpStatusStrip: React.FC<McpStatusStripProps> = ({ servers, onRefre
             <span
               key={s.name}
               title={`${s.name} — ${meta.label}${s.lastError ? ` (${s.lastError})` : ''}${s.toolCount ? ` · ${s.toolCount} tool(s)` : ''}`}
-              className="flex items-center gap-1.5 px-2 h-5 rounded-full border border-[var(--border-primary)] bg-[var(--bg-main)]/70 shrink-0"
+              className="premium-chip px-2 h-5 shrink-0"
             >
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
               <span className="font-mono text-[9px] text-[var(--text-primary)]/90 truncate max-w-[120px]">{s.name}</span>

@@ -38,13 +38,13 @@ export const ContextGauge: React.FC<ContextGaugeProps> = ({ usage, aggregateUsag
           Context
         </span>
         <div
-          className={`flex-1 min-w-0 rounded-full bg-[var(--border-primary)] overflow-hidden ${slim ? 'h-1' : 'h-1.5'}`}
+          className={`premium-track flex-1 min-w-0 ${slim ? 'h-1' : 'h-1.5'}`}
           title={hasCurrentContext
             ? `Current provider request: ${formatTokens(total)} / ${formatTokens(ctx)} tokens (${pct.toFixed(1)}%). This resets after compaction.`
             : 'Current provider context will appear after the next model request.'}
         >
           <div
-            className={`h-full rounded-full transition-all duration-300 ${danger ? 'bg-rose-500' : warn ? 'bg-amber-400' : 'bg-[var(--accent)]'}`}
+            className={`premium-track-fill ${danger ? 'bg-rose-500' : warn ? 'bg-amber-400' : 'bg-[var(--accent)]'}`}
             style={{ width: `${Math.max(2, pct)}%` }}
           />
         </div>

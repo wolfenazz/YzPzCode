@@ -256,7 +256,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
               top: coords.top,
               bottom: coords.bottom,
             }}
-            className="font-mono rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden animate-scale-in"
+            className="font-mono premium-menu overflow-hidden"
           >
             <div className="flex items-center gap-2 px-2.5 h-8 border-b border-[var(--border-primary)] bg-[var(--bg-main)]">
               <svg className="w-3 h-3 flex-shrink-0 text-[var(--text-secondary)]/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,7 +269,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
                 onKeyDown={onSearchKeyDown}
                 placeholder={searchPlaceholder}
                 spellCheck={false}
-                className="flex-1 min-w-0 h-full bg-transparent text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/40 focus:outline-none"
+                className="premium-input flex-1 min-w-0 h-full px-1.5 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/40"
               />
               {query && (
                 <button
@@ -289,7 +289,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
               )}
             </div>
             <div
-              className="max-h-56 overflow-y-auto custom-scrollbar py-1"
+              className="max-h-56 overflow-y-auto custom-scrollbar premium-scrollbar py-1"
               style={{ maxHeight: Math.max(0, coords.maxHeight - 32) }}
             >
               {filtered.length === 0 && (
@@ -309,7 +309,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
                     aria-selected={isSelected}
                     onMouseEnter={() => setActive(idx)}
                     onClick={() => selectAt(opt)}
-                    className={`w-full text-left px-2.5 py-1.5 text-[11px] flex items-center justify-between gap-2 transition-colors duration-75 cursor-pointer ${
+                    className={`premium-menu-item w-full text-left px-2.5 py-1.5 text-[11px] flex items-center justify-between gap-2 transition-colors duration-75 cursor-pointer ${
                       isActive
                         ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
                         : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/60 hover:text-[var(--text-primary)]'

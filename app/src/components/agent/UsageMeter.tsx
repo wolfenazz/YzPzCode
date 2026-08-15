@@ -70,7 +70,7 @@ export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, c
 
   if (!primary && !aggregateUsage) {
     return (
-      <div className="flex items-center gap-2 px-2 py-0.5 rounded-sm bg-[var(--bg-tertiary)]/40">
+      <div className="premium-surface rounded-lg flex items-center gap-2 px-2 py-0.5">
         <span className="font-mono text-[8px] uppercase tracking-widest text-[var(--text-secondary)]/50">usage</span>
         <span className="font-mono text-[9px] text-[var(--text-secondary)]/40">—</span>
       </div>
@@ -79,7 +79,7 @@ export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, c
 
   return (
     <div
-      className="flex items-center gap-2.5 px-2 py-1 rounded-sm bg-[var(--bg-tertiary)]/40 min-w-0"
+      className="premium-surface rounded-lg flex items-center gap-2.5 px-2 py-1 min-w-0"
       title={gaugeTitle}
     >
       <Stat label="in" value={formatTokens(primary?.inputTokens ?? 0)} />
@@ -88,9 +88,9 @@ export const UsageMeter: React.FC<UsageMeterProps> = ({ usage, aggregateUsage, c
       <Stat label="cost" value={formatCost(primary?.totalCost ?? 0)} />
       {showAggregate && <Stat label="team" value={formatTokens(aggregateUsage?.inputTokens ?? 0)} />}
       <div className="flex items-center gap-1 flex-shrink-0">
-        <div className="w-12 h-1 rounded-full bg-[var(--border-primary)] overflow-hidden" title="Context window usage">
+        <div className="premium-track w-12 h-1" title="Context window usage">
           <div
-            className={`h-full rounded-full transition-all duration-300 ${danger ? 'bg-rose-500' : warn ? 'bg-amber-400' : 'bg-[var(--accent)]'}`}
+            className={`premium-track-fill ${danger ? 'bg-rose-500' : warn ? 'bg-amber-400' : 'bg-[var(--accent)]'}`}
             style={{ width: `${Math.max(2, pct)}%` }}
           />
         </div>

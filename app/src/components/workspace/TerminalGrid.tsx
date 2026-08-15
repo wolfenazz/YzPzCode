@@ -18,6 +18,7 @@ import { SortableTerminalPane } from './SortableTerminalPane';
 import { NewTerminalDialog } from './NewTerminalDialog';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
+import { BoxLoader } from '../common/BoxLoader';
 
 interface TerminalGridProps {
   sessions: TerminalSession[];
@@ -319,10 +320,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
     return (
       <div className="h-full flex items-center justify-center font-mono text-zinc-500">
         <div className="flex flex-col items-center gap-4">
-          <div className="relative w-12 h-12">
-            <div className="absolute inset-0 border-2 rounded-full shadow-inner border-zinc-800" />
-            <div className="absolute inset-0 border-2 border-t-emerald-500 rounded-full animate-spin shadow-[0_0_10px_rgba(16,185,129,0.2)]" />
-          </div>
+          <BoxLoader />
           <div className="text-[10px] uppercase tracking-widest opacity-60 animate-pulse">
             [ Initializing TTY Sessions ]
           </div>

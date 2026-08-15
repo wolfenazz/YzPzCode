@@ -6,6 +6,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useAgentMention } from '../../hooks/useAgentMention';
 import type { MentionItem } from '../../hooks/useAgentMention';
 import { AgentMentionMenu } from './AgentMentionMenu';
+import Strands from '../effects/Strands';
 
 interface AgentInputProps {
   disabled?: boolean;
@@ -62,53 +63,46 @@ const MODE_TABS: Array<{
   },
 ];
 
-/** Per-mode static Tailwind styles (literal strings so they survive purging). */
+/** Per-mode static Tailwind styles (literal strings so they survive purging).
+    Selected tabs keep neutral chrome — the mode's accent colour + soft glow
+    live on the icon only (see .premium-segmented-item[data-mode] in styles.css). */
 const MODE_STYLES: Record<AgentMode, {
   active: string;
   idle: string;
-  dot: string;
   field: string;
   focus: string;
   send: string;
 }> = {
   ask: {
-    active:
-      'bg-sky-500/25 border-sky-400/50 text-sky-300 shadow-[inset_0_1px_0_rgba(56,189,248,0.15),0_0_14px_-4px_rgba(56,189,248,0.35)]',
-    idle: 'text-[var(--text-secondary)] hover:text-sky-300 hover:bg-sky-500/10 hover:shadow-[0_0_12px_-4px_rgba(56,189,248,0.4)]',
-    dot: 'bg-sky-400',
-    field: 'border-[var(--border-primary)] hover:border-sky-500/40 focus-within:border-sky-500/60 focus-within:bg-sky-500/[0.04] focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_16px_-6px_rgba(56,189,248,0.4)]',
+    active: 'is-active bg-[var(--bg-tertiary)]! border-transparent text-[var(--text-primary)]!',
+    idle: 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+    field: 'border-[var(--border-primary)]',
     focus:
-      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sky-400/60 focus-visible:bg-sky-500/10 focus-visible:text-sky-300',
+      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] focus-visible:text-[var(--text-primary)]',
     send: 'bg-sky-500 border border-sky-400/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(0,0,0,0.35)]',
   },
   act: {
-    active:
-      'bg-emerald-500/25 border-emerald-400/50 text-emerald-300 shadow-[inset_0_1px_0_rgba(52,211,153,0.15),0_0_14px_-4px_rgba(52,211,153,0.35)]',
-    idle: 'text-[var(--text-secondary)] hover:text-emerald-300 hover:bg-emerald-500/10 hover:shadow-[0_0_12px_-4px_rgba(52,211,153,0.4)]',
-    dot: 'bg-emerald-400',
-    field: 'border-[var(--border-primary)] hover:border-emerald-500/40 focus-within:border-emerald-500/60 focus-within:bg-emerald-500/[0.04] focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_16px_-6px_rgba(52,211,153,0.4)]',
+    active: 'is-active bg-[var(--bg-tertiary)]! border-transparent text-[var(--text-primary)]!',
+    idle: 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+    field: 'border-[var(--border-primary)]',
     focus:
-      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-emerald-400/60 focus-visible:bg-emerald-500/10 focus-visible:text-emerald-300',
+      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] focus-visible:text-[var(--text-primary)]',
     send: 'bg-emerald-500 border border-emerald-400/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(0,0,0,0.35)]',
   },
   plan: {
-    active:
-      'bg-amber-500/25 border-amber-400/50 text-amber-300 shadow-[inset_0_1px_0_rgba(251,191,36,0.15),0_0_14px_-4px_rgba(251,191,36,0.35)]',
-    idle: 'text-[var(--text-secondary)] hover:text-amber-300 hover:bg-amber-500/10 hover:shadow-[0_0_12px_-4px_rgba(251,191,36,0.4)]',
-    dot: 'bg-amber-400',
-    field: 'border-[var(--border-primary)] hover:border-amber-500/40 focus-within:border-amber-500/60 focus-within:bg-amber-500/[0.04] focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_16px_-6px_rgba(251,191,36,0.4)]',
+    active: 'is-active bg-[var(--bg-tertiary)]! border-transparent text-[var(--text-primary)]!',
+    idle: 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+    field: 'border-[var(--border-primary)]',
     focus:
-      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-amber-400/60 focus-visible:bg-amber-500/10 focus-visible:text-amber-300',
+      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] focus-visible:text-[var(--text-primary)]',
     send: 'bg-amber-500 border border-amber-400/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(0,0,0,0.35)]',
   },
   orchestrator: {
-    active:
-      'bg-violet-500/25 border-violet-400/50 text-violet-300 shadow-[inset_0_1px_0_rgba(167,139,250,0.15),0_0_14px_-4px_rgba(167,139,250,0.35)]',
-    idle: 'text-[var(--text-secondary)] hover:text-violet-300 hover:bg-violet-500/10 hover:shadow-[0_0_12px_-4px_rgba(167,139,250,0.4)]',
-    dot: 'bg-violet-400',
-    field: 'border-[var(--border-primary)] hover:border-violet-500/40 focus-within:border-violet-500/60 focus-within:bg-violet-500/[0.04] focus-within:shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_16px_-6px_rgba(167,139,250,0.4)]',
+    active: 'is-active bg-[var(--bg-tertiary)]! border-transparent text-[var(--text-primary)]!',
+    idle: 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+    field: 'border-[var(--border-primary)]',
     focus:
-      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-400/60 focus-visible:bg-violet-500/10 focus-visible:text-violet-300',
+      'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] focus-visible:text-[var(--text-primary)]',
     send: 'bg-violet-500 border border-violet-400/30 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_1px_2px_rgba(0,0,0,0.35)]',
   },
 };
@@ -116,6 +110,9 @@ const MODE_STYLES: Record<AgentMode, {
 const MIN_HEIGHT = 38;
 const MAX_HEIGHT = 240;
 const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+
+/** How long after the last keystroke the orb keeps spinning before winding down. */
+const TYPING_IDLE_MS = 1400;
 
 const attachmentName = (path: string): string => path.split(/[\\/]/).pop() || path;
 
@@ -138,7 +135,9 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   const [value, setValue] = useState('');
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
+  const [typing, setTyping] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const workspacePath = useAppStore((s) => s.currentWorkspace?.path);
   const {
@@ -165,6 +164,13 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     const raf = requestAnimationFrame(autoGrow);
     return () => cancelAnimationFrame(raf);
   }, [value, autoGrow]);
+
+  // Clear the typing debounce timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+    };
+  }, []);
 
   // Re-measure when the textarea width changes (grid/pane reflow) without
   // looping on the height changes we make ourselves.
@@ -316,9 +322,18 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   const activeTab = MODE_TABS.find((t) => t.id === mode);
 
   return (
-    <div className={`border-t border-[var(--border-primary)] bg-gradient-to-b from-[var(--bg-secondary)]/80 to-[var(--bg-main)] space-y-2 ${compact ? 'px-2 pt-1.5 pb-1.5' : 'px-3.5 pt-2.5 pb-2.5'}`}>
-      {/* Mode tabs */}
-      <div className={`flex items-center gap-0.5 rounded-[10px] border border-[var(--border-primary)]/90 bg-[var(--bg-main)] w-fit shadow-[inset_0_1px_0_rgba(255,255,255,0.07),inset_0_-1px_0_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.18),0_4px_16px_-8px_rgba(0,0,0,0.45)] p-0.5`}>
+    /* Floating composer island — centered on the bottom of the session pane
+       instead of a full-width footer, so it reads as a premium surface. */
+    <div className={`relative z-10 flex justify-center px-3 ${compact ? 'pt-1 pb-2' : 'pt-1.5 pb-3'}`}>
+      <div
+        className={`agent-input-island w-full space-y-2 bg-gradient-to-b from-[var(--bg-secondary)]/90 to-[var(--bg-main)] ${
+          compact ? 'max-w-2xl px-2 py-1.5' : 'max-w-3xl px-3.5 py-2.5'
+        } ${isRunning ? 'agent-input-island--active' : ''}`}
+      >
+      {/* Mode tabs + isolated fast keycap — the fast toggle floats outside
+          the segmented control as its own 3D key. */}
+      <div className="flex items-center justify-between gap-2">
+      <div className={`premium-segmented w-fit rounded-xl! items-center gap-0.5 p-0.5`}>
         {MODE_TABS.map((tab) => {
           const active = mode === tab.id;
           if (compact && !active) return null;
@@ -326,51 +341,25 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           return (
             <button
               key={tab.id}
+              data-mode={tab.id}
               onClick={() => (compact ? cycleMode(1) : onModeChange(tab.id))}
               title={tab.title}
               aria-label={tab.label}
-              className={`electric-btn flex items-center justify-center gap-1.5 rounded-[8px] border font-mono text-[9px] font-bold uppercase leading-none tracking-[0.08em] transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
+              aria-selected={active}
+              className={`premium-segmented-item flex items-center justify-center gap-1.5 rounded-lg border font-mono text-[9px] font-bold uppercase leading-none tracking-[0.08em] transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
                 compact ? 'px-2 h-6 text-[8px]' : 'px-2 h-8'
               } ${
                 active
-                  ? tabStyle.active
+                  ? `is-active ${tabStyle.active}`
                   : `border-transparent ${tabStyle.idle}`
               } ${tabStyle.focus}`}
             >
-              {active && !compact && <span className={`w-1.5 h-1.5 rounded-full ${tabStyle.dot}`} />}
               {tab.icon}
               {tab.label}
             </button>
           );
         })}
         <div className="ml-auto flex items-center gap-1 pl-1.5 border-l border-[var(--border-primary)]/60">
-          {onToggleFastMode && (
-            <button
-              type="button"
-              onClick={() => onToggleFastMode()}
-              title={
-                fastMode
-                  ? 'Fast mode is ON — the agent skips extra thinking and works as fast as possible. Click to turn off.'
-                  : 'Fast mode: the agent skips extra thinking and completes the task as fast as possible.'
-              }
-              aria-pressed={fastMode}
-              className={`electric-btn electric-charge relative flex items-center justify-center gap-1 rounded-[8px] border transition-all duration-100 cursor-pointer select-none active:scale-[0.96] ${
-                compact ? 'px-1.5 h-6' : 'px-2 h-8'
-              } ${fastMode ? 'agent-fast-active' : ''}`}
-            >
-              <Icon icon="lucide:zap" className="electric-icon h-3.5 w-3.5" aria-hidden="true" />
-              {!compact && fastMode && (
-                <span className="font-mono text-[8px] font-bold uppercase leading-none tracking-[0.08em]">fast</span>
-              )}
-              {/* Active indicator: small amber charge dot so ON/OFF is obvious */}
-              <span
-                className={`absolute w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.9)] transition-opacity duration-150 ${
-                  compact ? 'top-0 right-0' : 'top-0.5 right-0.5'
-                } ${fastMode ? 'opacity-100' : 'opacity-0'}`}
-                aria-hidden="true"
-              />
-            </button>
-          )}
           {isRunning && !compact && (
             <span className="font-mono text-[9px] uppercase leading-none tracking-[0.08em] text-[var(--accent)] animate-pulse">
               ● running
@@ -380,7 +369,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
             onClick={() => void onAbort()}
             disabled={!isRunning}
             title={isRunning ? 'Interrupt the running task (also drops queued prompts)' : 'Nothing to interrupt'}
-            className={`flex items-center gap-1 rounded-[8px] border font-mono font-bold uppercase tracking-widest transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
+            className={`flex items-center gap-1 rounded-lg border font-mono font-bold uppercase tracking-widest transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
               compact ? 'px-1.5 h-6 text-[8px]' : 'px-2.5 h-8 text-[9px]'
             } ${
               isRunning
@@ -396,12 +385,38 @@ export const AgentInput: React.FC<AgentInputProps> = ({
         </div>
       </div>
 
+      {/* Isolated fast-mode keycap — deliberately outside the segmented
+          control. Clean 3D key face (no beams/bloom); only the zap icon
+          carries the amber charge when fast is ON. */}
+      {onToggleFastMode && (
+        <button
+          type="button"
+          onClick={() => onToggleFastMode()}
+          title={
+            fastMode
+              ? 'Fast mode is ON — the agent skips extra thinking and works as fast as possible. Click to turn off.'
+              : 'Fast mode: the agent skips extra thinking and completes the task as fast as possible.'
+          }
+          aria-pressed={fastMode}
+          aria-label="Toggle fast mode"
+          className={`agent-input-keycap flex shrink-0 items-center justify-center gap-1 rounded-lg cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] ${
+            compact ? 'h-6 w-6' : 'h-8 px-2'
+          } ${fastMode ? 'is-fast' : ''}`}
+        >
+          <Icon icon="lucide:zap" className="electric-icon h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {!compact && fastMode && (
+            <span className="font-mono text-[8px] font-bold uppercase leading-none tracking-[0.08em]">fast</span>
+          )}
+        </button>
+      )}
+      </div>
+
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {attachments.map((attachment) => (
             <span
               key={attachment.path}
-              className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] py-1 pl-1.5 pr-1 font-mono text-[9px] text-[var(--text-secondary)]"
+              className="premium-chip inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--border-primary)] bg-[var(--bg-main)] py-1 pl-2 pr-1 font-mono text-[9px] text-[var(--text-secondary)]"
               title={attachment.path}
             >
               <Icon icon={attachment.kind === 'image' ? 'material-symbols:image-rounded' : 'material-symbols:description-rounded'} className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
@@ -485,23 +500,53 @@ export const AgentInput: React.FC<AgentInputProps> = ({
       {/* Prompt field + send */}
       <div className="flex items-end gap-2">
         <div
-          className={`group/field relative flex flex-1 items-center overflow-hidden rounded-lg border bg-[var(--bg-main)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-150 ease-out cursor-text focus-within:outline-none ${
+          className={`group/field relative flex flex-1 items-center overflow-hidden rounded-lg border bg-[var(--bg-main)] transition-all duration-150 ease-out cursor-text focus-within:outline-none ${
             disabled ? 'opacity-60' : ''
           } ${style.field}`}
         >
+          {/* Strands slot — woven glowing strands on the left of the prompt
+              field. Idle: a straight, softly glowing line. Typing: the
+              strands wake up and the glow builds until they flow at full
+              energy; a short pause glides them back to the resting line. */}
+          <div
+            className={`ml-2 mr-1.5 h-9 w-9 shrink-0 transition-opacity duration-300 ${
+              typing ? 'opacity-100' : 'opacity-80'
+            }`}
+            aria-hidden="true"
+          >
+            <Strands
+              active={typing}
+              colors={['#9C43FE', '#4CC2E9', '#F97316']}
+              count={3}
+              speed={0.5}
+              amplitude={1.1}
+              waviness={1}
+              thickness={0.7}
+              glow={2.8}
+              taper={3}
+              spread={1}
+              intensity={0.6}
+              saturation={1.5}
+              opacity={1}
+              scale={1.4}
+            />
+          </div>
           <textarea
             ref={textareaRef}
             value={value}
             onChange={(e) => {
               update(e.target.value, e.target.selectionStart ?? 0);
               setValue(e.target.value);
+              setTyping(true);
+              if (typingTimer.current) clearTimeout(typingTimer.current);
+              typingTimer.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS);
             }}
             onKeyDown={handleKeyDown}
             disabled={disabled}
             rows={1}
             style={{ minHeight: MIN_HEIGHT, maxHeight: MAX_HEIGHT }}
             placeholder={placeholder}
-            className="peer flex-1 resize-none overflow-y-auto bg-transparent py-2 pl-3 pr-8 font-mono text-[12px] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none"
+            className="peer flex-1 resize-none overflow-y-auto bg-transparent py-2 pl-2 pr-8 font-mono text-[12px] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none"
           />
           <kbd
             className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-[4px] border border-[var(--border-primary)] bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-tertiary)] font-mono text-[10px] font-bold text-[var(--text-secondary)]/70 shadow-[inset_0_-1px_0_rgba(0,0,0,0.35),0_1px_1px_rgba(0,0,0,0.25)] transition-all duration-150 peer-focus:opacity-0 peer-not-placeholder-shown:opacity-0 ${compact ? 'hidden' : ''}`}
@@ -534,7 +579,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
                 ? 'Send prompt (Enter)'
                 : 'Type a prompt first'
           }
-          className={`electric-btn flex items-center gap-1.5 h-9 rounded-lg text-white font-mono text-[10px] font-bold uppercase leading-none tracking-[0.08em] transition-all duration-100 hover:brightness-110 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${compact ? 'px-2.5' : 'px-3.5'} ${style.send}`}
+          className={`gradient-send-btn flex items-center gap-1.5 h-9 rounded-lg text-white font-mono text-[10px] font-bold uppercase leading-none tracking-[0.08em] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${compact ? 'px-2.5' : 'px-3.5'}`}
         >
           {isRunning ? (
             <Icon icon="lucide:list-plus" className="electric-icon w-3.5 h-3.5" aria-hidden="true" />
@@ -575,6 +620,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           onClose={close}
         />
       )}
+      </div>
     </div>
   );
 };

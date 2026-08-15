@@ -1,0 +1,139 @@
+@layer components {
+  .line-sidebar {
+    --accent-color: #a855f7;
+    --text-color: #c4c4c4;
+    --marker-color: #6c6c6c;
+    --marker-length: 60px;
+    --marker-gap: 0px;
+    --tick-scale: 0.5;
+    --max-shift: 30px;
+    --item-gap: 20px;
+    --font-size: 1.1rem;
+    --smoothing: 100ms;
+    position: relative;
+    display: flex;
+    justify-content: flex-start;
+  }
+
+  .line-sidebar--markers {
+    padding-left: calc(var(--marker-length) + var(--marker-gap));
+  }
+
+  .line-sidebar__list {
+    list-style: none;
+    margin: 0;
+    padding: 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--item-gap);
+  }
+
+  /* --effect (0..1) is driven per item by a rAF lerp in JS, so every derived
+     property below reads the same continuously-animating value and stays in
+     step, with no CSS transitions to stagger. */
+  .line-sidebar__item {
+    position: relative;
+    cursor: pointer;
+  }
+
+  /* Widen the pointer target so items react a touch before the cursor arrives */
+  .line-sidebar__item::before {
+    content: '';
+    position: absolute;
+    inset: -6px -48px;
+  }
+
+  .line-sidebar__label {
+    position: relative;
+    display: inline-flex;
+    align-items: baseline;
+    font-size: var(--font-size);
+    line-height: 1.2;
+    color: color-mix(in srgb, var(--accent-color) calc(var(--effect, 0) * 100%), var(--text-color));
+    transform: translateX(calc(var(--effect, 0) * var(--max-shift)));
+  }
+
+  .line-sidebar__index {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin-right: 0.6rem;
+    font-size: 0.85em;
+    opacity: calc(0.55 + var(--effect, 0) * 0.45);
+  }
+
+  .line-sidebar__marker {
+    position: absolute;
+    top: 50%;
+    left: calc(-1 * var(--marker-length) - var(--marker-gap));
+    height: 1px;
+    width: var(--marker-length);
+    background-color: color-mix(in srgb, var(--accent-color) calc(var(--effect, 0) * 100%), var(--marker-color));
+    transform-origin: left center;
+    transform: translateY(-50%) scaleX(calc(0.7 + var(--effect, 0) * 0.5));
+  }
+
+  /* Short static tick centered in the gap between two menu items */
+  .line-sidebar--markers .line-sidebar__item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    top: calc(100% + var(--item-gap) / 2);
+    left: calc(-1 * var(--marker-length) - var(--marker-gap));
+    height: 1px;
+    width: calc(var(--marker-length) * var(--tick-scale));
+    background-color: var(--marker-color);
+    opacity: 0.5;
+    transform: translateY(-50%);
+  }
+
+  /* When enabled, the in-between ticks grow with cursor proximity too */
+  .line-sidebar--scale-tick .line-sidebar__item:not(:last-child)::after {
+    transform-origin: left center;
+    transform: translateY(-50%) scaleX(calc(0.7 + var(--effect, 0) * 0.6));
+  }
+
+  /* ── Completed items (todo integration) ───────────────────────────────
+     Finished tasks mute out and switch their marker to a soft emerald, so the
+     run's progress reads at a glance without losing the hover language. */
+  .line-sidebar__item--done .line-sidebar__text {
+    color: color-mix(in srgb, #34d399 45%, var(--text-color));
+    text-decoration: line-through;
+    text-decoration-color: rgba(52, 211, 153, 0.35);
+    text-decoration-thickness: 1px;
+  }
+
+  .line-sidebar__item--done .line-sidebar__index {
+    opacity: 0.4;
+  }
+
+  .line-sidebar__item--done .line-sidebar__marker {
+    background-color: color-mix(in srgb, #34d399 55%, var(--marker-color));
+  }
+
+  .line-sidebar__done-icon {
+    margin-right: 0.4rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78em;
+    color: #34d399;
+    opacity: 0.9;
+  }
+
+  /* ── Staggered mount entrance ─────────────────────────────────────────
+     Plays once when the panel first renders; each item slides in from the
+     left with a small per-item delay. Skipped when animations are disabled
+     (the global rule collapses animation durations to ~0). */
+  .line-sidebar--animate-in .line-sidebar__item {
+    opacity: 0;
+    animation: line-sidebar-item-in 0.55s var(--ease-out-expo) forwards;
+    animation-delay: calc(var(--item-index, 0) * 36ms);
+  }
+
+  @keyframes line-sidebar-item-in {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}

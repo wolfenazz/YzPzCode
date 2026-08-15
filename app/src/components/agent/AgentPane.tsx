@@ -74,7 +74,9 @@ const MODE_ICON: Record<AgentMode, React.ReactNode> = {
 const NARROW_WIDTH = 700;
 const VERY_NARROW_WIDTH = 430;
 const SHORT_HEIGHT = 440;
-const TODO_MIN_WIDTH = 480;
+/** Below this pane width the floating task rail would cover too much chat, so
+ *  it collapses to the one-tap edge tab instead. */
+const TASK_OVERLAY_MIN_WIDTH = 640;
 
 const MCP_POLL_MS = 10_000;
 const OPENROUTER_PROVIDER_ID = 'openrouter';
@@ -201,7 +203,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const freeModePreviousRef = useRef<{ providerId: string | null; modelId: string | null } | null>(null);
   const [mcpServers, setMcpServers] = useState<AgentMcpServer[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
-  const [todosVisible, setTodosVisible] = useState(true);
+  const [tasksOpen, setTasksOpen] = useState(true);
   const [elapsed, setElapsed] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuAnchorRef = useRef<HTMLButtonElement>(null);
@@ -298,6 +300,30 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
       if (runStartedAtRef.current) setElapsed(Math.floor((Date.now() - runStartedAtRef.current) / 1000));
     }, 1000);
     return () => window.clearInterval(id);
+  }, [status]);
+
+  // ── Floating task rail lifecycle ─────────────────────────────────────
+  // Appears over the chat (both minimal & full UI), plays its entrance when a
+  // run starts, and collapses back with the completion animation once the
+  // whole list is done.
+  const allTasksDone = todos.length > 0 && todos.every((t) => t.status === 'completed');
+  useEffect(() => {
+    if (!allTasksDone) return undefined;
+    // Give the emerald completion pulse time to read before sliding away.
+    const id = window.setTimeout(() => setTasksOpen(false), 1500);
+    return () => window.clearTimeout(id);
+  }, [allTasksDone]);
+
+  // Re-open the rail when a brand-new run begins (idle → working) so fresh
+  // tasks animate in, without fighting the user if they collapse it mid-run.
+  const wasIdleRef = useRef(true);
+  useEffect(() => {
+    if (status === 'running') {
+      if (wasIdleRef.current) setTasksOpen(true);
+      wasIdleRef.current = false;
+    } else {
+      wasIdleRef.current = true;
+    }
   }, [status]);
 
   const handleSend = useCallback(
@@ -536,9 +562,12 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   );
 
   return (
-    <div ref={paneRef} className="flex flex-col h-full w-full bg-[var(--bg-main)] overflow-hidden">
+    <div
+      ref={paneRef}
+      className={`premium-pane flex flex-col h-full w-full overflow-hidden ${isWorking ? 'premium-pane--active' : ''}`}
+    >
       {/* Pane header */}
-      <div className="flex items-center gap-1.5 px-2 py-1 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] select-none shrink-0">
+      <div className="premium-header flex items-center gap-1.5 px-2 py-1 select-none shrink-0">
         {/* UI density toggle: minimize / maximize the number of options */}
         <button
           onClick={() => setUiMode(uiMode === 'full' ? 'minimal' : 'full')}
@@ -693,7 +722,18 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             </>
           )}
           {!isVeryNarrow && (
-            <span className={`font-mono text-[9px] font-bold uppercase tracking-widest ${statusMeta.color}`}>
+            <span className={`flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest ${statusMeta.color}`}>
+              <span
+                className={`premium-status-dot w-1.5 h-1.5 rounded-full shrink-0 ${
+                  isWorking
+                    ? 'bg-[var(--accent)]'
+                    : status === 'error'
+                      ? 'bg-rose-500'
+                      : status === 'done'
+                        ? 'bg-emerald-500'
+                        : 'bg-[var(--text-secondary)]/40'
+                }`}
+              />
               {statusMeta.label}
             </span>
           )}
@@ -820,10 +860,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
         </div>
       )}
 
-      {/* Context window gauge (full mode; collapses to a slim line when short) */}
-      {uiMode === 'full' && (
-        <ContextGauge usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} slim={isShort} />
-      )}
+      {/* Context window gauge — always visible because it is critical to track;
+          collapses to a slim one-line readout in minimal mode or when the pane is short */}
+      <ContextGauge usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} slim={uiMode === 'minimal' || isShort} />
 
       {/* Linked MCP servers status (full mode; collapses to one chip when tight) */}
       {uiMode === 'full' && (
@@ -841,24 +880,35 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
       <div className="flex flex-1 min-h-0">
         <div className="flex min-w-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
-            <AgentChat
-              messages={messages}
-              streamingText={streamingText}
-              streamingThinking={streamingThinking}
-              activeTool={activeTool}
-              toolLog={toolLog}
-              isThinking={isWorking && !streamingText && !streamingThinking && !activeTool}
-              notice={notice}
-              compaction={compaction}
-              pendingQuestion={pendingQuestion}
-              onAnswerQuestion={handleAnswerQuestion}
-              error={error}
-              onContinue={() => void resendLastPrompt()}
-              onSuggestion={(prompt) => void send(prompt)}
-              completed={status === 'done' && messages.length > 0}
-              elapsedSec={elapsed}
-              toolCount={toolCount}
-            />
+            {/* The floating task rail layers on top of the chat (left gutter),
+                so it never steals width from the conversation. It is available
+                in both minimal and full UI modes. */}
+            <div className="relative flex min-h-0 flex-1">
+              <AgentChat
+                messages={messages}
+                streamingText={streamingText}
+                streamingThinking={streamingThinking}
+                activeTool={activeTool}
+                toolLog={toolLog}
+                isThinking={isWorking && !streamingText && !streamingThinking && !activeTool}
+                notice={notice}
+                compaction={compaction}
+                pendingQuestion={pendingQuestion}
+                onAnswerQuestion={handleAnswerQuestion}
+                error={error}
+                onContinue={() => void resendLastPrompt()}
+                onSuggestion={(prompt) => void send(prompt)}
+                completed={status === 'done' && messages.length > 0}
+                elapsedSec={elapsed}
+                toolCount={toolCount}
+              />
+              <TodoPanel
+                todos={todos}
+                open={tasksOpen && width >= TASK_OVERLAY_MIN_WIDTH}
+                running={isWorking}
+                onToggle={() => setTasksOpen((v) => !v)}
+              />
+            </div>
 
             <AgentApprovalBar
               approvals={approvals}
@@ -890,15 +940,6 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
 
           {showTeamSidebar && <TeamProgressPanel team={team} subAgents={subAgents} layout="sidebar" />}
         </div>
-
-        {/* The regular task rail stays available for Ask, Act, and Plan. */}
-        {mode !== 'orchestrator' && uiMode === 'full' && (
-          <TodoPanel
-            todos={todos}
-            visible={todosVisible && width >= TODO_MIN_WIDTH}
-            onToggle={() => setTodosVisible((v) => !v)}
-          />
-        )}
       </div>
 
       {/* Overflow menu: providers, models, usage, context, UI mode */}
@@ -923,7 +964,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setMenuOpen(false);
               onNewChat(session.sessionId);
             }}
-            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 hover:bg-[var(--accent-light)]/30 transition-colors duration-100 cursor-pointer text-left"
+            className="premium-btn-ghost w-full flex items-center gap-2 px-2 py-1.5 rounded-lg border-[var(--accent-border)] bg-[var(--accent-light)]/15 hover:bg-[var(--accent-light)]/30 cursor-pointer text-left"
             title="Clear all context and start a fresh conversation"
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--accent)]">
@@ -939,7 +980,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setUiMode(uiMode === 'full' ? 'minimal' : 'full');
               setMenuOpen(false);
             }}
-            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
+            className="premium-btn-ghost w-full flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-left"
             title={uiMode === 'full' ? 'Hide extra controls and focus on the chat' : 'Show all agent controls'}
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
@@ -955,7 +996,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setShowAgentReasoning(!showAgentReasoning);
               setMenuOpen(false);
             }}
-            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
+            className="premium-btn-ghost w-full flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-left"
             title="Show or hide the model's reasoning/thinking blocks in the chat"
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
@@ -972,7 +1013,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               setEditingTitle(true);
               setMenuOpen(false);
             }}
-            className="electric-btn w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer text-left"
+            className="premium-btn-ghost w-full flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-left"
             title="Rename this session"
           >
             <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">

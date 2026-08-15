@@ -230,7 +230,7 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) =
   if (lines.length === 0) return null;
 
   return (
-    <div className="overflow-hidden rounded-md border border-[var(--border-primary)]">
+    <div className="premium-surface overflow-hidden rounded-xl">
       <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2.5 py-1.5">
         <svg className="w-3 h-3 text-[var(--text-secondary)]/70 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -249,7 +249,7 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) =
           <span className="text-rose-500">-{stats.del}</span>
         </span>
       </div>
-      <div className="max-h-64 overflow-auto custom-scrollbar bg-[var(--bg-main)]">
+      <div className="max-h-64 overflow-auto custom-scrollbar premium-scrollbar bg-[var(--bg-main)]">
         <pre className="min-w-max font-mono text-[10px] leading-[1.6]">
           {lines.map((line, i) => (
             <div key={i} className={`flex ${LINE_COLORS[line.type]}`}>

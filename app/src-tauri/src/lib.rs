@@ -143,6 +143,21 @@ pub fn run() {
                 });
             }
 
+            // Warm the YZPZ Agent sidecar in the background right after launch
+            // so the first agent pane (new or resumed) opens immediately
+            // instead of paying the Node + ClineCore cold start on click.
+            // The keep-alive changes in AgentHostManager mean this warm sidecar
+            // stays ready for the whole app session.
+            {
+                let agent_host_manager_warm = agent_host_manager.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                    if let Err(error) = agent_host_manager_warm.ensure_running().await {
+                        eprintln!("[yzpz-agent] background pre-warm failed: {error}");
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

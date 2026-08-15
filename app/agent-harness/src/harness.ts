@@ -110,7 +110,14 @@ const compatibleSkillDirectories = (dataDir: string): string[] => globalSkillDir
  * `.md` files. Returns `name: short description` lines, deduped, disabled
  * skills skipped, bounded to keep the prompt cheap.
  */
+// Hints are a pure function of the data dir, so cache them: every session
+// create used to re-scan every skill package, adding disk I/O to the
+// create/resume hot path.
+const skillHintsCache = new Map<string, string[]>();
 const skillHints = (dataDir: string): string[] => {
+  const cached = skillHintsCache.get(dataDir);
+  if (cached) return cached;
+
   const MAX_SKILL_HINTS = 40;
   const hints: string[] = [];
   const seen = new Set<string>();
@@ -136,7 +143,7 @@ const skillHints = (dataDir: string): string[] => {
       continue;
     }
     for (const entry of entries) {
-      if (hints.length >= MAX_SKILL_HINTS) return hints;
+      if (hints.length >= MAX_SKILL_HINTS) break;
       if (entry.isDirectory()) {
         const skillFile = join(directory, entry.name, "SKILL.md");
         if (existsSync(skillFile)) {
@@ -156,6 +163,7 @@ const skillHints = (dataDir: string): string[] => {
       }
     }
   }
+  skillHintsCache.set(dataDir, hints);
   return hints;
 };
 
@@ -214,6 +222,17 @@ interface PendingQuestion {
   options: string[];
 }
 
+/** One user prompt queued behind the running turn (authoritative queue view). */
+interface QueuedPromptEntry {
+  /** Stable client id (survives the SDK's id assignment) — what the UI sees. */
+  id: string;
+  prompt: string;
+  delivery: "queue" | "steer";
+  attachmentCount: number;
+  /** Real id assigned by the SDK's native queue (used to cancel natively). */
+  sdkId?: string;
+}
+
 /** Instruction injected into the system prompt so agents maintain a task list. */
 const TODO_INSTRUCTION = [
   "",
@@ -236,6 +255,14 @@ const FAST_MODE_DIRECTIVE = [
   "- Do not run tests or extra verification unless the change is risky or the user asked for it.",
   "- Final reply: one or two short sentences on what was done. No step-by-step narration.",
   "Execute now, fast.",
+].join("\n");
+
+/** One-time notice injected when Fast mode is turned OFF, so the model stops
+ *  applying fast-mode rules that are still present in the conversation history. */
+const FAST_MODE_OFF_NOTICE = [
+  "",
+  "FAST MODE IS NOW OFF",
+  "The user disabled Fast mode. You are back in normal mode: stop following the fast-mode rules you were given earlier. Reason normally, explain your work, and take whatever steps the task requires.",
 ].join("\n");
 
 /**
@@ -371,12 +398,14 @@ export class AgentHarness {
    */
   private runningSessions = new Set<string>();
   /**
-   * Per-session pending user messages received while a turn is in flight.
-   * Delivered to the runtime via `delivery: "steer"` (the SDK's native
-   * pendingPromptsController drains these after the current turn) and mirrored
-   * here as a fallback that survives rehydrate/session-restore paths.
+   * Authoritative per-session queue of user prompts received while a turn is
+   * in flight. Delivery still goes through the SDK's native pending-prompts
+   * controller (`delivery: "steer"`); this mirror is what the UI renders and
+   * what `listPendingPrompts` returns, because the SDK's own list can keep an
+   * already-started prompt visible until its turn completes. Entries are
+   * popped FIFO when a turn finishes (the SDK then starts the next prompt).
    */
-  private steeringBySession = new Map<string, string[]>();
+  private steeringBySession = new Map<string, QueuedPromptEntry[]>();
   /** Workspace root per session — used to resolve relative file paths correctly. */
   private sessionCwd = new Map<string, string>();
   /**
@@ -405,6 +434,9 @@ export class AgentHarness {
   private suppressRecovery = new Set<string>();
   /** Sessions with Fast mode enabled (persisted in session metadata). */
   private fastModes = new Map<string, boolean>();
+  /** Last fast-mode state applied per session — lets sendMessage inject the
+   *  speed directive only on ON/OFF transitions instead of every message. */
+  private previousFastModes = new Map<string, boolean>();
   /** Sessions that already got the "recovery exhausted" notice (emit once). */
   private recoveryExhausted = new Set<string>();
   readonly dataDir: string;
@@ -502,16 +534,46 @@ export class AgentHarness {
         // settings file not created yet — nothing to register
         registrations = [];
       }
+      // Register every server so `list-mcp-servers` is correct immediately, but
+      // connect enabled servers in the background: a slow or misconfigured MCP
+      // endpoint used to block ClineCore readiness by seconds and put that wait
+      // on the critical path of the first create-session/resume.
       for (const reg of registrations) {
-        await this.mcpManager.registerServer(reg);
-        if (!reg.disabled) {
-          await this.mcpManager.connectServer(reg.name).catch((err: unknown) => {
-            console.warn(`[yzpz-agent] MCP server "${reg.name}" connect failed: ${err}`);
-          });
+        try {
+          await this.mcpManager.registerServer(reg);
+        } catch (err) {
+          console.warn(`[yzpz-agent] failed to register MCP server "${reg.name}": ${err}`);
         }
+      }
+      const enabled = registrations.filter((reg) => !reg.disabled);
+      if (enabled.length > 0) {
+        void Promise.allSettled(enabled.map((reg) => this.connectMcpServer(reg.name)));
       }
     } catch (err) {
       console.warn(`[yzpz-agent] MCP manager init failed: ${err}`);
+    }
+  }
+
+  /** Best-effort MCP connect with a bounded timeout so one flaky server can
+   *  never stall the harness. Connects proceed in the background; availability
+   *  is surfaced live through server-status events. */
+  private async connectMcpServer(name: string): Promise<void> {
+    const manager = this.mcpManager;
+    if (!manager) return;
+    const timeoutMs = 10_000;
+    let timer: NodeJS.Timeout | undefined;
+    const timed = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error(`connect timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      );
+    });
+    try {
+      await Promise.race([manager.connectServer(name), timed]);
+    } catch (err) {
+      console.warn(`[yzpz-agent] MCP server "${name}" connect failed: ${err}`);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 
@@ -637,6 +699,17 @@ export class AgentHarness {
   private attachSubscriptions(): void {
     if (!this.cline) return;
     this.cline.subscribe((event: CoreSessionEvent) => {
+      // Queue events are handled authoritatively by this harness: the SDK's
+      // pending-prompts list can keep an already-started prompt visible until
+      // its turn completes, which made the UI show running prompts as queued.
+      // Suppress the raw events and re-emit from our own mirror instead.
+      if (event.type === "pending_prompt_submitted") {
+        this.adoptSubmittedPromptId(event.payload.sessionId, event.payload.id);
+        return;
+      }
+      if (event.type === "pending_prompts") {
+        return; // mirror-driven events are emitted on every queue change
+      }
       this.sink("session-event", event);
       // Cumulative usage telemetry: intercept usage deltas from the SDK and
       // accumulate them per session so the frontend can render a live meter
@@ -700,6 +773,10 @@ export class AgentHarness {
         this.sink("team-progress", event.payload);
       } else if (event.type === "agent_event" && event.payload?.event?.type === "done") {
         this.runningSessions.delete(event.payload.sessionId);
+        // The finished turn was the queue's head slot: the SDK now starts the
+        // next queued prompt, so pop it from the authoritative mirror and
+        // re-emit the queue (the UI must stop showing it as queued).
+        this.popStartedPrompt(event.payload.sessionId);
         // PI-style completion guard: if the model stopped while the visible
         // task list still has unfinished items, steer a follow-up so it keeps
         // working instead of stopping prematurely. Native `delivery:"steer"`
@@ -728,7 +805,7 @@ export class AgentHarness {
   private static MAX_COMPLETION_NUDGES = 5;
 
   /** Max automatic recovery turns after errors before handing control back to the user. */
-  private static MAX_RECOVERY_ATTEMPTS = 2;
+  private static MAX_RECOVERY_ATTEMPTS = 3;
   /** Dedup window: the same failure often surfaces via agent_event + status + send rejection. */
   private static RECOVERY_DEDUP_MS = 3000;
   /** Transient provider failures worth an automatic retry even with no unfinished todos. */
@@ -740,15 +817,14 @@ export class AgentHarness {
   }
 
   /**
-   * Automatic error recovery. After a failed turn:
-   *   - transient provider errors (rate limits, 5xx, timeouts) are retried
-   *     even with no unfinished todos;
-   *   - any other failure steers a recovery turn ONLY when the task list
-   *     clearly still has unfinished work (so a Q&A error doesn't spawn a
-   *     pointless model call);
-   *   - bounded per session (MAX_RECOVERY_ATTEMPTS), deduped across the
-   *     multiple channels a failure can surface through, and suppressed after
-   *     an explicit user abort/stop.
+   * Automatic error recovery. After a failed turn, steer a recovery turn so the
+   * agent can diagnose the failure and keep going WITHOUT waiting for the user
+   * to click "Continue". This is unconditional: transient provider errors
+   * (rate limits, 5xx, timeouts) AND any other failure — including SDK errors
+   * that carry an empty message and task lists with no unfinished items (a
+   * Q&A turn, a short edit) — all get a recovery attempt. Safety is provided
+   * by the per-session attempt budget, the dedup window, and the user-abort /
+   * budget-stop / team-work suppression below.
    */
   private maybeRecoverAfterError(sessionId: string, errorMessage: string): void {
     if (this.budgetStoppedSessions.has(sessionId)) return;
@@ -774,11 +850,6 @@ export class AgentHarness {
     }
 
     const retryable = this.isRetryableError(errorMessage);
-    const todos = this.todosBySession.get(sessionId);
-    const unfinished =
-      todos?.filter((t) => t.status === "pending" || t.status === "in_progress") ?? [];
-    const hasUnfinishedWork = unfinished.length > 0;
-    if (!retryable && !hasUnfinishedWork) return;
 
     this.recoveryWindow.set(sessionId, now);
     this.recoveryAttempts.set(sessionId, attempts + 1);
@@ -976,32 +1047,33 @@ export class AgentHarness {
   }
 
   /**
-   * List prompts queued behind the running turn (the SDK's native pending
-   * prompts queue). Falls back to the local steering mirror when the native
-   * queue is unavailable (e.g. a non-local runtime).
+   * List prompts queued behind the running turn. Returns the harness's
+   * authoritative mirror rather than the SDK's native queue: the SDK can keep
+   * an already-started prompt in its list until the turn completes, which made
+   * the UI show running prompts as queued. Entries leave the mirror FIFO when
+   * a turn finishes (see popStartedPrompt).
    */
   async listPendingPrompts(sessionId: string): Promise<unknown[]> {
-    const cline = this.requireCline();
-    try {
-      const prompts = await cline.pendingPrompts.list({ sessionId });
-      if (Array.isArray(prompts)) return prompts;
-    } catch (err) {
-      console.warn(`[yzpz-agent] failed to list pending prompts: ${err}`);
-    }
-    const mirror = this.steeringBySession.get(sessionId) ?? [];
-    return mirror.map((prompt, index) => ({
-      id: `steer-${sessionId}-${index}`,
-      prompt,
-      delivery: "steer",
-      attachmentCount: 0,
-    }));
+    return this.steeringBySession.get(sessionId) ?? [];
   }
 
   /** Remove a single queued prompt so it never runs. */
   async removePendingPrompt(sessionId: string, promptId: string): Promise<boolean> {
-    const cline = this.requireCline();
+    // Authoritative: drop it from the display mirror immediately so a cancelled
+    // prompt never stays in the queue strip or re-appears on the next refresh.
+    const queue = this.steeringBySession.get(sessionId);
+    if (queue) {
+      const remaining = queue.filter((p) => p.id !== promptId);
+      if (remaining.length > 0) this.steeringBySession.set(sessionId, remaining);
+      else this.steeringBySession.delete(sessionId);
+      this.emitPendingPrompts(sessionId);
+    }
+    // Best-effort: also remove it from the SDK's native queue so it never runs.
+    // Delete by the real SDK id when known (the UI-facing id is our own).
+    const entry = queue?.find((p) => p.id === promptId);
+    const nativeId = entry?.sdkId ?? promptId;
     try {
-      await cline.pendingPrompts.delete({ sessionId, promptId });
+      await this.requireCline().pendingPrompts.delete({ sessionId, promptId: nativeId });
       return true;
     } catch (err) {
       console.warn(`[yzpz-agent] failed to remove pending prompt ${promptId}: ${err}`);
@@ -1327,8 +1399,12 @@ export class AgentHarness {
         this.sessionModes.set(sessionId, persistedMode);
       }
       // Restore Fast mode so auto-continue / recovery follow-ups keep the
-      // speed directive after a stop→resume or app restart.
-      this.fastModes.set(sessionId, metadata.fastMode === true);
+      // speed directive after a stop→resume or app restart. Seed the previous
+      // state too so a resumed fast-mode session does not re-inject the
+      // directive (it is already present in the conversation history).
+      const restoredFastMode = metadata.fastMode === true;
+      this.fastModes.set(sessionId, restoredFastMode);
+      this.previousFastModes.set(sessionId, restoredFastMode);
     } catch (err) {
       return {
         resumed: false,
@@ -1356,10 +1432,15 @@ export class AgentHarness {
 
     // A fresh user request (not an auto-continue) resets the completion-guard
     // nudge budget and re-enables automatic recovery, so long tasks keep
-    // getting follow-ups after the user intervenes.
+    // getting follow-ups after the user intervenes. The recovery budget is
+    // refreshed too — otherwise a session that exhausted its auto-retries
+    // would stay permanently unable to recover for the rest of its life.
     if (!autoContinue) {
       this.completionNudges.delete(sessionId);
       this.suppressRecovery.delete(sessionId);
+      this.recoveryAttempts.delete(sessionId);
+      this.recoveryWindow.delete(sessionId);
+      this.recoveryExhausted.delete(sessionId);
     }
 
     // If the session is not alive in the SDK's runtime (closed pane, app
@@ -1377,9 +1458,12 @@ export class AgentHarness {
     // block mutating tools on the current turn.
     this.sessionModes.set(sessionId, mode ?? "act");
 
-    // Fast mode wraps every prompt (including auto-continue and recovery
-    // follow-ups, which re-enter sendMessage and read the same map).
+    // Fast mode is injected on state transitions only: once when enabled and
+    // once (explicitly) when disabled. Re-injecting the full directive on every
+    // send would spam the conversation history, and the model cannot infer a
+    // toggle-off from a prompt that merely stopped carrying the directive.
     const fastMode = this.fastModes.get(sessionId) ?? false;
+    const previousFastMode = this.previousFastModes.get(sessionId) ?? false;
 
     // Persist the mode in session metadata so stop→resume / app-restart keeps
     // read-only (ask/plan) enforcement instead of silently falling back to act.
@@ -1406,9 +1490,13 @@ export class AgentHarness {
             prompt,
           ].join("\n\n")
         : prompt;
-    const finalPrompt = fastMode
-      ? `${FAST_MODE_DIRECTIVE}\n\nUser request:\n${runtimePrompt}`
-      : runtimePrompt;
+    let finalPrompt = runtimePrompt;
+    if (fastMode && !previousFastMode) {
+      finalPrompt = `${FAST_MODE_DIRECTIVE}\n\nUser request:\n${runtimePrompt}`;
+    } else if (!fastMode && previousFastMode) {
+      finalPrompt = `${FAST_MODE_OFF_NOTICE}\n\nUser request:\n${runtimePrompt}`;
+    }
+    this.previousFastModes.set(sessionId, fastMode);
 
     // PI-style steering: only an in-flight turn receives a follow-up through
     // the SDK's "steer" channel. `activeSessions` only tells us the session
@@ -1680,14 +1768,54 @@ export class AgentHarness {
     if (!queue || queue.length === 0) return undefined;
     const next = queue.shift();
     if (queue.length === 0) this.steeringBySession.delete(sessionId);
-    return next;
+    this.emitPendingPrompts(sessionId);
+    return next?.prompt;
   }
 
   /** Queue a user message for delivery after the current turn (steering). */
   private steerSession(sessionId: string, prompt: string): void {
     const queue = this.steeringBySession.get(sessionId) ?? [];
-    queue.push(prompt);
+    const entry: QueuedPromptEntry = {
+      // Stable client id: the SDK assigns its own real queue id on accept (see
+      // adoptSubmittedPromptId); keeping this id stable lets the UI track the
+      // entry across queue events without mistaking an id swap for a start.
+      id: `steer-${sessionId}-${queue.length}-${Date.now()}`,
+      prompt,
+      delivery: "steer",
+      attachmentCount: 0,
+    };
+    queue.push(entry);
     this.steeringBySession.set(sessionId, queue);
+    this.emitPendingPrompts(sessionId);
+  }
+
+  /** Emit the authoritative queue state so the UI strip stays truthful. */
+  private emitPendingPrompts(sessionId: string): void {
+    this.sink("session-event", {
+      type: "pending_prompts",
+      payload: { sessionId, prompts: this.steeringBySession.get(sessionId) ?? [] },
+    });
+  }
+
+  /** The SDK accepted a steered prompt — remember its real queue id (used when
+   *  the user cancels so the native queue entry is actually removed). */
+  private adoptSubmittedPromptId(sessionId: string, sdkId: string): void {
+    const queue = this.steeringBySession.get(sessionId);
+    const entry = queue?.find((p) => p.id.startsWith("steer-"));
+    if (entry) entry.sdkId = sdkId;
+  }
+
+  /**
+   * A turn just completed, so the SDK starts the next queued prompt. Pop the
+   * head of the authoritative mirror (FIFO) and re-emit — the UI stops showing
+   * that prompt as queued the moment it begins processing.
+   */
+  private popStartedPrompt(sessionId: string): void {
+    const queue = this.steeringBySession.get(sessionId);
+    if (!queue || queue.length === 0) return;
+    queue.shift();
+    if (queue.length === 0) this.steeringBySession.delete(sessionId);
+    this.emitPendingPrompts(sessionId);
   }
 
   /**

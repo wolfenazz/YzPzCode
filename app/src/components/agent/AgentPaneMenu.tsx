@@ -99,7 +99,7 @@ export const AgentPaneMenu: React.FC<AgentPaneMenuProps> = ({
         top: coords.top,
         bottom: coords.bottom,
       }}
-      className="font-mono rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden animate-scale-in"
+      className="font-mono premium-menu overflow-hidden"
     >
       {children}
     </div>,

@@ -45,10 +45,18 @@ async function main(): Promise<void> {
     process.stdout.write(`READY ${port}\n`);
   });
 
-  // Initialize the harness lazily on first connection so `READY` is printed
-  // fast and the Rust side is never blocked on SDK startup.
+  // Kick off harness initialization immediately so ClineCore (and the provider
+  // catalog) is ready by the time the Rust host finishes the WS handshake.
+  // `READY` is printed above when the transport listens, so this never delays
+  // the handshake - the expensive SDK startup overlaps the connect round trip
+  // instead of sitting on the critical path of the first create/resume.
+  void harness.init().catch((err) => {
+    console.error(`[yzpz-agent] harness init failed: ${err}`);
+  });
+
+  // Fallback for a late/reconnected client: still ensure the harness is ready.
   wss.on("connection", () => {
-    void harness.init().catch((err) => {
+    void harness.ensureInit().catch((err) => {
       console.error(`[yzpz-agent] harness init failed: ${err}`);
     });
   });

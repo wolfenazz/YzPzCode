@@ -102,7 +102,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
-        className={`flex w-full items-center gap-2.5 px-3 text-left transition-colors duration-150 cursor-pointer ${
+        className={`premium-lift flex w-full items-center gap-2.5 px-3 text-left cursor-pointer ${
           isSidebar ? 'min-h-12 border-b border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)]/35' : 'min-h-10 hover:bg-[var(--bg-tertiary)]/30'
         }`}
       >
@@ -148,7 +148,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
               </p>
             </div>
           ) : (
-            <div className={`custom-scrollbar px-2 pb-2 ${isSidebar ? 'min-h-0 flex-1 overflow-y-auto' : ''}`}>
+            <div className={`custom-scrollbar premium-scrollbar px-2 pb-2 ${isSidebar ? 'min-h-0 flex-1 overflow-y-auto' : ''}`}>
               <div className="space-y-1">
                 {sortedAgents.map((agent) => {
                   const status = STATUS_META[agent.status];
@@ -156,8 +156,8 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
                   return (
                     <div
                       key={agent.agentId}
-                      className={`overflow-hidden rounded-md border transition-colors duration-150 ${
-                        selected ? status.tone : 'border-transparent hover:border-[var(--border-primary)] hover:bg-[var(--bg-main)]/35'
+                      className={`premium-surface overflow-hidden rounded-lg transition-colors duration-150 ${
+                        selected ? status.tone : ''
                       }`}
                     >
                       <button

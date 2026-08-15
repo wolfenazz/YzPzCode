@@ -1,6 +1,8 @@
 # Work Log
 
 ## Active Sessions
+- [ ] ses_premium_input (Worker): `app/src/components/agent/AgentInput.tsx` - premium composer redesign (visual-only) - in_progress
+- [x] ses_modal_dialogs (Worker, task_1368f150 + task_0429f45d): modal/popover premium redesign (AgentSelect, AgentPaneMenu, AgentMentionMenu, NewAgentDialog, SessionHistory) - verified by Reviewer 2026-08-15T18:14Z
 - [x] ses_t1_harness (Worker): `app/agent-harness/src/harness.ts` + `server.ts` - cumulative token budget + usage telemetry (M1 T1.1-T1.3 backend) - done 2026-08-14T18:08Z (build EXIT 0, typecheck EXIT 0)
 - [x] ses_budget (Worker): max-total-tokens budget frontend wiring (useAgentHost.ts + NewAgentDialog.tsx + UsageMeter.tsx; AgentPane.tsx = no change, no budget source) - done 2026-08-14T18:09Z (npx tsc --noEmit EXIT 0)
 - [x] ses_worker_ci (Worker): `.github/workflows/release.yml` - added `Install agent-harness dependencies` step (npm ci, working-directory: app/agent-harness) + bumped actions/checkout@v4->v7 (3x), setup-node@v4->v7, action-gh-release@v1->v3 (2x) - done 2026-08-14T02:25Z
@@ -15,6 +17,7 @@
 ## Completed Units (Ready for Integration)
 | File | Session | Unit Test | Timestamp |
 |------|---------|-----------|-----------|
+| AgentSelect.tsx + AgentPaneMenu.tsx + AgentMentionMenu.tsx + NewAgentDialog.tsx + SessionHistory.tsx (premium modal/popover redesign: premium-menu/input/menu-item/scrollbar/segmented/badge/btn-ghost/btn-primary/surface/lift) | ses_modal_dialogs | pass (tsc EXIT 0, build EXIT 0) | 2026-08-15T18:14 |
 | harness.ts + server.ts (M1 T1.1-T1.3: usageBySession map, budgets map, usage-updated accumulation, afterModelHook budget enforcement, cleanup, maxTotalTokens passthrough) | ses_t1_harness | pass (npm run build EXIT 0, npm run typecheck EXIT 0) | 2026-08-14T18:08 |
 | harness.ts (S1.2.2 follow-up: budget-exceeded notice now includes numbers `stopped at ${total} / ${limit} tokens`) | ses_budget | pass (npm run build EXIT 0) | 2026-08-14T18:17 |
 | M4 verification gates (S4.1-S4.4: harness build, cargo check+test 17/17 incl. parses_create_session_request_with_max_total_tokens, npx tsc --noEmit) | ses_budget | pass (all EXIT 0) | 2026-08-14T18:17 |
@@ -199,3 +202,14 @@ All implementation items verified present in code + all gates EXIT 0:
 - **Security**: no secrets; input guarded with typeof checks; notice message includes numbers (no sensitive leak).
 - **Sync issues: SYNC-5 (MEDIUM, cost), SYNC-6 (MEDIUM, missing unit test)** — pending.
 - ACTION: Worker to fix SYNC-5 (use per-turn cost) + add probe-budget.mjs per SYNC-6, then Reviewer re-verifies.
+
+## Reviewer Unit Review (2026-08-15T18:14Z) — "Redesign agent modal dialogs" = **PASS** ✅
+- **Verdict: PASS** — 5/5 in-scope files verified, gates green, no defects.
+- **Scope**: AgentSelect.tsx, AgentPaneMenu.tsx, AgentMentionMenu.tsx, NewAgentDialog.tsx, SessionHistory.tsx (visual-only premium migration).
+- **Gates (fresh, Reviewer-run)**: APP_TSC_EXIT=0 (npx tsc --noEmit); APP_BUILD_EXIT=0 (npm run build 2m27s, only pre-existing monaco/Workspace chunk warnings).
+- **Implementation verified**: premium-menu (:259/:102/:151), premium-input (:272 + 4 dialog inputs), premium-scrollbar (3 scroll regions), premium-menu-item (select + mention rows), premium-surface (dialog containers + session cards), premium-lift (cards), premium-segmented/-item + is-active hook (SessionHistory filter), premium-badge (open/other-ws), premium-btn-icon (close btns), premium-btn-ghost/-primary (footer/actions), !-important semantic colors (rose-500!, accent!) correctly override ghost base.
+- **Cascade correctness**: premium classes wrapped in `@layer components` (styles.css :1638-2087) — Tailwind utilities (theme→base→components→utilities) still win, so semantic tint classes (bg-emerald-500, border-rose-500/50) override premium base. Documented intent at :1635-1637. `html.animations-disabled .premium-menu` animation:none at :2090-2097 (unlayered) beats the layer animation — reduced motion honored.
+- **No legacy class leftovers** (animate-scale-in/shadow-2xl/old surface combo → 0 hits); callers (AgentPane, NewAgentDialog, SettingsAgent) unaffected — AgentSelect API unchanged.
+- **Checklist 1 (unit test)**: no frontend test framework configured in project (CLAUDE.md) — verification = tsc+build gates + unit record .opencode/unit-tests/2026-08-15-premium-modal-dialogs.md (matches prior frontend-only missions' convention).
+- **Checklist 2 (quality/modularity)**: PASS — all surfaces reuse shared primitives, no new CSS, no duplicated styles, no dead code, no debug logging, no secrets.
+- **Sync issues**: NONE.

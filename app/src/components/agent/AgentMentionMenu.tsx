@@ -148,7 +148,7 @@ export const AgentMentionMenu: React.FC<AgentMentionMenuProps> = ({
         top: coords.top,
         bottom: coords.bottom,
       }}
-      className="font-mono rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-2xl overflow-hidden animate-scale-in"
+      className="font-mono premium-menu overflow-hidden"
     >
       {/* Header: path context + loading indicator */}
       <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-[var(--border-primary)]/60">
@@ -159,7 +159,7 @@ export const AgentMentionMenu: React.FC<AgentMentionMenuProps> = ({
       </div>
 
       {/* Entries */}
-      <div ref={listRef} className="max-h-[260px] overflow-y-auto custom-scrollbar py-1">
+      <div ref={listRef} className="max-h-[260px] overflow-y-auto custom-scrollbar premium-scrollbar py-1">
         {!loading && items.length === 0 && (
           <div className="px-3 py-2 text-[10px] text-[var(--text-secondary)]/60">No matching files</div>
         )}
@@ -178,7 +178,7 @@ export const AgentMentionMenu: React.FC<AgentMentionMenuProps> = ({
               onMouseEnter={() => onHover(i)}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => onSelect(item)}
-              className={`flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-[11px] leading-tight select-none border-l-2 ${
+              className={`premium-menu-item flex items-center gap-2 px-2.5 py-1.5 cursor-pointer text-[11px] leading-tight select-none border-l-2 ${
                 selected
                   ? 'bg-[var(--accent)]/10 border-[var(--accent-border)]'
                   : 'border-transparent hover:bg-[var(--bg-main)]/60'

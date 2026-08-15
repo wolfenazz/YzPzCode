@@ -13,6 +13,7 @@ import type { AgentCompactionStatus } from '../../hooks/useAgentSession';
 import { DiffView, isEditTool } from './DiffView';
 import { QuestionCard } from './QuestionCard';
 import { parseUiEditRequest, UiEditRequestCard } from './UiEditRequestCard';
+import BlurText from '../effects/BlurText';
 import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
 import type { AgentAttachment, AgentQuestion } from '../../types';
@@ -177,13 +178,13 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
 
   if (showSource) {
     return (
-      <div className="rounded-md overflow-hidden border border-[var(--border-primary)] my-2">
-        <div className="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-tertiary)] border-b border-[var(--border-primary)]">
-          <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]/70">
-            mermaid
-          </span>
-          <button
-            onClick={() => setShowSource(false)}
+    <div className="premium-surface rounded-xl overflow-hidden my-2">
+      <div className="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-tertiary)] border-b border-[var(--border-primary)]">
+        <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]/70">
+          mermaid
+        </span>
+        <button
+          onClick={() => setShowSource(false)}
             className="font-mono text-[8px] text-[var(--text-secondary)]/50 hover:text-[var(--text-primary)] cursor-pointer"
           >
             Render diagram
@@ -197,7 +198,7 @@ const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
   }
 
   return (
-    <div className="rounded-md overflow-hidden border border-[var(--border-primary)] my-2 bg-[var(--bg-main)]">
+    <div className="premium-surface rounded-xl overflow-hidden my-2">
       <div className="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-tertiary)] border-b border-[var(--border-primary)]">
         <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)]/70">
           mermaid
@@ -268,7 +269,7 @@ const CodeBlock: React.FC<{ className?: string; children?: React.ReactNode }> = 
   // large code panel makes that look much more technical than it is.
   if (!lang && lineCount <= 2 && code.length <= 180) {
     return (
-      <span className="my-1 inline-flex max-w-full rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2 py-1 font-mono text-[10px] text-[var(--text-secondary)]">
+      <span className="my-1 inline-flex max-w-full items-center rounded-full premium-chip px-2.5 py-1 font-mono text-[10px] text-[var(--text-secondary)]">
         <span className="truncate">{code}</span>
       </span>
     );
@@ -287,7 +288,7 @@ const CodeBlock: React.FC<{ className?: string; children?: React.ReactNode }> = 
   const langName = lang ? (hljs.getLanguage(lang)?.name ?? lang) : 'text';
 
   return (
-    <div className="rounded-md overflow-hidden border border-[var(--border-primary)] my-2 shadow-sm">
+    <div className="premium-surface rounded-xl overflow-hidden my-2">
       <div className="flex items-center justify-between px-2.5 py-1 bg-[var(--bg-tertiary)] border-b border-[var(--border-primary)]">
         <span className="flex items-center gap-2 min-w-0">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]/70 shrink-0" />
@@ -315,7 +316,7 @@ const CodeBlock: React.FC<{ className?: string; children?: React.ReactNode }> = 
         </span>
       </div>
       <pre
-        className="agent-code-pre overflow-x-auto bg-[var(--bg-main)] text-[10.5px] leading-[1.7]"
+        className="agent-code-pre overflow-x-auto bg-[var(--bg-main)] text-[10.5px] leading-[1.7] premium-scrollbar"
         style={!expanded && isLong ? { maxHeight: EXPAND_MAX_HEIGHT, overflowY: 'auto' } : undefined}
       >
         <code className="font-mono block min-w-full w-fit" dangerouslySetInnerHTML={{ __html: lineHtml }} />
@@ -451,8 +452,8 @@ const OutputBlock = React.memo(function OutputBlock({
 
   return (
     <div
-      className={`rounded-lg border overflow-hidden ${
-        isError ? 'border-rose-900/50 bg-rose-950/20' : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)]/60'
+      className={`premium-surface rounded-xl overflow-hidden ${
+        isError ? '!border-rose-900/50 !bg-rose-950/20' : ''
       }`}
     >
       <div
@@ -487,7 +488,7 @@ const OutputBlock = React.memo(function OutputBlock({
           </button>
         </span>
       </div>
-      <div style={!expanded && isLong ? { maxHeight: 320, overflowY: 'auto' } : undefined}>
+      <div className="premium-scrollbar" style={!expanded && isLong ? { maxHeight: 320, overflowY: 'auto' } : undefined}>
         {html ? (
           <pre className="px-3 py-2 overflow-x-auto font-mono text-[10px] leading-relaxed">
             <code dangerouslySetInnerHTML={{ __html: html }} />
@@ -507,7 +508,7 @@ const markdownComponents = { code: CodeBlock } as const;
 const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { text: string; attachments?: AgentAttachment[] }) {
   return (
   <div className="flex justify-end gap-2 animate-fade-in-up">
-    <div className="max-w-[85%] rounded-xl rounded-br-sm border border-[var(--accent-border)] bg-[var(--accent-light)]/25 px-3.5 py-2.5 shadow-sm">
+    <div className="max-w-[85%] rounded-2xl rounded-br-sm premium-surface !border-[var(--accent-border)] !bg-[var(--accent-light)]/25 px-3.5 py-2.5">
       <div className="agent-rich-text text-[12px] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(text)}>
         <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
           {text}
@@ -532,8 +533,8 @@ const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { 
 });
 
 const AgentAvatar: React.FC = () => (
-  <div className="w-6 h-6 rounded-lg border border-[var(--accent-border)] bg-[var(--accent-light)]/20 flex items-center justify-center shrink-0 mt-0.5 shadow-sm overflow-hidden">
-    <img src={logo} alt="YzPzCode Agent" className="w-4 h-4 object-contain" draggable={false} />
+  <div className="w-7 h-7 rounded-lg border border-[var(--accent-border)] bg-[var(--accent-light)]/20 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_14px_-5px_var(--accent)] overflow-hidden">
+    <img src={logo} alt="YzPzCode Agent" className="w-[18px] h-[18px] object-contain" draggable={false} />
   </div>
 );
 
@@ -543,6 +544,7 @@ const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { te
   // finishes (the pane toggle hides the blocks entirely if preferred).
   const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
+  const reduceMotion = useReducedMotion();
   const hasReasoning = Boolean(text.trim());
   const wordCount = useMemo(() => (hasReasoning ? text.trim().split(/\s+/).length : 0), [text, hasReasoning]);
 
@@ -558,10 +560,10 @@ const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { te
 
   return (
     <div
-      className={`rounded-lg border overflow-hidden transition-colors duration-150 ${
+      className={`premium-surface rounded-xl overflow-hidden transition-colors duration-150 ${
         active
-          ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/10'
-          : 'border-[var(--border-primary)]/60 bg-[var(--bg-tertiary)]/30'
+          ? '!border-[var(--accent-border)] !bg-[var(--accent-light)]/10'
+          : ''
       }`}
     >
       <div className="flex items-stretch">
@@ -623,22 +625,31 @@ const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { te
           </button>
         )}
       </div>
-      {open && (
-        <div className="mx-3 mb-2.5 rounded-md border border-[var(--border-primary)]/50 bg-[var(--bg-main)]/45 px-3 py-2.5 animate-fade-in-up" aria-live={active ? 'polite' : undefined}>
-          {hasReasoning ? (
-            <div className="agent-rich-text reasoning-body text-[11.5px] leading-relaxed text-[var(--text-secondary)] markdown-body" {...richTextDirection(text)}>
-              <ReactMarkdown remarkPlugins={reasoningPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
-                {text}
-              </ReactMarkdown>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 py-0.5 text-[10px] leading-relaxed text-[var(--text-secondary)]">
-              <Icon icon="lucide:scan-text" className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-              <span>Reviewing the request and preparing the next action.</span>
-            </div>
-          )}
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={reduceMotion ? false : { opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
+            transition={{ duration: reduceMotion ? 0 : 0.16, ease: [0.16, 1, 0.3, 1] }}
+            className="mx-3 mb-2.5 rounded-md border border-[var(--border-primary)]/50 bg-[var(--bg-main)]/45 px-3 py-2.5"
+            aria-live={active ? 'polite' : undefined}
+          >
+            {hasReasoning ? (
+              <div className="agent-rich-text reasoning-body text-[11.5px] leading-relaxed text-[var(--text-secondary)] markdown-body" {...richTextDirection(text)}>
+                <ReactMarkdown remarkPlugins={reasoningPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
+                  {text}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 py-0.5 text-[10px] leading-relaxed text-[var(--text-secondary)]">
+                <Icon icon="lucide:scan-text" className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+                <span>Reviewing the request and preparing the next action.</span>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 });
@@ -855,7 +866,7 @@ const ToolBlock = React.memo(function ToolBlock({ name, input, result, running }
       transition={completionPulse
         ? { duration: 0.42, ease: [0.16, 1, 0.3, 1] }
         : { type: 'spring', stiffness: 360, damping: 28, mass: 0.72 }}
-      className={`relative overflow-hidden rounded-lg border transition-colors duration-150 ${running ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/5' : 'border-[var(--border-primary)]/80 bg-[var(--bg-tertiary)]/25'}`}
+      className={`premium-surface relative overflow-hidden rounded-xl transition-colors duration-150 ${running ? '!border-[var(--accent-border)] !bg-[var(--accent-light)]/5' : ''}`}
     >
       <AnimatePresence initial={false}>
         {running && shouldAnimate && (
@@ -954,11 +965,7 @@ const ToolResultBlock = React.memo(function ToolResultBlock({ content, isError }
     return (
       <button
         onClick={() => setOpen(true)}
-        className={`w-full flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left cursor-pointer transition-colors duration-100 ${
-          isError
-            ? 'border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/30 hover:bg-[var(--bg-tertiary)]/70'
-            : 'border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 hover:bg-[var(--bg-tertiary)]/80'
-        }`}
+        className="w-full flex items-center gap-2 rounded-xl premium-surface premium-lift px-2.5 py-1.5 text-left cursor-pointer transition-colors duration-100"
         title="Click to view full output"
       >
         <Icon icon={isError ? 'lucide:triangle-alert' : 'lucide:check'} className={`h-3 w-3 shrink-0 ${isError ? 'text-amber-500/80' : 'text-emerald-500/80'}`} aria-hidden="true" />
@@ -1000,8 +1007,9 @@ const StreamingCursor: React.FC = () => (
 );
 
 /**
- * Graceful failure card. Replaces the dead-end "agent stopped" experience:
- * shows the error, explains the agent can auto-recover, and offers a one-click
+ * Graceful failure card. Shown only after the harness's automatic recovery
+ * budget is exhausted (or the run was deliberately stopped), so this is a
+ * last-resort manual nudge — not the dead-end it used to be. Offers a one-click
  * Continue that re-sends the last prompt. Auto-disappears when a new turn
  * starts (the harness clears the error state on resume).
  */
@@ -1018,7 +1026,7 @@ const ErrorCard = React.memo(function ErrorCard({ message, onContinue }: { messa
         {message}
       </p>
       <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--text-secondary)]/60">
-        This is usually temporary — the agent often fixes it and keeps going on its own.
+        Automatic recovery was already attempted. You can continue the task below, or the agent will pick up again on the next message.
       </p>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {onContinue && (
@@ -1259,7 +1267,14 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             </div>
           </div>
           <div className="text-[13px] font-medium text-[var(--text-primary)]">
-            Ready when you are
+            <BlurText
+              text="Ready when you are"
+              animateBy="words"
+              delay={90}
+              stepDuration={0.4}
+              easing={[0.16, 1, 0.3, 1]}
+              className="justify-center text-center text-[16px] font-semibold tracking-tight text-[var(--text-primary)]"
+            />
           </div>
           <p className="max-w-xs font-mono text-[10px] text-[var(--text-secondary)]/50">
             Just type what you want done — or tap an example below to get started.

@@ -90,7 +90,35 @@
       "fetchedAt": "2026-08-14T14:50:53.834Z",
       "expiresAt": "2026-08-15T14:50:53.834Z",
       "size": 24687
+    },
+    "reactbits_dev.md": {
+      "url": "https://reactbits.dev/",
+      "title": "React Bits - Animated UI Components For React",
+      "fetchedAt": "2026-08-15T14:37:40.758Z",
+      "expiresAt": "2026-08-16T14:37:40.758Z",
+      "size": 123
+    },
+    "reactbits_dev_r_aurorajson.md": {
+      "url": "https://reactbits.dev/r/aurora.json",
+      "title": "React Bits - Animated UI Components For React",
+      "fetchedAt": "2026-08-15T14:38:16.644Z",
+      "expiresAt": "2026-08-16T14:38:16.644Z",
+      "size": 136
+    },
+    "tailwindcss_com_docs_styling-with-utility-classes.md": {
+      "url": "https://tailwindcss.com/docs/styling-with-utility-classes#using-the-important-modifier",
+      "title": "Styling with utility classes - Core concepts - Tailwind CSS",
+      "fetchedAt": "2026-08-15T14:58:31.310Z",
+      "expiresAt": "2026-08-16T14:58:31.310Z",
+      "size": 15226
+    },
+    "tailwindcss_com_docs_upgrade-guide.md": {
+      "url": "https://tailwindcss.com/docs/upgrade-guide#important-modifier",
+      "title": "Upgrade guide - Getting started - Tailwind CSS",
+      "fetchedAt": "2026-08-15T15:00:23.335Z",
+      "expiresAt": "2026-08-16T15:00:23.335Z",
+      "size": 15188
     }
   },
-  "lastUpdated": "2026-08-14T14:50:53.835Z"
+  "lastUpdated": "2026-08-15T15:00:23.345Z"
 }

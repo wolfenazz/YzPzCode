@@ -174,6 +174,10 @@ const cleanUserText = (text: string): string => {
   t = t.replace(/<mode_notice\b[^>]*>[\s\S]*?<\/mode_notice>/gi, '');
   t = t.replace(/<user_input\b[^>]*>/gi, '');
   t = t.replace(/<\/user_input>/gi, '');
+  // Strip the harness's one-time Fast-mode directive / disable notice so the
+  // transcript reads cleanly instead of showing the big injected block.
+  t = t.replace(/FAST MODE — SPEED IS THE PRIORITY[\s\S]*?User request:\s*/g, '');
+  t = t.replace(/FAST MODE IS NOW OFF[\s\S]*?User request:\s*/g, '');
   t = t.replace(/<user_command\b[^>]*>/gi, '');
   t = t.replace(/<\/user_command>/gi, '');
   // Collapse HORIZONTAL whitespace only — never newlines. Fenced code blocks
@@ -745,7 +749,7 @@ export const useAgentSession = (
           }
         } else if (payload.type === 'status') {
           const st = extractString((payload.payload ?? {}) as Record<string, unknown>, ['status']);
-          if (st === 'running' || st === 'working') setStatus('running');
+          if (st === 'running' || st === 'working' || st === 'starting') setStatus('running');
         } else if (payload.type === 'pending_prompts') {
           const list = (payload.payload as { prompts?: AgentQueuedPrompt[] }).prompts;
           const prompts = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string') : [];
@@ -789,7 +793,11 @@ export const useAgentSession = (
     unlisteners.push(
       onSessionStatus((event) => {
         if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
-        if (event.payload.status === 'running' || event.payload.status === 'working') {
+        if (
+          event.payload.status === 'running' ||
+          event.payload.status === 'working' ||
+          event.payload.status === 'starting'
+        ) {
           setStatus('running');
           // A resumed turn (e.g. after auto-recovery) means the failure is
           // being handled — drop the stale error state.

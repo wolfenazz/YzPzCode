@@ -71,13 +71,13 @@ export const AgentApprovalBar: React.FC<AgentApprovalBarProps> = ({ approvals, o
       <div className="flex items-center gap-2">
         <button
           onClick={() => onApprove(approval.requestId, true)}
-          className="flex-1 h-8 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+          className="premium-btn-ghost flex-1 h-8 bg-emerald-600 hover:bg-emerald-500 text-white font-mono text-[10px] font-bold uppercase tracking-widest cursor-pointer"
         >
           Approve
         </button>
         <button
           onClick={() => onApprove(approval.requestId, false)}
-          className="flex-1 h-8 rounded-md bg-rose-900/60 hover:bg-rose-800 text-rose-100 font-mono text-[10px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+          className="premium-btn-ghost flex-1 h-8 bg-rose-900/60 hover:bg-rose-800 text-rose-100 font-mono text-[10px] font-bold uppercase tracking-widest cursor-pointer"
         >
           Deny
         </button>
@@ -86,7 +86,7 @@ export const AgentApprovalBar: React.FC<AgentApprovalBarProps> = ({ approvals, o
       {onAlwaysAllow && (
         <button
           onClick={() => onAlwaysAllow(approval.toolName, approval.requestId)}
-          className="w-full flex items-center justify-center gap-1.5 h-7 rounded-md border border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-300/90 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+          className="premium-btn-ghost w-full flex items-center justify-center gap-1.5 h-7 border-amber-700/40 bg-amber-900/20 hover:bg-amber-900/40 text-amber-300/90 font-mono text-[9px] font-bold uppercase tracking-widest cursor-pointer"
           title={`Always allow ${label} — future ${label} calls run without asking (manageable in Settings → YZPZ Agent → tool policies)`}
         >
           <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -27,7 +27,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, onAnswer }
   };
 
   return (
-    <div className="rounded-lg border border-[var(--accent-border)] bg-[var(--accent-light)]/10 overflow-hidden animate-scale-in">
+    <div className="premium-surface rounded-2xl border-[var(--accent-border)] bg-[var(--accent-light)]/10 overflow-hidden animate-scale-in">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--accent-border)]/40 bg-[var(--accent-light)]/15">
         <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[var(--accent)] text-white">
           <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -49,7 +49,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, onAnswer }
                 key={i}
                 type="button"
                 onClick={() => setSelected(opt)}
-                className={`w-full text-left flex items-center gap-2.5 px-2.5 py-2 rounded-md border transition-all duration-100 cursor-pointer ${
+                className={`premium-lift w-full text-left flex items-center gap-2.5 px-2.5 py-2 rounded-lg border cursor-pointer ${
                   active
                     ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/25 text-[var(--text-primary)]'
                     : 'border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] hover:border-[var(--accent-border)]/60 hover:text-[var(--text-primary)]'
@@ -76,7 +76,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, onAnswer }
             type="button"
             onClick={handleSend}
             disabled={!selected || submitting}
-            className="h-7 px-3.5 rounded-md bg-[var(--accent)] text-white text-[9px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-40 transition-all duration-100 cursor-pointer"
+            className="premium-btn-primary h-7 px-3.5 rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-40 cursor-pointer"
           >
             {submitting ? 'Sending…' : 'Send'}
           </button>

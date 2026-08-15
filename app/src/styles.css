@@ -1223,6 +1223,73 @@ html.has-custom-cursor *::after {
   animation-delay: 0.3s;
 }
 
+/* Box loader: three thick-bordered boxes morphing through a sequence */
+.box-loader {
+  width: 112px;
+  height: 112px;
+  position: relative;
+}
+.box-loader__box {
+  border: 16px solid var(--text-primary);
+  box-sizing: border-box;
+  position: absolute;
+  display: block;
+}
+.box-loader__box1 {
+  width: 112px;
+  height: 48px;
+  margin-top: 64px;
+  margin-left: 0px;
+  animation: boxLoader1 4s 1s forwards ease-in-out infinite;
+}
+.box-loader__box2 {
+  width: 48px;
+  height: 48px;
+  margin-top: 0px;
+  margin-left: 0px;
+  animation: boxLoader2 4s 1s forwards ease-in-out infinite;
+}
+.box-loader__box3 {
+  width: 48px;
+  height: 48px;
+  margin-top: 0px;
+  margin-left: 64px;
+  animation: boxLoader3 4s 1s forwards ease-in-out infinite;
+}
+@keyframes boxLoader1 {
+  0% { width: 112px; height: 48px; margin-top: 64px; margin-left: 0px; }
+  12.5% { width: 48px; height: 48px; margin-top: 64px; margin-left: 0px; }
+  25% { width: 48px; height: 48px; margin-top: 64px; margin-left: 0px; }
+  37.5% { width: 48px; height: 48px; margin-top: 64px; margin-left: 0px; }
+  50% { width: 48px; height: 48px; margin-top: 64px; margin-left: 0px; }
+  62.5% { width: 48px; height: 48px; margin-top: 64px; margin-left: 0px; }
+  75% { width: 48px; height: 112px; margin-top: 0px; margin-left: 0px; }
+  87.5% { width: 48px; height: 48px; margin-top: 0px; margin-left: 0px; }
+  100% { width: 48px; height: 48px; margin-top: 0px; margin-left: 0px; }
+}
+@keyframes boxLoader2 {
+  0% { width: 48px; height: 48px; margin-top: 0px; margin-left: 0px; }
+  12.5% { width: 48px; height: 48px; margin-top: 0px; margin-left: 0px; }
+  25% { width: 48px; height: 48px; margin-top: 0px; margin-left: 0px; }
+  37.5% { width: 48px; height: 48px; margin-top: 0px; margin-left: 0px; }
+  50% { width: 112px; height: 48px; margin-top: 0px; margin-left: 0px; }
+  62.5% { width: 48px; height: 48px; margin-top: 0px; margin-left: 64px; }
+  75% { width: 48px; height: 48px; margin-top: 0px; margin-left: 64px; }
+  87.5% { width: 48px; height: 48px; margin-top: 0px; margin-left: 64px; }
+  100% { width: 48px; height: 48px; margin-top: 0px; margin-left: 64px; }
+}
+@keyframes boxLoader3 {
+  0% { width: 48px; height: 48px; margin-top: 0px; margin-left: 64px; }
+  12.5% { width: 48px; height: 48px; margin-top: 0px; margin-left: 64px; }
+  25% { width: 48px; height: 112px; margin-top: 0px; margin-left: 64px; }
+  37.5% { width: 48px; height: 48px; margin-top: 64px; margin-left: 64px; }
+  50% { width: 48px; height: 48px; margin-top: 64px; margin-left: 64px; }
+  62.5% { width: 48px; height: 48px; margin-top: 64px; margin-left: 64px; }
+  75% { width: 48px; height: 48px; margin-top: 64px; margin-left: 64px; }
+  87.5% { width: 48px; height: 48px; margin-top: 64px; margin-left: 64px; }
+  100% { width: 112px; height: 48px; margin-top: 64px; margin-left: 0px; }
+}
+
 @keyframes streamingBlink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.15; }
@@ -1612,6 +1679,59 @@ html.has-custom-cursor *::after {
   filter: drop-shadow(0 0 4px rgba(56,189,248,.9));
 }
 
+/* Rainbow gradient send button — mint→pink→blue gradient with a conic glow
+   ring, plus a small glow on hover. */
+.gradient-send-btn {
+  position: relative;
+  isolation: isolate;
+  border: none;
+  background: linear-gradient(90deg, #5bfcc4, #f593e4, #71a4f0);
+  color: #fff;
+  text-shadow: 1px 1px 1px #000;
+  box-shadow:
+    inset 0 0 5px #ffffffa9,
+    inset 0 35px 30px #000,
+    0 5px 10px #000000cc;
+  transition: all 0.15s ease;
+}
+.gradient-send-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: inherit;
+  z-index: -1;
+  filter: blur(0);
+  background: conic-gradient(
+    #00000000 80deg,
+    #40baf7,
+    #f34ad7,
+    #5bfcc4,
+    #00000000 280deg
+  );
+  transition: all 0.15s ease;
+}
+.gradient-send-btn:hover {
+  box-shadow:
+    inset 0 0 5px #ffffffa9,
+    inset 0 35px 30px #000,
+    0 0 10px rgba(91, 252, 196, 0.5),
+    0 5px 10px #000000cc;
+}
+.gradient-send-btn:active::before {
+  filter: blur(5px);
+  transform: translateY(1px);
+}
+.gradient-send-btn:active {
+  box-shadow:
+    inset 0 0 5px #ffffffa9,
+    inset 0 35px 30px #000;
+  transform: translateY(3px);
+}
+.gradient-send-btn .electric-icon {
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+
 /* Fast mode ON: full-intensity charge — brighter, faster flash, so the
    isolated electric-blue look clearly reads as "active". */
 .agent-fast-active {
@@ -1620,4 +1740,590 @@ html.has-custom-cursor *::after {
 }
 .agent-fast-active .electric-icon {
   animation: electric-flicker 1.8s linear infinite;
+}
+
+/* Isolated fast-mode keycap (AgentInput) — a minimal 3D key floating
+   outside the mode segmented control. Clean face: no beam sweeps, no
+   bloom, no flash — only the zap icon carries the amber charge when
+   fast is ON. Raised-keycap treatment: crisp top highlight, darker
+   bottom bevel, soft drop shadow; pressing it sinks the key. */
+.agent-input-keycap {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid rgba(0, 0, 0, 0.55);
+  border-radius: 8px;
+  background: linear-gradient(
+    180deg,
+    var(--bg-tertiary) 0%,
+    var(--bg-secondary) 55%,
+    var(--bg-main) 100%
+  );
+  color: var(--text-secondary);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.04),
+    0 2px 5px rgba(0, 0, 0, 0.5);
+  transition:
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.08s ease;
+}
+.agent-input-keycap:hover {
+  color: var(--text-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45),
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    0 3px 8px rgba(0, 0, 0, 0.55);
+}
+.agent-input-keycap:active {
+  transform: translateY(1px) scale(0.97);
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.5),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 2px rgba(0, 0, 0, 0.4);
+}
+/* Fast ON: only the zap icon glows amber — the key face stays clean. */
+.agent-input-keycap.is-fast {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.agent-input-keycap.is-fast .electric-icon {
+  filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.75));
+}
+
+/* ── Premium Agent Pane — high-end redesign ────────────────────────────
+   Double-bezel glass frame, animated gradient border, slow shine sweep,
+   ambient aurora backdrop, and custom cubic-bezier motion. All animation is
+   GPU-safe (transform/opacity/filter only). */
+
+:root {
+  --ease-premium: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Premium classes live in the `components` layer so Tailwind utility classes
+   (semantic colors such as bg-emerald-500, border-rose-500/50, bg-sky-500/25)
+   still win the cascade and can tint these surfaces without specificity fights. */
+@layer components {
+
+/* Ambient aurora fallback (CSS) — shown behind the WebGL SoftAurora so there
+   is never a hard void if the GL context fails or motion is reduced. */
+.aurora-fallback {
+  background:
+    radial-gradient(1200px 600px at 12% -12%, rgba(216, 119, 87, 0.14), transparent 60%),
+    radial-gradient(1000px 540px at 88% 8%, rgba(96, 165, 250, 0.10), transparent 55%),
+    radial-gradient(900px 620px at 50% 120%, rgba(167, 139, 250, 0.08), transparent 60%),
+    var(--bg-primary);
+}
+
+/* The glass frame that wraps every agent pane. Concentric double-bezel with a
+   hairline gradient edge, inner top highlight, and a deep ambient shadow. */
+.premium-pane {
+  position: relative;
+  isolation: isolate;
+  border-radius: 14px;
+  background: var(--bg-main);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.055),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 14px 44px -18px rgba(0, 0, 0, 0.72);
+}
+
+/* Gradient border ring (masked to the 1px edge only). */
+.premium-pane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(216, 119, 87, 0.42) 32%,
+    rgba(255, 255, 255, 0.05) 52%,
+    rgba(96, 165, 250, 0.22) 78%,
+    rgba(255, 255, 255, 0.10) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.5s var(--ease-premium);
+}
+
+/* Working state — the border ring glows with the accent and breathes. */
+.premium-pane--active::before {
+  opacity: 1;
+  animation: premium-border-breathe 3.4s ease-in-out infinite;
+}
+.premium-pane--active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 18px 60px -18px rgba(216, 119, 87, 0.22),
+    0 0 42px -14px rgba(216, 119, 87, 0.28);
+}
+
+@keyframes premium-border-breathe {
+  0%, 100% {
+    filter: drop-shadow(0 0 0px rgba(216, 119, 87, 0));
+  }
+  50% {
+    filter: drop-shadow(0 0 10px rgba(216, 119, 87, 0.35));
+  }
+}
+
+/* Floating composer island (AgentInput) — centered on the bottom of the
+   session pane like a Dynamic Island. Mirrors .premium-pane chrome so the
+   composer reads as a separate premium surface hovering over the chat:
+   gradient ring, top highlight, soft drop shadow. */
+.agent-input-island {
+  position: relative;
+  isolation: isolate;
+  border-radius: 18px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 18px 50px -18px rgba(0, 0, 0, 0.65);
+}
+.agent-input-island::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.14) 0%,
+    rgba(216, 119, 87, 0.30) 30%,
+    rgba(255, 255, 255, 0.05) 52%,
+    rgba(96, 165, 250, 0.20) 78%,
+    rgba(255, 255, 255, 0.10) 100%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.5s var(--ease-premium);
+}
+
+/* Working state — the island ring glows with the accent and breathes, in
+   step with the surrounding pane. */
+.agent-input-island--active {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 18px 60px -18px rgba(216, 119, 87, 0.22),
+    0 0 42px -14px rgba(216, 119, 87, 0.28);
+}
+.agent-input-island--active::before {
+  animation: premium-border-breathe 3.4s ease-in-out infinite;
+}
+
+/* Glass pane header — layered gradient, top highlight, blur-capable. */
+.premium-header {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.008) 60%, transparent),
+    linear-gradient(180deg, var(--bg-secondary), var(--bg-secondary));
+  box-shadow: inset 0 -1px 0 var(--border-primary), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Shimmer text — a soft metallic sheen that sweeps across label text. */
+.premium-shimmer {
+  background: linear-gradient(
+    100deg,
+    var(--text-primary) 40%,
+    #ffffff 50%,
+    var(--text-primary) 60%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: premium-shimmer 6s linear infinite;
+}
+
+@keyframes premium-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -20% 0; }
+}
+
+/* Status dot — layered glow pulse. */
+.premium-status-dot {
+  position: relative;
+}
+.premium-status-dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: premium-dot-ping 1.8s var(--ease-out-expo) infinite;
+}
+@keyframes premium-dot-ping {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+
+/* Primary button micro-interaction: physical press + nested glow. */
+.premium-btn {
+  position: relative;
+  transition:
+    transform 0.16s var(--ease-premium),
+    box-shadow 0.2s var(--ease-premium),
+    border-color 0.2s var(--ease-premium),
+    background-color 0.2s var(--ease-premium);
+}
+.premium-btn:hover {
+  box-shadow: 0 0 0 1px var(--accent-border), 0 6px 22px -8px rgba(216, 119, 87, 0.5);
+}
+.premium-btn:active {
+  transform: scale(0.965);
+}
+
+/* Composer field focus glow. */
+.premium-field-glow {
+  transition: box-shadow 0.3s var(--ease-premium), border-color 0.3s var(--ease-premium);
+}
+.premium-field-glow:focus-within {
+  box-shadow:
+    0 0 0 1px var(--accent-border),
+    0 0 24px -8px rgba(216, 119, 87, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Empty-state animated hero: gradient text that drifts. */
+.premium-hero-gradient {
+  background: linear-gradient(90deg, var(--text-primary), #ffffff 45%, var(--accent) 70%, var(--text-primary));
+  background-size: 240% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: premium-hero 9s linear infinite;
+}
+@keyframes premium-hero {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 240% 50%; }
+}
+
+/* ── Premium primitives — shared visual language for the agent redesign ──
+   Every button, chip, input, card, menu, tab and badge in the agent pane
+   draws from these so the whole system feels like one machined surface. */
+
+/* Glass surface: layered top sheen + inner highlight + soft depth. Radius is
+   applied via Tailwind (rounded-xl etc.) so one class fits cards & bubbles. */
+.premium-surface {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 46%),
+    var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 8px 24px -16px rgba(0, 0, 0, 0.5);
+}
+
+/* Interactive hover lift — GPU-safe translate + glow, custom curve. */
+.premium-lift {
+  transition:
+    transform 0.18s var(--ease-premium),
+    box-shadow 0.22s var(--ease-premium),
+    border-color 0.22s var(--ease-premium),
+    background-color 0.22s var(--ease-premium),
+    color 0.18s var(--ease-premium);
+}
+.premium-lift:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-border);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 6px 22px -10px rgba(216, 119, 87, 0.45),
+    0 2px 6px -2px rgba(0, 0, 0, 0.4);
+}
+
+/* Primary accent button. */
+.premium-btn-primary {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 82%, black));
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 6px 18px -8px rgba(216, 119, 87, 0.55);
+  transition: transform 0.16s var(--ease-premium), box-shadow 0.22s var(--ease-premium), filter 0.2s var(--ease-premium);
+}
+.premium-btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 1px 2px rgba(0, 0, 0, 0.35),
+    0 10px 28px -8px rgba(216, 119, 87, 0.7);
+}
+.premium-btn-primary:active {
+  transform: scale(0.97);
+}
+.premium-btn-primary:disabled {
+  filter: saturate(0.35) brightness(0.75);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Ghost / secondary button. */
+.premium-btn-ghost {
+  border: 1px solid var(--border-primary);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent),
+    var(--bg-tertiary);
+  color: var(--text-secondary);
+  transition:
+    transform 0.16s var(--ease-premium),
+    border-color 0.2s var(--ease-premium),
+    background-color 0.2s var(--ease-premium),
+    color 0.18s var(--ease-premium),
+    box-shadow 0.2s var(--ease-premium);
+}
+.premium-btn-ghost:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-border);
+  box-shadow: 0 0 0 1px var(--accent-border), 0 4px 14px -8px rgba(216, 119, 87, 0.4);
+}
+.premium-btn-ghost:active {
+  transform: scale(0.97);
+}
+
+/* Icon-only button (in headers/toolbars). */
+.premium-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  color: var(--text-secondary);
+  transition:
+    color 0.16s var(--ease-premium),
+    background-color 0.16s var(--ease-premium),
+    transform 0.16s var(--ease-premium),
+    box-shadow 0.2s var(--ease-premium);
+}
+.premium-btn-icon:hover {
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+  box-shadow: 0 0 0 1px var(--accent-border), 0 4px 12px -8px rgba(216, 119, 87, 0.4);
+}
+.premium-btn-icon:active {
+  transform: scale(0.92);
+}
+
+/* Rounded pill chip (status, metadata). */
+.premium-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  border-radius: 9999px;
+  border: 1px solid var(--border-primary);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent), var(--bg-main);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s var(--ease-premium), background-color 0.2s var(--ease-premium);
+}
+.premium-chip:hover {
+  border-color: var(--accent-border);
+}
+
+/* Small status badge (uppercase label). */
+.premium-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.375rem;
+  padding: 0.1rem 0.4rem;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--border-primary);
+  line-height: 1.4;
+}
+
+/* Text / search input. */
+.premium-input {
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-main);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: border-color 0.2s var(--ease-premium), box-shadow 0.25s var(--ease-premium);
+}
+.premium-input:focus {
+  outline: none;
+  border-color: var(--accent-border);
+  box-shadow:
+    0 0 0 1px var(--accent-border),
+    0 0 20px -8px rgba(216, 119, 87, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Popover / menu surface with a spring pop-in. */
+.premium-menu {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-primary);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 40%),
+    var(--bg-secondary);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px -18px rgba(0, 0, 0, 0.75),
+    0 8px 24px -12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: premium-menu-in 0.18s var(--ease-out-expo) both;
+  transform-origin: top center;
+}
+@keyframes premium-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Menu list item. */
+.premium-menu-item {
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.premium-menu-item:hover,
+.premium-menu-item[data-active="true"] {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+/* Animated progress track fill. */
+.premium-track {
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: var(--border-primary);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.premium-track-fill {
+  height: 100%;
+  border-radius: inherit;
+  box-shadow: 0 0 6px rgba(216, 119, 87, 0.35);
+  transition: width 0.5s var(--ease-out-expo);
+}
+
+/* Segmented control (mode tabs, filters). */
+.premium-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  padding: 0.25rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-main);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.2);
+}
+.premium-segmented-item {
+  border-radius: 0.4375rem;
+  transition: background-color 0.16s var(--ease-premium), color 0.16s var(--ease-premium);
+}
+.premium-segmented-item:hover {
+  background: var(--bg-tertiary);
+}
+.premium-segmented-item[aria-selected="true"],
+.premium-segmented-item.is-active {
+  background: var(--accent-light);
+  color: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+/* Mode tabs (AgentInput): selected tabs keep neutral chrome — the mode's
+   accent colour and a soft glow live on the icon only. */
+.premium-segmented-item[data-mode] svg {
+  transition: color 0.16s var(--ease-premium), filter 0.16s var(--ease-premium);
+}
+.premium-segmented-item[data-mode="ask"][aria-selected="true"] svg { color: #7dd3fc; }
+.premium-segmented-item[data-mode="act"][aria-selected="true"] svg { color: #6ee7b7; }
+.premium-segmented-item[data-mode="plan"][aria-selected="true"] svg { color: #fcd34d; }
+.premium-segmented-item[data-mode="orchestrator"][aria-selected="true"] svg { color: #c4b5fd; }
+.premium-segmented-item[data-mode][aria-selected="true"] svg {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+/* Slim animated divider. */
+.premium-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-primary), transparent);
+}
+
+/* Nicer thin scrollbar for in-pane scroll regions. */
+.premium-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(81, 80, 74, 0.6) transparent;
+}
+.premium-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.premium-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.premium-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(81, 80, 74, 0.55);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.premium-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(110, 106, 96, 0.8);
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+} /* end @layer components */
+
+/* Strands (React Bits WebGL woven strands) container. */
+.strands-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+}
+.strands-container canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Respect reduced motion across every premium primitive. */
+html.animations-disabled .premium-shine,
+html.animations-disabled .premium-menu,
+html.animations-disabled .premium-shimmer,
+html.animations-disabled .premium-hero-gradient,
+html.animations-disabled .premium-pane--active::before,
+html.animations-disabled .agent-input-island--active::before,
+html.animations-disabled .premium-status-dot::after {
+  animation: none !important;
 }

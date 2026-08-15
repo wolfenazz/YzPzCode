@@ -169,7 +169,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   return (
     <div className="fixed inset-0 z-[999] bg-black/60 backdrop-blur-sm flex items-center justify-center font-mono" onClick={onClose}>
       <div
-        className="w-[460px] max-w-[92vw] rounded-xl border border-theme bg-[var(--bg-card)] shadow-2xl overflow-hidden animate-scale-in"
+        className="premium-surface w-[460px] max-w-[92vw] rounded-2xl border border-theme bg-[var(--bg-card)] shadow-2xl overflow-hidden animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b border-theme">
@@ -177,21 +177,25 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
             <h3 className="text-sm font-bold text-theme-main tracking-widest uppercase">New YZPZ Agent</h3>
             <p className="mt-0.5 text-[10px] text-[var(--text-secondary)]">Start with your saved setup. Change it only when you need to.</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-pointer">
+          <button onClick={onClose} className="premium-btn-icon p-1.5 text-[var(--text-secondary)] cursor-pointer">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar premium-scrollbar">
           {loading ? (
-            <div className="py-10 text-center text-[10px] uppercase tracking-widest text-[var(--text-secondary)] animate-pulse">
-              Loading providers…
+            <div className="py-10 flex flex-col items-center gap-2.5 text-[var(--text-secondary)]">
+              <svg className="animate-spin h-5 w-5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-[10px] uppercase tracking-widest">Loading providers…</span>
             </div>
           ) : (
             <>
-              <div className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 ${hasSavedKey ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-amber-900/50 bg-amber-950/20'}`}>
+              <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${hasSavedKey ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-amber-900/50 bg-amber-950/20'}`}>
                 <div className="min-w-0 flex items-center gap-2">
                   <svg className={`h-3.5 w-3.5 shrink-0 ${hasSavedKey ? 'text-emerald-500' : 'text-amber-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     {hasSavedKey ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /> : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 3h.01M10.3 3.9l-7.1 12.3A2 2 0 004.9 19h14.2a2 2 0 001.7-2.8l-7.1-12.3a2 2 0 00-3.4 0z" />}
@@ -257,7 +261,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder={hasSavedKey ? '•••••••••• Saved securely' : 'Paste your API key'}
-                      className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                      className="premium-input h-9 px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
                     />
                   </div>
 
@@ -269,7 +273,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
                         value={baseUrl}
                         onChange={(e) => setBaseUrl(e.target.value)}
                         placeholder="https://api.example.com/v1"
-                        className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                        className="premium-input h-9 px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
                       />
                     </div>
                   )}
@@ -283,7 +287,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
                         onChange={(e) => setTitle(e.target.value)}
                         maxLength={80}
                         placeholder="Auto from task"
-                        className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                        className="premium-input h-9 px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -296,7 +300,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
                         onChange={(e) => setMaxTotalTokens(Math.max(0, Number(e.target.value) || 0))}
                         placeholder="Unlimited"
                         aria-label="Token limit, zero for unlimited"
-                        className="w-full h-9 rounded-md border border-theme bg-[var(--bg-main)] px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40 focus:outline-none focus:border-[var(--accent-border)]"
+                        className="premium-input h-9 px-2.5 text-[11px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
                       />
                     </div>
                   </div>
@@ -319,16 +323,26 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-4 h-9 rounded-md border border-theme text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+              className="premium-btn-ghost px-4 h-9 text-[10px] font-bold uppercase tracking-widest cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={() => void handleCreate()}
               disabled={creating || loading || !modelId}
-              className="px-4 h-9 rounded-md bg-[var(--accent)] text-white text-[10px] font-bold uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition-all duration-100 cursor-pointer"
+              className="premium-btn-primary flex items-center gap-1.5 px-4 h-9 text-[10px] font-bold uppercase tracking-widest disabled:opacity-50 cursor-pointer"
             >
-              {creating ? 'Creating…' : 'Create Session'}
+              {creating ? (
+                <>
+                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Creating…
+                </>
+              ) : (
+                'Create Session'
+              )}
             </button>
           </div>
         </div>

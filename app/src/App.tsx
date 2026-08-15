@@ -4,6 +4,7 @@ import { NodeJsCheckScreen } from './components/setup/NodeJsCheckScreen';
 import { UpdateNotification } from './components/common/UpdateNotification';
 import { ContextMenu } from './components/common/ContextMenu';
 import { CustomCursor } from './components/common/CustomCursor';
+import { BoxLoader } from './components/common/BoxLoader';
 import { useAppStore } from './stores/appStore';
 import { initWindowPlatform } from './utils/window';
 import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
@@ -16,7 +17,7 @@ const SettingsScreen = lazy(() => import('./components/settings/SettingsScreen')
 
 const LoadingFallback = () => (
   <div className="absolute inset-0 flex items-center justify-center bg-theme">
-    <div className="w-5 h-5 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
+    <BoxLoader />
   </div>
 );
 
