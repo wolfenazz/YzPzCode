@@ -174,12 +174,15 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     thinkingEffort,
     fastMode,
     setFastMode,
+    queuedPrompts,
     send,
     abort,
     resendLastPrompt,
     approve,
     answerQuestion,
     updateConnection,
+    removeQueuedPrompt,
+    clearQueue,
   } = useAgentSession(session.sessionId, {
     providerId: session.providerId,
     modelId: session.modelId,
@@ -879,6 +882,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               supportsImages={supportsImages}
               fastMode={fastMode}
               onToggleFastMode={() => void setFastMode(!fastMode)}
+              queuedPrompts={queuedPrompts}
+              onRemoveQueued={(id) => void removeQueuedPrompt(id)}
+              onClearQueue={() => void clearQueue()}
             />
           </div>
 

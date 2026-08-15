@@ -244,6 +244,35 @@ pub async fn set_agent_fast_mode(
 }
 
 #[tauri::command]
+pub async fn list_pending_prompts(
+    manager: State<'_, AgentHostManager>,
+    session_id: String,
+) -> Result<Value, String> {
+    manager
+        .quick_command(
+            "pending-prompts",
+            Some(json!({ "sessionId": session_id })),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn remove_pending_prompt(
+    manager: State<'_, AgentHostManager>,
+    session_id: String,
+    prompt_id: String,
+) -> Result<Value, String> {
+    manager
+        .quick_command(
+            "remove-pending-prompt",
+            Some(json!({ "sessionId": session_id, "promptId": prompt_id })),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn approve_agent_tool(
     manager: State<'_, AgentHostManager>,
     request_id: String,

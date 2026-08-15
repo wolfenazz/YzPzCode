@@ -266,6 +266,8 @@ pub fn run() {
             commands::update_agent_session_title,
             commands::update_agent_session_model,
             commands::set_agent_fast_mode,
+            commands::list_pending_prompts,
+            commands::remove_pending_prompt,
             commands::approve_agent_tool,
             commands::get_agent_providers,
             commands::get_agent_models,

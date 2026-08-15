@@ -556,6 +556,14 @@ export interface AgentTodo {
   status: 'pending' | 'in_progress' | 'completed';
 }
 
+/** A user prompt queued behind the currently running agent turn. */
+export interface AgentQueuedPrompt {
+  id: string;
+  prompt: string;
+  delivery: 'queue' | 'steer';
+  attachmentCount: number;
+}
+
 /** A pending `ask_question` decision from the agent. */
 export interface AgentQuestion {
   requestId: string;

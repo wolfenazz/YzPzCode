@@ -273,6 +273,15 @@ export const useAgentHost = () => {
     return result.usage;
   }, []);
 
+  const listPendingPrompts = useCallback(async (sessionId: string) => {
+    const result = await invoke<{ prompts: unknown[] }>('list_pending_prompts', { sessionId });
+    return result.prompts;
+  }, []);
+
+  const removePendingPrompt = useCallback(async (sessionId: string, promptId: string) => {
+    return invoke('remove_pending_prompt', { sessionId, promptId });
+  }, []);
+
   const shutdown = useCallback(async () => {
     return invoke('shutdown_agent_host');
   }, []);
@@ -373,6 +382,8 @@ export const useAgentHost = () => {
     listProviderConfigs,
     removeProviderConfig,
     getUsage,
+    listPendingPrompts,
+    removePendingPrompt,
     getSettings,
     updateSettings,
     setToolPolicy,

@@ -975,6 +975,40 @@ export class AgentHarness {
     return this.approvals.size;
   }
 
+  /**
+   * List prompts queued behind the running turn (the SDK's native pending
+   * prompts queue). Falls back to the local steering mirror when the native
+   * queue is unavailable (e.g. a non-local runtime).
+   */
+  async listPendingPrompts(sessionId: string): Promise<unknown[]> {
+    const cline = this.requireCline();
+    try {
+      const prompts = await cline.pendingPrompts.list({ sessionId });
+      if (Array.isArray(prompts)) return prompts;
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to list pending prompts: ${err}`);
+    }
+    const mirror = this.steeringBySession.get(sessionId) ?? [];
+    return mirror.map((prompt, index) => ({
+      id: `steer-${sessionId}-${index}`,
+      prompt,
+      delivery: "steer",
+      attachmentCount: 0,
+    }));
+  }
+
+  /** Remove a single queued prompt so it never runs. */
+  async removePendingPrompt(sessionId: string, promptId: string): Promise<boolean> {
+    const cline = this.requireCline();
+    try {
+      await cline.pendingPrompts.delete({ sessionId, promptId });
+      return true;
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to remove pending prompt ${promptId}: ${err}`);
+      return false;
+    }
+  }
+
   private requireCline(): ClineCore {
     if (!this.cline) throw new Error("Harness not initialized");
     return this.cline;

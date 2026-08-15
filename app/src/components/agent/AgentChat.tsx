@@ -824,10 +824,10 @@ const ToolInputDetails: React.FC<{ name: string; input: unknown }> = ({ name, in
 };
 
 const ToolBlock = React.memo(function ToolBlock({ name, input, result, running }: { name: string; input: unknown; result?: unknown; running?: boolean }) {
-  // Edits are the useful part of an agent turn. Keep their patch visible by
-  // default so the user never has to dig through a generic tool payload.
+  // Show every tool's payload (commands, files, parameters) by default so the
+  // user can see exactly what the agent ran without expanding each step.
   const editTool = isEditTool(name);
-  const [open, setOpen] = useState(() => editTool);
+  const [open, setOpen] = useState(true);
   const [completionPulse, setCompletionPulse] = useState(false);
   const wasRunningRef = useRef(Boolean(running));
   const reduceMotion = useReducedMotion();

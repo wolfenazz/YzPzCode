@@ -158,6 +158,14 @@ export class AgentServer {
         await this.harness.abort(args.sessionId as string);
         return {};
       },
+      "pending-prompts": async (args) => {
+        if (!args.sessionId) throw new Error("sessionId is required");
+        return { prompts: await this.harness.listPendingPrompts(args.sessionId as string) };
+      },
+      "remove-pending-prompt": async (args) => {
+        if (!args.sessionId || !args.promptId) throw new Error("sessionId and promptId are required");
+        return { removed: await this.harness.removePendingPrompt(args.sessionId as string, args.promptId as string) };
+      },
       stop: async (args) => {
         if (!args.sessionId) throw new Error("sessionId is required");
         await this.harness.stop(args.sessionId as string);
