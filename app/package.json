@@ -1,11 +1,11 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.0.0",
+  "version": "5.0.1",
   "type": "module",
   "scripts": {
-    "dev": "node scripts/ensure-drawio.mjs && vite",
-    "build": "node scripts/ensure-drawio.mjs && tsc && vite build",
+    "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",
+    "build": "node scripts/ensure-drawio.mjs && tsc && vite build --configLoader runner",
     "build:agent": "npm --prefix agent-harness run build",
     "preview": "vite preview",
     "fetch:drawio": "node scripts/fetch-drawio.mjs",

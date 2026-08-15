@@ -29,7 +29,13 @@ async function main(): Promise<void> {
   const harness = new AgentHarness(dataDir);
   harness.setProviderStore(store);
 
-  const wss = new WebSocketServer({ port: values.port ? Number(values.port) : 0 });
+  // The Rust host always connects to 127.0.0.1. Binding explicitly to the
+  // IPv4 loopback interface avoids Windows failures on systems where Node's
+  // default unspecified (often IPv6) listener is unavailable or restricted.
+  const wss = new WebSocketServer({
+    host: "127.0.0.1",
+    port: values.port ? Number(values.port) : 0,
+  });
   const server = new AgentServer(harness, store, wss);
 
   wss.on("listening", () => {

@@ -11,6 +11,7 @@ import { ClineContentBlock, ClineMessage, ToolLogEntry } from '../../hooks/useAg
 import type { AgentCompactionStatus } from '../../hooks/useAgentSession';
 import { DiffView, isEditTool } from './DiffView';
 import { QuestionCard } from './QuestionCard';
+import { parseUiEditRequest, UiEditRequestCard } from './UiEditRequestCard';
 import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
 import type { AgentAttachment, AgentQuestion } from '../../types';
@@ -1171,6 +1172,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           );
         }
         if (!text) return null;
+        const uiEditRequest = parseUiEditRequest(text);
+        if (uiEditRequest) {
+          // Element-inspector handoffs get a structured card instead of the raw
+          // wall of text: page context up top, the user request front and
+          // center, and developer details behind collapsible sections.
+          return <UiEditRequestCard key={i} request={uiEditRequest} />;
+        }
         return <UserBubble key={i} text={text} attachments={attachments} />;
       }
       return (

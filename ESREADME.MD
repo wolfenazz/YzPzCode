@@ -6,7 +6,7 @@
 
 <p><strong>Tu equipo de programación con IA, a una sola ventana.</strong></p>
 
-<p><i>Deja de lidiar con 5 terminales diferentes.<br>YzPzCode reúne a Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes y Pi en una sola interfaz limpia —<br>además de 10 CLIs de herramientas SaaS, un navegador integrado con inspector de diseño visual, un diseñador impulsado por IA,<br>y un editor de imágenes integrado estilo Photoshop — más un agente de programación con IA integrado (YZPZ Agent), impulsado por el SDK de Cline.</i></p>
+<p><i>Deja de lidiar con 5 terminales diferentes.<br>YzPzCode reúne a Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes y Pi en una sola interfaz limpia —<br>además de 10 CLIs de herramientas SaaS, un navegador integrado con inspector de diseño visual, un diseñador impulsado por IA,<br>y un editor de imágenes integrado estilo Photoshop — más un agente de programación con IA integrado (YZPZ Agent), ejecutándose en un harness de agente local.</i></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=for-the-badge&logo=github&color=yellow)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app)
@@ -112,7 +112,7 @@
 <td><b>Personalización de la interfaz</b><br><sub>8 colores de acento, 3 niveles de densidad, cursor personalizado y activación/desactivación de animaciones.</sub></td>
 </tr>
 <tr>
-<td><b>YZPZ Agent</b><br><sub>Agente de programación con IA integrado (sidecar del SDK de Cline) con chat en streaming, registros de herramientas e historial de sesiones.</sub></td>
+<td><b>YZPZ Agent</b><br><sub>Agente de programación con IA integrado (harness de agente local) con chat en streaming, registros de herramientas e historial de sesiones.</sub></td>
 <td><b>Equipos de agentes y aprobaciones</b><br><sub>Orquesta subagentes, aprueba solicitudes de herramientas y haz seguimiento de tareas en tiempo real.</sub></td>
 <td><b>Editor de prompts enriquecido</b><br><sub>Barra de formato más menciones de archivos con `@` que se resuelven a rutas del espacio de trabajo.</sub></td>
 <td><b>Prompts rápidos del inspector</b><br><sub>Prompts predefinidos de un clic (Mejorar / Ajustar) para el inspector de elementos, totalmente personalizables.</sub></td>
@@ -236,7 +236,7 @@ Genera diseños de interfaz completos a partir de prompts en lenguaje natural:
 YzPzCode ahora incluye su propio agente de programación con IA — no se requiere ningún CLI externo:
 
 - **Vista de agente**: Una vista dedicada del espacio de trabajo para sesiones de programación basadas en chat, junto a las vistas de terminal, editor y navegador
-- **Impulsado por el SDK de Cline**: Un harness sidecar de Node.js (incluido con la app, iniciado y supervisado automáticamente por el host de Rust) ejecuta el motor del agente
+- **Harness de agente local**: Un harness sidecar de Node.js (incluido con la app, iniciado y supervisado automáticamente por el host de Rust) ejecuta el motor del agente
 - **Chat en streaming**: Transmisión de mensajes en tiempo real con renderizado enriquecido de texto, llamadas a herramientas, resultados e imágenes
 - **Registros de ejecución de herramientas**: Observa cada llamada a herramienta mientras se ejecuta — estado, entrada y resultados en un registro en vivo
 - **Aprobaciones y permisos**: Aprueba o rechaza de forma interactiva las solicitudes de herramientas antes de que se ejecuten

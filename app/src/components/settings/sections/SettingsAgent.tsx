@@ -467,7 +467,7 @@ export const SettingsAgent: React.FC = () => {
       <div>
         <h2 className="text-sm font-bold text-[var(--text-primary)] tracking-widest uppercase">YZPZ Agent</h2>
         <p className="mt-1 text-[11px] text-[var(--text-secondary)]/70">
-          UI AI agent harness — runs as a local Node sidecar (Cline SDK engine, rebranded). Settings are global across all workspaces.
+          UI AI agent harness — runs as a local Node sidecar. Settings are global across all workspaces.
         </p>
       </div>
 
@@ -1029,8 +1029,7 @@ export const SettingsAgent: React.FC = () => {
       {/* Attribution */}
       <div className="rounded-md border border-[var(--border-primary)]/60 bg-[var(--bg-tertiary)]/30 px-4 py-3">
         <p className="font-mono text-[9px] leading-relaxed text-[var(--text-secondary)]/60">
-          YZPZ Agent is powered by the Cline SDK (Apache-2.0, © Cline Bot Inc.) running locally on
-          your machine. Provider API keys are stored in ~/.yzpzcode/agent/providers.json and are
+          YZPZ Agent runs 100% locally on your machine. Provider API keys are stored in ~/.yzpzcode/agent/providers.json and are
           never transmitted to YzPzCode servers. MCP servers live in the YZPZ Agent data dir
           (cline_mcp_settings.json). Skills, workflows, and rules live in
           ~/.yzpzcode/agent/{'{skills,workflows,rules}'} and apply to every workspace.

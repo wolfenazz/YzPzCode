@@ -6,7 +6,7 @@
 
 <p><strong>Your AI Coding Squad, One Window Away.</strong></p>
 
-<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, and Pi together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, an AI-powered designer,<br>and a Photoshop-style built-in image editor — plus a built-in AI coding agent (YZPZ Agent), powered by the Cline SDK.</i></p>
+<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, and Pi together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, an AI-powered designer,<br>and a Photoshop-style built-in image editor — plus a built-in AI coding agent (YZPZ Agent), running on a local agent harness.</i></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=for-the-badge&logo=github&color=yellow)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app)
@@ -112,7 +112,7 @@
 <td><b>UI Customization</b><br><sub>8 accent colors, 3 density levels, custom cursor, and animations toggle.</sub></td>
 </tr>
 <tr>
-<td><b>YZPZ Agent</b><br><sub>Built-in AI coding agent (Cline SDK sidecar) with streaming chat, tool logs, and session history.</sub></td>
+<td><b>YZPZ Agent</b><br><sub>Built-in AI coding agent (local agent harness sidecar) with streaming chat, tool logs, and session history.</sub></td>
 <td><b>Agent Teams & Approvals</b><br><sub>Orchestrate sub-agents, approve tool requests, and track todos in real time.</sub></td>
 <td><b>Rich Prompt Editor</b><br><sub>Formatting toolbar plus `@` file mentions that resolve to workspace paths.</sub></td>
 <td><b>Inspector Quick Prompts</b><br><sub>One-click preset prompts (Enhance / Adjust) for the element inspector — fully customizable.</sub></td>
@@ -239,7 +239,7 @@ Generate complete UI designs from natural language prompts:
 YzPzCode now ships with its own AI coding agent — no external CLI required:
 
 - **Agent View**: A dedicated workspace view for chat-driven coding sessions, alongside the terminal, editor, and browser views
-- **Powered by the Cline SDK**: A Node.js sidecar harness (bundled with the app, started and supervised automatically by the Rust host) runs the agent engine
+- **Local agent harness**: A Node.js sidecar harness (bundled with the app, started and supervised automatically by the Rust host) runs the agent engine
 - **Streaming Chat**: Real-time message streaming with rich rendering of text, tool calls, results, and images
 - **Tool Execution Logs**: Watch every tool call as it runs — status, input, and results in a live log
 - **Approvals & Permissions**: Interactively approve or reject tool requests before they execute
@@ -362,7 +362,7 @@ Generates a native installer for your platform. Small, fast, no bloat.
 |:-----:|-------|
 | **Frontend** | React 19 + TypeScript · Vite 6 · Tailwind CSS v4 · Zustand 5 · xterm.js 6 · Monaco Editor · Konva (react-konva) · framer-motion |
 | **Backend** | Tauri v2 (Rust) · portable-pty · Tokio · WebSocket (tokio-tungstenite) · discord-rich-presence · anyhow/serde |
-| **Agent Sidecar** | Node.js 22+ · Cline SDK (@cline/sdk) · WebSocket server |
+| **Agent Sidecar** | Node.js 22+ · bundled agent harness · WebSocket server |
 
 </div>
 
@@ -401,8 +401,8 @@ graph TB
         AgentHost[Agent Host]
     end
 
-    subgraph Sidecar["Agent Sidecar — Node.js (Cline SDK)"]
-        Harness[Cline SDK Harness]
+    subgraph Sidecar["Agent Sidecar — Node.js agent harness"]
+        Harness[Agent Harness]
     end
 
     subgraph CLIs["AI CLI Tools"]
@@ -482,7 +482,7 @@ app/
 │       ├── agent/                  # Agent task execution & orchestration
 │       ├── agent_cli/              # CLI detection, installation & launching
 │       │   └── providers/          # 17 provider-specific implementations
-│       ├── agent_host/             # Built-in YZPZ Agent engine host (Cline SDK sidecar supervision)
+│       ├── agent_host/             # Built-in YZPZ Agent engine host (local agent harness supervision)
 │       ├── browser/                # In-app web browser + design inspector
 │       ├── commands/               # Tauri IPC handlers (100+ commands)
 │       ├── terminal/               # PTY sessions + managed command runner
@@ -505,7 +505,7 @@ app/
 │   ├── hooks/                      # Custom React hooks
 │   ├── stores/                     # Zustand state management
 │   └── types/                      # TypeScript definitions
-├── agent-harness/                  # Node.js sidecar running the Cline SDK (@cline/sdk)
+├── agent-harness/                  # Node.js sidecar running the bundled agent harness
 └── docs/                           # Documentation
 ```
 

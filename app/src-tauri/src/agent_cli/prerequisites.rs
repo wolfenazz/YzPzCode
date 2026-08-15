@@ -44,7 +44,7 @@ impl PrerequisitesChecker {
     }
 
     pub fn check_nodejs() -> PrerequisiteStatus {
-        // YZPZ Agent (Cline SDK) requires Node.js 22+.
+        // YZPZ Agent requires Node.js 22+.
         let minimum = "22.0.0";
         let result = Self::run_command("node", &["--version"]);
 

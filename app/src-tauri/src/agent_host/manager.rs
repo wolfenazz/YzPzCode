@@ -1,10 +1,13 @@
 //! Sidecar process + WebSocket client internals for the YZPZ Agent host.
 
 use anyhow::{anyhow, Result};
+use flate2::read::GzDecoder;
 use futures_util::{SinkExt, StreamExt};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Cursor};
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -49,11 +52,40 @@ fn new_node_command_tokio(node: &std::path::Path) -> tokio::process::Command {
     tokio::process::Command::new(node)
 }
 
+/// Node does not reliably support Windows extended-length (``\\?\``) paths
+/// for its entry point or working directory. Those paths can be inherited
+/// from a sandboxed process and make Node try to resolve the script as `C:`.
+#[cfg(target_os = "windows")]
+fn normalize_windows_process_path(path: &std::path::Path) -> std::path::PathBuf {
+    let path = path.as_os_str().to_string_lossy();
+
+    if let Some(unc_path) = path.strip_prefix("\\\\?\\UNC\\") {
+        std::path::PathBuf::from(format!("\\\\{unc_path}"))
+    } else if let Some(dos_path) = path.strip_prefix("\\\\?\\") {
+        std::path::PathBuf::from(dos_path)
+    } else {
+        std::path::PathBuf::from(path.as_ref())
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn normalize_windows_process_path(path: &std::path::Path) -> std::path::PathBuf {
+    path.to_path_buf()
+}
+
 const EVENT_PREFIX: &str = "yzpz-agent";
 const CONNECT_ATTEMPTS: u32 = 8;
 const CONNECT_RETRY_DELAY_MS: u64 = 400;
 const QUICK_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const NODE_MIN_MAJOR: u32 = 22;
+const MANAGED_NODE_DIST_URL: &str = "https://nodejs.org/dist/latest-v22.x";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NodeArchive {
+    filename: String,
+    executable: PathBuf,
+    is_zip: bool,
+}
 
 #[derive(Debug)]
 pub enum AgentHostError {
@@ -190,15 +222,12 @@ impl AgentHostManager {
             kill_process_tree(old);
         }
 
-        // Resolve node binary and version.
-        let node = which::which("node").map_err(|_| {
-            AgentHostError::NodeMissing(
-                "Node.js is required for YZPZ Agent but was not found on PATH".to_string(),
-            )
-        })?;
+        // Prefer a usable system Node installation, then bootstrap a private
+        // Node 22 runtime when this is a fresh machine.
+        let node = resolve_node_binary(&self.inner).await?;
         let node_major = node_major_version(&node)?;
 
-        let harness_dir = locate_harness_dir(&self.inner)?;
+        let harness_dir = normalize_windows_process_path(&locate_harness_dir(&self.inner)?);
         ensure_harness_ready(&self.inner, &node, &harness_dir).await?;
 
         let entry = harness_dir.join("dist").join("index.js");
@@ -226,18 +255,35 @@ impl AgentHostManager {
             AgentHostError::Sidecar("failed to capture sidecar stderr".to_string())
         })?;
 
-        let port = read_ready_port(stdout).await.map_err(|e| {
-            let _ = child.kill();
-            AgentHostError::Sidecar(format!("sidecar failed to start: {e}"))
-        })?;
-
-        // Stderr reader thread (logs only).
-        std::thread::spawn(move || {
+        // Start consuming stderr before waiting for READY. Previously this was
+        // only started after the handshake, which hid the actual Node error
+        // whenever the sidecar exited during startup (most notably on Windows).
+        let stderr_tail = Arc::new(Mutex::new(Vec::new()));
+        let stderr_tail_for_reader = stderr_tail.clone();
+        let stderr_reader = std::thread::spawn(move || {
             let reader = BufReader::new(stderr);
             for line in reader.lines().map_while(Result::ok) {
                 eprintln!("[yzpz-agent] {line}");
+                let mut tail = stderr_tail_for_reader.lock().unwrap();
+                tail.push(line);
+                if tail.len() > 20 {
+                    tail.remove(0);
+                }
             }
         });
+
+        let port = match read_ready_port(stdout).await {
+            Ok(port) => port,
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = stderr_reader.join();
+                let stderr = sidecar_stderr_summary(&stderr_tail);
+                return Err(AgentHostError::Sidecar(format!(
+                    "sidecar failed to start: {e}{stderr}"
+                )));
+            }
+        };
 
         {
             let mut state = self.inner.state.lock().unwrap();
@@ -543,6 +589,305 @@ fn node_major_version(node: &std::path::Path) -> Result<u32, AgentHostError> {
     Ok(major)
 }
 
+async fn resolve_node_binary(inner: &HostInner) -> Result<PathBuf, AgentHostError> {
+    if let Ok(node) = which::which("node") {
+        let node = normalize_windows_process_path(&node);
+        if matches!(node_major_version(&node), Ok(major) if major >= NODE_MIN_MAJOR) {
+            return Ok(node);
+        }
+        emit_log(
+            inner,
+            "System Node.js is unavailable or older than v22; preparing a managed runtime…",
+        );
+    } else {
+        emit_log(
+            inner,
+            "Node.js v22+ was not found; downloading the YzPzCode managed runtime…",
+        );
+    }
+
+    ensure_managed_node(inner).await
+}
+
+async fn ensure_managed_node(inner: &HostInner) -> Result<PathBuf, AgentHostError> {
+    let runtime_dir = managed_node_dir(inner)?;
+    let managed_node = runtime_dir.join(managed_node_executable_path());
+    if managed_node.is_file()
+        && matches!(node_major_version(&managed_node), Ok(major) if major >= NODE_MIN_MAJOR)
+    {
+        return Ok(managed_node);
+    }
+
+    emit_bootstrap(inner, "downloading", "Downloading Node.js runtime…");
+    let client = reqwest::Client::builder()
+        .user_agent("YzPzCode Node runtime bootstrap")
+        .build()
+        .map_err(|e| {
+            AgentHostError::NodeMissing(format!("failed to prepare Node download: {e}"))
+        })?;
+    let manifest = client
+        .get(format!("{MANAGED_NODE_DIST_URL}/SHASUMS256.txt"))
+        .send()
+        .await
+        .map_err(|e| AgentHostError::NodeMissing(format!("failed to fetch Node.js manifest: {e}")))?
+        .error_for_status()
+        .map_err(|e| AgentHostError::NodeMissing(format!("Node.js manifest request failed: {e}")))?
+        .text()
+        .await
+        .map_err(|e| {
+            AgentHostError::NodeMissing(format!("failed to read Node.js manifest: {e}"))
+        })?;
+    let (archive, expected_checksum) =
+        node_archive_from_manifest(&manifest, std::env::consts::OS, std::env::consts::ARCH)?;
+    let release_url = node_release_url(&archive.filename)?;
+
+    let archive_bytes = client
+        .get(format!("{release_url}/{}", archive.filename))
+        .send()
+        .await
+        .map_err(|e| {
+            AgentHostError::NodeMissing(format!("failed to download Node.js runtime: {e}"))
+        })?
+        .error_for_status()
+        .map_err(|e| AgentHostError::NodeMissing(format!("Node.js runtime download failed: {e}")))?
+        .bytes()
+        .await
+        .map_err(|e| AgentHostError::NodeMissing(format!("failed to read Node.js runtime: {e}")))?;
+
+    let actual_checksum = format!("{:x}", Sha256::digest(&archive_bytes));
+    if actual_checksum != expected_checksum {
+        return Err(AgentHostError::NodeMissing(
+            "Node.js runtime download failed checksum verification".to_string(),
+        ));
+    }
+
+    let staging_dir = runtime_dir.with_extension(format!("download-{}", uuid::Uuid::new_v4()));
+    let staging_dir_for_extract = staging_dir.clone();
+    let archive_for_extract = archive.clone();
+    tokio::task::spawn_blocking(move || {
+        if archive_for_extract.is_zip {
+            extract_node_zip(&archive_bytes, &staging_dir_for_extract)
+        } else {
+            extract_node_tar_gz(&archive_bytes, &staging_dir_for_extract)
+        }
+    })
+    .await
+    .map_err(|e| AgentHostError::NodeMissing(format!("Node.js extraction task failed: {e}")))?
+    .map_err(|e| AgentHostError::NodeMissing(format!("failed to extract Node.js runtime: {e}")))?;
+
+    let staged_node = staging_dir.join(&archive.executable);
+    if !staged_node.is_file() {
+        let _ = tokio::fs::remove_dir_all(&staging_dir).await;
+        return Err(AgentHostError::NodeMissing(
+            "Node.js archive did not contain the expected executable".to_string(),
+        ));
+    }
+
+    if runtime_dir.exists() {
+        tokio::fs::remove_dir_all(&runtime_dir).await.map_err(|e| {
+            AgentHostError::NodeMissing(format!("failed to replace Node.js runtime: {e}"))
+        })?;
+    }
+    if let Some(parent) = runtime_dir.parent() {
+        tokio::fs::create_dir_all(parent).await.map_err(|e| {
+            AgentHostError::NodeMissing(format!("failed to create Node.js runtime directory: {e}"))
+        })?;
+    }
+    tokio::fs::rename(&staging_dir, &runtime_dir)
+        .await
+        .map_err(|e| {
+            AgentHostError::NodeMissing(format!("failed to install Node.js runtime: {e}"))
+        })?;
+
+    emit_bootstrap(inner, "ready", "Node.js runtime ready");
+    Ok(managed_node)
+}
+
+fn managed_node_dir(inner: &HostInner) -> Result<PathBuf, AgentHostError> {
+    let app_data_dir = {
+        let app = inner.app_handle.lock().unwrap();
+        app.as_ref().and_then(|app| app.path().app_data_dir().ok())
+    };
+    Ok(match app_data_dir {
+        Some(dir) => dir.join("agent").join("node-v22"),
+        None => PathBuf::from(data_dir_path()).join("node-v22"),
+    })
+}
+
+fn managed_node_executable_path() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "node.exe"
+    } else {
+        "bin/node"
+    }
+}
+
+fn node_archive_from_manifest(
+    manifest: &str,
+    os: &str,
+    arch: &str,
+) -> Result<(NodeArchive, String), AgentHostError> {
+    let node_os = match os {
+        "windows" => "win",
+        "macos" => "darwin",
+        "linux" => "linux",
+        unsupported => {
+            return Err(AgentHostError::NodeMissing(format!(
+                "automatic Node.js setup is not supported on {unsupported}"
+            )))
+        }
+    };
+    let node_arch = match arch {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        unsupported => {
+            return Err(AgentHostError::NodeMissing(format!(
+                "automatic Node.js setup is not supported on {unsupported} CPUs"
+            )))
+        }
+    };
+    let is_zip = os == "windows";
+    let suffix = if is_zip {
+        format!("-{node_os}-{node_arch}.zip")
+    } else {
+        format!("-{node_os}-{node_arch}.tar.gz")
+    };
+
+    for line in manifest.lines() {
+        let mut fields = line.split_whitespace();
+        let Some(checksum) = fields.next() else {
+            continue;
+        };
+        let Some(filename) = fields.next() else {
+            continue;
+        };
+        if filename.starts_with("node-v") && filename.ends_with(&suffix) {
+            if checksum.len() == 64 && checksum.bytes().all(|c| c.is_ascii_hexdigit()) {
+                return Ok((
+                    NodeArchive {
+                        filename: filename.to_string(),
+                        executable: PathBuf::from(if is_zip { "node.exe" } else { "bin/node" }),
+                        is_zip,
+                    },
+                    checksum.to_ascii_lowercase(),
+                ));
+            }
+        }
+    }
+
+    Err(AgentHostError::NodeMissing(format!(
+        "no compatible Node.js v22 runtime is published for {node_os}-{node_arch}"
+    )))
+}
+
+fn node_release_url(filename: &str) -> Result<String, AgentHostError> {
+    let version = filename
+        .strip_prefix("node-v")
+        .and_then(|name| name.split_once('-').map(|(version, _)| version))
+        .filter(|version| {
+            !version.is_empty()
+                && version
+                    .bytes()
+                    .all(|character| character.is_ascii_digit() || character == b'.')
+        })
+        .ok_or_else(|| AgentHostError::NodeMissing("invalid Node.js archive name".to_string()))?;
+    Ok(format!("https://nodejs.org/dist/v{version}"))
+}
+
+fn archive_relative_path(path: &Path) -> Result<Option<PathBuf>> {
+    let mut components = path.components();
+    let Some(first) = components.next() else {
+        return Ok(None);
+    };
+    if !matches!(first, std::path::Component::Normal(_)) {
+        return Err(anyhow!("archive contains an invalid path"));
+    }
+    let relative = components.as_path();
+    if relative.as_os_str().is_empty() {
+        return Ok(None);
+    }
+    if relative
+        .components()
+        .any(|component| !matches!(component, std::path::Component::Normal(_)))
+    {
+        return Err(anyhow!("archive contains an unsafe path"));
+    }
+    Ok(Some(relative.to_path_buf()))
+}
+
+fn extract_node_zip(bytes: &[u8], destination: &Path) -> Result<()> {
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes))?;
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index)?;
+        let Some(path) = entry.enclosed_name() else {
+            return Err(anyhow!("archive contains an unsafe path"));
+        };
+        let Some(relative) = archive_relative_path(&path)? else {
+            continue;
+        };
+        let output = destination.join(relative);
+        if !output.starts_with(destination) {
+            return Err(anyhow!("archive path escaped its destination"));
+        }
+        if entry.is_dir() {
+            std::fs::create_dir_all(output)?;
+        } else {
+            if entry
+                .unix_mode()
+                .is_some_and(|mode| mode & 0o170000 == 0o120000)
+            {
+                return Err(anyhow!("archive contains an unsupported symbolic link"));
+            }
+            if let Some(parent) = output.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut file = std::fs::File::create(&output)?;
+            std::io::copy(&mut entry, &mut file)?;
+        }
+    }
+    Ok(())
+}
+
+fn extract_node_tar_gz(bytes: &[u8], destination: &Path) -> Result<()> {
+    let decoder = GzDecoder::new(Cursor::new(bytes));
+    let mut archive = tar::Archive::new(decoder);
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let path = entry.path()?;
+        let Some(relative) = archive_relative_path(&path)? else {
+            continue;
+        };
+        let output = destination.join(relative);
+        if !output.starts_with(destination) {
+            return Err(anyhow!("archive path escaped its destination"));
+        }
+        let entry_type = entry.header().entry_type();
+        if entry_type.is_dir() {
+            std::fs::create_dir_all(output)?;
+        } else if entry_type.is_file() {
+            if let Some(parent) = output.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            let mut file = std::fs::File::create(&output)?;
+            std::io::copy(&mut entry, &mut file)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+
+                let mode = entry.header().mode()?;
+                std::fs::set_permissions(&output, std::fs::Permissions::from_mode(mode))?;
+            }
+        } else {
+            // The managed runtime only needs `node`; npm's convenience links
+            // are intentionally skipped instead of restoring archive links.
+            // This prevents a downloaded archive from creating a link outside
+            // the private runtime directory.
+            continue;
+        }
+    }
+    Ok(())
+}
+
 async fn read_ready_port(stdout: std::process::ChildStdout) -> Result<u16> {
     // Read the "READY <port>" line from the sidecar's stdout.
     let (tx, rx) = tokio::sync::oneshot::channel::<u16>();
@@ -568,6 +913,15 @@ async fn read_ready_port(stdout: std::process::ChildStdout) -> Result<u16> {
         .map_err(|_| anyhow!("sidecar exited before READY"))
 }
 
+fn sidecar_stderr_summary(stderr_tail: &Arc<Mutex<Vec<String>>>) -> String {
+    let tail = stderr_tail.lock().unwrap();
+    if tail.is_empty() {
+        String::new()
+    } else {
+        format!("\nSidecar stderr:\n{}", tail.join("\n"))
+    }
+}
+
 /// Locate the YZPZ Agent harness directory.
 ///
 /// Preference order:
@@ -582,7 +936,7 @@ async fn read_ready_port(stdout: std::process::ChildStdout) -> Result<u16> {
 /// `dist/index.js`) is still returned so callers can rebuild it locally.
 fn locate_harness_dir(inner: &HostInner) -> Result<std::path::PathBuf, AgentHostError> {
     if let Ok(dir) = std::env::var("YZPZ_AGENT_HARNESS_DIR") {
-        let p = std::path::PathBuf::from(dir);
+        let p = normalize_windows_process_path(std::path::Path::new(&dir));
         if p.join("dist").join("index.js").exists() || p.join("package.json").exists() {
             return Ok(p);
         }
@@ -593,19 +947,25 @@ fn locate_harness_dir(inner: &HostInner) -> Result<std::path::PathBuf, AgentHost
         let app = inner.app_handle.lock().unwrap();
         if let Some(app) = app.as_ref() {
             if let Ok(resource_dir) = app.path().resource_dir() {
-                candidates.push(resource_dir.join("agent-harness"));
+                candidates.push(normalize_windows_process_path(
+                    &resource_dir.join("agent-harness"),
+                ));
             }
         }
     }
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
-            candidates.push(dir.join("agent-harness"));
+            candidates.push(normalize_windows_process_path(&dir.join("agent-harness")));
         }
     }
     if let Ok(cwd) = std::env::current_dir() {
-        candidates.push(cwd.join("agent-harness"));
-        candidates.push(cwd.join("app").join("agent-harness"));
-        candidates.push(cwd.join("..").join("app").join("agent-harness"));
+        candidates.push(normalize_windows_process_path(&cwd.join("agent-harness")));
+        candidates.push(normalize_windows_process_path(
+            &cwd.join("app").join("agent-harness"),
+        ));
+        candidates.push(normalize_windows_process_path(
+            &cwd.join("..").join("app").join("agent-harness"),
+        ));
     }
 
     // Prefer a harness that is already built.
@@ -692,14 +1052,14 @@ async fn ensure_harness_ready(
 
 fn data_dir_path() -> String {
     if let Ok(dir) = std::env::var("YZPZ_AGENT_DATA_DIR") {
-        return dir;
+        return normalize_windows_process_path(std::path::Path::new(&dir))
+            .to_string_lossy()
+            .to_string();
     }
     let home = std::env::var("USERPROFILE")
         .or_else(|_| std::env::var("HOME"))
         .unwrap_or_else(|_| ".".to_string());
-    std::path::Path::new(&home)
-        .join(".yzpzcode")
-        .join("agent")
+    normalize_windows_process_path(&std::path::Path::new(&home).join(".yzpzcode").join("agent"))
         .to_string_lossy()
         .to_string()
 }
@@ -731,6 +1091,71 @@ mod tests {
 
     fn manager() -> AgentHostManager {
         AgentHostManager::new()
+    }
+
+    #[test]
+    fn includes_sidecar_stderr_in_startup_error_detail() {
+        let stderr_tail = Arc::new(Mutex::new(vec![
+            "Error: listen EACCES: permission denied".to_string(),
+            "  at Server.setupListenHandle".to_string(),
+        ]));
+
+        assert_eq!(
+            sidecar_stderr_summary(&stderr_tail),
+            "\nSidecar stderr:\nError: listen EACCES: permission denied\n  at Server.setupListenHandle"
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn normalizes_extended_windows_paths_for_node() {
+        assert_eq!(
+            normalize_windows_process_path(std::path::Path::new(
+                r"\\?\C:\Users\test\agent-harness\dist\index.js"
+            )),
+            std::path::PathBuf::from(r"C:\Users\test\agent-harness\dist\index.js")
+        );
+        assert_eq!(
+            normalize_windows_process_path(std::path::Path::new(
+                r"\\?\UNC\server\share\agent-harness"
+            )),
+            std::path::PathBuf::from(r"\\server\share\agent-harness")
+        );
+    }
+
+    #[test]
+    fn selects_the_correct_node_archive_for_each_supported_platform() {
+        let checksum = "a".repeat(64);
+        let manifest = format!(
+            "{checksum}  node-v22.23.2-win-x64.zip\n{checksum}  node-v22.23.2-darwin-arm64.tar.gz\n{checksum}  node-v22.23.2-linux-x64.tar.gz\n"
+        );
+
+        let (windows, _) = node_archive_from_manifest(&manifest, "windows", "x86_64").unwrap();
+        assert_eq!(windows.filename, "node-v22.23.2-win-x64.zip");
+        assert_eq!(windows.executable, PathBuf::from("node.exe"));
+        assert!(windows.is_zip);
+
+        let (macos, _) = node_archive_from_manifest(&manifest, "macos", "aarch64").unwrap();
+        assert_eq!(macos.filename, "node-v22.23.2-darwin-arm64.tar.gz");
+        assert_eq!(macos.executable, PathBuf::from("bin/node"));
+        assert!(!macos.is_zip);
+
+        let (linux, _) = node_archive_from_manifest(&manifest, "linux", "x86_64").unwrap();
+        assert_eq!(linux.filename, "node-v22.23.2-linux-x64.tar.gz");
+        assert_eq!(
+            node_release_url(&linux.filename).unwrap(),
+            "https://nodejs.org/dist/v22.23.2"
+        );
+    }
+
+    #[test]
+    fn rejects_archive_paths_that_escape_the_runtime_directory() {
+        assert!(archive_relative_path(Path::new("node-v22.23.2/../node")).is_err());
+        assert!(archive_relative_path(Path::new("../node")).is_err());
+        assert_eq!(
+            archive_relative_path(Path::new("node-v22.23.2/bin/node")).unwrap(),
+            Some(PathBuf::from("bin/node"))
+        );
     }
 
     #[test]

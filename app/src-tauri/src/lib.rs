@@ -16,9 +16,7 @@ use agent_host::AgentHostManager;
 use browser::BrowserManager;
 use discord_presence::DiscordPresenceManager;
 use ide::IdeDetector;
-use tauri::Listener;
-#[cfg(target_os = "macos")]
-use tauri::Manager;
+use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use terminal::{ManagedCommandManager, TerminalManager};
 
 fn setup_panic_hooks() {
@@ -85,12 +83,37 @@ pub fn run() {
             browser_manager.set_app_handle(app.handle().clone());
             agent_host_manager.set_app_handle(app.handle().clone());
 
+            // On some Windows/WebView2 installations the configured window can
+            // fail to materialize, leaving yzpzcode.exe alive with no top-level
+            // window. Restore that window explicitly so a failed automatic
+            // creation never looks like the app flashed and exited.
+            let main_window = match app.get_webview_window("main") {
+                Some(window) => window,
+                None => {
+                    eprintln!("Main window was not created from config; creating it explicitly");
+                    WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                        .title("YzPzCode")
+                        .inner_size(1200.0, 800.0)
+                        .min_inner_size(1020.0, 810.0)
+                        .decorations(false)
+                        .build()?
+                }
+            };
+            if let Err(error) = main_window.show() {
+                eprintln!("Warning: failed to show main window: {error}");
+            }
+            #[cfg(target_os = "windows")]
+            if let Err(error) = main_window.center() {
+                eprintln!("Warning: failed to center main window: {error}");
+            }
+            if let Err(error) = main_window.set_focus() {
+                eprintln!("Warning: failed to focus main window: {error}");
+            }
+
             #[cfg(target_os = "macos")]
             {
-                if let Some(window) = app.get_webview_window("main") {
-                    if let Err(e) = window.set_decorations(true) {
-                        eprintln!("Warning: failed to set window decorations: {}", e);
-                    }
+                if let Err(error) = main_window.set_decorations(true) {
+                    eprintln!("Warning: failed to set window decorations: {error}");
                 }
             }
 

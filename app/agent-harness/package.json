@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "YZPZ Agent sidecar — Cline SDK harness (rebranded) for YzPzCode",
+  "description": "YZPZ Agent sidecar — local agent harness for YzPzCode",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
