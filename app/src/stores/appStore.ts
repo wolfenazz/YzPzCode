@@ -851,7 +851,7 @@ export const useAppStore = create<AppState>()(
       agentSessionsByWorkspace: {} as Record<string, AgentSessionSummary[]>,
       activeAgentSessionByWorkspace: {} as Record<string, string | null>,
       agentPaneUIModes: {} as Record<string, AgentPaneUIMode>,
-      showAgentReasoning: false,
+      showAgentReasoning: true,
       explorerClipboard: null,
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
@@ -1575,14 +1575,21 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState: unknown, version: number) => {
-        const state = (persistedState ?? {}) as { terminalFontFamily?: string };
+        const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean };
         if (version < 2) {
           const ua = navigator.userAgent.toLowerCase();
           if (state.terminalFontFamily === 'Cascadia Mono' && !ua.includes('windows')) {
             state.terminalFontFamily = ua.includes('mac') ? 'Menlo' : 'DejaVu Sans Mono';
           }
+        }
+        if (version < 3) {
+          // v3: the agent's thinking/reasoning view is now on by default, so
+          // existing installs keep seeing the reasoning blocks instead of the
+          // old hidden-by-default state. Users can still hide them with the
+          // pane header toggle.
+          state.showAgentReasoning = true;
         }
         return state;
       },

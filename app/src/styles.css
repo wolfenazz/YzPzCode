@@ -1360,6 +1360,21 @@ html.has-custom-cursor *::after {
 .markdown-body strong { color: var(--text-primary); font-weight: 700; }
 .markdown-body em { color: var(--text-secondary); }
 
+/* Reasoning / thinking content — keeps the full markdown formatting (bold,
+   lists, code, headings, tables) but stays visually subordinate to the final
+   answer: smaller type, muted emphasis, dimmer chrome. */
+.reasoning-body { font-size: 11.5px; }
+.reasoning-body h1 { font-size: 1.02rem; }
+.reasoning-body h2 { font-size: 0.96rem; }
+.reasoning-body h3 { font-size: 0.92rem; }
+.reasoning-body h4 { font-size: 0.88rem; }
+.reasoning-body h5,
+.reasoning-body h6 { font-size: 0.85rem; }
+.reasoning-body strong { color: var(--text-secondary); font-weight: 650; }
+.reasoning-body :not(pre) > code { font-size: 0.85em; }
+.reasoning-body pre,
+.reasoning-body .agent-code-pre { font-size: 0.78em; }
+
 .markdown-body img {
   max-width: 100%;
   border-radius: 8px;

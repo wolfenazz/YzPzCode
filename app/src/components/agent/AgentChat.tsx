@@ -2,6 +2,7 @@ import React, { useId, useMemo, useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
+import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import hljs from 'highlight.js';
@@ -121,6 +122,11 @@ const formatToolResult = (content: unknown): string => {
 
 const markdownPlugins = [remarkGfm, remarkMath];
 const markdownRehype = [rehypeKatex];
+// Thinking streams often use single line breaks instead of blank lines. By
+// default CommonMark collapses a lone `\n` into a space, which flattens the
+// reasoning into an unreadable wall of text — `remarkBreaks` keeps those
+// breaks visible without touching how normal assistant prose renders.
+const reasoningPlugins = [remarkGfm, remarkMath, remarkBreaks];
 
 const hasArabicText = (text: string): boolean => /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text);
 
@@ -532,53 +538,101 @@ const AgentAvatar: React.FC = () => (
 );
 
 const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { text: string; active?: boolean }) {
-  const [open, setOpen] = useState(() => Boolean(active));
-  const wasActiveRef = useRef(Boolean(active));
-
-  useEffect(() => {
-    if (active) {
-      setOpen(true);
-    } else if (wasActiveRef.current) {
-      setOpen(false);
-    }
-    wasActiveRef.current = Boolean(active);
-  }, [active]);
-
+  // Reasoning is part of the story, not a footnote — start expanded and stay
+  // expanded so users can read the agent's actual thinking even after the run
+  // finishes (the pane toggle hides the blocks entirely if preferred).
+  const [open, setOpen] = useState(true);
+  const [copied, setCopied] = useState(false);
   const hasReasoning = Boolean(text.trim());
+  const wordCount = useMemo(() => (hasReasoning ? text.trim().split(/\s+/).length : 0), [text, hasReasoning]);
+
+  const handleCopy = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard access can be unavailable in an embedded webview.
+    }
+  };
+
   return (
-    <div className={`rounded-lg border overflow-hidden transition-all duration-150 ${active ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/10' : 'border-[var(--border-primary)]/60 bg-[var(--bg-tertiary)]/40'}`}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-2 cursor-pointer text-left hover:bg-[var(--bg-tertiary)]/60 transition-colors duration-100"
-      >
-        <span className={`relative flex items-center justify-center w-5 h-5 rounded-md shrink-0 ${active ? 'bg-[var(--accent-light)]/40' : 'bg-[var(--bg-tertiary)]'}`}>
-          <svg className={`w-3 h-3 ${active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-          </svg>
-          {active && (
-            <span className="absolute inset-0 rounded-md border border-[var(--accent-border)]/50 animate-reasoning-ping" />
-          )}
-        </span>
-        <span className={`font-mono text-[9px] font-bold uppercase tracking-widest ${active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/60'}`}>
-          {active ? 'Thinking through the next step' : 'Reasoning'}
-        </span>
-        {active && (
-          <span className="flex items-center gap-1 px-1.5 h-4 rounded-sm bg-[var(--accent-light)]/25 text-[var(--accent)] font-mono text-[8px] font-bold uppercase tracking-widest animate-fade-in">
-            <span className="typing-dot bg-current" style={{ animationDelay: '0ms' }} />
-            <span className="typing-dot bg-current" style={{ animationDelay: '150ms' }} />
-            <span className="typing-dot bg-current" style={{ animationDelay: '300ms' }} />
+    <div
+      className={`rounded-lg border overflow-hidden transition-colors duration-150 ${
+        active
+          ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/10'
+          : 'border-[var(--border-primary)]/60 bg-[var(--bg-tertiary)]/30'
+      }`}
+    >
+      <div className="flex items-stretch">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 cursor-pointer text-left hover:bg-[var(--bg-tertiary)]/50 transition-colors duration-100 group"
+        >
+          <span className={`relative flex items-center justify-center w-5 h-5 rounded-md shrink-0 ${active ? 'bg-[var(--accent-light)]/40' : 'bg-[var(--bg-tertiary)]'}`}>
+            <svg className={`w-3 h-3 ${active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            {active && (
+              <span className="absolute inset-0 rounded-md border border-[var(--accent-border)]/50 animate-reasoning-ping" />
+            )}
           </span>
+          <span className="min-w-0">
+            <span className={`block font-mono text-[9px] font-bold uppercase tracking-widest ${active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/70'}`}>
+              {active ? 'Thinking through the next step' : 'Reasoning'}
+            </span>
+            {!active && hasReasoning && (
+              <span className="block font-mono text-[8px] normal-case tracking-normal text-[var(--text-secondary)]/45">
+                {wordCount} word{wordCount === 1 ? '' : 's'}
+              </span>
+            )}
+          </span>
+          {active && (
+            <span className="flex items-center gap-1 px-1.5 h-4 rounded-sm bg-[var(--accent-light)]/25 text-[var(--accent)] font-mono text-[8px] font-bold uppercase tracking-widest animate-fade-in shrink-0">
+              <span className="typing-dot bg-current" style={{ animationDelay: '0ms' }} />
+              <span className="typing-dot bg-current" style={{ animationDelay: '150ms' }} />
+              <span className="typing-dot bg-current" style={{ animationDelay: '300ms' }} />
+            </span>
+          )}
+          <span className="ml-auto flex items-center gap-1.5 shrink-0">
+            <svg className={`w-3.5 h-3.5 text-[var(--text-secondary)]/45 transition-transform duration-150 ${open ? '' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </span>
+        </button>
+        {hasReasoning && !active && (
+          <button
+            type="button"
+            onClick={() => void handleCopy()}
+            title="Copy thinking text"
+            className="shrink-0 self-center mr-2.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[8px] uppercase tracking-widest text-[var(--text-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer"
+          >
+            {copied ? (
+              <>
+                <Icon icon="lucide:check" className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+                copied
+              </>
+            ) : (
+              <>
+                <Icon icon="lucide:copy" className="h-3 w-3" aria-hidden="true" />
+                copy
+              </>
+            )}
+          </button>
         )}
-        <span className="ml-auto font-mono text-[9px] text-[var(--text-secondary)]/50">{open ? '▾' : '▸'}</span>
-      </button>
+      </div>
       {open && (
-        <div className="ml-3.5 border-l-2 border-[var(--accent-border)]/40 px-3 pb-2.5 animate-fade-in-up" aria-live={active ? 'polite' : undefined}>
+        <div className="mx-3 mb-2.5 rounded-md border border-[var(--border-primary)]/50 bg-[var(--bg-main)]/45 px-3 py-2.5 animate-fade-in-up" aria-live={active ? 'polite' : undefined}>
           {hasReasoning ? (
-            <div className="whitespace-pre-wrap font-mono text-[10px] italic leading-relaxed text-[var(--text-secondary)]">
-              {text}
+            <div className="agent-rich-text reasoning-body text-[11.5px] leading-relaxed text-[var(--text-secondary)] markdown-body" {...richTextDirection(text)}>
+              <ReactMarkdown remarkPlugins={reasoningPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
+                {text}
+              </ReactMarkdown>
             </div>
           ) : (
-            <div className="flex items-center gap-2 pt-0.5 text-[10px] leading-relaxed text-[var(--text-secondary)]">
+            <div className="flex items-center gap-2 py-0.5 text-[10px] leading-relaxed text-[var(--text-secondary)]">
               <Icon icon="lucide:scan-text" className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
               <span>Reviewing the request and preparing the next action.</span>
             </div>
