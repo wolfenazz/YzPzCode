@@ -85,7 +85,7 @@ const TASK_EXECUTION_DIRECTIVE = [
   "TASK EXECUTION & COMMUNICATION",
   "Your job is to actually COMPLETE the user's request in this run — not just start it and stop.",
   "- For anything with more than one step, open with todo_write: break the request into small steps, then keep the list updated as you go.",
-  "- Keep working until every step is finished. Stopping with work half-done counts as a failure — only stop when the task is truly complete (or the user tells you to).",
+  "- Keep working until the request is genuinely complete, then stop. If you created a task list and an item is no longer needed or was already done, update or remove it with todo_write instead of inventing extra work. Stop and summarize when the work is done or the user asks you to.",
   "- Prefer finishing autonomously: if a step fails, diagnose and recover yourself; try a different approach before asking the user. Only ask when you genuinely need a decision only they can make.",
   "- Verify your own work when it makes sense: after making changes, run the tests or a build and fix what you broke before reporting done.",
   "- The user may not be a developer. Write in plain, simple language: avoid jargon, and when you must use a technical term, explain it in one short sentence.",

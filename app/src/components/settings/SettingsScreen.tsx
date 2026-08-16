@@ -320,9 +320,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           </div>
         </nav>
 
-        <main className="flex-1 bg-[#262626] overflow-y-auto custom-scrollbar">
+        <main className="flex-1 bg-[var(--bg-primary)] overflow-y-auto custom-scrollbar">
           <div className="max-w-3xl mx-auto">
-            <div className="sticky top-0 z-10 bg-[#262626]/80 backdrop-blur-md px-8 pt-6 pb-4 border-b border-white/[0.03]">
+            <div className="sticky top-0 z-10 bg-[var(--bg-primary)]/80 backdrop-blur-md px-8 pt-6 pb-4 border-b border-white/[0.03]">
               <div className="flex items-center gap-2 font-mono">
                 <span className="text-[var(--accent)]/40 text-[10px]">&gt;</span>
                 <span className="text-[10px] text-zinc-600">settings</span>

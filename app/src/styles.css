@@ -115,13 +115,70 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  margin: 0;
-  min-width: 320px;
-  min-height: 100vh;
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  transition: background-color 0.2s ease, color 0.15s ease, border-color 0.15s ease;
+/* ── Light Theme (bright backgrounds + dark text) ──────────────────────
+   Toggled via Settings → Appearance → Dark text for bright backgrounds.
+   Flips the semantic tokens and the warm zinc ramp so the whole UI reads
+   as a light surface with dark, high-contrast text. Custom background
+   colors still win because they are applied as inline styles on <html>. */
+.light-theme {
+  color-scheme: light;
+
+  --bg-primary: #faf8f1;
+  --bg-secondary: #f5f2e9;
+  --bg-tertiary: #ece7da;
+  --border-primary: #d9d8d0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #51504a;
+
+  --background: #faf8f1;
+  --foreground: #1a1a1a;
+  --card: #f5f2e9;
+  --card-foreground: #1a1a1a;
+  --popover: #f5f2e9;
+  --popover-foreground: #303030;
+  --primary: #d87757;
+  --primary-foreground: #ffffff;
+  --secondary: #ece7da;
+  --secondary-foreground: #1a1a1a;
+  --muted: #ece7da;
+  --muted-foreground: #6e6a60;
+  --destructive: #c42b1c;
+  --destructive-foreground: #ffffff;
+  --border: #d9d8d0;
+  --input: #ece7da;
+  --ring: #1b7ede;
+  --sidebar: #f5f2e9;
+  --sidebar-foreground: #303030;
+  --sidebar-primary: #ece7da;
+  --sidebar-primary-foreground: #1a1a1a;
+  --sidebar-accent: #ece7da;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #d9d8d0;
+  --sidebar-ring: #b4b1a3;
+
+  /* Warm zinc ramp, inverted for a light theme so zinc background/border
+     utilities become light while text stays dark and readable. */
+  --color-zinc-50: #1a1a1a;
+  --color-zinc-100: #262626;
+  --color-zinc-200: #303030;
+  --color-zinc-300: #3e3e38;
+  --color-zinc-400: #51504a;
+  --color-zinc-500: #6e6a60;
+  --color-zinc-600: #8f8b80;
+  --color-zinc-700: #b4b1a3;
+  --color-zinc-800: #d9d8d0;
+  --color-zinc-900: #ece7da;
+  --color-zinc-950: #faf8f1;
+}
+
+/* Hardcoded white "active/next" buttons keep dark text so their label stays
+   visible on the white background; on hover they invert to dark with light text. */
+.light-theme .bg-white.text-zinc-900 {
+  color: #1a1a1a;
+}
+
+.light-theme .bg-white.text-zinc-900:hover {
+  color: #faf8f1;
 }
 
 /* ── Theme Utility Classes ───────────────────────────────────────────── */
@@ -1945,6 +2002,17 @@ html.has-custom-cursor *::after {
     linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.008) 60%, transparent),
     linear-gradient(180deg, var(--bg-secondary), var(--bg-secondary));
   box-shadow: inset 0 -1px 0 var(--border-primary), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Stored accessibility controls for the built-in YZPZ Agent session.  Zoom
+   scales the chrome as one coherent interface while the conversation's text
+   size is independently controlled through --agent-session-text-size. */
+.agent-pane-scale {
+  zoom: var(--agent-interface-scale, 1);
+}
+
+.agent-code-pre {
+  font-size: calc(var(--agent-session-text-size, 14px) - 1px);
 }
 
 /* Shimmer text — a soft metallic sheen that sweeps across label text. */

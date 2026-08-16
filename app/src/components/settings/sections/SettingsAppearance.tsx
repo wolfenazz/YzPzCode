@@ -34,6 +34,12 @@ export const SettingsAppearance: React.FC = () => {
     setUiDensity,
     animationsEnabled,
     setAnimationsEnabled,
+    customBackgroundEnabled,
+    setCustomBackgroundEnabled,
+    customBackgroundColor,
+    setCustomBackgroundColor,
+    lightThemeEnabled,
+    setLightThemeEnabled,
     setupViewMode,
     setSetupViewMode,
     discordRichPresence,
@@ -41,6 +47,19 @@ export const SettingsAppearance: React.FC = () => {
   } = useAppStore();
 
   const [discordError, setDiscordError] = useState<string | null>(null);
+  const [backgroundDraft, setBackgroundDraft] = useState(customBackgroundColor);
+
+  useEffect(() => {
+    setBackgroundDraft(customBackgroundColor);
+  }, [customBackgroundColor]);
+
+  const commitBackgroundColor = (value: string) => {
+    setBackgroundDraft(value);
+    if (/^#?[0-9a-f]{6}$/i.test(value.trim())) {
+      const normalized = value.trim().startsWith('#') ? value.trim() : `#${value.trim()}`;
+      setCustomBackgroundColor(normalized.toLowerCase());
+    }
+  };
 
   useEffect(() => {
     if (discordRichPresence) {
@@ -94,6 +113,78 @@ export const SettingsAppearance: React.FC = () => {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
+          Background
+        </h3>
+        <p className="text-[10px] text-zinc-600 font-mono">Replace the app's base background with any color you like — independent from the accent color</p>
+
+        <SettingsToggle
+          enabled={customBackgroundEnabled}
+          onToggle={() => setCustomBackgroundEnabled(!customBackgroundEnabled)}
+          label="Custom Background"
+          description="Use a custom color for the application background"
+        />
+
+        <SettingsToggle
+          enabled={lightThemeEnabled}
+          onToggle={() => setLightThemeEnabled(!lightThemeEnabled)}
+          label="Dark Text (Bright Background)"
+          description="Switch all UI text to dark for bright/whitish backgrounds"
+        />
+
+        {customBackgroundEnabled && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={/^#[0-9a-f]{6}$/i.test(customBackgroundColor) ? customBackgroundColor : '#16161a'}
+                onChange={(e) => {
+                  setCustomBackgroundColor(e.target.value);
+                  setBackgroundDraft(e.target.value);
+                }}
+                className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-[#3e3e38] bg-[#1f1f1f] p-1"
+                aria-label="Custom background color picker"
+              />
+              <input
+                type="text"
+                value={backgroundDraft}
+                onChange={(e) => commitBackgroundColor(e.target.value)}
+                placeholder="#16161a"
+                spellCheck={false}
+                className="h-9 flex-1 rounded-md border border-[#3e3e38] bg-[#1f1f1f]/60 px-3 font-mono text-[11px] uppercase tracking-widest text-[var(--text-primary)] outline-none transition-colors duration-150 focus:border-[var(--accent-border)]"
+                aria-label="Custom background color hex value"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomBackgroundColor('#16161a');
+                  setBackgroundDraft('#16161a');
+                }}
+                className="h-9 shrink-0 rounded-md border border-[#3e3e38] bg-[#1f1f1f]/60 px-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400 transition-colors duration-150 hover:text-zinc-200 hover:border-zinc-600 cursor-pointer"
+              >
+                Reset
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              {['#16161a', '#0f172a', '#1a1c12', '#241a1a', '#0c1f1c'].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setCustomBackgroundColor(preset);
+                    setBackgroundDraft(preset);
+                  }}
+                  className={`h-7 w-7 rounded-full border border-white/10 transition-transform duration-150 cursor-pointer hover:scale-110 ${customBackgroundColor.toLowerCase() === preset ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[#262626]' : ''}`}
+                  style={{ backgroundColor: preset }}
+                  aria-label={`Use background ${preset}`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">

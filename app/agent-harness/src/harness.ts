@@ -743,17 +743,22 @@ export class AgentHarness {
       }
       if (event.type === "status") {
         const status = String(event.payload.status ?? "").toLowerCase();
-        if (["running", "working", "starting"].includes(status)) {
-          this.runningSessions.add(event.payload.sessionId);
-        } else if (["idle", "completed", "failed", "aborted", "stopped"].includes(status)) {
-          this.runningSessions.delete(event.payload.sessionId);
-        }
+        // Do NOT derive the in-flight turn state from the SDK's status events.
+        // The SDK emits a spurious "running" while a session is being created
+        // (and can re-emit statuses out of order), which made a freshly opened
+        // session look busy and pushed the user's very first message into the
+        // steer queue with no running turn to drain it. `runningSessions` is
+        // now owned by sendMessage/lifecycle handlers only.
         this.sink("session-status", { sessionId: event.payload.sessionId, status: event.payload.status });
         // A run that ended in "failed" without a matching error agent_event
         // (e.g. loop-detection hard stop) still deserves recovery. The dedup
         // window keeps this from double-steering when the error event also
         // fired for the same failure.
         if (status === "failed") {
+          // A failed turn is definitively no longer running. Clear the flag
+          // BEFORE auto-recovery so the recovery follow-up is sent as a direct
+          // turn instead of being queued behind a turn that already ended.
+          this.runningSessions.delete(event.payload.sessionId);
           this.maybeRecoverAfterError(
             event.payload.sessionId,
             "The task stopped before completing.",
@@ -800,12 +805,13 @@ export class AgentHarness {
     });
   }
 
-  /** Max follow-up nudges per session before we trust the model's stop. 5 lets
-   *  long, multi-step tasks keep going instead of stopping at the first pause. */
-  private static MAX_COMPLETION_NUDGES = 5;
+  /** Max follow-up nudges per session before we trust the model's stop. Kept
+   *  deliberately small: forcing many continuations makes the model invent
+   *  extra work (hallucinate) instead of stopping when the task is done. */
+  private static MAX_COMPLETION_NUDGES = 3;
 
   /** Max automatic recovery turns after errors before handing control back to the user. */
-  private static MAX_RECOVERY_ATTEMPTS = 3;
+  private static MAX_RECOVERY_ATTEMPTS = 2;
   /** Dedup window: the same failure often surfaces via agent_event + status + send rejection. */
   private static RECOVERY_DEDUP_MS = 3000;
   /** Transient provider failures worth an automatic retry even with no unfinished todos. */
@@ -902,7 +908,7 @@ export class AgentHarness {
       .slice(0, 5)
       .map((t) => t.content ?? `#${t.id ?? "?"}`)
       .join("; ");
-    const followUp = `The task list still has ${unfinished.length} unfinished item(s): ${items}. Use todo_write to mark them completed as you finish them, and do not stop until the ENTIRE task is fully completed in this run. Stopping early is a failure.`;
+    const followUp = `The task list still has ${unfinished.length} unfinished item(s): ${items}. Finish them now. If any item is no longer needed or was already done, update the list with todo_write to mark it completed or remove it — then continue until the user's request is genuinely complete. Do not invent new work; when the list is accurate and the request is done, stop and summarize.`;
     // Steer with the session's own mode so an orchestrator follow-up keeps
     // its delegation directive instead of silently dropping to act.
     const mode = this.sessionModes.get(sessionId) ?? "act";
@@ -1262,10 +1268,21 @@ export class AgentHarness {
       });
       this.userInstructionServices.set(result.sessionId, userInstructionService);
       this.activeSessions.add(result.sessionId);
+      // A newly created/resumed session is idle by definition. `cline.start`
+      // can emit a spurious "running" status synchronously; if that leaked into
+      // `runningSessions`, the next user message would be queued as a follow-up
+      // steer with no turn to drain it. Clear both ids to be safe against the
+      // SDK returning a different session id than the one we requested.
+      this.runningSessions.delete(result.sessionId);
+      this.runningSessions.delete(sessionId);
+      this.steeringBySession.delete(result.sessionId);
+      this.steeringBySession.delete(sessionId);
+      this.emitPendingPrompts(result.sessionId);
       this.sink("session-created", {
         sessionId: result.sessionId,
         workspaceId: args.workspaceId,
       });
+      this.sink("session-status", { sessionId: result.sessionId, status: "idle" });
       return {
         sessionId: result.sessionId,
         manifestPath: result.manifestPath,
@@ -1416,6 +1433,21 @@ export class AgentHarness {
     // The SDK's start emits a spurious "running"; settle it to idle.
     this.sink("session-status", { sessionId, status: "idle" });
     return { resumed: true, sessionId };
+  }
+
+  /**
+   * Make sure a session is loaded in the SDK's in-memory runtime before an
+   * in-place mutation (connection/model/title). After a turn completes the SDK
+   * can drop the session from memory; mutation commands then fail with
+   * "session not found" even though the session is still persisted on disk.
+   * Rehydrating first matches what sendMessage already does.
+   */
+  private async ensureSessionActive(sessionId: string): Promise<void> {
+    if (this.activeSessions.has(sessionId)) return;
+    const result = await this.resumeSession(sessionId);
+    if (result.error) {
+      throw new Error(result.error);
+    }
   }
 
   async sendMessage(
@@ -1814,6 +1846,12 @@ export class AgentHarness {
     const queue = this.steeringBySession.get(sessionId);
     if (!queue || queue.length === 0) return;
     queue.shift();
+    // The popped prompt is now the running turn. Mark the session in-flight
+    // even when no further prompts remain queued; the SDK starts it right
+    // after the current turn and a user message sent in that gap must be
+    // queued, not started as a competing direct turn.
+    this.runningSessions.add(sessionId);
+    this.sink("session-status", { sessionId, status: "running" });
     if (queue.length === 0) this.steeringBySession.delete(sessionId);
     this.emitPendingPrompts(sessionId);
   }
@@ -1847,7 +1885,7 @@ export class AgentHarness {
     if (!todos || todos.length === 0) return undefined;
     const unfinished = todos.filter((t) => t.status === "pending" || t.status === "in_progress");
     if (unfinished.length === 0) return undefined;
-    return `The task list still has ${unfinished.length} unfinished item(s). Use todo_write to mark them completed as you finish them, and do not stop until the ENTIRE task is fully completed in this run. Stopping early is a failure.`;
+    return `The task list still has ${unfinished.length} unfinished item(s). Finish them now. If an item is no longer needed or was already done, update the list with todo_write to mark it completed or remove it. Do not invent new work — when the list is accurate and the user's request is complete, stop and summarize.`;
   }
 
   /** Live switch of provider/model/credentials on an existing session. */
@@ -1862,6 +1900,7 @@ export class AgentHarness {
       reasoningEffort?: string;
     },
   ): Promise<unknown> {
+    await this.ensureSessionActive(sessionId);
     const cline = this.requireCline();
     const session = (await cline.get(sessionId)) as { metadata?: Record<string, unknown> } | undefined;
     const metadata = session?.metadata ?? {};
@@ -2073,8 +2112,11 @@ export class AgentHarness {
     await this.requireCline().abort(sessionId);
     this.sessionModes.delete(sessionId);
     this.steeringBySession.delete(sessionId);
+    this.runningSessions.delete(sessionId);
     this.completionNudges.delete(sessionId);
     this.emitTeammatesStillWorking(sessionId);
+    this.emitPendingPrompts(sessionId);
+    this.sink("session-status", { sessionId, status: "idle" });
     // Keep budgets + usageBySession intact: `stop` only PAUSES the session
     // (it stays alive for instant resume). Wiping them here would silently
     // disable the token budget for every follow-up send (0 = unlimited) and
@@ -2218,6 +2260,7 @@ export class AgentHarness {
   }
 
   async updateModel(sessionId: string, modelId: string): Promise<void> {
+    await this.ensureSessionActive(sessionId);
     await this.requireCline().updateSessionModel(sessionId, modelId);
   }
 

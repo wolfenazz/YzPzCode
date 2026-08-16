@@ -546,7 +546,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
             rows={1}
             style={{ minHeight: MIN_HEIGHT, maxHeight: MAX_HEIGHT }}
             placeholder={placeholder}
-            className="peer flex-1 resize-none overflow-y-auto bg-transparent py-2 pl-2 pr-8 font-mono text-[12px] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none"
+            className="peer flex-1 resize-none overflow-y-auto bg-transparent py-2 pl-2 pr-8 font-mono text-[length:var(--agent-session-text-size)] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none"
           />
           <kbd
             className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-[4px] border border-[var(--border-primary)] bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-tertiary)] font-mono text-[10px] font-bold text-[var(--text-secondary)]/70 shadow-[inset_0_-1px_0_rgba(0,0,0,0.35),0_1px_1px_rgba(0,0,0,0.25)] transition-all duration-150 peer-focus:opacity-0 peer-not-placeholder-shown:opacity-0 ${compact ? 'hidden' : ''}`}

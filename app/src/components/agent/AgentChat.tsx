@@ -509,7 +509,7 @@ const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { 
   return (
   <div className="flex justify-end gap-2 animate-fade-in-up">
     <div className="max-w-[85%] rounded-2xl rounded-br-sm premium-surface !border-[var(--accent-border)] !bg-[var(--accent-light)]/25 px-3.5 py-2.5">
-      <div className="agent-rich-text text-[12px] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(text)}>
+      <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(text)}>
         <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
           {text}
         </ReactMarkdown>
@@ -1082,7 +1082,7 @@ const AssistantBlock = React.memo(function AssistantBlock({ block }: { block: Cl
   if (block.type === 'text' && typeof block.text === 'string') {
     if (!block.text.trim()) return null;
     return (
-      <div className="agent-rich-text text-[12px] leading-relaxed text-[var(--text-primary)] markdown-body animate-fade-in-up" {...richTextDirection(block.text)}>
+      <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body animate-fade-in-up" {...richTextDirection(block.text)}>
         <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
           {block.text}
         </ReactMarkdown>
@@ -1169,6 +1169,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   const stickToLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
+  const agentConversationWidth = useAppStore((s) => s.agentConversationWidth);
   const showLiveReasoning = showAgentReasoning && (isThinking || streamingThinking.trim().length > 0);
   const hasNewContent =
     streamingText.length > 0 || streamingThinking.length > 0 || toolLog.length > 0 || !!activeTool || isThinking || !!pendingQuestion || !!compaction;
@@ -1257,7 +1258,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   }, [messages]);
 
   return (
-    <div className="relative flex-1 min-h-0">
+    <div
+      className="relative flex-1 min-h-0"
+      style={{
+        '--agent-session-content-width': `${agentConversationWidth}px`,
+      } as React.CSSProperties}
+    >
       <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto custom-scrollbar px-4 sm:px-6 py-5">
       {messages.length === 0 && !hasNewContent && (
         <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center space-y-4 opacity-80">
@@ -1289,7 +1295,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           )}
         </div>
       )}
-      <div className="mx-auto w-full max-w-[860px] space-y-3.5">
+      <div className="mx-auto w-full max-w-[var(--agent-session-content-width)] space-y-3.5">
         {content}
         {notice && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--accent-border)]/40 bg-[var(--accent-light)]/10 font-mono text-[10px] text-[var(--accent)] animate-fade-in">
@@ -1316,7 +1322,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         {streamingText && (
           <div className="flex gap-2">
             <AgentAvatar />
-            <div className="agent-rich-text min-w-0 flex-1 text-[12px] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(streamingText)}>
+            <div className="agent-rich-text min-w-0 flex-1 text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(streamingText)}>
               <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
                 {streamingText}
               </ReactMarkdown>

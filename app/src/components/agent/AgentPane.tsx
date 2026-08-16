@@ -217,6 +217,8 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const setAgentPaneUIMode = useAppStore((s) => s.setAgentPaneUIMode);
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   const setShowAgentReasoning = useAppStore((s) => s.setShowAgentReasoning);
+  const agentSessionFontSize = useAppStore((s) => s.agentSessionFontSize);
+  const agentInterfaceScale = useAppStore((s) => s.agentInterfaceScale);
   const updateAgentSessionForWorkspace = useAppStore((s) => s.updateAgentSessionForWorkspace);
   const uiMode: AgentPaneUIMode = agentPaneUIModes[session.sessionId] ?? 'minimal';
   const setUiMode = useCallback(
@@ -226,8 +228,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
 
   // Pane size drives responsive collapsing (like a TTY re-fitting its cell).
   const { ref: paneRef, width, height } = useElementSize<HTMLDivElement>();
-  const isNarrow = width > 0 && width < NARROW_WIDTH;
-  const isVeryNarrow = width > 0 && width < VERY_NARROW_WIDTH;
+  const availableWidth = width / (agentInterfaceScale / 100);
+  const isNarrow = availableWidth > 0 && availableWidth < NARROW_WIDTH;
+  const isVeryNarrow = availableWidth > 0 && availableWidth < VERY_NARROW_WIDTH;
   const isShort = height > 0 && height < SHORT_HEIGHT;
 
   // Load provider list once.
@@ -564,7 +567,11 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   return (
     <div
       ref={paneRef}
-      className={`premium-pane flex flex-col h-full w-full overflow-hidden ${isWorking ? 'premium-pane--active' : ''}`}
+      className={`premium-pane agent-pane-scale flex flex-col h-full w-full overflow-hidden ${isWorking ? 'premium-pane--active' : ''}`}
+      style={{
+        '--agent-interface-scale': agentInterfaceScale / 100,
+        '--agent-session-text-size': `${agentSessionFontSize}px`,
+      } as React.CSSProperties}
     >
       {/* Pane header */}
       <div className="premium-header flex items-center gap-1.5 px-2 py-1 select-none shrink-0">
@@ -904,7 +911,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               />
               <TodoPanel
                 todos={todos}
-                open={tasksOpen && width >= TASK_OVERLAY_MIN_WIDTH}
+                open={tasksOpen && availableWidth >= TASK_OVERLAY_MIN_WIDTH}
                 running={isWorking}
                 onToggle={() => setTasksOpen((v) => !v)}
               />

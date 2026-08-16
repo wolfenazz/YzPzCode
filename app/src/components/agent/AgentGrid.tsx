@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AgentPane } from './AgentPane';
+import { AgentCommandDrawer } from './AgentCommandDrawer';
 import { NewAgentDialog } from './NewAgentDialog';
 import { SessionHistory } from './SessionHistory';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
@@ -11,6 +12,12 @@ import type { AgentMode, AgentSessionSummary } from '../../types';
 interface AgentGridProps {
   workspaceId: string;
 }
+
+const MIN_GRID_SIZE = 12;
+const GRID_GAP = 8;
+const GRID_DIVIDER = 3;
+
+const makeEqualSizes = (count: number): number[] => Array.from({ length: count }, () => 100 / count);
 
 function getDims(count: number): { cols: number; rows: number } {
   if (count <= 1) return { cols: 1, rows: 1 };
@@ -37,6 +44,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   } = useAgentHost();
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const animationsEnabled = useAppStore((s) => s.animationsEnabled);
+  const independentGridResize = useAppStore((s) => s.independentGridResize);
   const agentSessionsByWorkspace = useAppStore((s) => s.agentSessionsByWorkspace);
   const setAgentSessionsForWorkspace = useAppStore((s) => s.setAgentSessionsForWorkspace);
   const addAgentSessionForWorkspace = useAppStore((s) => s.addAgentSessionForWorkspace);
@@ -50,6 +58,19 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   const [preparing, setPreparing] = useState(false);
   const [creating, setCreating] = useState(false);
   const initializedRef = useRef(false);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+  const gridResizeRef = useRef<{
+    axis: 'col' | 'row';
+    index: number;
+    row: number;
+    col: number;
+    startPos: number;
+    startSizes: number[];
+  } | null>(null);
+  const [rowColumnSizes, setRowColumnSizes] = useState<number[][] | null>(null);
+  const [columnRowSizes, setColumnRowSizes] = useState<number[][] | null>(null);
+  const [columnSizes, setColumnSizes] = useState<number[] | null>(null);
+  const [rowSizes, setRowSizes] = useState<number[] | null>(null);
 
   // Track backend-side harness bootstrap (local rebuild of dist) so the UI can
   // show progress instead of a silent wait.
@@ -307,6 +328,165 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   const cellCount = cols * rows;
   const hasSpareCell = sessions.length < cellCount;
 
+  // Match the terminal grid's resize model: normal mode keeps every row and
+  // column aligned, while Independent Grid Resize allows one divider segment
+  // to affect only its own row or column.
+  const activeRowColumnSizes = useMemo(() => {
+    if (rowColumnSizes?.length === rows && rowColumnSizes.every((sizes) => sizes.length === cols)) {
+      return rowColumnSizes.map((sizes) => {
+        const total = sizes.reduce((sum, size) => sum + size, 0);
+        return sizes.map((size) => (size / total) * 100);
+      });
+    }
+    return Array.from({ length: rows }, () => makeEqualSizes(cols));
+  }, [rowColumnSizes, rows, cols]);
+
+  const activeColumnRowSizes = useMemo(() => {
+    if (columnRowSizes?.length === cols && columnRowSizes.every((sizes) => sizes.length === rows)) {
+      return columnRowSizes.map((sizes) => {
+        const total = sizes.reduce((sum, size) => sum + size, 0);
+        return sizes.map((size) => (size / total) * 100);
+      });
+    }
+    return Array.from({ length: cols }, () => makeEqualSizes(rows));
+  }, [columnRowSizes, rows, cols]);
+
+  const activeColumnSizes = useMemo(() => {
+    if (columnSizes?.length === cols) {
+      const total = columnSizes.reduce((sum, size) => sum + size, 0);
+      return columnSizes.map((size) => (size / total) * 100);
+    }
+    return makeEqualSizes(cols);
+  }, [columnSizes, cols]);
+
+  const activeRowSizes = useMemo(() => {
+    if (rowSizes?.length === rows) {
+      const total = rowSizes.reduce((sum, size) => sum + size, 0);
+      return rowSizes.map((size) => (size / total) * 100);
+    }
+    return makeEqualSizes(rows);
+  }, [rowSizes, rows]);
+
+  const cellColumnSizes = useMemo(
+    () => (independentGridResize ? activeRowColumnSizes : Array.from({ length: rows }, () => activeColumnSizes)),
+    [independentGridResize, activeRowColumnSizes, activeColumnSizes, rows]
+  );
+  const cellRowSizes = useMemo(
+    () => (independentGridResize ? activeColumnRowSizes : Array.from({ length: cols }, () => activeRowSizes)),
+    [independentGridResize, activeColumnRowSizes, activeRowSizes, cols]
+  );
+
+  useEffect(() => {
+    setRowColumnSizes(null);
+    setColumnRowSizes(null);
+    setColumnSizes(null);
+    setRowSizes(null);
+  }, [sessions.length]);
+
+  const getPointerPercent = useCallback((event: MouseEvent, axis: 'col' | 'row'): number => {
+    const rect = gridContainerRef.current?.getBoundingClientRect();
+    if (!rect) return 0;
+    return axis === 'col'
+      ? ((event.clientX - rect.left) / rect.width) * 100
+      : ((event.clientY - rect.top) / rect.height) * 100;
+  }, []);
+
+  const handleDividerDrag = useCallback((event: React.MouseEvent, axis: 'col' | 'row', dividerIndex: number, lineIndex = 0): void => {
+    event.preventDefault();
+    const row = axis === 'col' ? lineIndex : -1;
+    const col = axis === 'row' ? lineIndex : -1;
+    const sizes = axis === 'col'
+      ? (independentGridResize ? activeRowColumnSizes[row] : activeColumnSizes)
+      : (independentGridResize ? activeColumnRowSizes[col] : activeRowSizes);
+    gridResizeRef.current = {
+      axis,
+      index: dividerIndex,
+      row,
+      col,
+      startPos: getPointerPercent(event.nativeEvent, axis),
+      startSizes: [...sizes],
+    };
+
+    const handleMove = (moveEvent: MouseEvent): void => {
+      const drag = gridResizeRef.current;
+      if (!drag) return;
+      const difference = getPointerPercent(moveEvent, drag.axis) - drag.startPos;
+      const nextSizes = [...drag.startSizes];
+      const pairTotal = drag.startSizes[drag.index] + drag.startSizes[drag.index + 1];
+      nextSizes[drag.index] = Math.max(MIN_GRID_SIZE, Math.min(pairTotal - MIN_GRID_SIZE, drag.startSizes[drag.index] + difference));
+      nextSizes[drag.index + 1] = pairTotal - nextSizes[drag.index];
+
+      if (drag.axis === 'col') {
+        if (!independentGridResize) {
+          setColumnSizes(nextSizes);
+          return;
+        }
+        setRowColumnSizes((previous) => {
+          const base = previous?.length === rows && previous.every((sizes) => sizes.length === cols)
+            ? previous.map((sizes) => [...sizes])
+            : Array.from({ length: rows }, () => makeEqualSizes(cols));
+          base[drag.row] = nextSizes;
+          return base;
+        });
+        return;
+      }
+
+      if (!independentGridResize) {
+        setRowSizes(nextSizes);
+        return;
+      }
+      setColumnRowSizes((previous) => {
+        const base = previous?.length === cols && previous.every((sizes) => sizes.length === rows)
+          ? previous.map((sizes) => [...sizes])
+          : Array.from({ length: cols }, () => makeEqualSizes(rows));
+        base[drag.col] = nextSizes;
+        return base;
+      });
+    };
+
+    const handleUp = (): void => {
+      gridResizeRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+
+    document.body.style.cursor = axis === 'col' ? 'col-resize' : 'row-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+  }, [activeRowColumnSizes, activeColumnRowSizes, activeColumnSizes, activeRowSizes, cols, getPointerPercent, independentGridResize, rows]);
+
+  const resetDivider = useCallback((axis: 'col' | 'row', lineIndex = 0): void => {
+    if (axis === 'col') {
+      if (!independentGridResize) {
+        setColumnSizes(makeEqualSizes(cols));
+        return;
+      }
+      setRowColumnSizes((previous) => {
+        const base = previous?.length === rows && previous.every((sizes) => sizes.length === cols)
+          ? previous.map((sizes) => [...sizes])
+          : Array.from({ length: rows }, () => makeEqualSizes(cols));
+        base[lineIndex] = makeEqualSizes(cols);
+        return base;
+      });
+      return;
+    }
+
+    if (!independentGridResize) {
+      setRowSizes(makeEqualSizes(rows));
+      return;
+    }
+    setColumnRowSizes((previous) => {
+      const base = previous?.length === cols && previous.every((sizes) => sizes.length === rows)
+        ? previous.map((sizes) => [...sizes])
+        : Array.from({ length: cols }, () => makeEqualSizes(rows));
+      base[lineIndex] = makeEqualSizes(rows);
+      return base;
+    });
+  }, [cols, independentGridResize, rows]);
+
   return (
     <div className="h-full w-full flex flex-col bg-[var(--bg-main)] relative overflow-hidden">
       {/* Toolbar */}
@@ -425,34 +605,141 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           </div>
         ) : (
           <div
-            className="relative h-full w-full grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))` }}
+            ref={gridContainerRef}
+            className="relative h-full w-full"
           >
-            {sessions.map((session, i) => (
-              <div key={session.sessionId} className="min-h-0 min-w-0">
-                <AgentPane
-                  session={session}
-                  index={i}
-                  onClose={handleClose}
-                  onNewChat={handleNewChat}
-                />
-              </div>
-            ))}
+            <div className="absolute inset-0">
+              {sessions.map((session, index) => {
+                const row = Math.floor(index / cols);
+                const column = index % cols;
+                const left = cellColumnSizes[row].slice(0, column).reduce((sum, size) => sum + size, 0);
+                const top = cellRowSizes[column].slice(0, row).reduce((sum, size) => sum + size, 0);
+                return (
+                  <div
+                    key={session.sessionId}
+                    className="absolute min-h-0 min-w-0 overflow-hidden"
+                    style={{
+                      left: `calc(${left}% + ${column * GRID_GAP}px)`,
+                      top: `calc(${top}% + ${row * GRID_GAP}px)`,
+                      width: `${cellColumnSizes[row][column]}%`,
+                      height: `${cellRowSizes[column][row]}%`,
+                    }}
+                  >
+                    <AgentPane
+                      session={session}
+                      index={index}
+                      onClose={handleClose}
+                      onNewChat={handleNewChat}
+                    />
+                  </div>
+                );
+              })}
 
-            {hasSpareCell && (
-              <button
-                onClick={() => void handleNewAgent()}
-                disabled={!hostReady}
-                className="min-h-0 rounded-lg border border-dashed border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30 hover:bg-[var(--bg-tertiary)]/60 hover:border-[var(--accent-border)] disabled:opacity-40 transition-colors duration-200 cursor-pointer flex flex-col items-center justify-center gap-2"
-              >
-                <svg className="w-6 h-6 text-[var(--text-secondary)]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="font-mono text-[9px] uppercase font-black tracking-[0.3em] text-[var(--text-secondary)]/50">
-                  Spawn Agent
-                </span>
-              </button>
-            )}
+              {hasSpareCell && (() => {
+                const row = Math.floor(sessions.length / cols);
+                const column = sessions.length % cols;
+                const left = cellColumnSizes[row].slice(0, column).reduce((sum, size) => sum + size, 0);
+                const top = cellRowSizes[column].slice(0, row).reduce((sum, size) => sum + size, 0);
+                return (
+                  <button
+                    onClick={() => void handleNewAgent()}
+                    disabled={!hostReady}
+                    className="absolute flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-dashed border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30 transition-colors duration-200 hover:border-[var(--accent-border)] hover:bg-[var(--bg-tertiary)]/60 disabled:opacity-40 cursor-pointer"
+                    style={{
+                      left: `calc(${left}% + ${column * GRID_GAP}px)`,
+                      top: `calc(${top}% + ${row * GRID_GAP}px)`,
+                      width: `${cellColumnSizes[row][column]}%`,
+                      height: `${cellRowSizes[column][row]}%`,
+                    }}
+                  >
+                    <svg className="h-6 w-6 text-[var(--text-secondary)]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="font-mono text-[9px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)]/50">Spawn Agent</span>
+                  </button>
+                );
+              })()}
+
+              {independentGridResize && cols > 1 && Array.from({ length: rows }).flatMap((_, row) =>
+                Array.from({ length: cols - 1 }).map((_, divider) => {
+                  const left = activeRowColumnSizes[row].slice(0, divider + 1).reduce((sum, size) => sum + size, 0);
+                  const top = activeColumnRowSizes[divider].slice(0, row).reduce((sum, size) => sum + size, 0);
+                  return (
+                    <div
+                      key={`agent-v-divider-${row}-${divider}`}
+                      onMouseDown={(event) => handleDividerDrag(event, 'col', divider, row)}
+                      onDoubleClick={() => resetDivider('col', row)}
+                      title="Drag to resize. Double-click to reset equal widths."
+                      className="absolute z-20 cursor-col-resize group/divider"
+                      style={{
+                        left: `calc(${left}% + ${divider * GRID_GAP}px + ${(GRID_GAP - GRID_DIVIDER) / 2}px)`,
+                        top: `calc(${top}% + ${row * GRID_GAP}px)`,
+                        width: `${GRID_DIVIDER}px`,
+                        height: `${activeColumnRowSizes[divider][row]}%`,
+                      }}
+                    >
+                      <div className="mx-auto h-full w-px bg-transparent transition-colors group-hover/divider:bg-[var(--accent)]/70 group-active/divider:bg-[var(--accent)]" />
+                    </div>
+                  );
+                })
+              )}
+
+              {independentGridResize && rows > 1 && Array.from({ length: cols }).flatMap((_, column) =>
+                Array.from({ length: rows - 1 }).map((_, divider) => {
+                  const top = activeColumnRowSizes[column].slice(0, divider + 1).reduce((sum, size) => sum + size, 0);
+                  const left = activeRowColumnSizes[divider].slice(0, column).reduce((sum, size) => sum + size, 0);
+                  return (
+                    <div
+                      key={`agent-h-divider-${column}-${divider}`}
+                      onMouseDown={(event) => handleDividerDrag(event, 'row', divider, column)}
+                      onDoubleClick={() => resetDivider('row', column)}
+                      title="Drag to resize. Double-click to reset equal heights."
+                      className="absolute z-20 cursor-row-resize group/divider"
+                      style={{
+                        left: `calc(${left}% + ${column * GRID_GAP}px)`,
+                        top: `calc(${top}% + ${divider * GRID_GAP}px + ${(GRID_GAP - GRID_DIVIDER) / 2}px)`,
+                        width: `${activeRowColumnSizes[divider][column]}%`,
+                        height: `${GRID_DIVIDER}px`,
+                      }}
+                    >
+                      <div className="my-auto h-px w-full bg-transparent transition-colors group-hover/divider:bg-[var(--accent)]/70 group-active/divider:bg-[var(--accent)]" />
+                    </div>
+                  );
+                })
+              )}
+
+              {!independentGridResize && cols > 1 && Array.from({ length: cols - 1 }).map((_, divider) => {
+                const left = activeColumnSizes.slice(0, divider + 1).reduce((sum, size) => sum + size, 0);
+                return (
+                  <div
+                    key={`agent-v-divider-${divider}`}
+                    onMouseDown={(event) => handleDividerDrag(event, 'col', divider)}
+                    onDoubleClick={() => resetDivider('col')}
+                    title="Drag to resize. Double-click to reset equal widths."
+                    className="absolute inset-y-0 z-20 cursor-col-resize group/divider"
+                    style={{ left: `calc(${left}% + ${divider * GRID_GAP}px + ${(GRID_GAP - GRID_DIVIDER) / 2}px)`, width: `${GRID_DIVIDER}px` }}
+                  >
+                    <div className="mx-auto h-full w-px bg-transparent transition-colors group-hover/divider:bg-[var(--accent)]/70 group-active/divider:bg-[var(--accent)]" />
+                  </div>
+                );
+              })}
+
+              {!independentGridResize && rows > 1 && Array.from({ length: rows - 1 }).map((_, divider) => {
+                const top = activeRowSizes.slice(0, divider + 1).reduce((sum, size) => sum + size, 0);
+                return (
+                  <div
+                    key={`agent-h-divider-${divider}`}
+                    onMouseDown={(event) => handleDividerDrag(event, 'row', divider)}
+                    onDoubleClick={() => resetDivider('row')}
+                    title="Drag to resize. Double-click to reset equal heights."
+                    className="absolute inset-x-0 z-20 cursor-row-resize group/divider"
+                    style={{ top: `calc(${top}% + ${divider * GRID_GAP}px + ${(GRID_GAP - GRID_DIVIDER) / 2}px)`, height: `${GRID_DIVIDER}px` }}
+                  >
+                    <div className="my-auto h-px w-full bg-transparent transition-colors group-hover/divider:bg-[var(--accent)]/70 group-active/divider:bg-[var(--accent)]" />
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -489,6 +776,12 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           onClose={() => setShowHistory(false)}
         />
       )}
+
+      <AgentCommandDrawer
+        key={workspaceId}
+        workspaceId={workspaceId}
+        workspacePath={currentWorkspace?.path ?? ''}
+      />
     </div>
   );
 };

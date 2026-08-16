@@ -142,6 +142,13 @@ interface AppState {
   accentColor: string;
   uiDensity: "compact" | "comfortable" | "spacious";
   animationsEnabled: boolean;
+  customBackgroundEnabled: boolean;
+  customBackgroundColor: string;
+  lightThemeEnabled: boolean;
+  /** Accessibility preferences for the built-in YZPZ Agent workspace. */
+  agentSessionFontSize: number;
+  agentInterfaceScale: number;
+  agentConversationWidth: number;
   terminalFontFamily: string;
   terminalFontSize: number;
   terminalCursorStyle: "block" | "underline" | "bar";
@@ -200,6 +207,13 @@ interface AppState {
   setAccentColor: (color: string) => void;
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
   setAnimationsEnabled: (enabled: boolean) => void;
+  setCustomBackgroundEnabled: (enabled: boolean) => void;
+  setCustomBackgroundColor: (color: string) => void;
+  setLightThemeEnabled: (enabled: boolean) => void;
+  setAgentSessionFontSize: (size: number) => void;
+  setAgentInterfaceScale: (scale: number) => void;
+  setAgentConversationWidth: (width: number) => void;
+  resetAgentDisplayPreferences: () => void;
   setTerminalFontFamily: (font: string) => void;
   setTerminalFontSize: (size: number) => void;
   setTerminalCursorStyle: (style: "block" | "underline" | "bar") => void;
@@ -391,6 +405,12 @@ export const useAppStore = create<AppState>()(
       accentColor: "default",
       uiDensity: "comfortable",
       animationsEnabled: true,
+      customBackgroundEnabled: false,
+      customBackgroundColor: "#16161a",
+      lightThemeEnabled: false,
+      agentSessionFontSize: 14,
+      agentInterfaceScale: 100,
+      agentConversationWidth: 860,
       terminalFontFamily: getPlatformDefaultTerminalFont(),
       terminalFontSize: 14,
       terminalCursorStyle: "block",
@@ -596,6 +616,18 @@ export const useAppStore = create<AppState>()(
       setAccentColor: (color) => set({ accentColor: color }),
       setUiDensity: (density) => set({ uiDensity: density }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
+      setCustomBackgroundEnabled: (enabled) => set({ customBackgroundEnabled: enabled }),
+      setCustomBackgroundColor: (color) => set({ customBackgroundColor: color }),
+      setLightThemeEnabled: (enabled) => set({ lightThemeEnabled: enabled }),
+      setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
+      setAgentInterfaceScale: (scale) => set({ agentInterfaceScale: scale }),
+      setAgentConversationWidth: (width) => set({ agentConversationWidth: width }),
+      resetAgentDisplayPreferences: () =>
+        set({
+          agentSessionFontSize: 14,
+          agentInterfaceScale: 100,
+          agentConversationWidth: 860,
+        }),
       setTerminalFontFamily: (font) => set({ terminalFontFamily: font }),
       setTerminalFontSize: (size) => set({ terminalFontSize: size }),
       setTerminalCursorStyle: (style) => set({ terminalCursorStyle: style }),
@@ -1575,7 +1607,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
-      version: 3,
+      version: 4,
       migrate: (persistedState: unknown, version: number) => {
         const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean };
         if (version < 2) {
@@ -1604,6 +1636,12 @@ export const useAppStore = create<AppState>()(
           accentColor: state.accentColor,
           uiDensity: state.uiDensity,
           animationsEnabled: state.animationsEnabled,
+          customBackgroundEnabled: state.customBackgroundEnabled,
+          customBackgroundColor: state.customBackgroundColor,
+          lightThemeEnabled: state.lightThemeEnabled,
+          agentSessionFontSize: state.agentSessionFontSize,
+          agentInterfaceScale: state.agentInterfaceScale,
+          agentConversationWidth: state.agentConversationWidth,
           terminalFontFamily: state.terminalFontFamily,
           terminalFontSize: state.terminalFontSize,
           terminalCursorStyle: state.terminalCursorStyle,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { AgentSelect } from '../../agent/AgentSelect';
 import { useAgentHost } from '../../../hooks/useAgentHost';
+import { useAppStore } from '../../../stores/appStore';
 import type {
   AgentHostStatus,
   AgentMcpServer,
@@ -98,7 +99,45 @@ const Toggle: React.FC<{ label: string; checked: boolean; onChange: (v: boolean)
   </div>
 );
 
+const DisplaySlider: React.FC<{
+  label: string;
+  description: string;
+  value: number;
+  displayValue: string;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (value: number) => void;
+}> = ({ label, description, value, displayValue, min, max, step = 1, onChange }) => (
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-5 gap-y-2">
+    <div className="min-w-0">
+      <div className="font-mono text-[10px] text-[var(--text-primary)]">{label}</div>
+      <div className="font-mono text-[9px] text-[var(--text-secondary)]/50">{description}</div>
+    </div>
+    <output className="font-mono text-[10px] tabular-nums text-[var(--accent)]">{displayValue}</output>
+    <input
+      className="col-span-2 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-[var(--border-primary)] accent-[var(--accent)]"
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onChange={(event) => onChange(Number(event.target.value))}
+      aria-label={label}
+    />
+  </div>
+);
+
 export const SettingsAgent: React.FC = () => {
+  const {
+    agentSessionFontSize,
+    agentInterfaceScale,
+    agentConversationWidth,
+    setAgentSessionFontSize,
+    setAgentInterfaceScale,
+    setAgentConversationWidth,
+    resetAgentDisplayPreferences,
+  } = useAppStore();
   const {
     getStatus,
     getProviders,
@@ -470,6 +509,60 @@ export const SettingsAgent: React.FC = () => {
           UI AI agent harness — runs as a local Node sidecar. Settings are global across all workspaces.
         </p>
       </div>
+
+      {/* Session display */}
+      <section className="rounded-lg border border-[var(--border-primary)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 flex items-center gap-2">
+          <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-[var(--text-primary)]">Session Display</span>
+          <span className="ml-auto font-mono text-[9px] text-[var(--text-secondary)]/50">applies instantly</span>
+        </div>
+        <div className="px-4 py-4 space-y-5">
+          <p className="max-w-xl font-mono text-[10px] leading-relaxed text-[var(--text-secondary)]/65">
+            Tune the YZPZ Agent session for easier reading. These preferences are saved on this device and apply to every workspace.
+          </p>
+
+          <DisplaySlider
+            label="Conversation text"
+            description="Message, response, and composer text"
+            value={agentSessionFontSize}
+            displayValue={`${agentSessionFontSize}px`}
+            min={12}
+            max={20}
+            onChange={setAgentSessionFontSize}
+          />
+          <DisplaySlider
+            label="Agent interface scale"
+            description="Headers, controls, and session chrome"
+            value={agentInterfaceScale}
+            displayValue={`${agentInterfaceScale}%`}
+            min={90}
+            max={125}
+            step={5}
+            onChange={setAgentInterfaceScale}
+          />
+          <DisplaySlider
+            label="Reading width"
+            description="Maximum width of the conversation column"
+            value={agentConversationWidth}
+            displayValue={`${agentConversationWidth}px`}
+            min={640}
+            max={1200}
+            step={20}
+            onChange={setAgentConversationWidth}
+          />
+
+          <div className="flex items-center justify-between gap-4 border-t border-[var(--border-primary)] pt-3">
+            <span className="font-mono text-[9px] text-[var(--text-secondary)]/50">Default: 14px text · 100% UI · 860px reading width</span>
+            <button
+              type="button"
+              onClick={resetAgentDisplayPreferences}
+              className="rounded-md border border-[var(--border-primary)] px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] cursor-pointer"
+            >
+              Reset display
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Harness status */}
       <div className="rounded-lg border border-[var(--border-primary)] overflow-hidden">
