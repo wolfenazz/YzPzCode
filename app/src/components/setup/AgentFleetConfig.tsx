@@ -19,6 +19,7 @@ import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
+import commandCodeLogo from '../../assets/commandcode-logo.svg';
 
 interface AgentFleetConfigProps {
   totalSlots: number;
@@ -37,6 +38,7 @@ const AGENT_INFO: Record<AgentType, { label: string; color: string; logo: string
   kilo: { label: 'Kilo', color: 'bg-teal-500', logo: kiloLogo },
   hermes: { label: 'Hermes', color: 'bg-amber-500', logo: hermesLogo },
   pi: { label: 'Pi', color: 'bg-zinc-500', logo: piLogo },
+  commandcode: { label: 'Command Code', color: 'bg-neutral-500', logo: commandCodeLogo },
 };
 
 const TOOL_INFO: Record<ToolCliType, { label: string; icon: string; color: string }> = {
@@ -257,7 +259,7 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     isLaunchingRef.current = true;
     setInstallingCli(cli);
     try {
-      const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi'];
+      const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode'];
       if (agentTypes.includes(cli as AgentType)) {
         await openInstallTerminal(cli as AgentType);
       } else {

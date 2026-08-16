@@ -85,9 +85,9 @@ Click on a layout option to see a visual preview. The selected layout will be hi
 
 ## CLI Tool Management
 
-YzPzCode supports **7 AI agent CLIs** and **10 SaaS tool CLIs**.
+YzPzCode supports **9 AI agent CLIs** and **10 SaaS tool CLIs**.
 
-### AI Agent CLIs (7)
+### AI Agent CLIs (9)
 
 | Agent | CLI Binary | Description |
 |-------|-----------|-------------|
@@ -98,6 +98,8 @@ YzPzCode supports **7 AI agent CLIs** and **10 SaaS tool CLIs**.
 | Cursor | `cursor` | IDE-level AI assistance |
 | Kilo | `kilo` | Code agent for any task |
 | Hermes | `hermes` | Fast, efficient coding agent |
+| Pi | `pi` | Minimal terminal coding harness |
+| Command Code | `cmd` / `cmdc` | Learns your taste, applies it everywhere |
 
 ### SaaS Tool CLIs (10)
 
@@ -535,6 +537,7 @@ Run non-interactive shell commands inside the app with status tracking.
 - **Codex**: Code generation and boilerplate
 - **Gemini**: Multi-modal tasks (code + images/docs)
 - **Kilo**: Complex code tasks
+- **Command Code**: Taste-aware coding — import your setup with `/import`, then run `/learn-taste` so future sessions adapt to your preferences
 - **Mix agents** to leverage their strengths
 
 ### Browser & Designer

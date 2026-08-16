@@ -56,6 +56,7 @@ YzPzCode works with popular AI coding tools. You'll need to install at least one
 | **Codex** | Code generator | Check your provider's website |
 | **Gemini** | Google's AI assistant | [Install Gemini](https://ai.google.dev/gemini-api/docs/cli) |
 | **Cursor** | AI-powered coding | [Install Cursor](https://cursor.sh/docs) |
+| **Command Code** | Taste-aware AI coding agent (Node.js 22+) | [Install Command Code](https://commandcode.ai/docs) |
 
 **Don't worry about technical details** - just visit the link and follow the simple install instructions.
 

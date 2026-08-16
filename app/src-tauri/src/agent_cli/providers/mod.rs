@@ -1,6 +1,7 @@
 mod agentmail;
 mod claude;
 mod codex;
+mod commandcode;
 mod cursor;
 mod elevenlabs;
 mod gemini;
@@ -20,6 +21,7 @@ mod vercel;
 pub use agentmail::AgentmailCliProvider;
 pub use claude::ClaudeCliProvider;
 pub use codex::CodexCliProvider;
+pub use commandcode::CommandCodeCliProvider;
 pub use cursor::CursorCliProvider;
 pub use elevenlabs::ElevenlabsCliProvider;
 pub use gemini::GeminiCliProvider;

@@ -358,6 +358,7 @@ const initialCliStatuses: Record<CliType, AgentCliInfo | null> = {
   kilo: null,
   hermes: null,
   pi: null,
+  commandcode: null,
   gh: null,
   stripe: null,
   supabase: null,

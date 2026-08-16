@@ -6,7 +6,7 @@
 
 <p><strong>Your AI Coding Squad, One Window Away.</strong></p>
 
-<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, and Pi together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, an AI-powered designer,<br>and a Photoshop-style built-in image editor — plus a built-in AI coding agent (YZPZ Agent), running on a local agent harness.</i></p>
+<p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, Pi, and Command Code together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, an AI-powered designer,<br>and a Photoshop-style built-in image editor — plus a built-in AI coding agent (YZPZ Agent), running on a local agent harness.</i></p>
 
 [![GitHub stars](https://img.shields.io/github/stars/wolfenazz/YzPzCode?style=for-the-badge&logo=github&color=yellow)](https://github.com/wolfenazz/YzPzCode/stargazers)
 [![Built with Tauri](https://img.shields.io/badge/Built%20with-Tauri%20v2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app)
@@ -43,7 +43,7 @@
 | [!] The Old Way | [+] The YzPzCode Way |
 |:--------------:|:-------------------:|
 | Three terminal windows | **One app** |
-| Three different CLIs | **All 8 AI agents inside** |
+| Three different CLIs | **All 9 AI agents inside** |
 | Alt-tabbing like a maniac | **Side-by-side grid** |
 | Separate browser for devtools | **In-app browser with inspector** |
 | Copy-pasting between them | **Compare instantly** |
@@ -164,6 +164,10 @@
 <td align="center" width="120">
 <img src="app/src/assets/pi.svg" width="48" height="48" style="border-radius:12px"/>
 <br><br><b>Pi</b><br><code>pi</code><br><sub>Minimal terminal coding harness</sub>
+</td>
+<td align="center" width="120">
+<img src="app/src/assets/commandcode-logo.svg" width="104" height="48" style="border-radius:12px"/>
+<br><br><b>Command Code</b><br><code>cmd / cmdc</code><br><sub>Learns your taste, applies it everywhere</sub>
 </td>
 </tr>
 </table>

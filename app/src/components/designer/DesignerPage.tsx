@@ -121,6 +121,7 @@ const AGENT_OPTIONS: Array<{ id: AgentType; label: string }> = [
   { id: 'cursor', label: 'Cursor' },
   { id: 'hermes', label: 'Hermes' },
   { id: 'pi', label: 'Pi' },
+  { id: 'commandcode', label: 'Command Code' },
 ];
 
 const PAGE_TYPE_BY_CATEGORY: Record<string, DesignerPageType> = {

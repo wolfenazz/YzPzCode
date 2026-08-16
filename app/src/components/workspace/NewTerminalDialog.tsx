@@ -10,6 +10,7 @@ import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
+import commandCodeLogo from '../../assets/commandcode-logo.svg';
 
 interface AgentOption {
   type: AgentType;
@@ -28,6 +29,7 @@ const AGENT_OPTIONS: AgentOption[] = [
   { type: 'kilo', label: 'Kilo Code', description: 'Lightweight AI Developer', logo: kiloLogo, color: '#8B5CF6' },
   { type: 'hermes', label: 'Hermes Agent', description: 'NousResearch Autonomous Agent', logo: hermesLogo, color: '#F59E0B' },
   { type: 'pi', label: 'Pi Agent', description: 'Minimal Terminal Coding Harness', logo: piLogo, color: '#FFFFFF' },
+  { type: 'commandcode', label: 'Command Code', description: 'Taste-Aware Coding Agent', logo: commandCodeLogo, color: '#FFFFFF' },
 ];
 
 const AGENT_CAPABILITIES: Record<AgentType, string> = {
@@ -39,6 +41,7 @@ const AGENT_CAPABILITIES: Record<AgentType, string> = {
   kilo: 'Lightweight, fast AI coding assistant optimized for quick tasks. Lower resource usage.',
   hermes: 'NousResearch autonomous AI agent with tool use, messaging integration, and browser automation.',
   pi: 'Minimal terminal coding harness with TypeScript extensions, skills, prompt templates, and pi packages. Supports Claude, OpenAI, Gemini, and 20+ providers.',
+  commandcode: 'Agentic coding CLI that learns your preferences (package managers, libraries, structure) into a taste profile applied across all sessions.',
 };
 
 const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; icon: string; color: string }[] = [

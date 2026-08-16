@@ -81,7 +81,7 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 - `prerequisites.rs`: Checks for Node.js, npm, git, bun, pnpm, Docker
 - `providers/`: Provider-specific implementations:
 
-  **AI Agents (7):** claude, codex, gemini, opencode, cursor, kilo, hermes
+  **AI Agents (9):** claude, codex, gemini, opencode, cursor, kilo, hermes, pi, commandcode
   **Tool CLIs (10):** gh (GitHub), stripe, supabase, valyu, posthog, elevenlabs, ramp, gws (Google Workspace), agentmail, vercel
 
 **Frontend** (`app/src/hooks/`):

@@ -16,6 +16,7 @@ const DEFAULT_AGENT_FLEET: AgentFleet = {
     kilo: 0,
     hermes: 0,
     pi: 0,
+    commandcode: 0,
     gh: 0,
     stripe: 0,
     supabase: 0,
@@ -39,7 +40,9 @@ export interface WorkspaceTemplate {
   allocation: Record<CliType, number>;
 }
 
-const TOOL_ZEROS = { gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0 };
+// Zero defaults for every non-codex/claude seed slot. `commandcode` lives here
+// (like the other agents) so template allocations spread from a fixed baseline.
+const TOOL_ZEROS = { gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0, commandcode: 0 };
 
 export const SEED_TEMPLATES: WorkspaceTemplate[] = [
   {

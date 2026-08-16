@@ -36,6 +36,7 @@ impl AuthDetector {
             AgentType::Kilo => Self::check_kilo_auth(),
             AgentType::Hermes => Self::check_hermes_auth(),
             AgentType::Pi => Self::check_pi_auth(),
+            AgentType::CommandCode => Self::check_commandcode_auth(),
             AgentType::Gh => Self::check_gh_auth(),
             AgentType::Stripe => Self::check_stripe_auth(),
             AgentType::Supabase => Self::check_supabase_auth(),
@@ -59,6 +60,7 @@ impl AuthDetector {
             AgentType::Kilo,
             AgentType::Hermes,
             AgentType::Pi,
+            AgentType::CommandCode,
         ]
         .iter()
         .map(|agent| Self::check_auth(*agent))
@@ -673,6 +675,31 @@ impl AuthDetector {
         }
     }
 
+    fn check_commandcode_auth() -> AuthInfo {
+        // `cmd login` / `cmdc login` stores the API key in
+        // ~/.commandcode/auth.json (see the Command Code quickstart).
+        if let Some(home) = Self::get_home_dir() {
+            let config_path = home.join(".commandcode");
+            if config_path.exists() {
+                let auth_file = config_path.join("auth.json");
+                if auth_file.exists() {
+                    return AuthInfo {
+                        agent: AgentType::CommandCode,
+                        status: AuthStatus::Authenticated,
+                        error: None,
+                        config_path: Some(config_path.to_string_lossy().to_string()),
+                    };
+                }
+            }
+        }
+        AuthInfo {
+            agent: AgentType::CommandCode,
+            status: AuthStatus::NotAuthenticated,
+            error: None,
+            config_path: None,
+        }
+    }
+
     fn get_home_dir() -> Option<PathBuf> {
         #[cfg(target_os = "windows")]
         {
@@ -723,6 +750,13 @@ impl AuthDetector {
                 "Or set ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY environment variable"
                     .to_string(),
                 "Credentials are stored in ~/.pi/agent/auth.json".to_string(),
+            ],
+            AgentType::CommandCode => vec![
+                "Run 'cmd login' (macOS/Linux/WSL) or 'cmdc login' (native Windows) in a terminal"
+                    .to_string(),
+                "Or create an API key in the Command Code Studio and paste it into the login prompt"
+                    .to_string(),
+                "Credentials are stored in ~/.commandcode/auth.json".to_string(),
             ],
             AgentType::Gh => vec![
                 "Run 'gh auth login' in a terminal".to_string(),

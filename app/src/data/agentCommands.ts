@@ -172,4 +172,10 @@ export const AGENT_COMMANDS: Record<AgentType, AgentCommand[]> = {
     { command: '/changelog', description: 'Display version history' },
     { command: '/quit', description: 'Quit Pi' },
   ],
+  commandcode: [
+    { command: '/import', description: 'Import setup from Claude Code, Codex, Cursor, Pi, OpenCode, or Gemini' },
+    { command: '/learn-taste', description: 'Build your taste profile from existing sessions' },
+    { command: '/hotkeys', description: 'Show keyboard shortcuts' },
+    { command: '/help', description: 'Show help' },
+  ],
 };

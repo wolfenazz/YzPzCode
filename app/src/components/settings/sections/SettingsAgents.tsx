@@ -13,6 +13,7 @@ import cursorLogo from '../../../assets/cursor-ai.png';
 import kiloLogo from '../../../assets/kiloCode.gif';
 import hermesLogo from '../../../assets/Hermes-logo.png';
 import piLogo from '../../../assets/pi.svg';
+import commandCodeLogo from '../../../assets/commandcode-logo.svg';
 
 const AGENT_ICONS: Record<string, string> = {
   claude: claudeLogo,
@@ -23,6 +24,7 @@ const AGENT_ICONS: Record<string, string> = {
   kilo: kiloLogo,
   hermes: hermesLogo,
   pi: piLogo,
+  commandcode: commandCodeLogo,
 };
 
 const TOOL_ICONS: Record<ToolCliType, string> = {

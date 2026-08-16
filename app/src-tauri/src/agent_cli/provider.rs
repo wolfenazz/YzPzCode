@@ -47,10 +47,10 @@ pub trait AgentCliProvider: Send + Sync {
 
 pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
     use super::providers::{
-        AgentmailCliProvider, ClaudeCliProvider, CodexCliProvider, CursorCliProvider,
-        ElevenlabsCliProvider, GeminiCliProvider, GhCliProvider, GwsCliProvider, HermesCliProvider,
-        KiloCliProvider, OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider,
-        StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
+        AgentmailCliProvider, ClaudeCliProvider, CodexCliProvider, CommandCodeCliProvider,
+        CursorCliProvider, ElevenlabsCliProvider, GeminiCliProvider, GhCliProvider, GwsCliProvider,
+        HermesCliProvider, KiloCliProvider, OpenCodeCliProvider, PiCliProvider, PosthogCliProvider,
+        RampCliProvider, StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
     match agent {
         AgentType::Claude => Box::new(ClaudeCliProvider),
@@ -61,6 +61,7 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AgentType::Kilo => Box::new(KiloCliProvider),
         AgentType::Hermes => Box::new(HermesCliProvider),
         AgentType::Pi => Box::new(PiCliProvider),
+        AgentType::CommandCode => Box::new(CommandCodeCliProvider),
         AgentType::Gh => Box::new(GhCliProvider),
         AgentType::Stripe => Box::new(StripeCliProvider),
         AgentType::Supabase => Box::new(SupabaseCliProvider),

@@ -23,7 +23,7 @@ Modern developers are increasingly using multiple AI coding assistants (Claude C
 
 ### A. The Setup Engine (Onboarding)
 - **Prerequisites Checker:** Automatically verifies if Node.js (v18+) and Git are installed—critical for running AI CLIs.
-- **Agent CLI Detector:** Scans your system's PATH to find `claude`, `gemini`, `codex`, `opencode`, and `cursor` binaries.
+- **Agent CLI Detector:** Scans your system's PATH to find `claude`, `gemini`, `codex`, `opencode`, `cursor`, `kilo`, `pi`, and `cmdc`/`cmd` (Command Code) binaries.
 - **Silent Installer:** If an agent is missing, YzPzCode can silently install it via `npm` or platform-specific scripts (e.g., `curl` or `powershell`), so you don't have to leave the app.
 
 ### B. Workspace Management

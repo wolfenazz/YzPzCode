@@ -1,6 +1,6 @@
 # YzPzCode - AI Agent Development Guide
 
-Tauri v2 desktop app for managing AI CLI tools (Claude, Gemini, Codex, Kilo, OpenCode, Cursor, Hermes)
+Tauri v2 desktop app for managing AI CLI tools (Claude, Gemini, Codex, Kilo, OpenCode, Cursor, Hermes, Pi, Command Code)
 and SaaS tool CLIs (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, GWS, AgentMail, Vercel).
 Rust backend + React 19 frontend. Borderless window, custom titlebar, PTY-based terminal grid,
 in-app browser with visual design inspector, AI-powered designer, and multi-workspace management.
@@ -44,7 +44,7 @@ app/
 ├── src-tauri/src/
 │   ├── agent/              # Task execution, retry logic, command generation
 │   ├── agent_cli/          # CLI detection, install, launch, auth
-│   │   └── providers/      # Per-provider (7 AI agents + 10 tool CLIs)
+│   │   └── providers/      # Per-provider (9 AI agents + 10 tool CLIs)
 │   ├── browser/            # In-app webview browser + design inspector bridge
 │   ├── commands/           # Tauri IPC handlers (thin wrappers, 100+ commands)
 │   ├── terminal/           # PTY session management (TerminalManager + ManagedCommandManager)
@@ -199,8 +199,8 @@ export const useAppStore = create<AppStore>()(
 
 ## Feature Reference
 
-### AI Agent CLIs (7)
-Claude, Codex, Gemini, Opencode, Cursor, Kilo, Hermes — each gets a PTY session
+### AI Agent CLIs (9)
+Claude, Codex, Gemini, Opencode, Cursor, Kilo, Hermes, Pi, Command Code — each gets a PTY session
 
 ### Tool CLIs (10)
 GitHub CLI (`gh`), Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google Workspace (`gws`), AgentMail, Vercel — detected and auth-checked

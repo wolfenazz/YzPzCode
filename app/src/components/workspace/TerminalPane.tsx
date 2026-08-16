@@ -120,6 +120,12 @@ const AGENT_BINARY_NAMES: Record<string, AgentType> = {
   pi: 'pi',
   agent: 'cursor',
   cursor: 'cursor',
+  // The Command Code CLI is `cmd` on macOS/Linux/WSL. We deliberately do NOT
+  // map `cmd` here because on native Windows that is the system command shell;
+  // only the Windows alias (`cmdc`) and the full name (`command-code`) tag a
+  // session as Command Code.
+  cmdc: 'commandcode',
+  'command-code': 'commandcode',
 };
 
 const LAUNCHER_TOKENS = new Set(['npx', 'npx.cmd', 'npx.exe', 'bunx', 'bunx.cmd', 'bunx.exe', 'sudo', 'yarn', 'npm', 'pnpm']);
@@ -1163,7 +1169,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleRetryInstall = async () => {
     if (!session.agent) return;
-    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi'];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode'];
     if (!agentTypes.includes(session.agent as AgentType)) return;
     setInstalling(true);
     await installCli(session.agent as AgentType);

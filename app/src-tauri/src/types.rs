@@ -11,6 +11,7 @@ pub enum AgentType {
     Kilo,
     Hermes,
     Pi,
+    CommandCode,
     Gh,
     Stripe,
     Supabase,
