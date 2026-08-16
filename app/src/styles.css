@@ -6,6 +6,9 @@
    zinc-* utility across the app inherits the warm terracotta-adjacent
    gray ramp (source: shadcn "claude" theme). */
 @theme {
+  /* Typography is split by job: UI chrome, display hierarchy, and code. */
+  --font-sans: "Aptos", "Segoe UI Variable Text", "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --font-mono: "Cascadia Mono", "JetBrains Mono", "Fira Code", Consolas, monospace;
   --color-zinc-50: #faf8f1;
   --color-zinc-100: #f5f2e9;
   --color-zinc-200: #ece7da;
@@ -60,7 +63,12 @@
 }
 
 :root {
+  --font-ui: "Aptos", "Segoe UI Variable Text", "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --font-display: "Aptos Display", "Segoe UI Variable Display", "Aptos", "Segoe UI", "Noto Sans Arabic", sans-serif;
+  --font-code: "Cascadia Mono", "JetBrains Mono", "Fira Code", Consolas, monospace;
+
   --bg-primary: #262626;
+  --bg-main: var(--bg-primary);
   --bg-secondary: #303030;
   --bg-tertiary: #383838;
   --border-primary: #3e3e38;
@@ -104,7 +112,7 @@
   --sidebar-ring: #b4b4b4;
   --radius: 0.5rem;
 
-  font-family: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, 'Courier New', monospace;
+  font-family: var(--font-ui);
   line-height: 1.5;
   font-weight: 400;
 
@@ -113,6 +121,41 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* The app used to inherit a terminal face everywhere. The UI now uses a
+   variable sans; code, terminals, and keycaps retain a fixed-width face. */
+body,
+button,
+input,
+textarea,
+select {
+  font-family: var(--font-ui);
+}
+
+/* `font-mono` is used broadly for metadata and compact controls. Give those
+   surfaces an editorial UI rhythm, then opt back into mono for code contexts. */
+.font-mono {
+  font-family: var(--font-ui) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+pre,
+code,
+kbd,
+.xterm,
+.cm-editor,
+.monaco-editor,
+.agent-code-pre,
+.markdown-body :not(pre) > code,
+.markdown-body pre {
+  font-family: var(--font-code) !important;
+}
+
+:where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--font-display);
+  font-weight: 650;
+  letter-spacing: -0.024em;
 }
 
 /* ── Light Theme (bright backgrounds + dark text) ──────────────────────
@@ -124,6 +167,7 @@
   color-scheme: light;
 
   --bg-primary: #faf8f1;
+  --bg-main: var(--bg-primary);
   --bg-secondary: #f5f2e9;
   --bg-tertiary: #ece7da;
   --border-primary: #d9d8d0;
@@ -1406,12 +1450,12 @@ html.has-custom-cursor *::after {
 .markdown-body h4,
 .markdown-body h5,
 .markdown-body h6 {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-weight: 650;
   color: var(--text-primary);
   line-height: 1.35;
   margin: 1em 0 0.5em;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.022em;
 }
 .markdown-body h1 { font-size: 1.2rem; border-bottom: 1px solid var(--border-primary); padding-bottom: 0.25em; }
 .markdown-body h2 { font-size: 1.1rem; border-bottom: 1px solid var(--border-primary); padding-bottom: 0.2em; }
@@ -1940,19 +1984,19 @@ html.has-custom-cursor *::after {
   }
 }
 
-/* Floating composer island (AgentInput) — centered on the bottom of the
-   session pane like a Dynamic Island. Mirrors .premium-pane chrome so the
-   composer reads as a separate premium surface hovering over the chat:
-   gradient ring, top highlight, soft drop shadow. */
+/* Opaque composer island (AgentInput) — only this compact, rounded surface
+   receives a fill. Its absolute overlay leaves the rest of the session fully
+   transparent, so scrolling conversation remains visible around it. */
 .agent-input-island {
   position: relative;
   isolation: isolate;
   border-radius: 18px;
+  background-color: var(--bg-secondary) !important;
+  background-image: linear-gradient(180deg, var(--bg-secondary), var(--bg-primary)) !important;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     inset 0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.32),
-    0 18px 50px -18px rgba(0, 0, 0, 0.65);
+    0 12px 34px -20px rgba(0, 0, 0, 0.7);
 }
 .agent-input-island::before {
   content: '';
@@ -1981,15 +2025,12 @@ html.has-custom-cursor *::after {
   transition: opacity 0.5s var(--ease-premium);
 }
 
-/* Working state — the island ring glows with the accent and breathes, in
-   step with the surrounding pane. */
+/* Working state — a restrained accent cue on the same compact surface. */
 .agent-input-island--active {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
     inset 0 0 0 1px rgba(0, 0, 0, 0.35),
-    0 1px 2px rgba(0, 0, 0, 0.32),
-    0 18px 60px -18px rgba(216, 119, 87, 0.22),
-    0 0 42px -14px rgba(216, 119, 87, 0.28);
+    0 12px 36px -20px rgba(216, 119, 87, 0.34);
 }
 .agent-input-island--active::before {
   animation: premium-border-breathe 3.4s ease-in-out infinite;

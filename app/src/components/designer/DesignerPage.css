@@ -33,9 +33,9 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --shadow-md: 0 12px 36px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.03);
   --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.56), 0 0 0 1px rgba(62, 62, 56, 0.7);
-  --serif: "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace;
-  --sans: "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace;
-  --mono: "JetBrains Mono", "Fira Code", Consolas, Monaco, "Courier New", monospace;
+  --serif: var(--font-display);
+  --sans: var(--font-ui);
+  --mono: var(--font-code);
   display: grid;
   grid-template-rows: 38px minmax(0, 1fr);
   width: 100vw;

@@ -7,6 +7,7 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import hljs from 'highlight.js';
 import { Icon } from '@iconify/react';
+import { invoke } from '@tauri-apps/api/core';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ClineContentBlock, ClineMessage, ToolLogEntry } from '../../hooks/useAgentSession';
 import type { AgentCompactionStatus } from '../../hooks/useAgentSession';
@@ -40,6 +41,8 @@ interface AgentChatProps {
   elapsedSec?: number;
   toolCount?: number;
   autoScroll?: boolean;
+  /** Reserves scroll room when the transparent composer overlays this chat. */
+  composerOverlay?: boolean;
 }
 
 const toolLabel = (name: string): string => {
@@ -133,6 +136,134 @@ const hasArabicText = (text: string): boolean => /[\u0600-\u06FF\u0750-\u077F\u0
 
 const richTextDirection = (text: string): { dir: 'rtl' | 'auto'; lang?: string } =>
   hasArabicText(text) ? { dir: 'rtl', lang: 'ar' } : { dir: 'auto' };
+
+const TRANSLATION_LANGUAGES = [
+  { code: 'ar', label: 'Arabic' },
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'tr', label: 'Turkish' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'ur', label: 'Urdu' },
+  { code: 'ja', label: 'Japanese' },
+] as const;
+
+type TranslationLanguageCode = (typeof TRANSLATION_LANGUAGES)[number]['code'];
+
+const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
+  const languageControlId = useId();
+  const [targetLanguage, setTargetLanguage] = useState<TranslationLanguageCode>(hasArabicText(text) ? 'en' : 'ar');
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translationError, setTranslationError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+
+  const selectedLanguage = TRANSLATION_LANGUAGES.find((language) => language.code === targetLanguage);
+
+  const translate = async (): Promise<void> => {
+    if (isTranslating) return;
+    setIsTranslating(true);
+    setTranslationError(null);
+    try {
+      setTranslation(await invoke<string>('translate_text', { text, targetLanguage }));
+    } catch (error) {
+      setTranslationError(error instanceof Error ? error.message : 'Could not translate this response.');
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  const copyResponse = async (): Promise<void> => {
+    setCopyError(null);
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      setCopyError('Could not copy this response.');
+    }
+  };
+
+  return (
+    <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body animate-fade-in-up">
+      <div {...richTextDirection(text)}>
+        <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
+          {text}
+        </ReactMarkdown>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 not-prose">
+        <label className="sr-only" htmlFor={languageControlId}>Translation language</label>
+        <select
+          id={languageControlId}
+          value={targetLanguage}
+          onChange={(event) => setTargetLanguage(event.target.value as TranslationLanguageCode)}
+          disabled={isTranslating}
+          aria-label="Translation language"
+          className="h-6 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-1.5 font-mono text-[9px] text-[var(--text-secondary)] outline-none transition-colors hover:border-[var(--accent-border)] focus:border-[var(--accent-border)] disabled:opacity-50"
+        >
+          {TRANSLATION_LANGUAGES.map((language) => (
+            <option key={language.code} value={language.code}>{language.label}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => void translate()}
+          disabled={isTranslating}
+          className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+          title={`Translate this section to ${selectedLanguage?.label ?? targetLanguage}`}
+        >
+          <Icon icon={isTranslating ? 'svg-spinners:3-dots-scale' : 'material-symbols:translate-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
+          {isTranslating ? 'Translating' : 'Translate'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void copyResponse()}
+          className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)]"
+          title={copied ? 'Copied agent response' : 'Copy agent response'}
+        >
+          <Icon icon={copied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
+          {copied ? 'Copied' : 'Copy'}
+        </button>
+      </div>
+
+      {translationError && (
+        <p className="mt-1.5 font-mono text-[9px] text-rose-400 not-prose" role="status">{translationError}</p>
+      )}
+
+      {copyError && (
+        <p className="mt-1.5 font-mono text-[9px] text-rose-400 not-prose" role="status">{copyError}</p>
+      )}
+
+      {translation && (
+        <section className="mt-2 rounded-lg border border-[var(--accent-border)]/35 bg-[var(--accent-light)]/[0.06] px-3 py-2.5 not-prose">
+          <div className="mb-2 flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
+            <Icon icon="material-symbols:translate-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+            Translated to {selectedLanguage?.label}
+            <button
+              type="button"
+              onClick={() => setTranslation(null)}
+              className="ml-auto text-[var(--text-secondary)]/60 transition-colors hover:text-[var(--text-primary)]"
+              title="Hide translation"
+              aria-label="Hide translation"
+            >
+              <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          </div>
+          <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(translation)}>
+            <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
+              {translation}
+            </ReactMarkdown>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+};
 
 /** Render fenced ```mermaid blocks as live diagrams (lazy-loaded). */
 const MermaidBlock: React.FC<{ code: string }> = ({ code }) => {
@@ -1081,13 +1212,7 @@ const AssistantBlock = React.memo(function AssistantBlock({ block }: { block: Cl
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   if (block.type === 'text' && typeof block.text === 'string') {
     if (!block.text.trim()) return null;
-    return (
-      <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body animate-fade-in-up" {...richTextDirection(block.text)}>
-        <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
-          {block.text}
-        </ReactMarkdown>
-      </div>
-    );
+    return <TranslatableAgentText text={block.text} />;
   }
   if (block.type === 'tool_use') {
     const tool = block as {
@@ -1164,6 +1289,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   elapsedSec,
   toolCount,
   autoScroll = true,
+  composerOverlay = false,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToLatestRef = useRef(true);
@@ -1264,7 +1390,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         '--agent-session-content-width': `${agentConversationWidth}px`,
       } as React.CSSProperties}
     >
-      <div ref={scrollRef} onScroll={handleScroll} className="h-full overflow-y-auto custom-scrollbar px-4 sm:px-6 py-5">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className={`h-full overflow-y-auto custom-scrollbar px-4 sm:px-6 pt-5 ${
+          composerOverlay ? 'pb-36 sm:pb-40' : 'pb-5'
+        }`}
+      >
       {messages.length === 0 && !hasNewContent && (
         <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center space-y-4 opacity-80">
           <div className="relative">

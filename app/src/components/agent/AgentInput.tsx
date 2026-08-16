@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Icon } from '@iconify/react';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import type { AgentAttachment, AgentMode, AgentQueuedPrompt } from '../../types';
 import { useAppStore } from '../../stores/appStore';
@@ -110,11 +111,22 @@ const MODE_STYLES: Record<AgentMode, {
 const MIN_HEIGHT = 38;
 const MAX_HEIGHT = 240;
 const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+const LATIN_SCRIPT = /[A-Za-z]/;
 
 /** How long after the last keystroke the orb keeps spinning before winding down. */
 const TYPING_IDLE_MS = 1400;
 
 const attachmentName = (path: string): string => path.split(/[\\/]/).pop() || path;
+
+/** Use the first written script to keep mixed technical prompts natural to edit. */
+const promptDirection = (text: string): 'ltr' | 'rtl' => {
+  for (const character of text) {
+    if (ARABIC_SCRIPT.test(character)) return 'rtl';
+    if (LATIN_SCRIPT.test(character)) return 'ltr';
+  }
+  return 'ltr';
+};
 
 export const AgentInput: React.FC<AgentInputProps> = ({
   disabled,
@@ -136,8 +148,10 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [typing, setTyping] = useState(false);
+  const [isTranslating, setIsTranslating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const valueRef = useRef(value);
 
   const workspacePath = useAppStore((s) => s.currentWorkspace?.path);
   const {
@@ -164,6 +178,10 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     const raf = requestAnimationFrame(autoGrow);
     return () => cancelAnimationFrame(raf);
   }, [value, autoGrow]);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   // Clear the typing debounce timer on unmount.
   useEffect(() => {
@@ -231,6 +249,27 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   const removeAttachment = useCallback((path: string) => {
     setAttachments((current) => current.filter((attachment) => attachment.path !== path));
   }, []);
+
+  const handleTranslate = useCallback(async () => {
+    const prompt = value.trim();
+    if (!prompt || disabled || isTranslating) return;
+
+    setIsTranslating(true);
+    setAttachmentNotice(null);
+    try {
+      const translated = await invoke<string>('translate_prompt_to_english', { text: prompt });
+      // Do not overwrite a prompt the user has changed while the translation was in flight.
+      if (valueRef.current === prompt) {
+        setValue(translated);
+        setAttachmentNotice('Translated to English — review the prompt, then send it when ready.');
+        requestAnimationFrame(() => textareaRef.current?.focus());
+      }
+    } catch (error) {
+      setAttachmentNotice(error instanceof Error ? error.message : 'Could not translate this prompt.');
+    } finally {
+      setIsTranslating(false);
+    }
+  }, [value, disabled, isTranslating]);
 
   const cycleMode = useCallback(
     (dir: 1 | -1) => {
@@ -320,13 +359,14 @@ export const AgentInput: React.FC<AgentInputProps> = ({
 
   const style = MODE_STYLES[mode];
   const activeTab = MODE_TABS.find((t) => t.id === mode);
+  const direction = promptDirection(value);
 
   return (
-    /* Floating composer island — centered on the bottom of the session pane
-       instead of a full-width footer, so it reads as a premium surface. */
+    /* Opaque composer island over a transparent session overlay: the island
+       stays readable while the surrounding transcript remains visible. */
     <div className={`relative z-10 flex justify-center px-3 ${compact ? 'pt-1 pb-2' : 'pt-1.5 pb-3'}`}>
       <div
-        className={`agent-input-island w-full space-y-2 bg-gradient-to-b from-[var(--bg-secondary)]/90 to-[var(--bg-main)] ${
+        className={`agent-input-island w-full space-y-2 ${
           compact ? 'max-w-2xl px-2 py-1.5' : 'max-w-3xl px-3.5 py-2.5'
         } ${isRunning ? 'agent-input-island--active' : ''}`}
       >
@@ -534,6 +574,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           <textarea
             ref={textareaRef}
             value={value}
+            dir={direction}
             onChange={(e) => {
               update(e.target.value, e.target.selectionStart ?? 0);
               setValue(e.target.value);
@@ -546,19 +587,45 @@ export const AgentInput: React.FC<AgentInputProps> = ({
             rows={1}
             style={{ minHeight: MIN_HEIGHT, maxHeight: MAX_HEIGHT }}
             placeholder={placeholder}
-            className="peer flex-1 resize-none overflow-y-auto bg-transparent py-2 pl-2 pr-8 font-mono text-[length:var(--agent-session-text-size)] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none"
+            className={`peer flex-1 resize-none overflow-y-auto bg-transparent py-2 font-mono text-[length:var(--agent-session-text-size)] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none ${
+              direction === 'rtl' ? 'pl-8 pr-2 text-right placeholder:text-right' : 'pl-2 pr-8 text-left placeholder:text-left'
+            }`}
           />
           <kbd
-            className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-[4px] border border-[var(--border-primary)] bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-tertiary)] font-mono text-[10px] font-bold text-[var(--text-secondary)]/70 shadow-[inset_0_-1px_0_rgba(0,0,0,0.35),0_1px_1px_rgba(0,0,0,0.25)] transition-all duration-150 peer-focus:opacity-0 peer-not-placeholder-shown:opacity-0 ${compact ? 'hidden' : ''}`}
+            className={`pointer-events-none absolute top-1/2 -translate-y-1/2 flex h-4 w-4 items-center justify-center rounded-[4px] border border-[var(--border-primary)] bg-gradient-to-b from-[var(--bg-secondary)] to-[var(--bg-tertiary)] font-mono text-[10px] font-bold text-[var(--text-secondary)]/70 shadow-[inset_0_-1px_0_rgba(0,0,0,0.35),0_1px_1px_rgba(0,0,0,0.25)] transition-all duration-150 peer-focus:opacity-0 peer-not-placeholder-shown:opacity-0 ${
+              direction === 'rtl' ? 'left-2.5' : 'right-2.5'
+            } ${compact ? 'hidden' : ''}`}
           >
             /
           </kbd>
           <Icon
             icon="material-symbols:search-rounded"
-            className={`pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]/70 opacity-0 scale-90 transition-all duration-150 peer-not-placeholder-shown:opacity-100 peer-not-placeholder-shown:scale-100 ${compact ? 'hidden' : ''}`}
+            className={`pointer-events-none absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]/70 opacity-0 scale-90 transition-all duration-150 peer-not-placeholder-shown:opacity-100 peer-not-placeholder-shown:scale-100 ${
+              direction === 'rtl' ? 'left-2.5' : 'right-2.5'
+            } ${compact ? 'hidden' : ''}`}
             aria-hidden="true"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => void handleTranslate()}
+          disabled={disabled || !value.trim() || isTranslating}
+          className="electric-btn flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+          title={
+            isTranslating
+              ? 'Translating prompt to English…'
+              : value.trim()
+                ? 'Translate prompt to English'
+                : 'Type a prompt to translate it to English'
+          }
+          aria-label="Translate prompt to English"
+        >
+          <Icon
+            icon={isTranslating ? 'svg-spinners:3-dots-scale' : 'material-symbols:translate-rounded'}
+            className="electric-icon h-4 w-4"
+            aria-hidden="true"
+          />
+        </button>
         <button
           type="button"
           onClick={() => void handleAttach()}

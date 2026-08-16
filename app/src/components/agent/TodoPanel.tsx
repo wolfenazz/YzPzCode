@@ -16,11 +16,9 @@ interface TodoPanelProps {
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * Floating task rail that overlays the left gutter of the session chat instead
- * of stealing horizontal space from the conversation. Items are rendered with
- * the LineSidebar (React Bits) proximity list; the whole panel slides in when
- * the run starts, plays a soft completion pulse when every todo is done, then
- * exits to the left.
+ * Inline task rail that lives directly on the session background rather than
+ * becoming another nested card. Items are rendered in the chat gutter, with a
+ * small header and progress rule giving the list just enough structure.
  */
 export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onToggle }) => {
   const reduceMotion = useReducedMotion();
@@ -59,7 +57,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
 
   return (
     <>
-      {/* Collapsed edge tab — keeps one-tap access to the rail while hidden */}
+      {/* Collapsed inline trigger — no floating surface while the rail is hidden. */}
       <AnimatePresence>
         {!open && todos.length > 0 && (
           <motion.button
@@ -69,22 +67,22 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
             animate={{ opacity: 1, x: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, x: -16 }}
             transition={{ duration: reduceMotion ? 0 : 0.26, ease: EASE }}
-            className="pointer-events-auto absolute left-3 top-3 z-30 flex h-7 cursor-pointer items-center gap-2 rounded-full premium-surface premium-lift px-2.5"
+            className="pointer-events-auto absolute left-4 top-3 z-30 flex h-6 cursor-pointer items-center gap-1.5 bg-transparent px-0 text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]"
             title="Show task list"
             aria-label="Show task list"
           >
             <Icon icon="material-symbols:checklist-rounded" className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
-            <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">
+            <span className="font-mono text-[8px] font-bold uppercase tracking-[0.12em]">
               Tasks
             </span>
-            <span className="font-mono text-[8px] tabular-nums text-[var(--text-secondary)]/60">
+            <span className="font-mono text-[8px] tabular-nums text-[var(--text-secondary)]/55">
               {doneCount}/{todos.length}
             </span>
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Floating task rail — a layer on top of the chat, left gutter */}
+      {/* Session task rail — intentionally has no container, border, or fill. */}
       <AnimatePresence>
         {open && todos.length > 0 && (
           <motion.div
@@ -93,19 +91,22 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
             animate={panelMotion.animate}
             exit={panelMotion.exit}
             transition={{ duration: reduceMotion ? 0 : 0.5, ease: EASE }}
-            className="pointer-events-none absolute inset-y-2 left-3 z-20 flex w-[262px]"
+            className="pointer-events-none absolute inset-y-3 left-4 z-20 flex w-[250px]"
           >
             <div
-              className={`pointer-events-auto flex h-full w-full flex-col overflow-hidden rounded-xl border backdrop-blur-md transition-shadow duration-500 ${
-                completionPulse
-                  ? 'border-emerald-500/40 shadow-[0_0_0_1px_rgba(52,211,153,0.25),0_0_46px_-12px_rgba(52,211,153,0.5)]'
-                  : 'border-[var(--border-primary)]/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_24px_60px_-24px_rgba(0,0,0,0.8)]'
+              className={`pointer-events-auto relative flex h-full w-full flex-col overflow-hidden transition-opacity duration-500 ${
+                completionPulse ? 'opacity-100' : 'opacity-95'
               }`}
-              style={{ background: 'color-mix(in srgb, var(--bg-secondary) 72%, transparent)' }}
             >
+              <span
+                className={`absolute bottom-12 left-0 top-10 w-px bg-gradient-to-b from-[var(--accent)]/55 via-[var(--border-primary)]/45 to-transparent transition-colors duration-500 ${
+                  allDone ? 'from-emerald-400/65' : ''
+                }`}
+                aria-hidden="true"
+              />
               {/* Header */}
-              <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border-primary)]/60 px-2.5">
-                <span className="relative flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15">
+              <div className="flex h-8 shrink-0 items-center gap-2 pl-3 pr-0">
+                <span className="relative flex h-4 w-4 shrink-0 items-center justify-center">
                   <Icon
                     icon={allDone ? 'material-symbols:task-alt-rounded' : 'material-symbols:checklist-rounded'}
                     className={`h-3 w-3 ${allDone ? 'text-emerald-400' : 'text-[var(--accent)]'}`}
@@ -118,7 +119,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
                     <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500" />
                   )}
                 </span>
-                <span className="min-w-0 flex-1 truncate font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
+                <span className="min-w-0 flex-1 truncate font-mono text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--text-primary)]">
                   {allDone ? 'All tasks done' : 'Tasks'}
                 </span>
                 <span className={`font-mono text-[8px] tabular-nums ${allDone ? 'text-emerald-400' : 'text-[var(--text-secondary)]/60'}`}>
@@ -127,7 +128,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
                 <button
                   type="button"
                   onClick={onToggle}
-                  className="premium-btn-icon -mr-0.5 h-5 w-5 shrink-0 cursor-pointer"
+                  className="-mr-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center bg-transparent text-[var(--text-secondary)]/55 transition-colors hover:text-[var(--text-primary)]"
                   title="Collapse task list"
                   aria-label="Collapse task list"
                 >
@@ -138,7 +139,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
               </div>
 
               {/* Task list */}
-              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar premium-scrollbar">
+              <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar premium-scrollbar pl-1">
                 <LineSidebar
                   items={items}
                   accentColor="var(--accent)"
@@ -163,7 +164,7 @@ export const TodoPanel: React.FC<TodoPanelProps> = ({ todos, open, running, onTo
               </div>
 
               {/* Footer progress */}
-              <div className="shrink-0 px-3 pb-2.5 pt-1.5">
+              <div className="shrink-0 pl-3 pr-0 pb-3 pt-2">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="font-mono text-[8px] uppercase tracking-widest text-[var(--text-secondary)]/50">
                     Progress

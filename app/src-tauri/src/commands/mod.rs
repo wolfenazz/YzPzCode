@@ -8,6 +8,7 @@ mod feedback_commands;
 mod filesystem_commands;
 mod ide_commands;
 mod terminal_commands;
+mod translation_commands;
 mod window_commands;
 
 pub use agent_commands::*;
@@ -20,4 +21,5 @@ pub use feedback_commands::*;
 pub use filesystem_commands::*;
 pub use ide_commands::*;
 pub use terminal_commands::*;
+pub use translation_commands::*;
 pub use window_commands::*;

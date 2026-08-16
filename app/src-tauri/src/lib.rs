@@ -305,6 +305,8 @@ pub fn run() {
             commands::remove_agent_mcp_server,
             commands::set_agent_mcp_server_disabled,
             commands::shutdown_agent_host,
+            commands::translate_prompt_to_english,
+            commands::translate_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

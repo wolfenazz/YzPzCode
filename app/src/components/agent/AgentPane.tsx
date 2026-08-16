@@ -908,6 +908,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 completed={status === 'done' && messages.length > 0}
                 elapsedSec={elapsed}
                 toolCount={toolCount}
+                composerOverlay
               />
               <TodoPanel
                 todos={todos}
@@ -915,6 +916,29 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 running={isWorking}
                 onToggle={() => setTasksOpen((v) => !v)}
               />
+              {/* The composer overlays the transcript rather than consuming a
+                  solid footer. AgentChat reserves scroll room for it, while
+                  transparent gaps between controls reveal the conversation. */}
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
+                <div className="pointer-events-auto">
+                  <AgentInput
+                    disabled={!session.sessionId}
+                    isRunning={isWorking}
+                    mode={mode}
+                    onModeChange={setMode}
+                    onSend={handleSend}
+                    onAbort={abort}
+                    placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
+                    compact={inputCompact}
+                    supportsImages={supportsImages}
+                    fastMode={fastMode}
+                    onToggleFastMode={() => void setFastMode(!fastMode)}
+                    queuedPrompts={queuedPrompts}
+                    onRemoveQueued={(id) => void removeQueuedPrompt(id)}
+                    onClearQueue={() => void clearQueue()}
+                  />
+                </div>
+              </div>
             </div>
 
             <AgentApprovalBar
@@ -927,22 +951,6 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               <TeamProgressPanel team={team} subAgents={subAgents} layout="inline" />
             )}
 
-            <AgentInput
-              disabled={!session.sessionId}
-              isRunning={isWorking}
-              mode={mode}
-              onModeChange={setMode}
-              onSend={handleSend}
-              onAbort={abort}
-              placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
-              compact={inputCompact}
-              supportsImages={supportsImages}
-              fastMode={fastMode}
-              onToggleFastMode={() => void setFastMode(!fastMode)}
-              queuedPrompts={queuedPrompts}
-              onRemoveQueued={(id) => void removeQueuedPrompt(id)}
-              onClearQueue={() => void clearQueue()}
-            />
           </div>
 
           {showTeamSidebar && <TeamProgressPanel team={team} subAgents={subAgents} layout="sidebar" />}
