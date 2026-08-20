@@ -637,7 +637,7 @@ If YzPzCode saved you from terminal chaos, consider giving it a **star** it help
 <a href="https://github.com/wolfenazz">
 <img src="https://github.com/wolfenazz.png?size=160" alt="Naseem" width="72" height="72" style="border-radius:50%; border:3px solid #24C8DB"/>
 <br><br>
-<b>Naseem</b>
+<b>Naz</b>
 <br>
 <sub>Creator & Lead Dev</sub>
 <br>
