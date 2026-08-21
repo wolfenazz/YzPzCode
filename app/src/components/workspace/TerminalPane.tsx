@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -304,7 +304,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const launchState: CliLaunchState | null | undefined = session.agent ? getLaunchStateSync(session.id) : undefined;
   const authInfo: AuthInfo | null | undefined = session.agent ? getAuthInfoSync(session.agent) : undefined;
 
-  const terminalTheme = DARK_TERMINAL_THEME;
+  const customBackgroundEnabled = useAppStore((s) => s.customBackgroundEnabled);
+  const customBackgroundColor = useAppStore((s) => s.customBackgroundColor);
+  const lightThemeEnabled = useAppStore((s) => s.lightThemeEnabled);
+
+  // xterm's color parser rejects CSS var strings, so read the resolved value
+  // of --bg-terminal (app background darkened) for the canvas background.
+  const terminalTheme = useMemo(() => {
+    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-terminal').trim();
+    return {
+      ...DARK_TERMINAL_THEME,
+      background: bg || DARK_TERMINAL_THEME.background,
+      cursorAccent: bg || DARK_TERMINAL_THEME.cursorAccent,
+    };
+  }, [customBackgroundEnabled, customBackgroundColor, lightThemeEnabled]);
   const managedCommandActive =
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
@@ -889,7 +902,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, terminalTheme, handleFitAndResize, managedCommandActive, startManagedCommand, pasteToTerminal, pasteClipboardText]);
+  }, [session.id, handleFitAndResize, managedCommandActive, startManagedCommand, pasteToTerminal, pasteClipboardText]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
@@ -1201,7 +1214,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`h-full flex flex-col overflow-hidden font-mono bg-zinc-950 transition-[border-color,box-shadow] duration-200 ${
+      className={`h-full flex flex-col overflow-hidden font-mono bg-theme-terminal transition-[border-color,box-shadow] duration-200 ${
         isActive
           ? 'border border-accent/90 rounded-sm shadow-[0_0_0_1px_var(--accent-glow),0_0_16px_var(--accent-glow),0_0_32px_rgba(216,119,87,0.12),inset_0_0_10px_rgba(0,0,0,0.5)]'
           : 'border border-zinc-700/60 rounded-sm'
@@ -1284,7 +1297,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
       <div
         ref={terminalRef}
-        className="flex-1 overflow-hidden min-h-0 p-[3px] bg-[#262626]"
+        className="flex-1 overflow-hidden min-h-0 p-[3px] bg-theme-terminal"
         style={{
           pointerEvents: 'auto',
           touchAction: 'auto',

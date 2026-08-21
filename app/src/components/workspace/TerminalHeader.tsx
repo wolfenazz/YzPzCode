@@ -105,7 +105,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
 
   return (
     <div
-      className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing bg-zinc-900 border-b border-zinc-800/80`}
+      className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing bg-theme-terminal border-b border-zinc-800/80`}
       {...dragListeners}
     >
       <div className="flex items-center gap-3 min-w-0 overflow-hidden">

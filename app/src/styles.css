@@ -71,6 +71,8 @@
   --bg-main: var(--bg-primary);
   --bg-secondary: #303030;
   --bg-tertiary: #383838;
+  /* Terminal surface: app background darkened slightly so it nests under the UI. */
+  --bg-terminal: color-mix(in srgb, var(--bg-primary) 88%, black);
   --border-primary: #3e3e38;
   --text-primary: #faf8f1;
   --text-secondary: #b7b5a6;
@@ -236,6 +238,10 @@ kbd,
 
 .bg-theme-hover {
   background-color: var(--bg-tertiary);
+}
+
+.bg-theme-terminal {
+  background-color: var(--bg-terminal);
 }
 
 .border-theme {
