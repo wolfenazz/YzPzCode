@@ -48,8 +48,13 @@ await new Promise((r) => setTimeout(r, 300));
 const provFile = join(DATA_DIR, 'providers.json');
 const dirMode = statSync(DATA_DIR).mode & 0o777;
 const fileMode = statSync(provFile).mode & 0o777;
-ok('data dir 0700', dirMode === 0o700);
-ok('providers.json 0600', fileMode === 0o600);
+// Windows: stat().mode never reflects the `mode` arg / chmod() (NTFS uses
+// ACLs, Node reports 0666 for everything), and mkdtemp lives in the user's
+// private %TEMP%. The exact permission-bit assertions are therefore POSIX-only;
+// on win32 we assert the files exist and skip the bit check.
+const posixModes = process.platform !== 'win32';
+ok('data dir 0700', !posixModes || dirMode === 0o700, posixModes ? '' : 'skipped on win32 (NTFS ACLs)');
+ok('providers.json 0600', !posixModes || fileMode === 0o600, posixModes ? '' : 'skipped on win32 (NTFS ACLs)');
 
 // 2) Key redaction: list-provider-configs must not leak the key
 const listed = await cmd('list-provider-configs', {});

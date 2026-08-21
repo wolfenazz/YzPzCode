@@ -32,3 +32,32 @@
   opacity: 0.04;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
 }
+
+/* Soft vignette + premium top sheen over the canvas. */
+.image-stage__container::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.025), transparent 55%),
+    radial-gradient(140% 120% at 50% 50%, transparent 60%, rgba(0, 0, 0, 0.35));
+}
+
+/* ── Premium tool rail ─────────────────────────────────────────────────── */
+
+.image-toolbar {
+  position: relative;
+}
+
+.image-toolbar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, var(--border-primary) 18%, var(--border-primary) 82%, transparent);
+}
+

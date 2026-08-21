@@ -513,6 +513,24 @@ export interface AgentProviderInfo {
   models: number;
 }
 
+/** Result of a sidecar catalog refresh (the `refresh-catalogs` command). */
+export interface AgentCatalogSyncResult {
+  syncedAt: string | null;
+  providersAdded: string[];
+  modelsAdded: Array<{ providerId: string; modelId: string }>;
+  skippedProviders: number;
+  source: 'network' | 'cache' | 'skipped';
+}
+
+/** Payload pushed by the sidecar when a catalog sync lands (`catalog-updated`). */
+export interface AgentCatalogUpdate {
+  syncedAt: string;
+  providersAdded: string[];
+  modelsAdded: Array<{ providerId: string; modelId: string }>;
+  skippedProviders: number;
+  source: 'network' | 'cache';
+}
+
 export interface AgentModelReasoningOption {
   type: 'toggle' | 'effort' | 'budget_tokens';
   /** Present when type === 'effort': allowed levels (may include null/'default') */

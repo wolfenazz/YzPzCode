@@ -2,6 +2,7 @@ import { WebSocket, WebSocketServer } from "ws";
 import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { AgentHarness } from "./harness.js";
 import type { ProviderConfigStore } from "./store.js";
+import type { CatalogSync } from "./catalog-sync.js";
 
 type CommandHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
@@ -17,13 +18,16 @@ export class AgentServer {
   private wss: WebSocketServer;
   private harness: AgentHarness;
   private store: ProviderConfigStore;
+  private catalogSync: CatalogSync | undefined;
   private clients = new Set<WebSocket>();
 
-  constructor(harness: AgentHarness, store: ProviderConfigStore, wss: WebSocketServer) {
+  constructor(harness: AgentHarness, store: ProviderConfigStore, wss: WebSocketServer, catalogSync?: CatalogSync) {
     this.harness = harness;
     this.store = store;
     this.wss = wss;
+    this.catalogSync = catalogSync;
     this.harness.setEventSink((name, payload) => this.broadcast({ type: "event", event: { name, payload } }));
+    this.catalogSync?.setEventSink((name, payload) => this.broadcast({ type: "event", event: { name, payload } }));
     this.wss.on("connection", (socket) => this.onConnection(socket));
   }
 
@@ -218,6 +222,10 @@ export class AgentServer {
         if (!args.providerId) throw new Error("providerId is required");
         return { models: await AgentHarness.getModels(args.providerId as string) };
       },
+      "refresh-catalogs": async (args) => {
+        if (!this.catalogSync) throw new Error("catalog sync unavailable");
+        return this.catalogSync.sync({ force: args.force === true });
+      },
       "set-provider-config": async (args) => {
         if (!args.providerId) throw new Error("providerId is required");
         this.store.set({
@@ -251,6 +259,7 @@ export class AgentServer {
     "get-providers",
     "get-provider-ids",
     "get-models",
+    "refresh-catalogs",
     "list-provider-configs",
     "set-provider-config",
   ]);

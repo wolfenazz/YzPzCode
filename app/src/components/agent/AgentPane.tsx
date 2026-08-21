@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { AgentChat } from './AgentChat';
 import { AgentInput } from './AgentInput';
 import { AgentApprovalBar } from './AgentApprovalBar';
@@ -192,7 +193,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     fastMode: session.fastMode,
   });
 
-  const { getProviders, getModels, listProviderConfigs, listMcpServers, updateTitle, setToolPolicy } = useAgentHost();
+  const { getProviders, getModels, listProviderConfigs, listMcpServers, updateTitle, setToolPolicy, onCatalogUpdated } = useAgentHost();
   const [providers, setProviders] = useState<AgentProviderInfo[]>([]);
   const [models, setModels] = useState<AgentModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -270,6 +271,40 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
       mounted = false;
     };
   }, [providerId, getModels]);
+
+  // Refetch the provider/model lists when the sidecar catalog syncs so newly
+  // published models appear without restarting the host.
+  useEffect(() => {
+    let mounted = true;
+    let unlisten: UnlistenFn | undefined;
+    void onCatalogUpdated(() => {
+      void getProviders()
+        .then((p) => {
+          if (mounted) setProviders(p);
+        })
+        .catch(() => undefined);
+      if (providerId) {
+        setModelsLoading(true);
+        void getModels(providerId)
+          .then((m) => {
+            if (mounted) setModels(m);
+          })
+          .catch(() => {
+            if (mounted) setModels([]);
+          })
+          .finally(() => {
+            if (mounted) setModelsLoading(false);
+          });
+      }
+    }).then((u) => {
+      if (mounted) unlisten = u;
+      else void u();
+    });
+    return () => {
+      mounted = false;
+      void unlisten?.();
+    };
+  }, [onCatalogUpdated, getProviders, getModels, providerId]);
 
   // MCP server status: load on mount + poll every 10s.
   const refreshMcp = useCallback(async () => {

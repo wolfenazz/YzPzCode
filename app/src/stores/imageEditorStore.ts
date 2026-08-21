@@ -82,6 +82,8 @@ interface ImageEditorStore {
   cropDocument: (wsId: string, bounds: { x: number; y: number; w: number; h: number }) => void;
   deleteSelection: (wsId: string) => void;
   flipLayer: (wsId: string, direction: 'h' | 'v') => void;
+  rotateLayer: (wsId: string, degrees: number) => void;
+  applyFilter: (wsId: string, filter: 'grayscale' | 'sepia' | 'invert' | 'brightness' | 'contrast' | 'saturate', amount?: number) => void;
 
   commit: (wsId: string) => void;
   undo: (wsId: string) => void;
@@ -419,6 +421,97 @@ export const useImageEditorStore = create<ImageEditorStore>()((set, get) => ({
       }
     }
     ctx.putImageData(out, 0, 0);
+    set((s) => ({
+      docs: { ...s.docs, [wsId]: { ...s.docs[wsId]!, layers: s.docs[wsId]!.layers.map((l) => (l.id === id ? raster : l)) } },
+      isDirty: { ...s.isDirty, [wsId]: true },
+      redrawTick: s.redrawTick + 1,
+      ...setFlag(s, wsId),
+    }));
+  },
+
+  rotateLayer: (wsId, degrees) => {
+    const state = get();
+    const doc = state.docs[wsId];
+    if (!doc) return;
+    const id = ensureActive(doc, state.activeLayerId[wsId] ?? null);
+    const layer = doc.layers.find((l) => l.id === id);
+    if (!layer) return;
+    const hist = state.history[wsId];
+    hist?.capture(doc);
+    // Rasterize text/shape so the transform is baked into pixels, then rotate.
+    const raster = layer.kind === 'raster' || layer.kind === 'image' ? layer : rasterizeLayer(layer);
+    const src = getLayerCanvas(raster);
+    const rad = (degrees * Math.PI) / 180;
+    const cos = Math.abs(Math.cos(rad));
+    const sin = Math.abs(Math.sin(rad));
+    const nw = Math.max(1, Math.round(src.width * cos + src.height * sin));
+    const nh = Math.max(1, Math.round(src.width * sin + src.height * cos));
+    const out = createCanvas(nw, nh);
+    const octx = out.getContext('2d')!;
+    octx.translate(nw / 2, nh / 2);
+    octx.rotate(rad);
+    octx.drawImage(src, -src.width / 2, -src.height / 2);
+    // Re-center rotated pixels so the layer stays under the cursor.
+    const dx = (nw - src.width) / 2;
+    const dy = (nh - src.height) / 2;
+    const replaced: LayerMeta = { ...raster, width: nw, height: nh, rotation: 0, x: Math.round(raster.x - dx), y: Math.round(raster.y - dy) };
+    setLayerCanvas(replaced.id, out);
+    set((s) => ({
+      docs: { ...s.docs, [wsId]: { ...s.docs[wsId]!, layers: s.docs[wsId]!.layers.map((l) => (l.id === id ? replaced : l)) } },
+      isDirty: { ...s.isDirty, [wsId]: true },
+      redrawTick: s.redrawTick + 1,
+      ...setFlag(s, wsId),
+    }));
+  },
+
+  applyFilter: (wsId, filter, amount = 1) => {
+    const state = get();
+    const doc = state.docs[wsId];
+    if (!doc) return;
+    const id = ensureActive(doc, state.activeLayerId[wsId] ?? null);
+    const layer = doc.layers.find((l) => l.id === id);
+    if (!layer) return;
+    const hist = state.history[wsId];
+    hist?.capture(doc);
+    const raster = layer.kind === 'raster' || layer.kind === 'image' ? layer : rasterizeLayer(layer);
+    const c = getLayerCanvas(raster);
+    const ctx = c.getContext('2d')!;
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    const data = img.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const a = data[i + 3];
+      if (a === 0) continue;
+      if (filter === 'grayscale') {
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        data[i] = data[i + 1] = data[i + 2] = lum;
+      } else if (filter === 'sepia') {
+        data[i] = Math.min(255, r * 0.393 + g * 0.769 + b * 0.189);
+        data[i + 1] = Math.min(255, r * 0.349 + g * 0.686 + b * 0.168);
+        data[i + 2] = Math.min(255, r * 0.272 + g * 0.534 + b * 0.131);
+      } else if (filter === 'invert') {
+        data[i] = 255 - r;
+        data[i + 1] = 255 - g;
+        data[i + 2] = 255 - b;
+      } else if (filter === 'brightness') {
+        data[i] = Math.min(255, r * amount);
+        data[i + 1] = Math.min(255, g * amount);
+        data[i + 2] = Math.min(255, b * amount);
+      } else if (filter === 'contrast') {
+        const factor = (259 * (amount * 255 - 255)) / (255 * (259 - amount * 255));
+        data[i] = Math.max(0, Math.min(255, factor * (r - 128) + 128));
+        data[i + 1] = Math.max(0, Math.min(255, factor * (g - 128) + 128));
+        data[i + 2] = Math.max(0, Math.min(255, factor * (b - 128) + 128));
+      } else if (filter === 'saturate') {
+        const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+        data[i] = Math.max(0, Math.min(255, gray + (r - gray) * amount));
+        data[i + 1] = Math.max(0, Math.min(255, gray + (g - gray) * amount));
+        data[i + 2] = Math.max(0, Math.min(255, gray + (b - gray) * amount));
+      }
+    }
+    ctx.putImageData(img, 0, 0);
     set((s) => ({
       docs: { ...s.docs, [wsId]: { ...s.docs[wsId]!, layers: s.docs[wsId]!.layers.map((l) => (l.id === id ? raster : l)) } },
       isDirty: { ...s.isDirty, [wsId]: true },

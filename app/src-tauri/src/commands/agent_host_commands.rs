@@ -308,6 +308,17 @@ pub async fn get_agent_models(
 }
 
 #[tauri::command]
+pub async fn refresh_agent_catalogs(
+    manager: State<'_, AgentHostManager>,
+    force: Option<bool>,
+) -> Result<Value, String> {
+    manager
+        .quick_command("refresh-catalogs", Some(json!({ "force": force.unwrap_or(false) })))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn set_agent_provider_config(
     manager: State<'_, AgentHostManager>,
     provider_id: String,

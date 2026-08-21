@@ -44,15 +44,24 @@ function truncateToolOutput(toolName, output) {
   if (toolName === "grep" || toolName === "search_codebase" || toolName === "find" || toolName === "glob") {
     const lines = output.split("\n");
     const capped = lines.map((line) => truncateLine(line, GREP_MAX_LINE_LENGTH).text);
-    if (capped.every((line, i) => line === lines[i])) {
-      const r = truncateHead(output, { maxLines: 200, maxBytes: DEFAULT_MAX_BYTES });
-      if (!r.truncated) return { output, truncated: false };
+    const cappedText = capped.join("\n");
+    if (!capped.every((line, i) => line === lines[i])) {
+      // Some lines were capped. Keep the TOTAL bounded too (lines AND bytes),
+      // mirroring the harness fix so a pathological result cannot exceed the
+      // output budget (500 chars x N lines would otherwise be unbounded).
+      const r = truncateHead(cappedText, { maxLines: 200, maxBytes: DEFAULT_MAX_BYTES });
+      if (!r.truncated) return { output: cappedText, truncated: true };
       return {
         output: `${r.content}\n\n[Search results truncated: showing ${r.outputLines} of ${r.totalLines} lines.]`,
         truncated: true,
       };
     }
-    return { output: capped.join("\n"), truncated: true };
+    const r = truncateHead(output, { maxLines: 200, maxBytes: DEFAULT_MAX_BYTES });
+    if (!r.truncated) return { output, truncated: false };
+    return {
+      output: `${r.content}\n\n[Search results truncated: showing ${r.outputLines} of ${r.totalLines} lines.]`,
+      truncated: true,
+    };
   }
   const r = truncateHead(output);
   if (!r.truncated) return { output, truncated: false };
@@ -112,6 +121,25 @@ console.log("5. non-string passthrough");
   const { output, truncated } = truncateToolOutput("read_files", obj);
   check("not truncated", truncated === false);
   check("identity preserved", output === obj);
+}
+
+// 6. A result that needed per-line capping is STILL bounded in total — the
+//    harness fix (previously uncapped: 500 chars x line count could exceed the
+//    50KB output budget indefinitely).
+console.log("6. capped search output remains total-bounded");
+{
+  const huge = Array.from({ length: 3000 }, (_, i) => `z${i.toString().padStart(4, "0")}${"z".repeat(880)}`).join("\n");
+  const { output, truncated } = truncateToolOutput("search_codebase", huge);
+  check("truncated flagged", truncated === true);
+  check("total capped to 50KB budget", Buffer.byteLength(output, "utf8") <= DEFAULT_MAX_BYTES + 2000, `len=${Buffer.byteLength(output, "utf8")}`);
+  check("truncation notice present", output.includes("[Search results truncated:"), output.slice(-120));
+  check("drops the tail", !output.includes("z2999"), "head should not contain the final line");
+}
+const manyShort = Array.from({ length: 5000 }, (_, i) => `hit ${i}`).join("\n");
+{
+  const { output, truncated } = truncateToolOutput("search_codebase", manyShort);
+  check("no-capping path flags truncation", truncated === true);
+  check("no-capping path bounded to 200 lines", (output.match(/\n/g) || []).length <= 200 + 5, `lines=${output.split("\n").length}`);
 }
 
 console.log(failures === 0 ? "ALL TRUNCATE PROBE CHECKS PASSED" : `${failures} FAILURES`);

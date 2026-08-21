@@ -504,6 +504,27 @@ export const FileEditor: React.FC = () => {
                       </button>
                     </>
                   )}
+
+                  {isImage && activeFile && (
+                    <>
+                      <div className="h-4 w-px bg-[var(--border-primary)]" />
+                      <button
+                        onClick={() => {
+                          useAppStore.getState().openInImageEditor(activeFile.path);
+                        }}
+                        className={toolbarBtnClass(false)}
+                        title="Open this image in the layer-based Image Editor"
+                        aria-label="Open in Image Editor"
+                      >
+                        <svg className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover/tb:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5z" />
+                          <circle cx="8.5" cy="8.5" r="1.5" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 15l-5-5L5 21" />
+                        </svg>
+                        <span className="text-[var(--accent-text)]">Image Editor</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { resolveDataDir, resolveLoginShellPath } from "./shell-path.js";
 import { ProviderConfigStore } from "./store.js";
 import { AgentHarness } from "./harness.js";
 import { AgentServer } from "./server.js";
+import { CatalogSync } from "./catalog-sync.js";
 
 // YZPZ Agent sidecar entry point.
 //   node dist/index.js [--port <n>] [--data-dir <path>]
@@ -36,7 +37,8 @@ async function main(): Promise<void> {
     host: "127.0.0.1",
     port: values.port ? Number(values.port) : 0,
   });
-  const server = new AgentServer(harness, store, wss);
+  const catalogSync = new CatalogSync(dataDir);
+  const server = new AgentServer(harness, store, wss, catalogSync);
 
   wss.on("listening", () => {
     const address = wss.address();
@@ -54,6 +56,15 @@ async function main(): Promise<void> {
     console.error(`[yzpz-agent] harness init failed: ${err}`);
   });
 
+  // Kick off a live catalog sync as soon as the sidecar boots (does not block
+  // the harness handshake), then keep the catalog fresh on a 12h interval.
+  // The first sync of the process always attempts the network, falling back to
+  // the on-disk cache if offline.
+  void catalogSync.sync().catch((err) => {
+    console.error(`[yzpz-agent] initial catalog sync failed: ${err}`);
+  });
+  catalogSync.start();
+
   // Fallback for a late/reconnected client: still ensure the harness is ready.
   wss.on("connection", () => {
     void harness.ensureInit().catch((err) => {
@@ -64,6 +75,7 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     console.log(`[yzpz-agent] received ${signal}, shutting down`);
     try {
+      catalogSync.stop();
       await harness.dispose();
       await server.close();
     } finally {

@@ -79,20 +79,27 @@ const SelectionOverlay: React.FC<{ selection: SelectionMask }> = ({ selection })
   const dash = [4, 4];
   if (outline.kind === 'rect') {
     return (
-      <KonvaRect
-        ref={(node) => {
-          shapeRef.current = node;
-        }}
-        x={outline.x}
-        y={outline.y}
-        width={outline.w}
-        height={outline.h}
-        stroke="#d87757"
-        strokeWidth={1}
-        dash={dash}
-        strokeScaleEnabled={false}
-        listening={false}
-      />
+      <>
+        {/* Dim the area outside the selection for a pro feel. */}
+        <KonvaRect x={0} y={0} width={selection.w} height={outline.y} fill="rgba(0,0,0,0.4)" listening={false} />
+        <KonvaRect x={0} y={outline.y} width={outline.x} height={outline.h} fill="rgba(0,0,0,0.4)" listening={false} />
+        <KonvaRect x={outline.x + outline.w} y={outline.y} width={selection.w - outline.x - outline.w} height={outline.h} fill="rgba(0,0,0,0.4)" listening={false} />
+        <KonvaRect x={0} y={outline.y + outline.h} width={selection.w} height={selection.h - outline.y - outline.h} fill="rgba(0,0,0,0.4)" listening={false} />
+        <KonvaRect
+          ref={(node) => {
+            shapeRef.current = node;
+          }}
+          x={outline.x}
+          y={outline.y}
+          width={outline.w}
+          height={outline.h}
+          stroke="#d87757"
+          strokeWidth={1}
+          dash={dash}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      </>
     );
   }
   if (outline.kind === 'ellipse') {
@@ -297,7 +304,8 @@ export const ImageStage: React.FC<ImageStageProps> = ({ workspaceId, onStageSize
         layer.x = p.x;
         layer.y = p.y;
         st.addLayer(workspaceId, layer);
-        st.setTool('move');
+        st.setActiveLayer(workspaceId, layer.id);
+        // Stay on the text tool so users can drop multiple text layers.
         return;
       }
 
@@ -418,7 +426,8 @@ export const ImageStage: React.FC<ImageStageProps> = ({ workspaceId, onStageSize
       layer.x = r.x;
       layer.y = r.y;
       st.addLayer(workspaceId, layer);
-      st.setTool('move');
+      st.setActiveLayer(workspaceId, layer.id);
+      // Stay on the shape tool so users can draw multiple shapes.
       setShapePreview(null);
       return;
     }
@@ -554,6 +563,20 @@ export const ImageStage: React.FC<ImageStageProps> = ({ workspaceId, onStageSize
                 strokeScaleEnabled={false}
                 listening={false}
               />
+            )}
+            {rubberRect && tool === 'crop' && rubberRect.w > 8 && rubberRect.h > 8 && (
+              <>
+                {/* Rule-of-thirds grid */}
+                <KonvaLine points={[rubberRect.x + rubberRect.w / 3, rubberRect.y, rubberRect.x + rubberRect.w / 3, rubberRect.y + rubberRect.h]} stroke="rgba(241,196,15,0.55)" strokeWidth={1} listening={false} />
+                <KonvaLine points={[rubberRect.x + (2 * rubberRect.w) / 3, rubberRect.y, rubberRect.x + (2 * rubberRect.w) / 3, rubberRect.y + rubberRect.h]} stroke="rgba(241,196,15,0.55)" strokeWidth={1} listening={false} />
+                <KonvaLine points={[rubberRect.x, rubberRect.y + rubberRect.h / 3, rubberRect.x + rubberRect.w, rubberRect.y + rubberRect.h / 3]} stroke="rgba(241,196,15,0.55)" strokeWidth={1} listening={false} />
+                <KonvaLine points={[rubberRect.x, rubberRect.y + (2 * rubberRect.h) / 3, rubberRect.x + rubberRect.w, rubberRect.y + (2 * rubberRect.h) / 3]} stroke="rgba(241,196,15,0.55)" strokeWidth={1} listening={false} />
+                {/* Dim outside the crop area */}
+                <KonvaRect x={0} y={0} width={rubberRect.x} height={doc.height} fill="rgba(0,0,0,0.45)" listening={false} />
+                <KonvaRect x={rubberRect.x + rubberRect.w} y={0} width={doc.width - rubberRect.x - rubberRect.w} height={doc.height} fill="rgba(0,0,0,0.45)" listening={false} />
+                <KonvaRect x={rubberRect.x} y={0} width={rubberRect.w} height={rubberRect.y} fill="rgba(0,0,0,0.45)" listening={false} />
+                <KonvaRect x={rubberRect.x} y={rubberRect.y + rubberRect.h} width={rubberRect.w} height={doc.height - rubberRect.y - rubberRect.h} fill="rgba(0,0,0,0.45)" listening={false} />
+              </>
             )}
             {rubberRect && tool === 'ellipse-marquee' && (
               <KonvaEllipse

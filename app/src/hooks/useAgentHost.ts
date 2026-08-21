@@ -5,6 +5,8 @@ import type {
   AgentAccumulatedUsage,
   AgentAttachment,
   AgentApprovalRequest,
+  AgentCatalogSyncResult,
+  AgentCatalogUpdate,
   AgentCoreSessionEvent,
   AgentHostStatus,
   AgentMcpServer,
@@ -245,6 +247,13 @@ export const useAgentHost = () => {
     []
   );
 
+  const refreshCatalogs = useCallback(
+    async (force = false): Promise<AgentCatalogSyncResult> => {
+      return invoke<AgentCatalogSyncResult>('refresh_agent_catalogs', { force: force ?? null });
+    },
+    []
+  );
+
   const setProviderConfig = useCallback(
     async (providerId: string, apiKey?: string, baseUrl?: string, modelId?: string) => {
       return invoke('set_agent_provider_config', {
@@ -357,6 +366,11 @@ export const useAgentHost = () => {
       listen<{ sessionId: string; usage: AgentAccumulatedUsage }>('yzpz-agent:usage-updated', cb),
     []
   );
+  const onCatalogUpdated = useCallback(
+    (cb: (event: { payload: AgentCatalogUpdate }) => void): Promise<UnlistenFn> =>
+      listen<AgentCatalogUpdate>('yzpz-agent:catalog-updated', cb),
+    []
+  );
 
   return {
     ensureHost,
@@ -378,6 +392,7 @@ export const useAgentHost = () => {
     approveTool,
     getProviders,
     getModels,
+    refreshCatalogs,
     setProviderConfig,
     listProviderConfigs,
     removeProviderConfig,
@@ -412,5 +427,6 @@ export const useAgentHost = () => {
     onTodoUpdated,
     onContextUpdated,
     onUsageUpdated,
+    onCatalogUpdated,
   };
 };

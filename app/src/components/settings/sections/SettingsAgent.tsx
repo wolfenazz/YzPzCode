@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Icon } from '@iconify/react';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { AgentSelect } from '../../agent/AgentSelect';
 import { useAgentHost } from '../../../hooks/useAgentHost';
 import { useAppStore } from '../../../stores/appStore';
@@ -156,6 +158,8 @@ export const SettingsAgent: React.FC = () => {
     addMcpServer,
     removeMcpServer,
     setMcpServerDisabled,
+    refreshCatalogs,
+    onCatalogUpdated,
   } = useAgentHost();
 
   const [status, setStatus] = useState<AgentHostStatus | null>(null);
@@ -175,6 +179,7 @@ export const SettingsAgent: React.FC = () => {
   const [selectedProvider, setSelectedProvider] = useState('anthropic');
   const [savedFlash, setSavedFlash] = useState(false);
   const [revealKey, setRevealKey] = useState(false);
+  const [catalogRefreshing, setCatalogRefreshing] = useState(false);
 
   // MCP state
   const [mcpServers, setMcpServers] = useState<AgentMcpServer[]>([]);
@@ -238,6 +243,23 @@ export const SettingsAgent: React.FC = () => {
     void loadMcp();
   }, [load, loadInstructions, loadMcp]);
 
+  // Refetch the provider list when the sidecar catalog syncs so newly published
+  // providers/models appear without leaving the settings screen.
+  useEffect(() => {
+    let mounted = true;
+    let unlisten: UnlistenFn | undefined;
+    void onCatalogUpdated(() => {
+      void load();
+    }).then((u) => {
+      if (mounted) unlisten = u;
+      else void u();
+    });
+    return () => {
+      mounted = false;
+      void unlisten?.();
+    };
+  }, [onCatalogUpdated, load]);
+
   // ── Provider selection & model loading ─────────────────────────
   const configuredIds = new Set(configs.filter(hasSavedProviderKey).map((c) => c.providerId));
   const selectedCfg = configs.find((c) => c.providerId === selectedProvider);
@@ -290,6 +312,21 @@ export const SettingsAgent: React.FC = () => {
   }, [selectedProvider, getModels, providers]);
 
   const selectedDraft = draft[selectedProvider] ?? { apiKey: '', baseUrl: '', modelId: '' };
+
+  // ── Catalog refresh handlers ────────────────────────────────────
+  const handleRefreshCatalogs = useCallback(async () => {
+    if (catalogRefreshing) return;
+    setError(null);
+    setCatalogRefreshing(true);
+    try {
+      await refreshCatalogs(true);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCatalogRefreshing(false);
+    }
+  }, [catalogRefreshing, refreshCatalogs, load]);
 
   // ── Provider credentials handlers ──────────────────────────────
   const handleSave = useCallback(async () => {
@@ -953,16 +990,34 @@ export const SettingsAgent: React.FC = () => {
               Link as many providers as you like — the ★ default is used when creating a new agent. Keys are global and usable immediately from the Agent view.
             </p>
           </div>
-          <div className="w-64 shrink-0">
-            <AgentSelect
-              value={selectedProvider}
-              onChange={setSelectedProvider}
-              searchPlaceholder="Search providers…"
-              options={providers.map((p) => ({
-                value: p.id,
-                label: `${PROVIDER_DISPLAY[p.id] ?? p.name} (${p.id})${configuredIds.has(p.id) ? ' ✓ key' : ''}`,
-              }))}
-            />
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleRefreshCatalogs()}
+              disabled={catalogRefreshing || !status?.connected}
+              title="Refresh model catalog from models.dev"
+              aria-label="Refresh model catalog"
+              className={`h-6 w-6 flex items-center justify-center rounded-md border border-[var(--border-primary)] text-[var(--text-secondary)] transition-colors duration-100 cursor-pointer disabled:opacity-40 disabled:cursor-default ${
+                catalogRefreshing ? 'text-[var(--accent)]' : 'hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+              }`}
+            >
+              <Icon
+                icon="material-symbols:refresh-rounded"
+                className={`h-3.5 w-3.5 ${catalogRefreshing ? 'animate-spin-slow' : ''}`}
+                aria-hidden="true"
+              />
+            </button>
+            <div className="w-64 shrink-0">
+              <AgentSelect
+                value={selectedProvider}
+                onChange={setSelectedProvider}
+                searchPlaceholder="Search providers…"
+                options={providers.map((p) => ({
+                  value: p.id,
+                  label: `${PROVIDER_DISPLAY[p.id] ?? p.name} (${p.id})${configuredIds.has(p.id) ? ' ✓ key' : ''}`,
+                }))}
+              />
+            </div>
           </div>
         </div>
 

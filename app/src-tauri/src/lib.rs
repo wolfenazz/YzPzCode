@@ -286,6 +286,7 @@ pub fn run() {
             commands::approve_agent_tool,
             commands::get_agent_providers,
             commands::get_agent_models,
+            commands::refresh_agent_catalogs,
             commands::set_agent_provider_config,
             commands::list_agent_provider_configs,
             commands::remove_agent_provider_config,

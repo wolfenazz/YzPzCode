@@ -11,6 +11,7 @@ import { ImageStage } from './canvas/ImageStage';
 import { Toolbar } from './toolbar/Toolbar';
 import { LayersPanel } from './panels/LayersPanel';
 import { PropertiesPanel } from './panels/PropertiesPanel';
+import { ImgIcon } from './icons';
 import './ImageEditor.css';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -33,6 +34,7 @@ const TOOL_LABELS: Record<string, string> = {
 
 export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId }) => {
   const stageSizeRef = useRef({ w: 0, h: 0 });
+  const loadedPathRef = useRef<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -58,19 +60,22 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
       const dataUrl = await invoke<string>('read_file_as_base64', { path });
       const img = await loadImageElement(dataUrl);
       useImageEditorStore.getState().loadDocument(wsId, createDocumentFromImage(img, fileNameOf(path)));
+      loadedPathRef.current = path;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
 
-  // Load the open image (if any) for the active workspace when it becomes active.
+  // Load the open image (if any) for the active workspace when it becomes active,
+  // and (re)load when the user picks a different image via "Open in Image Editor".
   useEffect(() => {
     if (!workspaceId) return;
     const st = useImageEditorStore.getState();
-    if (st.docs[workspaceId]) return;
     const path = useAppStore.getState().imageEditorByWorkspace[workspaceId]?.path ?? null;
-    if (path) void openPath(path, workspaceId);
-  }, [workspaceId, openPath]);
+    if (!path) return;
+    if (st.docs[workspaceId] && loadedPathRef.current === path) return;
+    void openPath(path, workspaceId);
+  }, [workspaceId, openPath, filePath]);
 
   const handleOpen = useCallback(async () => {
     if (!workspaceId) return;
@@ -87,9 +92,19 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
 
   const handleNew = useCallback(() => {
     if (!workspaceId) return;
+    if (isDirty) {
+      const confirmed = window.confirm('You have unsaved changes. Start a new document anyway?');
+      if (!confirmed) return;
+    }
+    loadedPathRef.current = null;
     useImageEditorStore.getState().loadDocument(workspaceId, createNewDocument(1024, 1024, 'white'));
     useAppStore.getState().setImageEditorPathForWorkspace(workspaceId, null);
-  }, [workspaceId]);
+  }, [workspaceId, isDirty]);
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast(null), 1600);
+  }, []);
 
   const handleSave = useCallback(async (asNew: boolean) => {
     if (!workspaceId) return;
@@ -114,14 +129,17 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
     const ext = extOf(target);
     const mime: 'image/png' | 'image/jpeg' | 'image/webp' =
       ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
-    const dataUrl = flattenToDataUrl(d, mime);
-    const base64 = dataUrl.split(',')[1];
-    await invoke('write_file_bytes', { path: target, base64Data: base64 });
-    useImageEditorStore.getState().markDirty(workspaceId, false);
-    useAppStore.getState().setImageEditorPathForWorkspace(workspaceId, target);
-    setToast('Saved');
-    setTimeout(() => setToast(null), 1600);
-  }, [workspaceId]);
+    try {
+      const dataUrl = flattenToDataUrl(d, mime);
+      const base64 = dataUrl.split(',')[1];
+      await invoke('write_file_bytes', { path: target, base64Data: base64 });
+      useImageEditorStore.getState().markDirty(workspaceId, false);
+      useAppStore.getState().setImageEditorPathForWorkspace(workspaceId, target);
+      showToast('Saved');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [workspaceId, showToast]);
 
   const fit = useCallback(() => {
     if (!workspaceId) return;
@@ -163,6 +181,18 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
     },
     [workspaceId],
   );
+
+  const handleClose = useCallback(() => {
+    if (!workspaceId) return;
+    if (isDirty) {
+      const confirmed = window.confirm('You have unsaved changes. Close the image editor?');
+      if (!confirmed) return;
+    }
+    loadedPathRef.current = null;
+    useAppStore.getState().clearImageEditorForWorkspace(workspaceId);
+    useImageEditorStore.getState().closeDocument(workspaceId);
+    useAppStore.getState().setActiveView('editor');
+  }, [workspaceId, isDirty]);
 
   // Global keyboard shortcuts (active only while the Image view is shown).
   useEffect(() => {
@@ -236,21 +266,33 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
   }, [workspaceId, handleSave]);
 
   const barBtn =
-    'flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 px-2 text-[9px] font-mono font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--accent)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-colors';
+    'premium-btn flex h-7 items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 px-2 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--accent)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed';
 
   const iconBtn =
-    'flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--accent)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed transition-colors';
+    'premium-btn-icon flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--accent)] disabled:opacity-30 cursor-pointer disabled:cursor-not-allowed';
 
   const fileName = filePath ? fileNameOf(filePath) : 'Untitled';
 
   return (
     <div className="image-editor flex h-full flex-col bg-[var(--bg-primary)] font-mono">
       {/* Top bar */}
-      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1.5">
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+        <button
+          onClick={handleClose}
+          title="Back to code editor"
+          className="premium-btn-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer"
+        >
+          <ImgIcon name="back" className="h-3.5 w-3.5" />
+        </button>
+
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[11px] font-semibold text-[var(--text-primary)]">{fileName}</span>
           {isDirty && (
-            <span className="inline-flex items-center gap-1 rounded border border-[var(--accent-border)] bg-[var(--accent-light)] px-1 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
+            <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent-glow)]" />
+              </span>
               unsaved
             </span>
           )}
@@ -258,33 +300,45 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
 
         <div className="mx-1 h-4 w-px bg-[var(--border-primary)]" />
 
-        <button className={barBtn} onClick={handleNew} title="New document">New</button>
-        <button className={barBtn} onClick={() => void handleOpen()} title="Open image">Open</button>
-        <button className={barBtn} onClick={() => void handleSave(false)} title="Save (Ctrl+S)">Save</button>
-        <button className={barBtn} onClick={() => void handleSave(true)} title="Save As (Ctrl+Shift+S)">Save As</button>
+        <button className={barBtn} onClick={handleNew} title="New document">
+          <ImgIcon name="newFile" className="h-3 w-3" />
+          New
+        </button>
+        <button className={barBtn} onClick={() => void handleOpen()} title="Open image">
+          <ImgIcon name="openFile" className="h-3 w-3" />
+          Open
+        </button>
+        <button className={barBtn} onClick={() => void handleSave(false)} title="Save (Ctrl+S)">
+          <ImgIcon name="save" className="h-3 w-3" />
+          Save
+        </button>
+        <button className={barBtn} onClick={() => void handleSave(true)} title="Save As (Ctrl+Shift+S)">
+          <ImgIcon name="saveAs" className="h-3 w-3" />
+          Save As
+        </button>
 
         <div className="mx-1 h-4 w-px bg-[var(--border-primary)]" />
 
         <button className={iconBtn} onClick={() => workspaceId && useImageEditorStore.getState().undo(workspaceId)} disabled={!canUndo} title="Undo (Ctrl+Z)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M9 14L4 9l5-5M4 9h10a5 5 0 015 5v1" /></svg>
+          <ImgIcon name="undo" className="h-3.5 w-3.5" />
         </button>
         <button className={iconBtn} onClick={() => workspaceId && useImageEditorStore.getState().redo(workspaceId)} disabled={!canRedo} title="Redo (Ctrl+Shift+Z)">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M15 14l5-5-5-5M20 9H10a5 5 0 00-5 5v1" /></svg>
+          <ImgIcon name="redo" className="h-3.5 w-3.5" />
         </button>
 
         <div className="flex-1" />
 
         <div className="flex items-center gap-0.5">
           <button className={iconBtn} onClick={fit} title="Fit to view">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /></svg>
+            <ImgIcon name="fit" className="h-3.5 w-3.5" />
           </button>
           <button className={barBtn} onClick={() => zoomTo(1)} title="100%">100%</button>
           <button className={iconBtn} onClick={() => zoomBy(1 / 1.25)} title="Zoom out">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="h-3.5 w-3.5"><path d="M20 12H4" /></svg>
+            <ImgIcon name="zoomOut" className="h-3.5 w-3.5" />
           </button>
-          <span className="min-w-[44px] text-center text-[9px] font-mono text-[var(--text-secondary)]">{Math.round(zoom * 100)}%</span>
+          <span className="min-w-[44px] text-center font-mono text-[9px] text-[var(--text-secondary)]">{Math.round(zoom * 100)}%</span>
           <button className={iconBtn} onClick={() => zoomBy(1.25)} title="Zoom in">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" className="h-3.5 w-3.5"><path d="M12 4v16M4 12h16" /></svg>
+            <ImgIcon name="zoomIn" className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -292,17 +346,17 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
       {/* Brush settings (only for paint tools) */}
       {(tool === 'brush' || tool === 'eraser') && (
         <div className="flex shrink-0 items-center gap-4 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5">
-          <label className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
+          <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
             Size
             <input type="range" min={1} max={200} value={brushSize} onChange={(e) => useImageEditorStore.getState().setBrushSize(Number(e.target.value))} className="w-32 cursor-pointer" />
             <span className="w-7 text-[var(--text-primary)]">{brushSize}</span>
           </label>
-          <label className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
+          <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
             Opacity
             <input type="range" min={1} max={100} value={Math.round(brushOpacity * 100)} onChange={(e) => useImageEditorStore.getState().setBrushOpacity(Number(e.target.value) / 100)} className="w-24 cursor-pointer" />
             <span className="w-7 text-[var(--text-primary)]">{Math.round(brushOpacity * 100)}%</span>
           </label>
-          <label className="flex items-center gap-2 text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
+          <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
             Hard
             <input type="range" min={0} max={100} value={Math.round(brushHardness * 100)} onChange={(e) => useImageEditorStore.getState().setBrushHardness(Number(e.target.value) / 100)} className="w-24 cursor-pointer" />
             <span className="w-7 text-[var(--text-primary)]">{Math.round(brushHardness * 100)}%</span>
@@ -319,31 +373,38 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
             <ImageStage workspaceId={workspaceId ?? ''} onStageSize={onStageSize} />
           ) : (
             <div className="flex h-full items-center justify-center bg-[#1f1f1f]">
-              <div className="flex flex-col items-center gap-5">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-[var(--text-secondary)]">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                    <circle cx="9" cy="9" r="2" />
-                    <path d="M21 15l-5-5L5 21" />
-                  </svg>
+              <div className="premium-surface flex flex-col items-center gap-5 rounded-2xl px-10 py-8">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[var(--accent-border)] bg-[var(--accent-light)] shadow-[0_0_24px_-8px_var(--accent-glow)]">
+                  <ImgIcon name="palette" className="h-7 w-7 text-[var(--accent)]" />
                 </div>
                 <div className="text-center">
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--text-primary)]">Image Editor</div>
-                  <div className="mt-1.5 max-w-[260px] text-[10px] leading-5 text-[var(--text-secondary)]/70">
+                  <div className="premium-hero-gradient text-xs font-semibold uppercase tracking-[0.22em]">Image Editor</div>
+                  <div className="mt-1.5 max-w-[260px] font-mono text-[10px] leading-5 text-[var(--text-secondary)]/70">
                     Open an image from the explorer, or start from scratch.
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button className={barBtn} onClick={handleNew}>New Document</button>
-                  <button className={barBtn} onClick={() => void handleOpen()}>Open Image</button>
+                  <button className="premium-btn-primary flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] cursor-pointer" onClick={handleNew}>
+                    <ImgIcon name="newFile" className="h-3.5 w-3.5" />
+                    New Document
+                  </button>
+                  <button className="premium-btn-ghost flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] cursor-pointer" onClick={() => void handleOpen()}>
+                    <ImgIcon name="openFile" className="h-3.5 w-3.5" />
+                    Open Image
+                  </button>
                 </div>
-                {error && <div className="text-[10px] text-rose-400">{error}</div>}
+                {error && <div className="font-mono text-[10px] text-rose-400">{error}</div>}
               </div>
             </div>
           )}
           {toast && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-md border border-[var(--accent-border)] bg-[#303030] px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-[var(--accent)] shadow-lg">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-[var(--accent-border)] bg-[#303030] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--accent)] shadow-lg">
               {toast}
+            </div>
+          )}
+          {error && doc && (
+            <div className="absolute left-1/2 top-3 -translate-x-1/2 rounded-lg border border-rose-500/40 bg-[#3a1f1f] px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-rose-300 shadow-lg">
+              {error}
             </div>
           )}
         </div>
@@ -359,7 +420,7 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
       </div>
 
       {/* Status bar */}
-      <div className="flex shrink-0 items-center justify-between border-t border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1 text-[9px] font-mono uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+      <div className="flex shrink-0 items-center justify-between border-t border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
         <div className="flex items-center gap-3">
           <span>{doc ? `${doc.width} × ${doc.height}` : '—'}</span>
           <span>{doc ? `${doc.layers.length} layer${doc.layers.length === 1 ? '' : 's'}` : ''}</span>

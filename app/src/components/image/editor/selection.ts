@@ -133,7 +133,11 @@ export const invertSelection = (sel: SelectionMask): SelectionMask => {
     data[i] = sel.data[i] > 0 ? 0 : 255;
   }
   const bounds = computeBounds(data, sel.w, sel.h);
-  return { data, w: sel.w, h: sel.h, bounds, outline: null };
+  // Build a rect outline for the inverted region so the marching ants stay visible.
+  const outline: SelectionOutline | null = bounds
+    ? { kind: 'rect', x: bounds.x, y: bounds.y, w: bounds.w, h: bounds.h }
+    : null;
+  return { data, w: sel.w, h: sel.h, bounds, outline };
 };
 
 /** True when the selection contains any pixels. */

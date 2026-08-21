@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npx tsc --noEmit 2>&1)",
+      "Shell(move:*)",
+      "Shell(npm:*)",
+      "Shell(cargo:*)"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

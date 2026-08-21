@@ -5,6 +5,7 @@ import type { LayerMeta } from '../types';
 import { BLEND_MODES } from '../types';
 import { getLayerCanvas, drawLayerOnto, newRasterLayer } from '../editor/model';
 import { useImageEditorStore } from '../../../stores/imageEditorStore';
+import { ImgIcon } from '../icons';
 
 const THUMB = 28;
 
@@ -45,7 +46,7 @@ const LayerThumb: React.FC<{ layer: LayerMeta }> = ({ layer }) => {
     ctx.restore();
   }, [layer]);
 
-  return <canvas ref={ref} width={THUMB} height={THUMB} className="shrink-0 rounded-sm border border-[var(--border-primary)]" />;
+  return <canvas ref={ref} width={THUMB} height={THUMB} className="shrink-0 rounded-md border border-[var(--border-primary)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]" />;
 };
 
 export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) => {
@@ -77,21 +78,26 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
   };
 
   const btn =
-    'flex h-7 w-7 items-center justify-center rounded text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed';
+    'flex h-7 w-7 items-center justify-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-30 disabled:hover:bg-transparent cursor-pointer disabled:cursor-not-allowed transition-colors';
 
   return (
     <div className="flex h-full flex-col border-l border-[var(--border-primary)] bg-[var(--bg-primary)]">
       <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-3 py-2">
-        <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">Layers</span>
-        <span className="text-[9px] font-mono text-[var(--text-secondary)]/60">{doc.layers.length}</span>
+        <span className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-[var(--text-secondary)]">
+          <ImgIcon name="layers" className="h-3 w-3 text-[var(--accent-text)]" />
+          Layers
+        </span>
+        <span className="rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-1.5 py-px font-mono text-[9px] text-[var(--text-secondary)]/70">
+          {doc.layers.length}
+        </span>
       </div>
 
       {active && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-primary)] px-2 py-1.5">
+        <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/40 px-2 py-1.5">
           <select
             value={active.blendMode}
             onChange={(e) => updateLayer(workspaceId, active.id, { blendMode: e.target.value as LayerMeta['blendMode'] })}
-            className="h-6 min-w-0 flex-1 rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-1 text-[9px] font-mono uppercase text-[var(--text-primary)] outline-none focus:border-[var(--accent-border)]"
+            className="h-6 min-w-0 flex-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-1 text-[9px] font-mono uppercase text-[var(--text-primary)] outline-none focus:border-[var(--accent-border)]"
             title="Blend mode"
           >
             {BLEND_MODES.map((m) => (
@@ -107,7 +113,7 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
             className="w-14 cursor-pointer"
             title="Opacity"
           />
-          <span className="w-7 text-right text-[9px] font-mono text-[var(--text-secondary)]">{Math.round(active.opacity * 100)}%</span>
+          <span className="w-7 text-right font-mono text-[9px] text-[var(--text-secondary)]">{Math.round(active.opacity * 100)}%</span>
         </div>
       )}
 
@@ -132,7 +138,7 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
                 setRenamingId(layer.id);
                 setRenameValue(layer.name);
               }}
-              className={`group flex items-center gap-2 px-2 py-1 cursor-pointer ${
+              className={`group flex items-center gap-2 rounded-md px-1.5 py-1 mx-1 cursor-pointer ${
                 isActive
                   ? 'bg-[var(--accent-light)] shadow-[inset_2px_0_0_var(--accent)]'
                   : 'hover:bg-[var(--bg-tertiary)]'
@@ -146,13 +152,7 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
                 className={`${btn} h-6 w-6 ${layer.visible ? 'text-[var(--text-secondary)]' : 'text-[var(--text-secondary)]/30'}`}
                 title="Toggle visibility"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                  {layer.visible ? (
-                    <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12zM12 15a3 3 0 100-6 3 3 0 000 6z" />
-                  ) : (
-                    <path d="M3 3l18 18M10.5 5.7A9.5 9.5 0 0112 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 01-2.3 3M6 6.3A17 17 0 002.5 12S6 18.5 12 18.5a9.5 9.5 0 004-.8" />
-                  )}
-                </svg>
+                <ImgIcon name={layer.visible ? 'visibilityOn' : 'visibilityOff'} className="h-3.5 w-3.5" />
               </button>
 
               <LayerThumb layer={layer} />
@@ -168,7 +168,7 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
                     if (e.key === 'Escape') setRenamingId(null);
                   }}
                   onClick={(e) => e.stopPropagation()}
-                  className="min-w-0 flex-1 rounded border border-[var(--accent-border)] bg-[var(--bg-secondary)] px-1 text-[10px] font-mono text-[var(--text-primary)] outline-none"
+                  className="min-w-0 flex-1 rounded-md border border-[var(--accent-border)] bg-[var(--bg-secondary)] px-1 font-mono text-[10px] text-[var(--text-primary)] outline-none"
                 />
               ) : (
                 <span className={`min-w-0 flex-1 truncate font-mono text-[10px] ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
@@ -184,25 +184,19 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
                 className={`${btn} h-6 w-6 ${layer.locked ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)] opacity-0 group-hover:opacity-100'}`}
                 title="Lock layer"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5">
-                  {layer.locked ? (
-                    <path d="M7 11V8a5 5 0 0110 0v3M6 11h12a1 1 0 011 1v7a1 1 0 01-1 1H6a1 1 0 01-1-1v-7a1 1 0 011-1z" />
-                  ) : (
-                    <path d="M7 11V8a5 5 0 0110 0v3M6 11h12a1 1 0 011 1v7a1 1 0 01-1 1H6a1 1 0 01-1-1v-7a1 1 0 011-1zM7 11V8a5 5 0 00-2 3" />
-                  )}
-                </svg>
+                <ImgIcon name={layer.locked ? 'lock' : 'unlock'} className="h-3.5 w-3.5" />
               </button>
             </div>
           );
         })}
         {rows.length === 0 && (
-          <div className="px-3 py-6 text-center text-[9px] font-mono uppercase tracking-widest text-[var(--text-secondary)]/50">
+          <div className="px-3 py-6 text-center font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/50">
             No layers
           </div>
         )}
       </div>
 
-      <div className="flex items-center gap-0.5 border-t border-[var(--border-primary)] px-1.5 py-1.5">
+      <div className="flex items-center gap-0.5 border-t border-[var(--border-primary)] bg-[var(--bg-secondary)]/40 px-1.5 py-1.5">
         <button
           className={btn}
           title="New layer"
@@ -211,13 +205,13 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
             if (d) addLayer(workspaceId, newRasterLayer(d.width, d.height, `Layer ${d.layers.length + 1}`));
           }}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" className="h-3.5 w-3.5"><path d="M12 5v14M5 12h14" /></svg>
+          <ImgIcon name="plus" className="h-3.5 w-3.5" />
         </button>
         <button className={btn} title="Duplicate layer" disabled={!active} onClick={() => active && duplicateLayer(workspaceId, active.id)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><rect x="9" y="9" width="11" height="11" /><path d="M5 15V5a1 1 0 011-1h10" /></svg>
+          <ImgIcon name="copy" className="h-3.5 w-3.5" />
         </button>
         <button className={btn} title="Delete layer" disabled={!active || doc.layers.length <= 1} onClick={() => active && removeLayer(workspaceId, active.id)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a1 1 0 01-1 1H7a1 1 0 01-1-1L5 6" /></svg>
+          <ImgIcon name="trash" className="h-3.5 w-3.5" />
         </button>
         <div className="mx-0.5 h-4 w-px bg-[var(--border-primary)]" />
         <button
@@ -226,10 +220,10 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
           disabled={!active || doc.layers.findIndex((l) => l.id === active.id) <= 0}
           onClick={() => active && mergeDown(workspaceId, active.id)}
         >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M12 3v12M6 9l6 6 6-6M4 21h16" /></svg>
+          <ImgIcon name="mergeDown" className="h-3.5 w-3.5" />
         </button>
         <button className={btn} title="Flatten image" onClick={() => flatten(workspaceId)}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M3 7l4 4 4-4 3 3 3-3 4 4v6a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /></svg>
+          <ImgIcon name="flatten" className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>

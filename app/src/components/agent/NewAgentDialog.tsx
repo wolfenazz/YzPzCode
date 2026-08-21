@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
 import { AgentSelect } from './AgentSelect';
 import type { AgentModelInfo, AgentProviderInfo } from '../../types';
@@ -36,7 +37,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
   onClose,
   onCreate,
 }) => {
-  const { getProviders, getModels, listProviderConfigs, setProviderConfig, getSettings } = useAgentHost();
+  const { getProviders, getModels, listProviderConfigs, setProviderConfig, getSettings, onCatalogUpdated } = useAgentHost();
   const [providers, setProviders] = useState<AgentProviderInfo[]>([]);
   const [models, setModels] = useState<AgentModelInfo[]>([]);
   const [providerId, setProviderId] = useState(defaultProviderId ?? 'anthropic');
@@ -106,6 +107,37 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
       mounted = false;
     };
   }, [providerId, getModels]);
+
+  // While the dialog is open, refetch providers/models when the sidecar catalog
+  // syncs so newly published models appear without reopening the dialog.
+  useEffect(() => {
+    let mounted = true;
+    let unlisten: UnlistenFn | undefined;
+    void onCatalogUpdated(() => {
+      void getProviders()
+        .then((p) => {
+          if (mounted) setProviders(p);
+        })
+        .catch(() => undefined);
+      if (providerId) {
+        void getModels(providerId)
+          .then((m) => {
+            if (mounted) {
+              setModels(m);
+              setModelId((cur) => (cur && m.some((x) => x.id === cur) ? cur : m[0]?.id ?? ''));
+            }
+          })
+          .catch(() => undefined);
+      }
+    }).then((u) => {
+      if (mounted) unlisten = u;
+      else void u();
+    });
+    return () => {
+      mounted = false;
+      void unlisten?.();
+    };
+  }, [onCatalogUpdated, getProviders, getModels, providerId]);
 
   const providerMeta = PROVIDER_DISPLAY[providerId] ?? { name: providerId, needsBaseUrl: false };
   const providerName = PROVIDER_DISPLAY[providerId]?.name ?? providerId;

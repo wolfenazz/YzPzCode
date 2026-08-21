@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState } from '../types';
+import { useImageEditorStore } from './imageEditorStore';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
@@ -713,6 +714,8 @@ export const useAppStore = create<AppState>()(
 
       closeWorkspace: (workspaceId) =>
         set((state) => {
+          // Free the image editor's per-workspace docs + offscreen pixel canvases.
+          useImageEditorStore.getState().closeDocument(workspaceId);
           const remainingWorkspaces = state.openWorkspaces.filter(w => w.id !== workspaceId);
           const nextWorkspace = remainingWorkspaces.length > 0 ? remainingWorkspaces[0] : null;
           const nextId = nextWorkspace?.id ?? null;

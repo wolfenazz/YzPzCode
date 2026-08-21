@@ -1636,16 +1636,25 @@ export class AgentHarness {
     if (toolName === "grep" || toolName === "search_codebase" || toolName === "find" || toolName === "glob") {
       const lines = output.split("\n");
       const capped = lines.map((line) => truncateLine(line, GREP_MAX_LINE_LENGTH).text);
-      if (capped.every((line, i) => line === lines[i])) {
-        // No line was truncated; still bound the total via head truncation.
-        const r = truncateHead(output, { maxLines: 200, maxBytes: DEFAULT_MAX_BYTES });
-        if (!r.truncated) return { output, truncated: false };
+      const cappedText = capped.join("\n");
+      if (!capped.every((line, i) => line === lines[i])) {
+        // Some lines were capped. Still keep the TOTAL bounded (lines AND
+        // bytes), otherwise a pathological result (e.g. 100k long lines) would
+        // return up to 500 chars x N lines and blow the output budget.
+        const r = truncateHead(cappedText, { maxLines: 200, maxBytes: DEFAULT_MAX_BYTES });
+        if (!r.truncated) return { output: cappedText, truncated: true };
         return {
           output: `${r.content}\n\n[Search results truncated: showing ${r.outputLines} of ${r.totalLines} lines.]`,
           truncated: true,
         };
       }
-      return { output: capped.join("\n"), truncated: true };
+      // No line was truncated; still bound the total via head truncation.
+      const r = truncateHead(output, { maxLines: 200, maxBytes: DEFAULT_MAX_BYTES });
+      if (!r.truncated) return { output, truncated: false };
+      return {
+        output: `${r.content}\n\n[Search results truncated: showing ${r.outputLines} of ${r.totalLines} lines.]`,
+        truncated: true,
+      };
     }
 
     // Generic fallback: head-truncate at the shared limits.

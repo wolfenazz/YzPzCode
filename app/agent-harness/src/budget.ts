@@ -31,9 +31,17 @@ const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v)
  * per-turn deltas. `cost` is also a per-turn delta: the SDK's `totalCost` field
  * is CUMULATIVE, so it must never be added to a running total (adding an
  * already-cumulative number double-counts — see sync-issues SYNC-5).
+ *
+ * We prefer the per-turn `cost`. Only when the SDK omits per-turn cost AND we
+ * have no prior total (first sample, prev.totalCost === 0) do we seed from the
+ * cumulative `totalCost` as a baseline.
  */
 export function accumulateUsage(prev: UsageTotals, delta: Record<string, unknown>): UsageTotals {
-  const cost = num(delta.cost); // per-turn delta only, NOT totalCost
+  let cost = num(delta.cost); // per-turn delta only, NOT totalCost
+  if (cost === 0 && typeof delta.totalCost === "number" && prev.totalCost === 0) {
+    // First sample with no per-turn cost: seed from the cumulative total.
+    cost = num(delta.totalCost);
+  }
   return {
     inputTokens: prev.inputTokens + num(delta.inputTokens),
     outputTokens: prev.outputTokens + num(delta.outputTokens),
