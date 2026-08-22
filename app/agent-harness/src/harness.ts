@@ -20,7 +20,16 @@ import {
   resolveDefaultMcpSettingsPath,
   resolveMcpServerRegistrations,
   registerMcpServersFromSettingsFile,
+  isOAuthProvider,
+  getProviderConfigFields,
+  loginOpenAICodex,
+  getValidOpenAICodexCredentials,
+  formatProviderOAuthApiKey,
+  ProviderSettingsManager,
+  saveProviderOAuthCredentials,
+  getProviderAuthStorageId,
   type CoreSessionEvent,
+  type OAuthCredentials,
   type UserInstructionConfigService,
   type UserInstructionConfigType,
   type UserInstructionConfigRecord,
@@ -35,9 +44,9 @@ import {
 } from "@cline/sdk";
 import type { ToolApprovalRequest, ToolApprovalResult, ToolPolicy } from "@cline/core";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, isAbsolute, join } from "node:path";
+import { basename, extname, isAbsolute, join } from "node:path";
 import { buildSystemPrompt } from "./branding.js";
 import { accumulateUsage, enforceBudget, usageTotal, zeroUsage, type UsageTotals } from "./budget.js";
 import { ProviderConfigStore } from "./store.js";
@@ -76,6 +85,82 @@ const DEFAULT_MAX_ITERATIONS = 40;
 // context windows: 12k was proportionally tiny and made long tasks lose track
 // of what they had just done after a compaction.
 const COMPACTION_PRESERVE_RECENT_TOKENS = 24_000;
+
+// @cline/llms validates image content before building the provider request.
+// `userImages` must be a data URL or base64 string; a local Windows path is
+// not a valid image payload and becomes "[media omitted...]". Keep these
+// limits aligned with the SDK's default media budget so failures are explicit
+// before the request is handed to the model adapter.
+const MAX_IMAGE_ENCODED_BYTES = 5 * 1024 * 1024;
+const MAX_IMAGE_DECODED_BYTES = 6 * 1024 * 1024;
+const MAX_TOTAL_MEDIA_BYTES = 8 * 1024 * 1024;
+const SUPPORTED_IMAGE_MIME_TYPES: Record<string, string> = {
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+};
+
+const imageDataUrl = (path: string, index: number, totalBytes: number): string => {
+  const extension = extname(path).toLowerCase();
+  const mediaType = SUPPORTED_IMAGE_MIME_TYPES[extension];
+  if (!mediaType) {
+    throw new Error(`Image ${index + 1} has an unsupported format. Use PNG, JPEG, GIF, or WebP.`);
+  }
+
+  if (totalBytes > MAX_IMAGE_DECODED_BYTES) {
+    throw new Error(`Image ${index + 1} is too large (${totalBytes} bytes). Images must be 6 MB or smaller.`);
+  }
+
+  const base64 = readFileSync(path).toString("base64");
+  const encodedBytes = Buffer.byteLength(base64, "ascii");
+  if (encodedBytes > MAX_IMAGE_ENCODED_BYTES) {
+    throw new Error(`Image ${index + 1} is too large after encoding. Choose an image under about 3.7 MB.`);
+  }
+
+  return `data:${mediaType};base64,${base64}`;
+};
+
+const resolveUserImages = (userImages: string[]): string[] => {
+  let totalBytes = 0;
+  return userImages.map((image, index) => {
+    if (image.trim().toLowerCase().startsWith("data:image/")) return image;
+
+    let size: number;
+    try {
+      size = statSync(image).size;
+    } catch {
+      throw new Error(`Could not read image ${index + 1}. The file may have been moved or deleted.`);
+    }
+    totalBytes += size;
+    if (totalBytes > MAX_TOTAL_MEDIA_BYTES) {
+      throw new Error("The selected images are too large together. Send fewer images or smaller copies.");
+    }
+    return imageDataUrl(image, index, size);
+  });
+};
+
+/** Extract a useful message from SDK errors before they cross the JSON
+ * sidecar boundary. Native Error objects serialize as `{}`, which used to
+ * turn actionable provider failures into "The task stopped unexpectedly.". */
+const errorMessageFromUnknown = (value: unknown): string => {
+  if (value instanceof Error && value.message.trim()) return value.message.trim();
+  if (typeof value === "string" && value.trim()) return value.trim();
+  if (!value || typeof value !== "object") return "";
+
+  const record = value as Record<string, unknown>;
+  for (const key of ["message", "error", "reason", "details"]) {
+    const message = errorMessageFromUnknown(record[key]);
+    if (message) return message;
+  }
+  try {
+    const serialized = JSON.stringify(value);
+    return serialized && serialized !== "{}" ? serialized : "";
+  } catch {
+    return "";
+  }
+};
 
 /** Shared skills are user-level capabilities, never workspace-local state. */
 const uniqueDirectories = (directories: string[]): string[] => {
@@ -432,6 +517,10 @@ export class AgentHarness {
   private recoveryWindow = new Map<string, number>();
   /** Sessions the user explicitly aborted/stopped — never auto-recover those. */
   private suppressRecovery = new Set<string>();
+  /** Error captured while the SDK is still unwinding a failed turn. */
+  private pendingRecoveryErrors = new Map<string, string>();
+  /** Delayed fallback for send() rejections that do not emit an ended event. */
+  private recoveryTimers = new Map<string, NodeJS.Timeout>();
   /** Sessions with Fast mode enabled (persisted in session metadata). */
   private fastModes = new Map<string, boolean>();
   /** Last fast-mode state applied per session — lets sendMessage inject the
@@ -442,6 +531,13 @@ export class AgentHarness {
   readonly dataDir: string;
   private prefsFile: string;
   private prefs: Record<string, unknown>;
+  /** Open id-style prompt resolvers used during an OAuth login flow (requestId -> answer). */
+  private oauthPromptResolvers = new Map<string, (answer: string) => void>();
+  /** Cache of the SDK's provider-settings store, used to persist OAuth
+   *  credentials so the local runtime can refresh them mid-session. Lazily
+   *  created after `setClineDir` so it resolves to the same file the runtime
+   *  reads. */
+  private oauthSettingsManager: ProviderSettingsManager | null = null;
 
   constructor(dataDir: string) {
     this.dataDir = dataDir;
@@ -755,14 +851,11 @@ export class AgentHarness {
         // window keeps this from double-steering when the error event also
         // fired for the same failure.
         if (status === "failed") {
-          // A failed turn is definitively no longer running. Clear the flag
-          // BEFORE auto-recovery so the recovery follow-up is sent as a direct
-          // turn instead of being queued behind a turn that already ended.
+          // A failed turn is no longer eligible for user steering. Clear the
+          // flag now, but wait for `ended` before starting recovery so the SDK
+          // has fully released the failed runtime.
           this.runningSessions.delete(event.payload.sessionId);
-          this.maybeRecoverAfterError(
-            event.payload.sessionId,
-            "The task stopped before completing.",
-          );
+          this.deferRecoveryAfterError(event.payload.sessionId, "The task stopped before completing.");
         }
       } else if (event.type === "ended") {
         // The SDK removes the session from its in-memory runtime when it ends
@@ -773,6 +866,15 @@ export class AgentHarness {
         this.steeringBySession.delete(event.payload.sessionId);
         this.teamStateBySession.delete(event.payload.sessionId);
         this.sink("session-ended", event.payload);
+        // `agent_event:error` arrives before the SDK has finished tearing down
+        // the runtime. Start recovery only after `ended`, otherwise the retry
+        // races the old turn and the SDK rejects it with state="running".
+        const pendingError = this.pendingRecoveryErrors.get(event.payload.sessionId);
+        if (pendingError) {
+          this.clearRecoveryTimer(event.payload.sessionId);
+          this.pendingRecoveryErrors.delete(event.payload.sessionId);
+          this.maybeRecoverAfterError(event.payload.sessionId, pendingError);
+        }
       } else if (event.type === "team_progress") {
         this.recordTeamProgress(event.payload);
         this.sink("team-progress", event.payload);
@@ -795,12 +897,12 @@ export class AgentHarness {
         this.runningSessions.delete(event.payload.sessionId);
         const inner = (event.payload?.event ?? {}) as Record<string, unknown>;
         const errorMessage =
-          typeof inner.error === "string"
-            ? inner.error
-            : typeof inner.message === "string"
-              ? inner.message
-              : "The task stopped unexpectedly.";
-        this.maybeRecoverAfterError(event.payload.sessionId, errorMessage);
+          errorMessageFromUnknown(inner.error) ||
+          errorMessageFromUnknown(inner.message) ||
+          "The task stopped unexpectedly.";
+        // The SDK emits this event before it transitions the session to
+        // `failed`/`ended`; defer until the runtime is safe to re-enter.
+        this.deferRecoveryAfterError(event.payload.sessionId, errorMessage);
       }
     });
   }
@@ -820,6 +922,47 @@ export class AgentHarness {
 
   private isRetryableError(message: string): boolean {
     return AgentHarness.RETRYABLE_ERROR_RE.test(message);
+  }
+
+  private clearRecoveryTimer(sessionId: string): void {
+    const timer = this.recoveryTimers.get(sessionId);
+    if (timer) clearTimeout(timer);
+    this.recoveryTimers.delete(sessionId);
+  }
+
+  /**
+   * Hold recovery until the failed SDK runtime is fully settled. Most failures
+   * emit `ended`, while an early `send()` rejection may not, so keep a bounded
+   * delayed fallback for the latter.
+   */
+  private deferRecoveryAfterError(sessionId: string, errorMessage: string): void {
+    const message = errorMessageFromUnknown(errorMessage) || "The task stopped unexpectedly.";
+    const existing = this.pendingRecoveryErrors.get(sessionId);
+    // Preserve the provider's detailed message when a later lifecycle event
+    // contributes only its generic "stopped" fallback.
+    if (
+      !existing ||
+      existing === "The task stopped before completing." ||
+      existing === "The task stopped unexpectedly."
+    ) {
+      this.pendingRecoveryErrors.set(sessionId, message);
+    }
+    if (this.recoveryTimers.has(sessionId)) return;
+
+    const retryWhenSettled = (): void => {
+      this.recoveryTimers.delete(sessionId);
+      if (this.runningSessions.has(sessionId) || this.activeSessions.has(sessionId)) {
+        const timer = setTimeout(retryWhenSettled, 250);
+        this.recoveryTimers.set(sessionId, timer);
+        return;
+      }
+      const pending = this.pendingRecoveryErrors.get(sessionId);
+      if (!pending) return;
+      this.pendingRecoveryErrors.delete(sessionId);
+      this.maybeRecoverAfterError(sessionId, pending);
+    };
+
+    this.recoveryTimers.set(sessionId, setTimeout(retryWhenSettled, 500));
   }
 
   /**
@@ -1137,6 +1280,15 @@ export class AgentHarness {
     const saved = this.getProviderStore().get(providerId);
     if (saved?.apiKey || saved?.baseUrl) return;
     if (apiKey || baseUrl) return;
+    if (isOAuthProvider(providerId)) {
+      // OAuth providers are valid once they have saved credentials; session-start
+      // resolution refreshes/validates them. Missing creds fail fast with a
+      // actionable "sign in" message instead of a cryptic auth error later.
+      if (saved?.oauth) return;
+      throw new Error(
+        `Provider "${providerId}" requires OAuth sign-in. Open Settings → Agent, select "${providerId}", and link your subscription.`,
+      );
+    }
     let ids: string[] = [];
     try {
       ids = await Llms.getProviderIds();
@@ -1164,6 +1316,14 @@ export class AgentHarness {
     const cline = this.requireCline();
     const store = this.getProviderStore();
     const stored = store.get(args.providerId);
+
+    // Resolve an auth credential for the session. API-key/baseUrl providers use
+    // the passed-in or stored key directly; OAuth providers (e.g. openai-codex)
+    // get a freshly-validated access token formatted as the SDK's apiKey.
+    let apiKey = args.apiKey ?? stored?.apiKey;
+    if (!apiKey && isOAuthProvider(args.providerId)) {
+      apiKey = await this.resolveOAuthApiKey(args.providerId);
+    }
 
     // Always own the session id so the read-only (ask-mode) guard can key on it.
     const sessionId = args.sessionId?.trim() || `yzpz-${randomUUID()}`;
@@ -1194,7 +1354,7 @@ export class AgentHarness {
         config: {
           providerId: args.providerId,
           modelId: args.modelId,
-          apiKey: args.apiKey ?? stored?.apiKey,
+          apiKey,
           baseUrl: args.baseUrl ?? stored?.baseUrl,
           systemPrompt:
             buildSystemPrompt(args.systemPrompt, args.cwd, skillHints(this.dataDir)) +
@@ -1461,6 +1621,10 @@ export class AgentHarness {
     autoContinue = false,
   ): Promise<unknown> {
     const cline = this.requireCline();
+    // The public UI stores local paths because that keeps IPC payloads small.
+    // Resolve them only inside the Node sidecar, immediately before the SDK
+    // call, where the files are available and can become valid image data URLs.
+    const resolvedUserImages = resolveUserImages(userImages);
 
     // A fresh user request (not an auto-continue) resets the completion-guard
     // nudge budget and re-enables automatic recovery, so long tasks keep
@@ -1470,6 +1634,8 @@ export class AgentHarness {
     if (!autoContinue) {
       this.completionNudges.delete(sessionId);
       this.suppressRecovery.delete(sessionId);
+      this.pendingRecoveryErrors.delete(sessionId);
+      this.clearRecoveryTimer(sessionId);
       this.recoveryAttempts.delete(sessionId);
       this.recoveryWindow.delete(sessionId);
       this.recoveryExhausted.delete(sessionId);
@@ -1554,28 +1720,29 @@ export class AgentHarness {
           sessionId,
           prompt: finalPrompt,
           mode: sdkMode as never,
-          userImages,
+          userImages: resolvedUserImages,
           userFiles,
           delivery: isRunning ? ("steer" as never) : undefined,
         })
         .catch((err: unknown) => {
           this.runningSessions.delete(sessionId);
-          const message = err instanceof Error ? err.message : String(err);
+          const message = errorMessageFromUnknown(err) || "The task stopped unexpectedly.";
           this.sink("session-error", {
             sessionId,
             error: message,
           });
-          // The run loop also emits an error agent_event in most cases; the
-          // dedup window keeps this from double-steering the same failure.
-          this.maybeRecoverAfterError(sessionId, message);
+          // The run loop also emits an error agent_event in most cases. Defer
+          // recovery until the failed runtime is no longer active.
+          this.deferRecoveryAfterError(sessionId, message);
         });
     } catch (err) {
       // A synchronous throw from cline.send (or argument validation) must not
       // leave the session stuck in `runningSessions` — otherwise every later
       // message would be queued as a steer with no turn to drain it.
       this.runningSessions.delete(sessionId);
-      const message = err instanceof Error ? err.message : String(err);
+      const message = errorMessageFromUnknown(err) || "The task stopped unexpectedly.";
       this.sink("session-error", { sessionId, error: message });
+      this.deferRecoveryAfterError(sessionId, message);
       return { accepted: false, error: message };
     }
     return { accepted: true };
@@ -1929,6 +2096,10 @@ export class AgentHarness {
     }
     if (update.apiKey !== undefined && update.apiKey !== null) {
       sdkUpdate.apiKey = update.apiKey;
+    } else if (targetProviderId && isOAuthProvider(targetProviderId)) {
+      // OAuth providers never carry a secret through the renderer: resolve the
+      // stored token (refreshing when needed) into the SDK's apiKey format.
+      sdkUpdate.apiKey = await this.resolveOAuthApiKey(targetProviderId);
     } else if (update.providerId && savedProviderConfig?.apiKey) {
       // A UI provider switch does not send secrets back through the renderer.
       // Reuse the key held by the harness for the newly-selected provider.
@@ -1964,6 +2135,7 @@ export class AgentHarness {
         apiKey: update.apiKey ?? existing.apiKey,
         baseUrl: update.baseUrl ?? existing.baseUrl,
         modelId: update.modelId ?? existing.modelId,
+        oauth: existing.oauth,
       });
     }
     return {};
@@ -1974,6 +2146,8 @@ export class AgentHarness {
     // status event or send rejection would otherwise restart the task the
     // user just stopped). A new user message re-enables recovery.
     this.suppressRecovery.add(sessionId);
+    this.pendingRecoveryErrors.delete(sessionId);
+    this.clearRecoveryTimer(sessionId);
     await this.requireCline().abort(sessionId);
     this.runningSessions.delete(sessionId);
     this.emitTeammatesStillWorking(sessionId);
@@ -1993,11 +2167,162 @@ export class AgentHarness {
     });
   }
 
-  /** Unlink a provider (removes its credentials from the global store). */
+  /** Unlink a provider (removes its credentials from the global store and, for
+   *  OAuth providers, from the SDK provider-settings store so the runtime stops
+   *  refreshing a token nobody can use). */
   removeProviderConfig(providerId: string): { removed: boolean } {
     this.getProviderStore().clear(providerId);
+    this.clearProviderOAuthCredentials(providerId);
     return { removed: true };
   }
+
+  // ── OAuth (ChatGPT / OpenAI Codex subscription) ──────────────────────
+
+  /** Whether a provider authenticates via a browser OAuth flow rather than an API key. */
+  static isOAuthProvider(providerId: string): boolean {
+    return isOAuthProvider(providerId);
+  }
+
+  /** Project a provider into the configure-UI fields the SDK expects:
+   *  `{ authMethod: "api-key" | "oauth" | "local", fields, description? }`.
+   *  OAuth providers return `authMethod: "oauth"` with no fields. */
+  static getProviderConfigFields(providerId: string): ReturnType<typeof getProviderConfigFields> {
+    return getProviderConfigFields(providerId);
+  }
+
+  /**
+   * Run the ChatGPT (OpenAI Codex) OAuth browser flow for the `openai-codex`
+   * provider and persist the resulting credentials. The auth URL is pushed to
+   * the renderer through the `oauth-auth-url` event (which must open it in the
+   * user's browser); a manual-code prompt, should the flow require one, is
+   * pushed via `oauth-prompt` and answered with `resolveOAuthPrompt`.
+   */
+  async loginOpenAICodex(originator = "yzpz-agent"): Promise<{ providerId: string; email?: string; accountId?: string }> {
+    await this.ensureInit();
+    const providerId = "openai-codex";
+    const credentials = await loginOpenAICodex({
+      originator,
+      onAuth: (info: { url: string; instructions?: string }) => {
+        this.sink("oauth-auth-url", { providerId, url: info.url, instructions: info.instructions });
+      },
+      onPrompt: async (prompt: { message: string; defaultValue?: string }) => {
+        const requestId = randomUUID();
+        const answer = await new Promise<string>((resolve) => {
+          this.oauthPromptResolvers.set(requestId, resolve);
+          this.sink("oauth-prompt", { providerId, requestId, message: prompt.message, defaultValue: prompt.defaultValue });
+        });
+        return answer;
+      },
+      onProgress: (message: string) => this.sink("oauth-progress", { providerId, message }),
+    });
+    this.persistOAuthCredentials(providerId, credentials);
+    return { providerId, email: credentials.email, accountId: credentials.accountId };
+  }
+
+  /** Fulfill a pending OAuth manual-code prompt pushed to the renderer. */
+  resolveOAuthPrompt(requestId: string, answer: string): boolean {
+    const resolve = this.oauthPromptResolvers.get(requestId);
+    if (!resolve) return false;
+    resolve(answer);
+    this.oauthPromptResolvers.delete(requestId);
+    return true;
+  }
+
+  /** Resolve a currently-valid access token for an OAuth provider, refreshing
+   *  the token when required and persisting the refreshed creds. Returns the
+   *  SDK-formatted apiKey string the provider handler expects, or `undefined`
+   *  when no credentials are saved. Falls back to the stored (un-refreshed)
+   *  token if validation/refresh hits a transient error so a flaky network call
+   *  can't block session creation. */
+  async resolveOAuthApiKey(providerId: string): Promise<string | undefined> {
+    if (providerId !== "openai-codex") return undefined;
+    const entry = this.getProviderStore().get(providerId);
+    if (!entry?.oauth) return undefined;
+    const creds = await this.getValidOpenAICodexCredentials(entry.oauth);
+    if (creds) return formatProviderOAuthApiKey(providerId, creds);
+    // Could not obtain a fresh token (expired + non-refreshable): hand the
+    // stored access token through anyway rather than dropping the session. A
+    // genuinely revoked token surfaces as a provider auth error, at which point
+    // the user re-signs in via Settings → Agent.
+    return formatProviderOAuthApiKey(providerId, entry.oauth);
+  }
+
+  /** Refresh (when needed) and return valid Codex OAuth credentials, persisting
+   *  them back to the store. Returns `null` if the session cannot be reused
+   *  (e.g. the refresh token is gone) and the user must sign in again. */
+  private async getValidOpenAICodexCredentials(
+    current: OAuthCredentials,
+  ): Promise<OAuthCredentials | null> {
+    try {
+      const valid = await getValidOpenAICodexCredentials(current);
+      if (valid) {
+        this.persistOAuthCredentials("openai-codex", valid);
+        return valid;
+      }
+    } catch (err) {
+      console.warn(`[yzpz-agent] openai-codex token validation failed: ${err}`);
+    }
+    return null;
+  }
+
+  /** Persist OAuth credentials to both the harness store (drives the UI) and the
+   *  SDK provider-settings store (lets the local runtime refresh mid-session). */
+  private persistOAuthCredentials(providerId: string, credentials: OAuthCredentials): void {
+    try {
+      this.getProviderStore().setOAuth(providerId, credentials);
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to persist OAuth credentials to store: ${err}`);
+    }
+    try {
+      const manager = this.getOauthSettingsManager();
+      if (manager && providerId === "openai-codex") {
+        saveProviderOAuthCredentials({
+          manager,
+          providerId,
+          credentials,
+          setLastUsed: true,
+          save: true,
+        });
+      }
+    } catch (err) {
+      // The SDK settings file is a bonus for mid-session refresh; a write
+      // failure here must never block login — the harness store is authoritative
+      // for the session-start apiKey we always pass through.
+      console.warn(`[yzpz-agent] failed to persist OAuth credentials to SDK settings: ${err}`);
+    }
+  }
+
+  /** Drop OAuth credentials for a provider from the SDK settings store. */
+  private clearProviderOAuthCredentials(providerId: string): void {
+    try {
+      const manager = this.getOauthSettingsManager();
+      if (manager) {
+        const storageId = getProviderAuthStorageId(providerId);
+        const settings = manager.read();
+        if (storageId && settings.providers?.[storageId]?.settings) {
+          settings.providers[storageId].settings.oauth = undefined;
+          settings.providers[storageId].tokenSource = "manual";
+          manager.write(settings);
+        }
+      }
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to clear OAuth credentials from SDK settings: ${err}`);
+    }
+  }
+
+  /** Lazily create the SDK provider-settings manager rooted at the harness data
+   *  dir (after `setClineDir` has rebranded it, so it matches the runtime's). */
+  private getOauthSettingsManager(): ProviderSettingsManager | null {
+    if (this.oauthSettingsManager) return this.oauthSettingsManager;
+    try {
+      this.oauthSettingsManager = new ProviderSettingsManager();
+      return this.oauthSettingsManager;
+    } catch (err) {
+      console.warn(`[yzpz-agent] failed to create provider settings manager: ${err}`);
+      return null;
+    }
+  }
+
 
   // ── MCP servers ───────────────────────────────────────────────────
 
@@ -2118,6 +2443,8 @@ export class AgentHarness {
     // (removing it from memory and breaking later sends); `deleteSession` is
     // the real teardown.
     this.suppressRecovery.add(sessionId);
+    this.pendingRecoveryErrors.delete(sessionId);
+    this.clearRecoveryTimer(sessionId);
     await this.requireCline().abort(sessionId);
     this.sessionModes.delete(sessionId);
     this.steeringBySession.delete(sessionId);
@@ -2146,6 +2473,8 @@ export class AgentHarness {
     this.recoveryWindow.delete(sessionId);
     this.recoveryExhausted.delete(sessionId);
     this.suppressRecovery.delete(sessionId);
+    this.pendingRecoveryErrors.delete(sessionId);
+    this.clearRecoveryTimer(sessionId);
     this.fastModes.delete(sessionId);
     this.todosBySession.delete(sessionId);
     this.sessionCwd.delete(sessionId);
@@ -2293,7 +2622,15 @@ export class AgentHarness {
         defaultEnabled: t.defaultEnabled,
         policy: policies[t.id] ?? null,
       })),
-      providerConfigs: this.getProviderStore().list(),
+      // Never expose provider secrets (apiKey / OAuth refresh tokens) to the
+      // renderer, even through the settings view — project them into a safe,
+      // status-only shape just like list-provider-configs does.
+      providerConfigs: this.getProviderStore().list().map(({ apiKey, oauth, ...config }) => ({
+        ...config,
+        hasApiKey: Boolean(apiKey),
+        hasOAuth: Boolean(oauth),
+        oauthEmail: oauth?.email ?? null,
+      })),
     };
   }
 
@@ -2471,6 +2808,9 @@ export class AgentHarness {
     this.sessionModes.clear();
     this.activeSessions.clear();
     this.runningSessions.clear();
+    for (const timer of this.recoveryTimers.values()) clearTimeout(timer);
+    this.recoveryTimers.clear();
+    this.pendingRecoveryErrors.clear();
     this.steeringBySession.clear();
     this.completionNudges.clear();
     this.todosBySession.clear();

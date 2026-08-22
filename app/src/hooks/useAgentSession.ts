@@ -191,6 +191,27 @@ const cleanUserText = (text: string): string => {
   return t.trim();
 };
 
+const imageAttachmentFromBlock = (block: Extract<ClineContentBlock, { type: 'image' }>, index: number): AgentAttachment => {
+  const source = block.source && typeof block.source === 'object' ? block.source as Record<string, unknown> : undefined;
+  const data = block.data ?? (typeof source?.data === 'string' ? source.data : undefined);
+  const mediaType = block.mediaType
+    ?? (typeof source?.mediaType === 'string' ? source.mediaType : undefined)
+    ?? (typeof source?.media_type === 'string' ? source.media_type : undefined)
+    ?? 'image/png';
+  const previewData = data
+    ? data.startsWith('data:')
+      ? data
+      : `data:${mediaType};base64,${data}`
+    : undefined;
+  const path = block.path ?? `image-${index + 1}`;
+  return {
+    path,
+    name: block.name ?? `Image attachment ${index + 1}`,
+    kind: 'image',
+    previewData,
+  };
+};
+
 /**
  * Reconstruct a clean, human-readable chat from the SDK's persisted transcript.
  * Strips mode-notice/user_input XML, collapses duplicate text blocks, and drops
@@ -203,6 +224,7 @@ const normalizeClineMessages = (raw: ClineMessage[]): ClineMessage[] => {
       const content: unknown = msg.content;
       let text = '';
       const toolResults: ClineContentBlock[] = [];
+      const attachments: AgentAttachment[] = [];
       if (typeof content === 'string') {
         text = cleanUserText(content);
       } else if (Array.isArray(content)) {
@@ -213,12 +235,22 @@ const normalizeClineMessages = (raw: ClineMessage[]): ClineMessage[] => {
             parts.push(block.text);
           } else if (block.type === 'tool_result') {
             toolResults.push(block);
+          } else if (block.type === 'attachment') {
+            attachments.push(block.attachment);
+          } else if (block.type === 'image') {
+            attachments.push(imageAttachmentFromBlock(block, attachments.length));
           }
         }
         text = cleanUserText(parts.join('\n'));
       }
-      if (text) {
-        out.push({ role: 'user', content: [{ type: 'text', text }] });
+      if (text || attachments.length > 0) {
+        out.push({
+          role: 'user',
+          content: [
+            ...(text ? [{ type: 'text' as const, text }] : []),
+            ...attachments.map((attachment): ClineContentBlock => ({ type: 'attachment', attachment })),
+          ],
+        });
       } else if (toolResults.length > 0) {
         // Tool outputs arrive as `role: "user"` messages holding tool_result
         // blocks — keep them so the transcript still shows tool activity.

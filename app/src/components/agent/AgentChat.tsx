@@ -124,6 +124,73 @@ const formatToolResult = (content: unknown): string => {
   return str.length > 20000 ? `${str.slice(0, 20000)}\n… (truncated)` : str;
 };
 
+const asImageSource = (value: string, mediaType?: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^data:image\//i.test(trimmed) || /^https?:\/\//i.test(trimmed)) return trimmed;
+  if (mediaType && /^image\//i.test(mediaType)) return `data:${mediaType};base64,${trimmed}`;
+  return null;
+};
+
+/** Extract image outputs from provider-native and tool-result shapes. */
+const collectImageSources = (value: unknown, output: string[] = [], seen = new Set<unknown>()): string[] => {
+  if (output.length >= 8 || value == null) return output;
+  if (typeof value === 'string') {
+    const source = asImageSource(value);
+    if (source && !output.includes(source)) output.push(source);
+    return output;
+  }
+  if (typeof value !== 'object' || seen.has(value)) return output;
+  seen.add(value);
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectImageSources(item, output, seen));
+    return output;
+  }
+
+  const record = value as Record<string, unknown>;
+  const mediaType = typeof record.mediaType === 'string'
+    ? record.mediaType
+    : typeof record.media_type === 'string'
+      ? record.media_type
+      : typeof record.mimeType === 'string'
+        ? record.mimeType
+        : typeof record.mime_type === 'string'
+          ? record.mime_type
+          : undefined;
+  const inferredMediaType = mediaType ?? (
+    typeof record.type === 'string' && /image/i.test(record.type) ? 'image/png' : undefined
+  );
+  const directData = record.data;
+  if (typeof directData === 'string') {
+    const source = asImageSource(directData, inferredMediaType);
+    if (source && !output.includes(source)) output.push(source);
+  } else if (directData && typeof directData === 'object') {
+    collectImageSources(directData, output, seen);
+  }
+  for (const key of ['image_url', 'imageUrl', 'url', 'output', 'result', 'content', 'images', 'b64_json', 'base64']) {
+    if (!(key in record)) continue;
+    const nested = record[key];
+    const source = typeof nested === 'string' && inferredMediaType && ['output', 'result', 'b64_json', 'base64'].includes(key)
+      ? asImageSource(nested, inferredMediaType)
+      : null;
+    if (source && !output.includes(source)) output.push(source);
+    else collectImageSources(nested, output, seen);
+  }
+  return output;
+};
+
+const GeneratedImageBlock = React.memo(function GeneratedImageBlock({ source, label = 'Generated image' }: { source: string; label?: string }) {
+  return (
+    <figure className="overflow-hidden rounded-xl border border-[var(--accent-border)]/70 bg-[var(--bg-tertiary)]/35 shadow-[0_8px_24px_-18px_var(--accent)]">
+      <img src={source} alt={label} loading="lazy" className="max-h-96 w-full max-w-[520px] object-contain" />
+      <figcaption className="flex items-center gap-1.5 border-t border-[var(--accent-border)]/45 px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/70">
+        <Icon icon="lucide:image" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
+        {label}
+      </figcaption>
+    </figure>
+  );
+});
+
 const markdownPlugins = [remarkGfm, remarkMath];
 const markdownRehype = [rehypeKatex];
 // Thinking streams often use single line breaks instead of blank lines. By
@@ -648,10 +715,24 @@ const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { 
       {attachments.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5 border-t border-[var(--accent-border)]/40 pt-2">
           {attachments.map((attachment) => (
-            <span key={attachment.path} className="inline-flex max-w-full items-center gap-1 rounded-md bg-[var(--bg-main)]/45 px-1.5 py-1 font-mono text-[9px] text-[var(--text-secondary)]" title={attachment.path}>
-              <Icon icon={attachment.kind === 'image' ? 'lucide:image' : 'lucide:file-text'} className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-              <span className="max-w-44 truncate">{attachment.name}</span>
-            </span>
+            attachment.kind === 'image' && attachment.previewData ? (
+              <div key={attachment.path} className="group relative overflow-hidden rounded-lg border border-[var(--accent-border)]/60 bg-[var(--bg-main)]/45" title={attachment.name}>
+                <img
+                  src={attachment.previewData}
+                  alt={attachment.name}
+                  loading="lazy"
+                  className="h-20 w-28 object-cover transition-transform duration-150 group-hover:scale-[1.03]"
+                />
+                <span className="absolute inset-x-0 bottom-0 truncate bg-black/60 px-1.5 py-1 font-mono text-[8px] text-white/85">
+                  {attachment.name}
+                </span>
+              </div>
+            ) : (
+              <span key={attachment.path} className="inline-flex max-w-full items-center gap-1 rounded-md bg-[var(--bg-main)]/45 px-1.5 py-1 font-mono text-[9px] text-[var(--text-secondary)]" title={attachment.path}>
+                <Icon icon={attachment.kind === 'image' ? 'lucide:image' : 'lucide:file-text'} className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+                <span className="max-w-44 truncate">{attachment.name}</span>
+              </span>
+            )
           ))}
         </div>
       )}
@@ -1086,6 +1167,15 @@ const ToolBlock = React.memo(function ToolBlock({ name, input, result, running }
 const ToolResultBlock = React.memo(function ToolResultBlock({ content, isError }: { content: unknown; isError?: boolean }) {
   const [open, setOpen] = useState(false);
   const text = formatToolResult(content);
+  const images = collectImageSources(content);
+  if (images.length > 0) {
+    return (
+      <div className="space-y-2">
+        {images.map((source, index) => <GeneratedImageBlock key={`${source.slice(0, 32)}-${index}`} source={source} label={isError ? 'Image output (with warning)' : 'Generated image'} />)}
+        {isError && text && <OutputBlock label="Image generation warning" text={text} isError />}
+      </div>
+    );
+  }
   if (!text) return null;
   // Successful tool output is implementation noise in a chat UI. The agent's
   // next sentence explains its meaning; retain failures for troubleshooting.
@@ -1225,6 +1315,10 @@ const AssistantBlock = React.memo(function AssistantBlock({ block }: { block: Cl
     const result = block as { type: 'tool_result'; content?: unknown; isError?: boolean };
     return <ToolResultBlock content={result.content} isError={result.isError} />;
   }
+  if (block.type === 'image') {
+    const source = collectImageSources(block)[0];
+    return source ? <GeneratedImageBlock source={source} /> : null;
+  }
   if (block.type === 'thinking' || block.type === 'reasoning') {
     const text =
       (block as { text?: string; thinking?: string; content?: string }).text ??
@@ -1346,6 +1440,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
             path: b.path ?? `image-${imageIndex + 1}`,
             name: b.name ?? `Image attachment ${imageIndex + 1}`,
             kind: 'image',
+            previewData: collectImageSources(b)[0],
           }));
         const attachments = [...localAttachments, ...imageAttachments];
         if (!text && toolResults.length > 0) {

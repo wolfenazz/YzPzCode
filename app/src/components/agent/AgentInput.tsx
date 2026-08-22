@@ -110,7 +110,12 @@ const MODE_STYLES: Record<AgentMode, {
 
 const MIN_HEIGHT = 38;
 const MAX_HEIGHT = 240;
-const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const MAX_AGENT_IMAGE_ENCODED_BYTES = 4_700_000;
+const MAX_AGENT_IMAGE_DIMENSION = 2048;
+// Keep this in sync with the image media types accepted by the agent SDK.
+// The canvas normalization below also lets providers receive common JPEG
+// content when the original file is SVG/BMP/AVIF/TIFF/etc.
+const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|tiff?|webp)$/i;
 const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const LATIN_SCRIPT = /[A-Za-z]/;
 
@@ -118,6 +123,55 @@ const LATIN_SCRIPT = /[A-Za-z]/;
 const TYPING_IDLE_MS = 1400;
 
 const attachmentName = (path: string): string => path.split(/[\\/]/).pop() || path;
+
+const readImageDataUrl = async (path: string): Promise<string> => {
+  return invoke<string>('read_file_as_base64', { path });
+};
+
+/**
+ * Turn any browser-decodable local image into a small, provider-neutral JPEG.
+ * The Cline media validator has a 5 MB encoded budget; keeping a little headroom
+ * here avoids provider-specific data-URL headers pushing a borderline image
+ * over that limit. The returned value is both the transport payload and the
+ * compact thumbnail source shown in the transcript.
+ */
+const normalizeImageForAgent = async (path: string): Promise<string> => {
+  const source = await readImageDataUrl(path);
+  const sourcePayload = source.split(',', 2)[1] ?? '';
+  if (
+    /^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(source) &&
+    sourcePayload.length <= MAX_AGENT_IMAGE_ENCODED_BYTES
+  ) {
+    return source;
+  }
+
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error('The selected image could not be decoded.'));
+    element.src = source;
+  });
+  if (!image.naturalWidth || !image.naturalHeight) {
+    throw new Error('The selected image has no readable pixels.');
+  }
+
+  const scale = Math.min(1, MAX_AGENT_IMAGE_DIMENSION / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not prepare the selected image.');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  for (const quality of [0.84, 0.72, 0.60, 0.48]) {
+    const normalized = canvas.toDataURL('image/jpeg', quality);
+    const payload = normalized.split(',', 2)[1] ?? '';
+    if (payload.length <= MAX_AGENT_IMAGE_ENCODED_BYTES) return normalized;
+  }
+  throw new Error('The selected image is too detailed to fit the model media limit.');
+};
 
 /** Use the first written script to keep mixed technical prompts natural to edit. */
 const promptDirection = (text: string): 'ltr' | 'rtl' => {
@@ -226,14 +280,28 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     try {
       const selected = await open({ multiple: true, directory: false });
       const paths = Array.isArray(selected) ? selected : selected ? [selected] : [];
-      const next = paths.map((path): AgentAttachment => ({
-        path,
-        name: attachmentName(path),
-        kind: IMAGE_EXTENSION.test(path) ? 'image' : 'file',
+      const next = await Promise.all(paths.map(async (path): Promise<AgentAttachment> => {
+        const kind = IMAGE_EXTENSION.test(path) ? 'image' : 'file';
+        if (kind !== 'image') {
+          return { path, name: attachmentName(path), kind };
+        }
+
+        // Normalize in the webview so oversized/less-common image formats are
+        // reduced before crossing IPC. The sidecar still validates any path
+        // fallback for callers that send attachments programmatically.
+        let previewData: string | undefined;
+        try {
+          previewData = await normalizeImageForAgent(path);
+        } catch {
+          previewData = undefined;
+        }
+        return { path, name: attachmentName(path), kind, previewData };
       }));
       const usable = supportsImages ? next : next.filter((attachment) => attachment.kind !== 'image');
       if (usable.length !== next.length) {
         setAttachmentNotice('This model does not advertise image support. Attach a document or choose a vision model.');
+      } else if (usable.some((attachment) => attachment.kind === 'image' && !attachment.previewData)) {
+        setAttachmentNotice('The image preview could not be prepared. YZPZ will retry the original file when you send it.');
       } else {
         setAttachmentNotice(null);
       }

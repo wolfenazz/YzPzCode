@@ -67,7 +67,9 @@ export const useAgentHost = () => {
       sessionId,
       prompt,
       mode: mode ?? null,
-      userImages: attachments.filter((attachment) => attachment.kind === 'image').map((attachment) => attachment.path),
+      userImages: attachments
+        .filter((attachment) => attachment.kind === 'image')
+        .map((attachment) => attachment.previewData ?? attachment.path),
       userFiles: attachments.filter((attachment) => attachment.kind === 'file').map((attachment) => attachment.path),
     });
   }, []);
@@ -267,14 +269,53 @@ export const useAgentHost = () => {
   );
 
   const listProviderConfigs = useCallback(async () => {
-    const result = await invoke<{ configs: Array<{ providerId: string; hasApiKey: boolean; baseUrl?: string; modelId?: string }> }>(
-      'list_agent_provider_configs'
-    );
+    const result = await invoke<{
+      configs: Array<{
+        providerId: string;
+        hasApiKey: boolean;
+        hasOAuth: boolean;
+        oauthEmail: string | null;
+        baseUrl?: string;
+        modelId?: string;
+      }>;
+    }>('list_agent_provider_configs');
     return result.configs;
   }, []);
 
   const removeProviderConfig = useCallback(async (providerId: string) => {
     return invoke<{ removed: boolean }>('remove_agent_provider_config', { providerId });
+  }, []);
+
+  const openUrl = useCallback(async (url: string) => {
+    return invoke('open_url', { url });
+  }, []);
+
+  const getProviderConfigFields = useCallback(
+    async (providerId: string): Promise<{ authMethod: string; fields: unknown[]; description?: string }> => {
+      const result = await invoke<{ fields: { authMethod: string; fields: unknown[]; description?: string } }>(
+        'get_agent_provider_config_fields',
+        { providerId }
+      );
+      return result.fields;
+    },
+    []
+  );
+
+  interface LoginOpenAICodexResult {
+    providerId: string;
+    email?: string;
+    accountId?: string;
+  }
+
+  const loginOpenAiCodex = useCallback(async (originator?: string): Promise<LoginOpenAICodexResult> => {
+    const result = await invoke<LoginOpenAICodexResult>('login_agent_openai_codex', {
+      originator: originator ?? null,
+    });
+    return result;
+  }, []);
+
+  const resolveOAuthPrompt = useCallback(async (requestId: string, answer: string) => {
+    return invoke<{ resolved: boolean }>('resolve_agent_oauth_prompt', { requestId, answer });
   }, []);
 
   const getUsage = useCallback(async (sessionId: string): Promise<AgentSessionUsage | null> => {
@@ -372,6 +413,19 @@ export const useAgentHost = () => {
     []
   );
 
+  const onOauthAuthUrl = useCallback(
+    (cb: (event: { payload: { providerId: string; url: string; instructions?: string } }) => void): Promise<UnlistenFn> =>
+      listen<{ providerId: string; url: string; instructions?: string }>('yzpz-agent:oauth-auth-url', cb),
+    []
+  );
+  const onOauthPrompt = useCallback(
+    (
+      cb: (event: { payload: { providerId: string; requestId: string; message: string; defaultValue?: string } }) => void
+    ): Promise<UnlistenFn> =>
+      listen<{ providerId: string; requestId: string; message: string; defaultValue?: string }>('yzpz-agent:oauth-prompt', cb),
+    []
+  );
+
   return {
     ensureHost,
     getStatus,
@@ -396,6 +450,10 @@ export const useAgentHost = () => {
     setProviderConfig,
     listProviderConfigs,
     removeProviderConfig,
+    getProviderConfigFields,
+    loginOpenAiCodex,
+    resolveOAuthPrompt,
+    openUrl,
     getUsage,
     listPendingPrompts,
     removePendingPrompt,
@@ -428,5 +486,7 @@ export const useAgentHost = () => {
     onContextUpdated,
     onUsageUpdated,
     onCatalogUpdated,
+    onOauthAuthUrl,
+    onOauthPrompt,
   };
 };

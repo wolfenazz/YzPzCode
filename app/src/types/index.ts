@@ -555,6 +555,8 @@ export interface AgentAttachment {
   path: string;
   name: string;
   kind: 'image' | 'file';
+  /** Local preview data for images shown in the conversation transcript. */
+  previewData?: string;
 }
 
 /** One MCP server linked to the agent (from the sidecar). */
@@ -726,8 +728,17 @@ export interface AgentGlobalSettings {
   defaultProviderId?: string | null;
 }
 
+export interface AgentProviderConfig {
+  providerId: string;
+  hasApiKey: boolean;
+  hasOAuth: boolean;
+  oauthEmail: string | null;
+  baseUrl?: string;
+  modelId?: string;
+}
+
 export interface AgentSettings {
   global: AgentGlobalSettings;
   tools: AgentToolInfo[];
-  providerConfigs: Array<{ providerId: string; apiKey?: string; baseUrl?: string; modelId?: string }>;
+  providerConfigs: AgentProviderConfig[];
 }
