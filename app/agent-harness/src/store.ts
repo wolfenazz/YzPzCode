@@ -1,11 +1,18 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import type { OAuthCredentials } from "@cline/sdk";
 
 export interface ProviderConfigEntry {
   providerId: string;
   apiKey?: string;
   baseUrl?: string;
   modelId?: string;
+  /**
+   * OAuth credentials for providers that authenticate via a browser flow
+   * (e.g. `openai-codex`). Kept alongside the key so a single store drives both
+   * auth methods; the renderer never receives the raw secret.
+   */
+  oauth?: OAuthCredentials | null;
 }
 
 // Simple, self-owned persistence for provider credentials. Kept in the YZPZ
@@ -48,6 +55,7 @@ export class ProviderConfigStore {
       apiKey: entry.apiKey ?? existing.apiKey,
       baseUrl: entry.baseUrl ?? existing.baseUrl,
       modelId: entry.modelId ?? existing.modelId,
+      oauth: entry.oauth !== undefined ? entry.oauth : existing.oauth,
     };
     this.save();
   }
@@ -63,5 +71,22 @@ export class ProviderConfigStore {
   clear(providerId: string): void {
     delete this.configs[providerId];
     this.save();
+  }
+
+  /** Overwrite only the OAuth credentials for a provider (login flow). */
+  setOAuth(providerId: string, oauth: OAuthCredentials | null): void {
+    const entry = this.configs[providerId] ?? { providerId };
+    entry.oauth = oauth;
+    this.configs[providerId] = entry;
+    this.save();
+  }
+
+  /** Drop a provider's OAuth credentials without touching its api-key config. */
+  clearOAuth(providerId: string): void {
+    const entry = this.configs[providerId];
+    if (entry) {
+      entry.oauth = null;
+      this.save();
+    }
   }
 }

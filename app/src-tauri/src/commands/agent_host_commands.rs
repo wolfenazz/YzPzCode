@@ -1,4 +1,5 @@
 use serde_json::{json, Value};
+use std::time::Duration;
 use tauri::State;
 
 use crate::agent_host::{AgentHostManager, CreateAgentSessionRequest};
@@ -359,6 +360,51 @@ pub async fn remove_agent_provider_config(
         .quick_command(
             "remove-provider-config",
             Some(json!({ "providerId": provider_id })),
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_agent_provider_config_fields(
+    manager: State<'_, AgentHostManager>,
+    provider_id: String,
+) -> Result<Value, String> {
+    manager
+        .quick_command("get-provider-fields", Some(json!({ "providerId": provider_id })))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Trigger a ChatGPT (OpenAI Codex) OAuth browser sign-in. The sidecar drives
+/// the callback server and pushes the auth URL / manual-code prompt to the
+/// renderer through `yzpz-agent:oauth-auth-url` and `yzpz-agent:oauth-prompt`
+/// events. The long timeout accommodates the full browser round-trip.
+#[tauri::command]
+pub async fn login_agent_openai_codex(
+    manager: State<'_, AgentHostManager>,
+    originator: Option<String>,
+) -> Result<Value, String> {
+    let args = originator.as_ref().map(|o| json!({ "originator": o }));
+    manager
+        .command("login-openai-codex", args, Duration::from_secs(600))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Answer a pending OAuth manual-code prompt (device-flow fallback) that the
+/// sidecar pushed via `yzpz-agent:oauth-prompt`.
+#[tauri::command]
+pub async fn resolve_agent_oauth_prompt(
+    manager: State<'_, AgentHostManager>,
+    request_id: String,
+    answer: String,
+) -> Result<Value, String> {
+    manager
+        .command(
+            "resolve-oauth-prompt",
+            Some(json!({ "requestId": request_id, "answer": answer })),
+            Duration::from_secs(120),
         )
         .await
         .map_err(|e| e.to_string())

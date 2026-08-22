@@ -17,8 +17,15 @@ pub async fn open_url(url: String) -> Result<(), String> {
 
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        std::process::Command::new("cmd")
-            .args(["/C", "start", &url])
+        // `cmd /C start <url>` splits the URL at every `&` (cmd's command
+        // separator), silently dropping OAuth query parameters like
+        // redirect_uri / code_challenge / state — which makes auth servers
+        // report "missing required parameter". `rundll32 url.dll,
+        // FileProtocolHandler` opens the URL through the shell without any
+        // shell metacharacter interpretation, so the full query string
+        // survives. It also avoids the "start" first-arg-as-title gotcha.
+        std::process::Command::new("rundll32")
+            .args(["url.dll,FileProtocolHandler", &url])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| e.to_string())?;

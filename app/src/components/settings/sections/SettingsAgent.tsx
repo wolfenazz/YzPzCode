@@ -17,15 +17,26 @@ import type {
 interface ProviderConfigView {
   providerId: string;
   hasApiKey?: boolean;
+  hasOAuth?: boolean;
+  oauthEmail: string | null;
   baseUrl?: string;
   modelId?: string;
 }
 
 /** Supports a live UI update while an older harness is still running. New
- * harnesses send only `hasApiKey`, never credential values. */
-const hasSavedProviderKey = (config: ProviderConfigView): boolean =>
-  config.hasApiKey === true ||
-  (!Object.prototype.hasOwnProperty.call(config, 'hasApiKey') && Object.prototype.hasOwnProperty.call(config, 'apiKey'));
+ * harnesses send only `hasApiKey`/`hasOAuth`, never credential values. */
+const hasSavedProviderAuth = (config: ProviderConfigView): boolean => {
+  if (config.hasApiKey === true) return true;
+  if (config.hasOAuth === true) return true;
+  if (
+    !Object.prototype.hasOwnProperty.call(config, 'hasApiKey') &&
+    !Object.prototype.hasOwnProperty.call(config, 'hasOAuth') &&
+    Object.prototype.hasOwnProperty.call(config, 'apiKey')
+  ) {
+    return true;
+  }
+  return false;
+}
 
 const PROVIDER_DISPLAY: Record<string, string> = {
   anthropic: 'Anthropic',
@@ -36,6 +47,7 @@ const PROVIDER_DISPLAY: Record<string, string> = {
   groq: 'Groq',
   cerebras: 'Cerebras',
   openai_compatible: 'OpenAI-Compatible',
+  'openai-codex': 'ChatGPT',
 };
 
 const INSTRUCTION_TYPES = [
@@ -147,6 +159,10 @@ export const SettingsAgent: React.FC = () => {
     listProviderConfigs,
     setProviderConfig,
     removeProviderConfig,
+    getProviderConfigFields,
+    loginOpenAiCodex,
+    resolveOAuthPrompt,
+    openUrl,
     getSettings,
     updateSettings,
     setToolPolicy,
@@ -160,6 +176,8 @@ export const SettingsAgent: React.FC = () => {
     setMcpServerDisabled,
     refreshCatalogs,
     onCatalogUpdated,
+    onOauthAuthUrl,
+    onOauthPrompt,
   } = useAgentHost();
 
   const [status, setStatus] = useState<AgentHostStatus | null>(null);
@@ -180,6 +198,18 @@ export const SettingsAgent: React.FC = () => {
   const [savedFlash, setSavedFlash] = useState(false);
   const [revealKey, setRevealKey] = useState(false);
   const [catalogRefreshing, setCatalogRefreshing] = useState(false);
+
+  // OAuth (ChatGPT / openai-codex) sign-in flow state
+  const [oauthStatus, setOauthStatus] = useState<'idle' | 'opening-browser' | 'waiting-for-browser' | 'linking'>(
+    'idle'
+  );
+  const [oauthPrompt, setOauthPrompt] = useState<{ requestId: string; message: string; defaultValue?: string } | null>(
+    null
+  );
+  const [promptAnswer, setPromptAnswer] = useState('');
+  // authMethod per provider, fetched lazily from the SDK catalog so the UI can
+  // render the OAuth flow for the right providers without hardcoding.
+  const [authMethods, setAuthMethods] = useState<Record<string, string>>({});
 
   // MCP state
   const [mcpServers, setMcpServers] = useState<AgentMcpServer[]>([]);
@@ -260,8 +290,53 @@ export const SettingsAgent: React.FC = () => {
     };
   }, [onCatalogUpdated, load]);
 
+  // Forward OAuth events from the sidecar. `oauth-auth-url` opens the user's
+  // browser; `oauth-prompt` asks for a manual code (device-flow fallback).
+  useEffect(() => {
+    let authUrlUnlisten: UnlistenFn | undefined;
+    let promptUnlisten: UnlistenFn | undefined;
+    void onOauthAuthUrl(async (event) => {
+      setOauthStatus('opening-browser');
+      try {
+        await openUrl(event.payload.url);
+        setOauthStatus('waiting-for-browser');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    }).then((u) => {
+      authUrlUnlisten = u;
+    });
+    void onOauthPrompt((event) => {
+      setOauthPrompt(event.payload);
+    }).then((u) => {
+      promptUnlisten = u;
+    });
+    return () => {
+      void authUrlUnlisten?.();
+      void promptUnlisten?.();
+    };
+  }, [onOauthAuthUrl, onOauthPrompt]);
+
+  // Lazily resolve the auth method for the selected provider so the editor can
+  // switch between the API-key form and the OAuth sign-in flow.
+  useEffect(() => {
+    if (authMethods[selectedProvider]) return;
+    let cancelled = false;
+    void getProviderConfigFields(selectedProvider)
+      .then((fields) => {
+        if (cancelled) return;
+        setAuthMethods((prev) => ({ ...prev, [selectedProvider]: fields.authMethod }));
+      })
+      .catch(() => {
+        if (!cancelled) setAuthMethods((prev) => ({ ...prev, [selectedProvider]: 'api-key' }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedProvider, getProviderConfigFields, authMethods]);
+
   // ── Provider selection & model loading ─────────────────────────
-  const configuredIds = new Set(configs.filter(hasSavedProviderKey).map((c) => c.providerId));
+  const configuredIds = new Set(configs.filter(hasSavedProviderAuth).map((c) => c.providerId));
   const selectedCfg = configs.find((c) => c.providerId === selectedProvider);
   const selectedInfo = providers.find((p) => p.id === selectedProvider);
   const isCustomBaseUrl = !selectedInfo?.baseUrl;
@@ -312,6 +387,10 @@ export const SettingsAgent: React.FC = () => {
   }, [selectedProvider, getModels, providers]);
 
   const selectedDraft = draft[selectedProvider] ?? { apiKey: '', baseUrl: '', modelId: '' };
+  const editorIsOAuth = authMethods[selectedProvider] === 'oauth';
+  const oauthEmail = selectedCfg?.oauthEmail;
+  const oauthLinked = editorIsOAuth && selectedCfg ? hasSavedProviderAuth(selectedCfg) : false;
+  const oauthBusy = oauthStatus !== 'idle';
 
   // ── Catalog refresh handlers ────────────────────────────────────
   const handleRefreshCatalogs = useCallback(async () => {
@@ -327,6 +406,58 @@ export const SettingsAgent: React.FC = () => {
       setCatalogRefreshing(false);
     }
   }, [catalogRefreshing, refreshCatalogs, load]);
+
+  // ── OAuth (ChatGPT) sign-in handlers ────────────────────────────
+  const handleSignInOAuth = useCallback(async () => {
+    if (!status?.connected) {
+      setError('Agent host is not connected — connect the harness to sign in with ChatGPT.');
+      return;
+    }
+    setOauthStatus('linking');
+    setError(null);
+    try {
+      await loginOpenAiCodex();
+      await load();
+      setOauthStatus('idle');
+    } catch (err) {
+      setOauthStatus('idle');
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [status, loginOpenAiCodex, load]);
+
+  const handleResolveOAuthPrompt = useCallback(async () => {
+    if (!oauthPrompt) return;
+    const answer = promptAnswer.trim() || oauthPrompt.defaultValue || '';
+    try {
+      await resolveOAuthPrompt(oauthPrompt.requestId, answer);
+      setOauthPrompt(null);
+      setPromptAnswer('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  }, [oauthPrompt, promptAnswer, resolveOAuthPrompt]);
+
+  const handleSignOutOAuth = useCallback(
+    async (providerId: string) => {
+      setError(null);
+      try {
+        await removeProviderConfig(providerId);
+        setDraft((prev) => {
+          const copy = { ...prev };
+          delete copy[providerId];
+          return copy;
+        });
+        if (selectedProvider === providerId) {
+          const rest = configs.filter((c) => c.providerId !== providerId);
+          setSelectedProvider(rest[0]?.providerId ?? providers[0]?.id ?? 'anthropic');
+        }
+        await load();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [removeProviderConfig, load, selectedProvider, configs, providers]
+  );
 
   // ── Provider credentials handlers ──────────────────────────────
   const handleSave = useCallback(async () => {
@@ -1014,7 +1145,7 @@ export const SettingsAgent: React.FC = () => {
                 searchPlaceholder="Search providers…"
                 options={providers.map((p) => ({
                   value: p.id,
-                  label: `${PROVIDER_DISPLAY[p.id] ?? p.name} (${p.id})${configuredIds.has(p.id) ? ' ✓ key' : ''}`,
+                  label: `${PROVIDER_DISPLAY[p.id] ?? p.name} (${p.id})${configuredIds.has(p.id) ? ' ✓' : ''}`,
                 }))}
               />
             </div>
@@ -1033,7 +1164,7 @@ export const SettingsAgent: React.FC = () => {
                 <div key={cfg.providerId} className="flex items-center">
                   <button
                     onClick={() => setSelectedProvider(cfg.providerId)}
-                    title={hasSavedProviderKey(cfg) ? 'Key saved' : 'No key yet'}
+                    title={hasSavedProviderAuth(cfg) ? 'Credentials saved' : 'Not linked'}
                     className={`px-2 h-6 rounded-l-md border font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer ${
                       isSelected
                         ? 'border-[var(--accent-border)] text-[var(--accent)] bg-[var(--accent-light)]/20'
@@ -1041,7 +1172,7 @@ export const SettingsAgent: React.FC = () => {
                     }`}
                   >
                     {PROVIDER_DISPLAY[cfg.providerId] ?? cfg.providerId}
-                    {hasSavedProviderKey(cfg) ? <span className="text-emerald-500"> ✓</span> : <span className="text-[var(--text-secondary)]/40"> ○</span>}
+                    {hasSavedProviderAuth(cfg) ? <span className="text-emerald-500"> ✓</span> : <span className="text-[var(--text-secondary)]/40"> ○</span>}
                   </button>
                   <button
                     onClick={() => void handleSetDefault(isDefault ? null : cfg.providerId)}
@@ -1079,44 +1210,104 @@ export const SettingsAgent: React.FC = () => {
                 ★ default
               </span>
             )}
-            <span className={`ml-auto font-mono text-[9px] ${selectedCfg && hasSavedProviderKey(selectedCfg) ? 'text-emerald-500' : 'text-amber-400'}`}>
-              {selectedCfg && hasSavedProviderKey(selectedCfg) ? 'key set' : 'no key'}
+            <span
+              className={`ml-auto font-mono text-[9px] ${
+                editorIsOAuth
+                  ? oauthLinked
+                    ? 'text-emerald-500'
+                    : 'text-amber-400'
+                  : selectedCfg && hasSavedProviderAuth(selectedCfg)
+                    ? 'text-emerald-500'
+                    : 'text-amber-400'
+              }`}
+            >
+              {editorIsOAuth
+                ? oauthBusy
+                  ? 'signing in…'
+                  : oauthLinked
+                    ? 'linked'
+                    : 'not linked'
+                : selectedCfg && hasSavedProviderAuth(selectedCfg)
+                  ? 'credentials set'
+                  : 'not linked'}
             </span>
           </div>
           <div className="px-5 py-4 space-y-3.5">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-              <label className="space-y-1.5">
-                <span className="block font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/60">API Key</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="relative flex-1">
-                    <input
-                      type={revealKey ? 'text' : 'password'}
-                      value={selectedDraft.apiKey}
-                      onChange={(e) => setDraft((prev) => ({ ...prev, [selectedProvider]: { ...selectedDraft, apiKey: e.target.value } }))}
-                      placeholder="sk-…"
-                      autoComplete="off"
-                      className="w-full h-8 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] px-2.5 pr-8 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/30 focus:outline-none focus:border-[var(--accent-border)]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setRevealKey((v) => !v)}
-                      title={revealKey ? 'Hide API key' : 'Reveal API key'}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded text-[var(--text-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer"
-                    >
-                      {revealKey ? (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
+              {editorIsOAuth ? (
+                <div className="flex flex-col gap-3">
+                  {!oauthLinked ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleSignInOAuth()}
+                        disabled={oauthBusy}
+                        className="h-8 px-3 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/20 text-[var(--accent)] text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer hover:bg-[var(--accent-light)]/30 disabled:opacity-60 disabled:cursor-default"
+                      >
+                        {oauthStatus === 'opening-browser'
+                          ? 'Opening browser…'
+                          : oauthStatus === 'waiting-for-browser'
+                            ? 'Waiting for browser…'
+                            : 'Sign in with ChatGPT'}
+                      </button>
+                      <p className="font-mono text-[9px] text-[var(--text-secondary)]/50 leading-relaxed max-w-sm">
+                        {oauthStatus === 'waiting-for-browser'
+                          ? 'Complete ChatGPT sign-in in your browser. You’ll be redirected back here when it finishes.'
+                          : 'Sign in with your ChatGPT (OpenAI Codex) subscription. A browser window will open — YzPzCode never sees your token.'}
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-emerald-500 font-mono text-[10px]">✓ Linked</span>
+                        <span className="font-mono text-[10px] text-[var(--text-secondary)]/70">
+                          as {oauthEmail ?? 'ChatGPT'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleSignOutOAuth(selectedProvider)}
+                        className="self-start h-6 px-2 rounded-md border border-rose-900/50 text-rose-500 hover:bg-rose-950/20 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+                      >
+                        Sign out
+                      </button>
+                    </>
+                  )}
                 </div>
-              </label>
+              ) : (
+                <label className="space-y-1.5">
+                  <span className="block font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/60">API Key</span>
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <input
+                        type={revealKey ? 'text' : 'password'}
+                        value={selectedDraft.apiKey}
+                        onChange={(e) => setDraft((prev) => ({ ...prev, [selectedProvider]: { ...selectedDraft, apiKey: e.target.value } }))}
+                        placeholder="sk-…"
+                        autoComplete="off"
+                        className="w-full h-8 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] px-2.5 pr-8 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/30 focus:outline-none focus:border-[var(--accent-border)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setRevealKey((v) => !v)}
+                        title={revealKey ? 'Hide API key' : 'Reveal API key'}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded text-[var(--text-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer"
+                      >
+                        {revealKey ? (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </label>
+              )}
               <label className="space-y-1.5">
                 <span className="block font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/60">
                   Base URL {isCustomBaseUrl ? '' : '(auto-filled)'}
@@ -1140,6 +1331,37 @@ export const SettingsAgent: React.FC = () => {
                 />
               </label>
             </div>
+            {oauthPrompt && editorIsOAuth && (
+              <div className="md:col-span-2 rounded-md border border-[var(--accent-border)]/50 bg-[var(--accent-light)]/10 px-3 py-2.5 space-y-2">
+                <p className="font-mono text-[9px] text-[var(--text-secondary)]/70 leading-relaxed">
+                  {oauthPrompt.message}
+                </p>
+                <div className="flex items-end gap-2">
+                  <input
+                    value={promptAnswer}
+                    onChange={(e) => setPromptAnswer(e.target.value)}
+                    placeholder={oauthPrompt.defaultValue ?? 'Enter the code from the browser…'}
+                    className="flex-1 h-7 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] px-2 text-[10px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/30 focus:outline-none focus:border-[var(--accent-border)]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleResolveOAuthPrompt()}
+                    className="h-7 px-2.5 rounded-md bg-[var(--accent)] text-white text-[9px] font-bold uppercase tracking-widest hover:opacity-90 transition-opacity duration-100 cursor-pointer"
+                  >
+                    Submit
+                  </button>
+                </div>
+                <div className="flex gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setOauthPrompt(null); setPromptAnswer(''); }}
+                    className="h-6 px-2 rounded-md border border-[var(--border-primary)] text-[var(--text-secondary)] font-mono text-[9px] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-3">
               <label className="flex-1 space-y-1.5">
                 <span className="block font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/60">Default Model</span>

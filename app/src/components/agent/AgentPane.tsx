@@ -84,10 +84,14 @@ const OPENROUTER_PROVIDER_ID = 'openrouter';
 const OPENROUTER_FREE_MODEL_ID = 'openrouter/free';
 
 /** Supports a running pre-update harness until it is restarted. New harnesses
- * expose only `hasApiKey`; the legacy response included an `apiKey` field. */
-const hasSavedProviderKey = (config: { hasApiKey?: boolean }): boolean =>
+ * expose only `hasApiKey`/`hasOAuth`; the legacy response included an `apiKey`
+ * field. */
+const hasSavedProviderKey = (config: { hasApiKey?: boolean; hasOAuth?: boolean }): boolean =>
   config.hasApiKey === true ||
-  (!Object.prototype.hasOwnProperty.call(config, 'hasApiKey') && Object.prototype.hasOwnProperty.call(config, 'apiKey'));
+  config.hasOAuth === true ||
+  (!Object.prototype.hasOwnProperty.call(config, 'hasApiKey') &&
+    !Object.prototype.hasOwnProperty.call(config, 'hasOAuth') &&
+    Object.prototype.hasOwnProperty.call(config, 'apiKey'));
 
 /**
  * Compact header control for model thinking effort. A small brain-icon button

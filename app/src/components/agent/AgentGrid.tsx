@@ -204,7 +204,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
 
       // Keep the quick path truly one-click when a saved connection exists.
       // If setup is incomplete, let the focused dialog collect it instead.
-      if (!config?.hasApiKey || !modelId) {
+      if (!(config?.hasApiKey || config?.hasOAuth) || !modelId) {
         setShowNewDialog(true);
         return;
       }

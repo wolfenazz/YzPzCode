@@ -7,11 +7,14 @@ import type { CatalogSync } from "./catalog-sync.js";
 type CommandHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
 /** Credentials stay in the harness process. The renderer only needs to know
- * whether a provider has a saved key in order to present connection controls. */
+ * whether a provider has a saved key/oauth session in order to present
+ * connection controls — never the secret values themselves. */
 const toSafeProviderConfigs = (configs: ReturnType<ProviderConfigStore["list"]>) =>
-  configs.map(({ apiKey, ...config }) => ({
+  configs.map(({ apiKey, oauth, ...config }) => ({
     ...config,
     hasApiKey: Boolean(apiKey),
+    hasOAuth: Boolean(oauth),
+    oauthEmail: oauth?.email ?? null,
   }));
 
 export class AgentServer {
@@ -218,6 +221,17 @@ export class AgentServer {
       },
       "get-providers": async () => ({ providers: await AgentHarness.getProviders() }),
       "get-provider-ids": async () => ({ providers: await AgentHarness.getProviderIds() }),
+      "get-provider-fields": async (args) => {
+        if (!args.providerId) throw new Error("providerId is required");
+        return { fields: AgentHarness.getProviderConfigFields(args.providerId as string) };
+      },
+      "login-openai-codex": async (args) => {
+        return this.harness.loginOpenAICodex(args.originator as string | undefined);
+      },
+      "resolve-oauth-prompt": async (args) => {
+        if (!args.requestId) throw new Error("requestId is required");
+        return { resolved: this.harness.resolveOAuthPrompt(args.requestId as string, args.answer as string) };
+      },
       "get-models": async (args) => {
         if (!args.providerId) throw new Error("providerId is required");
         return { models: await AgentHarness.getModels(args.providerId as string) };
@@ -258,6 +272,7 @@ export class AgentServer {
     "health",
     "get-providers",
     "get-provider-ids",
+    "get-provider-fields",
     "get-models",
     "refresh-catalogs",
     "list-provider-configs",

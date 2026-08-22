@@ -70,7 +70,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         setProviderId(defaultId);
         setApiKey('');
         setBaseUrl(cfg?.baseUrl ?? '');
-        setHasSavedKey(Boolean(cfg?.hasApiKey));
+        setHasSavedKey(Boolean(cfg?.hasApiKey || cfg?.hasOAuth));
         setModelId(cfg?.modelId ?? info?.defaultModelId ?? '');
         // A saved default makes the normal path a one-field flow. Open the
         // connection controls only when the user still needs to configure it.
@@ -155,7 +155,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
         const cfg = configs.find((c) => c.providerId === next);
         if (cfg) {
           setBaseUrl(cfg.baseUrl ?? '');
-          setHasSavedKey(Boolean(cfg.hasApiKey));
+          setHasSavedKey(Boolean(cfg.hasApiKey || cfg.hasOAuth));
           setModelId(cfg.modelId ?? '');
         }
       })
