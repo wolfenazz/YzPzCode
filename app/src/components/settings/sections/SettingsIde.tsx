@@ -28,15 +28,15 @@ export const SettingsIde: React.FC = () => {
     <div className="space-y-8">
       <div>
         <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">IDE Integration</h2>
-        <p className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider">Configure external IDE launching and integration</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">Configure external IDE launching and integration</p>
       </div>
 
       <div className="space-y-6">
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Installed IDEs</h3>
 
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] text-zinc-500 font-mono">
+            <span className="text-[10px] text-[var(--text-secondary)] font-mono">
               {installedCount}/{ideList.length} detected
             </span>
           </div>
@@ -45,14 +45,14 @@ export const SettingsIde: React.FC = () => {
             {ideList.map((ide) => (
               <div
                 key={ide.ide}
-                className="flex items-center justify-between px-4 py-3 bg-[#1f1f1f]/40 border border-[#3e3e38]/30 rounded-lg hover:border-[var(--accent-border)] transition-all duration-200"
+                className="flex items-center justify-between px-4 py-3 bg-[var(--bg-primary)]/60 border border-[var(--border-primary)]/70 rounded-lg hover:border-[var(--accent-border)] transition-all duration-200"
               >
                 <div className="flex items-center gap-3">
                   <img src={IDE_ICONS[ide.ide as IdeType]} alt={ide.name} className="w-5 h-5 object-contain" />
                   <div>
-                    <p className="text-xs text-zinc-300 font-mono font-medium">{IDE_DISPLAY_NAMES[ide.ide as IdeType] || ide.name}</p>
+                    <p className="text-xs text-[var(--text-primary)] font-mono font-medium">{IDE_DISPLAY_NAMES[ide.ide as IdeType] || ide.name}</p>
                     {ide.path && (
-                      <p className="text-[10px] text-zinc-600 font-mono truncate max-w-xs">{ide.path}</p>
+                      <p className="text-[10px] text-[var(--text-secondary)] font-mono truncate max-w-xs">{ide.path}</p>
                     )}
                   </div>
                 </div>
@@ -60,7 +60,7 @@ export const SettingsIde: React.FC = () => {
                   className={`px-2 py-0.5 rounded-full text-[9px] font-mono uppercase tracking-wider ${
                     ide.installed
                       ? 'bg-emerald-500/10 text-emerald-400/80 border border-emerald-500/20'
-                      : 'bg-zinc-800/50 text-zinc-500 border border-zinc-700/50'
+                      : 'bg-[var(--bg-tertiary)]/50 text-[var(--text-secondary)] border border-[var(--border-primary)]/50'
                   }`}
                 >
                   {ide.installed ? 'Installed' : 'Not Found'}
@@ -70,13 +70,13 @@ export const SettingsIde: React.FC = () => {
           </div>
 
           {loading && (
-            <p className="text-[10px] text-zinc-500 font-mono animate-pulse">Detecting IDEs...</p>
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono animate-pulse">Detecting IDEs...</p>
           )}
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Default IDEs</h3>
-          <p className="text-[10px] text-zinc-600 font-mono">Select which IDEs to launch automatically with new workspaces</p>
+          <p className="text-[10px] text-[var(--text-secondary)] font-mono">Select which IDEs to launch automatically with new workspaces</p>
 
           <div className="grid grid-cols-2 gap-2">
             {ideList.filter(ide => ide.installed).map((ide) => (
@@ -86,7 +86,7 @@ export const SettingsIde: React.FC = () => {
                 className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[10px] font-mono transition-all duration-200 cursor-pointer text-left ${
                   selectedIdes.includes(ide.ide)
                     ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                    : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:border-zinc-700'
+                    : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:border-[var(--border-primary)]'
                 }`}
               >
                 <img src={IDE_ICONS[ide.ide as IdeType]} alt={ide.name} className="w-4 h-4 object-contain" />
@@ -96,11 +96,11 @@ export const SettingsIde: React.FC = () => {
           </div>
 
           {ideList.filter(ide => ide.installed).length === 0 && (
-            <p className="text-[10px] text-zinc-600 font-mono">No IDEs detected. Install an IDE to configure auto-launch.</p>
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono">No IDEs detected. Install an IDE to configure auto-launch.</p>
           )}
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Behavior</h3>
 
           <SettingsToggle

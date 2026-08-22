@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { CSSProperties, SVGProps } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { closeWindow, maximizeWindow, minimizeWindow } from '../../utils/window';
+import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
 import { useAppStore } from '../../stores/appStore';
 import type { AgentType, TerminalSession } from '../../types';
 import {
@@ -474,7 +475,7 @@ const buildExportDocument = (design: GeneratedDesign): string => `<!doctype html
   <body>${design.html}</body>
 </html>`;
 
-const buildBracketedPasteInput = (value: string): string => `\x1b[200~${value}\x1b[201~\r`;
+const TERMINAL_SUBMIT_DELAY_MS = 32;
 
 const sessionDisplayName = (session: TerminalSession): string =>
   session.agent ? `TTY ${session.index + 1} · ${session.agent}` : `TTY ${session.index + 1} · shell`;
@@ -568,6 +569,7 @@ const createInitialProjects = (): DesignProject[] => {
 };
 
 export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack }) => {
+  const titlebarRef = useTitlebarDrag<HTMLElement>();
   const currentWorkspace = useAppStore((state) => state.currentWorkspace);
   const openWorkspaces = useAppStore((state) => state.openWorkspaces);
   const sessions = useAppStore((state) => state.sessions);
@@ -801,7 +803,22 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
       );
       await invoke<void>('write_to_terminal', {
         sessionId: targetId,
-        input: buildBracketedPasteInput(promptForAgent),
+        input: '\x1b[200~',
+      });
+      await invoke<void>('write_to_terminal', {
+        sessionId: targetId,
+        input: promptForAgent,
+      });
+      await invoke<void>('write_to_terminal', {
+        sessionId: targetId,
+        input: '\x1b[201~',
+      });
+      // Submit separately: Pi, Command Code, and Claude/Gemini-style TUIs
+      // can consume an adjacent CR while they finish their paste callback.
+      await new Promise<void>((resolve) => window.setTimeout(resolve, TERMINAL_SUBMIT_DELAY_MS));
+      await invoke<void>('write_to_terminal', {
+        sessionId: targetId,
+        input: '\r',
       });
       const sentProject = { ...currentProject, agentSessionId: targetId, status: 'running' as ProjectStatus };
       setCurrentProject(sentProject);
@@ -822,8 +839,8 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
 
   return (
     <div className="od-designer" data-theme="dark">
-      <header data-tauri-drag-region className="od-window-bar titlebar-drag">
-        <div className="od-window-left titlebar-nodrag">
+      <header ref={titlebarRef} className="od-window-bar select-none">
+        <div className="od-window-left">
           <button type="button" className="od-window-back" onClick={onBack} title="Back" aria-label="Back">
             <Icon name="arrow-left" size={15} />
           </button>
@@ -837,7 +854,7 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
           {workspacePath ? `Workspace YzPzDesgin folder: ${workspacePath}\\Design` : 'Preview mode'}
         </div>
 
-        <div className="od-window-actions titlebar-nodrag">
+        <div className="od-window-actions">
           {isWindows && (
             <div className="od-win-controls">
               <button type="button" onClick={minimizeWindow} title="Minimize" aria-label="Minimize">

@@ -1,55 +1,68 @@
-# Mission: YZPZ Agent self-updating provider/model catalog
+# Mission: Continue premium UI migration (per app/UI_REDESIGN_HANDOFF.md)
 
-Goal: When OpenCode (or any provider) publishes new models on models.dev, the
-YZPZ Agent UI picks them up automatically — no app release required.
+Baseline verified 2026-08-22: `node ./node_modules/typescript/bin/tsc --noEmit` exit 0 on main
+(uncommitted redesign work already present — continue on top of it, do not revert).
 
-## M1: Harness live catalog sync (TypeScript sidecar) | agent:Worker | status: completed
-### T1.1: CatalogSync module | size:L
-- [x] S1.1.1: Create app/agent-harness/src/catalog-sync.ts exporting CatalogSync class
-      | verified: file exists (417 lines); npm run build + typecheck exit 0
-- [x] S1.1.2: Additive-only merge via Llms.registerModel/registerProvider with
-      npm→client mapping + baseUrl guard; cache at <dataDir>/catalog-cache.json;
-      offline startup re-applies cache; TTL 12h; interval unref'd
-      | verified: runtime smoke +10 providers/+5072 models; cache file valid
-      (193 providers); second sync returns source=skipped
-### T1.2: Wire into sidecar | size:S
-- [x] S1.1.3: server.ts "refresh-catalogs" handler + NO_INIT_COMMANDS;
-      index.ts constructs/starts/stops CatalogSync, event sink → broadcast
-      | verified: E2E over real sidecar WS: refresh-catalogs ok=true source=network
-### T1.3: SYNC-5 cost delta fix | size:S
-- [x] S1.1.4: Already fixed pre-mission in budget.ts accumulateUsage (per-turn cost,
-      cumulative seed only on first sample); harness.ts:728 uses it
-      | verified: read budget.ts:39-52 + harness.ts:42,728
-### T1.4: Verify builds + smoke | size:S
-- [x] S1.1.5: npm run build && typecheck exit 0; direct-import smoke PASS;
-      E2E sidecar WS PASS (get-models opencode=66 incl x-preview-f-free)
+Design law (from handoff, binding for every worker):
+- Calm professional workbench. No gradients/glow/rainbow/shimmer, no all-caps nav,
+  no monospace outside code-like content, avoid cards-in-cards, semantic color only,
+  icons as quiet wayfinding (@phosphor-icons/react, regular weight, 16–18px).
+- Typography via src/premium-system.css only (no competing font stacks).
+- Primitives: .app-chrome .app-page .app-sidebar .app-nav-item .app-surface
+  (--raised) .app-button (--primary/--quiet) .app-icon-button .app-input.
+- Preserve ALL behavior and keyboard access. Verify dark+light themes.
+- Workers must NOT edit styles.css / premium-system.css unless unavoidable;
+  prefer Tailwind utilities scoped to their own components.
 
-## M2: Rust bridge command | agent:Worker | status: completed
-### T2.1: refresh_agent_catalogs command | size:S
-- [x] S2.1.1: agent_host_commands.rs:310 command + lib.rs:289 registration
-      | verified: git diff shows exact contract implementation
-- [x] S2.1.2: cargo check OK; cargo clippy 0 NEW warnings (3 pre-existing accepted);
-      cargo test agent_host 12/12 pass
+## M1: Icon migration to Phosphor | agent:Worker | status: in_progress
+### T1.1: Image editor icon set | size:M
+- [ ] S1.1.1: Rewrite app/src/components/image/icons.tsx to export Phosphor icon
+      components (keep IMG_ICONS name-keyed API surface so call sites stay stable);
+      remove @iconify/react from image/*
+      | verify: rg "@iconify" app/src/components/image → empty; tsc clean
+### T1.2: RichPromptEditor action icons | size:S
+- [ ] S1.2.1: Replace material-symbols Iconify icons with Phosphor equivalents
+      (TextB/TextItalic/TextUnderline/TextStrikethrough/Code/Quotes/
+      ListBullets/ListNumbers/LinkSimple/LinkSimpleBreak/Eraser or best-fit),
+      neutralize legacy zinc/emerald toolbar colors to token-based classes
+      | verify: no @iconify import remains in file; tsc clean
 
-## M3: Frontend auto-refresh UI | agent:Worker | status: completed
-### T3.1: Types + hook | size:S
-- [x] S3.1.1: types/index.ts:517 AgentCatalogSyncResult + :526 AgentCatalogUpdate
-      | verified: matches frozen contract field-for-field
-- [x] S3.1.2: useAgentHost.ts refreshCatalogs (:250) + onCatalogUpdated (:369),
-      both exported | verified: grep + tsc
-### T3.2: Components react to catalog-updated | size:M
-- [x] S3.2.1: AgentPane.tsx:277-307 subscription refetches providers + current models
-      | verified: code review, mounted-guarded unlisten pattern
-- [x] S3.2.2: NewAgentDialog.tsx:116-140 refetch while open (preserves selection)
-      | verified: code review
-- [x] S3.2.3: SettingsAgent.tsx:246-261 event refetch + :316-330 manual Refresh button
-      (disabled when host disconnected, animate-spin-slow busy state)
-      | verified: code review; animate-spin-slow exists styles.css:378
-- [x] S3.2.4: npx tsc --noEmit exit 0
+## M2: Setup child forms → app-* primitives | agent:Worker | status: pending
+### T2.1: Forms migration | size:L
+- [ ] S2.1.1: WorkspaceTemplatePicker — flatten nested panels onto .app-surface,
+      app-button/app-input primitives, remove local chrome overrides
+- [ ] S2.1.2: AgentFleetConfig — same treatment
+- [ ] S2.1.3: InitializeWorkspace — same treatment (codeberg brand icon may stay Iconify)
+- [ ] S2.1.4: LayoutSelector + IdesSelector + DirectorySelector + PrerequisitesPanel
+      — same treatment
+      | verify each: tsc clean; visual hierarchy single-surface; dark+light ok
 
-## M4: Full verification | agent:Reviewer | status: completed
-- [x] S4.1: All build/typecheck/test commands re-run green (see evidence above)
-- [x] S4.2: E2E smoke via real sidecar binary over WebSocket: health ok,
-      refresh-catalogs(force) → network +5460 models, get-models opencode=66
-      includes x-preview-f-free, catalog-updated event payload matches contract
-- [x] S4.3: sync-issues resolved (SYNC-5 verified fixed); work-log updated
+## M3: Workspace sidebars & tab bars normalization | agent:Worker | status: pending
+### T3.1: Explorer chrome | size:L
+- [ ] S3.1.1: FileExplorer — normalize header/tab bar to quiet neutral chrome,
+      remove legacy gradient/heavy borders, keep virtualization + context menu intact
+- [ ] S3.1.2: EditorTabs + TabContextMenu — calm tab bar aligned to tokens
+- [ ] S3.1.3: WorkspaceTab + TerminalStatusBar — token-aligned chrome
+- [ ] S3.1.4: common/ContextMenu.tsx — popover surfaces on tokens, no nested cards
+      | verify each: tsc clean; behavior preserved
+
+## M4: Docs & designer CSS restyle | agent:Worker | status: pending
+### T4.1: Restyle | size:L
+- [ ] S4.1.1: DocsScreen — drop component-local font stacks/surface overrides;
+      align to premium tokens
+- [ ] S4.1.2: DesignerPage.css + subpanels — remove decorative gradients/glows,
+      align surfaces/buttons/inputs to tokens; keep layout intact
+      | verify: tsc clean; build passes
+
+## M5: Agent composer consolidation onto PromptInput primitives | agent:Worker | status: pending
+### T5.1: Composer consolidation | size:L
+- [ ] S5.1.1: Audit AgentInput vs ai-elements PromptInput API; map voice dictation,
+      attachments, translation, queue, mode tabs, send behaviors one-to-one
+- [ ] S5.1.2: Rebuild composer shell on PromptInput primitives preserving every
+      handler; keep agent-input-island raised-neutral styling
+      | verify: tsc clean; all handlers still wired (grep evidence)
+
+## M6: Final verification & handoff update | agent:Reviewer | depends:M1,M2,M3,M4,M5 | status: pending
+- [ ] S6.1: npx tsc --noEmit exit 0
+- [ ] S6.2: npm run build exit 0
+- [ ] S6.3: Update UI_REDESIGN_HANDOFF.md "Completed since" + "Remaining passes"

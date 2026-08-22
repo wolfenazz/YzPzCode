@@ -5,7 +5,9 @@ import { UpdateNotification } from './components/common/UpdateNotification';
 import { ContextMenu } from './components/common/ContextMenu';
 import { CustomCursor } from './components/common/CustomCursor';
 import { BoxLoader } from './components/common/BoxLoader';
+import { TooltipProvider } from './components/ui/tooltip';
 import { useAppStore } from './stores/appStore';
+import { useEffectiveTheme } from './hooks/useEffectiveTheme';
 import { initWindowPlatform } from './utils/window';
 import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
 
@@ -32,28 +34,6 @@ const ACCENT_COLOR_MAP: Record<string, string> = {
   cyan: '#06b6d4',
 };
 
-const parseHexColor = (hex: string): { r: number; g: number; b: number } | null => {
-  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!match) return null;
-  const value = parseInt(match[1], 16);
-  return {
-    r: (value >> 16) & 255,
-    g: (value >> 8) & 255,
-    b: value & 255,
-  };
-};
-
-/** Lighten/darken a hex color by mixing it toward white. */
-const mixTowardWhite = (hex: string, amount: number): string => {
-  const rgb = parseHexColor(hex);
-  if (!rgb) return hex;
-  const mix = (channel: number) => Math.round(channel + (255 - channel) * amount);
-  const r = mix(rgb.r);
-  const g = mix(rgb.g);
-  const b = mix(rgb.b);
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
-};
-
 function App() {
   const {
     view,
@@ -64,13 +44,11 @@ function App() {
     accentColor,
     uiDensity,
     animationsEnabled,
-    customBackgroundEnabled,
-    customBackgroundColor,
-    lightThemeEnabled,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
+  const effectiveTheme = useEffectiveTheme();
 
   useEffect(() => {
     if (customCursor) {
@@ -99,35 +77,11 @@ function App() {
 
   useEffect(() => {
     const root = document.documentElement;
-    const vars = ['--bg-primary', '--bg-secondary', '--bg-tertiary', '--background', '--card', '--popover'];
-    if (!customBackgroundEnabled) {
-      vars.forEach((name) => root.style.removeProperty(name));
-      return;
-    }
-    const rgb = parseHexColor(customBackgroundColor);
-    if (!rgb) return;
-    const primary = customBackgroundColor;
-    const secondary = mixTowardWhite(primary, 0.06);
-    const tertiary = mixTowardWhite(primary, 0.13);
-    root.style.setProperty('--bg-primary', primary);
-    root.style.setProperty('--bg-secondary', secondary);
-    root.style.setProperty('--bg-tertiary', tertiary);
-    root.style.setProperty('--background', primary);
-    root.style.setProperty('--card', secondary);
-    root.style.setProperty('--popover', secondary);
-  }, [customBackgroundEnabled, customBackgroundColor]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (lightThemeEnabled) {
-      root.classList.add('light-theme');
-    } else {
-      root.classList.remove('light-theme');
-    }
+    root.classList.toggle('light-theme', effectiveTheme === 'light');
     return () => {
       root.classList.remove('light-theme');
     };
-  }, [lightThemeEnabled]);
+  }, [effectiveTheme]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -215,7 +169,8 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen overflow-hidden">
+    <TooltipProvider delayDuration={350}>
+    <div className="app-shell min-h-screen overflow-hidden">
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={view}
@@ -272,6 +227,7 @@ function App() {
       />
       {customCursor && <CustomCursor />}
     </div>
+    </TooltipProvider>
   );
 }
 

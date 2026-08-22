@@ -1,7 +1,16 @@
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
-import { Icon } from '@iconify/react';
+import {
+  ArrowBendUpLeft,
+  ArrowsLeftRight,
+  CaretDown,
+  CircleNotch,
+  GitBranch,
+  GitCommit,
+  Minus,
+  Plus,
+} from '@phosphor-icons/react';
 import { GitFileStatus, GitDiffStat, FileEntry, GitBranchInfo, GitCommitInfo } from '../../types';
 import { GitStatusBadge } from './GitStatusBadge';
 import { FileIcon } from './FileIcon';
@@ -238,29 +247,29 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
   }
 
   return (
-    <div className="shrink-0 border-t border-zinc-800/30 bg-zinc-950/40 backdrop-blur-sm overflow-hidden">
+    <div className="shrink-0 overflow-hidden border-t border-[var(--border-primary)] bg-[var(--bg-secondary)]/20">
       <div
-        className={`flex items-center justify-between px-3 py-2 bg-zinc-900/20 border-b border-zinc-800/20 cursor-pointer select-none transition-all duration-300 group/git-header ${
-          isExpanded ? 'bg-zinc-900/40' : 'hover:bg-zinc-900/60'
+        className={`flex min-h-8 items-center justify-between border-b border-[var(--border-primary)]/60 px-2.5 py-1.5 cursor-pointer select-none transition-colors group/git-header ${
+          isExpanded ? 'bg-[var(--bg-secondary)]/50' : 'hover:bg-[var(--bg-hover)]'
         }`}
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center gap-2.5">
+        <div className="flex min-w-0 items-center gap-2">
           <motion.div
             animate={{ rotate: isExpanded ? 0 : -90 }}
             transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-            className="text-zinc-500 group-hover/git-header:text-blue-400 transition-colors"
+            className="text-[var(--text-secondary)]/60 group-hover/git-header:text-[var(--accent)] transition-colors"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
             </svg>
           </motion.div>
-          <div className="flex flex-col -space-y-0.5">
-            <span className="text-[10px] font-black text-zinc-400 uppercase tracking-[0.2em] group-hover/git-header:text-zinc-200 transition-colors">
-              Source_Control
+          <div className="flex min-w-0 flex-col leading-tight">
+            <span className="truncate text-[10px] font-medium text-[var(--text-primary)] transition-colors">
+              Source control
             </span>
-            <span className="text-[7px] text-zinc-600 font-black tracking-widest uppercase opacity-70">
-              {changedFiles.length} DIFFS_DETECTED{branches ? ` · ${branches.current}` : ''}
+            <span className="truncate font-mono text-[8px] text-[var(--text-secondary)]/55">
+              {changedFiles.length} changed{branches ? ` · ${branches.current}` : ''}
             </span>
           </div>
         </div>
@@ -277,9 +286,9 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                 title="Recent commits & branches"
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-violet-400 hover:bg-violet-500/10 border border-transparent hover:border-violet-500/30 transition-colors cursor-pointer"
               >
-                <Icon icon="lucide:git-branch" className="h-3 w-3" aria-hidden="true" />
+                <GitBranch size={12} aria-hidden="true" />
                 <span className="max-w-[70px] truncate">{branches.current}</span>
-                <Icon icon="lucide:chevron-down" className="h-2.5 w-2.5 opacity-60" aria-hidden="true" />
+                <CaretDown size={10} className="opacity-60" aria-hidden="true" />
               </button>
               <AnimatePresence>
                 {showCommitLog && (
@@ -304,24 +313,24 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                           }`}
                           title={branch === branches.current ? 'Current branch' : `Switch to ${branch}`}
                         >
-                          <Icon icon={branch === branches.current ? 'lucide:git-branch' : 'lucide:git-branch-outline'} className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          {branch === branches.current ? <GitBranch size={12} /> : <GitBranch size={12} weight="regular" />}
                           <span className="truncate">{branch}</span>
                         </button>
                       ))}
                     </div>
                     <div className="border-t border-zinc-800 px-2 py-1.5">
-                      <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-zinc-400">Recent commits</span>
+                      <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-[var(--text-secondary)]">Recent commits</span>
                     </div>
                     <div className="max-h-32 overflow-y-auto custom-scrollbar pb-1">
                       {commits.length === 0 && (
-                        <p className="px-2 py-1 font-mono text-[8.5px] text-zinc-600">No commits yet</p>
+                        <p className="px-2 py-1 font-mono text-[8.5px] text-[var(--text-secondary)]">No commits yet</p>
                       )}
                       {commits.map((commit) => (
                         <div key={commit.hash} className="flex items-start gap-1.5 px-2 py-1">
-                          <Icon icon="lucide:git-commit-horizontal" className="mt-0.5 h-3 w-3 shrink-0 text-zinc-600" aria-hidden="true" />
+                          <GitCommit size={12} className="mt-0.5 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
                           <div className="min-w-0">
-                            <p className="truncate font-mono text-[8.5px] text-zinc-300">{commit.message}</p>
-                            <p className="font-mono text-[7.5px] text-zinc-600">
+                            <p className="truncate font-mono text-[8.5px] text-[var(--text-primary)]">{commit.message}</p>
+                            <p className="font-mono text-[7.5px] text-[var(--text-secondary)]">
                               {commit.shortHash} · {commit.author}
                             </p>
                           </div>
@@ -333,7 +342,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
               </AnimatePresence>
             </div>
           )}
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-950 border border-zinc-800/50 shadow-inner group-hover/git-header:border-blue-500/30 transition-all duration-500">
+          <div className="flex items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/50 px-1.5 py-0.5">
             {hasAnyDiffLines ? (
               <>
                 {totalAdded > 0 && (
@@ -365,15 +374,15 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
             animate={{ height: panelHeight - 40, opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="overflow-hidden relative bg-zinc-950/20"
+            className="relative overflow-hidden bg-[var(--bg-primary)]/25"
           >
             <div
-              className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-blue-500/40 active:bg-blue-500 transition-all duration-300 z-10 rounded-full mx-8 mt-0.5"
+              className="absolute inset-x-8 top-0 z-10 mt-0.5 h-1 cursor-ns-resize rounded-full transition-colors hover:bg-[var(--accent)]/40 active:bg-[var(--accent)]"
               onMouseDown={handleMouseDown}
               onClick={(e) => e.stopPropagation()}
             />
             <div className="h-full overflow-y-auto custom-scrollbar">
-              <div className="py-2 space-y-0.5">
+              <div className="space-y-0.5 py-1.5">
                 {changedFiles.map((file, idx) => {
                   const hasChanges = file.linesAdded > 0 || file.linesDeleted > 0;
                   const addedPercent = hasChanges ? (file.linesAdded / maxChanges) * 100 : 0;
@@ -385,7 +394,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.02 }}
-                      className="group/file flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-800/40 cursor-pointer transition-all duration-200 mx-1 rounded-lg border border-transparent hover:border-zinc-800/50"
+                      className="group/file mx-1 flex cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 py-1.5 transition-colors hover:border-[var(--border-primary)] hover:bg-[var(--bg-hover)]"
                       onClick={() => handleFileClick(file)}
                     >
                       <div className="relative">
@@ -399,11 +408,11 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                          </div>
                       </div>
                       <div className="flex flex-col min-w-0 flex-1 ml-1">
-                        <span className="text-[10px] font-black text-zinc-300 truncate tracking-tight group-hover/file:text-white transition-colors">
+                        <span className="truncate text-[10px] font-medium text-[var(--text-primary)] transition-colors">
                           {file.name}
                         </span>
                         <div className="flex items-center gap-2">
-                          <span className="text-[8px] text-zinc-600 truncate font-mono uppercase tracking-tighter opacity-60">
+                          <span className="text-[8px] text-[var(--text-secondary)] truncate font-mono uppercase tracking-tighter opacity-60">
                             {getRelativePath(file.path)}
                           </span>
                           {!hasChanges && (
@@ -444,7 +453,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                               className="p-0.5 rounded hover:bg-sky-500/20 text-zinc-500 hover:text-sky-400 cursor-pointer transition-colors"
                               title="Compare with HEAD"
                             >
-                              <Icon icon="lucide:git-compare" className="w-3.5 h-3.5" aria-hidden="true" />
+                              <ArrowsLeftRight size={14} aria-hidden="true" />
                             </button>
                             {file.change !== 'deleted' && (
                               <button
@@ -452,7 +461,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                                 className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer transition-colors"
                                 title="Discard changes"
                               >
-                                <Icon icon="lucide:undo-2" className="w-3.5 h-3.5" aria-hidden="true" />
+                                <ArrowBendUpLeft size={14} aria-hidden="true" />
                               </button>
                             )}
                             {(file.change === 'untracked' || file.change === 'modified') && (
@@ -461,9 +470,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                                 className="p-0.5 rounded hover:bg-emerald-500/20 text-zinc-500 hover:text-emerald-400 cursor-pointer transition-colors"
                                 title="Stage file"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
+                                <Plus size={14} />
                               </button>
                             )}
                             {(file.change === 'added' || file.change === 'modified') && (
@@ -472,9 +479,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                                 className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer transition-colors"
                                 title="Unstage file"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                </svg>
+                                <Minus size={14} />
                               </button>
                             )}
                          </div>
@@ -511,7 +516,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
             </div>
 
             {/* Commit bar */}
-            <div className="shrink-0 border-t border-zinc-800/40 bg-zinc-950/60 px-2 py-1.5">
+            <div className="shrink-0 border-t border-[var(--border-primary)]/70 bg-[var(--bg-secondary)]/30 px-2.5 py-2">
               <div className="flex items-center gap-1.5">
                 <input
                   value={commitMessage}
@@ -532,7 +537,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                   title="Stage all changes and commit"
                   className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-blue-400 transition-colors hover:bg-blue-500/20 disabled:cursor-default disabled:opacity-40"
                 >
-                  <Icon icon={committing ? 'svg-spinners:3-dots-scale' : 'lucide:git-commit-horizontal'} className="h-3 w-3" aria-hidden="true" />
+                  {committing ? <CircleNotch size={12} className="animate-spin" /> : <GitCommit size={12} />}
                   Commit
                 </button>
               </div>

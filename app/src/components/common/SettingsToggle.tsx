@@ -15,9 +15,9 @@ export const SettingsToggle: React.FC<SettingsToggleProps> = ({
 }) => (
   <div className="flex items-center justify-between">
     <div>
-      <p className="text-xs text-zinc-300 font-mono">{label}</p>
+      <p className="text-xs text-[var(--text-primary)] font-mono">{label}</p>
       {description && (
-        <p className="text-[10px] text-zinc-600 font-mono mt-0.5">{description}</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">{description}</p>
       )}
     </div>
     <button
@@ -29,13 +29,13 @@ export const SettingsToggle: React.FC<SettingsToggleProps> = ({
       className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors duration-200 cursor-pointer ${
         enabled
           ? 'bg-[var(--accent)]'
-          : 'bg-zinc-800 border border-zinc-700'
+          : 'bg-[var(--bg-tertiary)] border border-[var(--border-primary)]'
       }`}
     >
       <span
         className={`inline-block h-3.5 w-3.5 rounded-full transform transition-transform duration-200 ${
           enabled
-            ? 'translate-x-[18px] bg-zinc-900'
+            ? 'translate-x-[18px] bg-[var(--bg-tertiary)]'
             : 'translate-x-[2px] bg-zinc-500'
         }`}
       />

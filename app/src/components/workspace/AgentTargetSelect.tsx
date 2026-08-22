@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Icon } from '@iconify/react';
+import { CaretDown, Check, TerminalWindow } from '@phosphor-icons/react';
 import type { CliType } from '../../types';
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
@@ -80,15 +80,15 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
               className="h-4 w-4 object-contain"
             />
           ) : (
-            <Icon icon="material-symbols:terminal-rounded" className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+            <TerminalWindow size={16} className="text-zinc-500" aria-hidden="true" />
           )}
         </span>
         <span className="min-w-0 flex-1 truncate">
           {selected ? selected.label : options.length === 0 ? 'no session' : 'select agent…'}
         </span>
-        <Icon
-          icon="material-symbols:keyboard-arrow-down-rounded"
-          className={`h-4 w-4 shrink-0 text-zinc-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        <CaretDown
+          size={16}
+          className={`shrink-0 text-zinc-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           aria-hidden="true"
         />
       </button>
@@ -121,16 +121,12 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
                       className="h-4 w-4 object-contain"
                     />
                   ) : (
-                    <Icon icon="material-symbols:terminal-rounded" className="h-4 w-4 text-zinc-500" aria-hidden="true" />
+                    <TerminalWindow size={16} className="text-zinc-500" aria-hidden="true" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{option.label}</span>
                 {isSelected && (
-                  <Icon
-                    icon="material-symbols:check-rounded"
-                    className="h-3.5 w-3.5 shrink-0 text-emerald-400"
-                    aria-hidden="true"
-                  />
+                  <Check size={14} weight="bold" className="shrink-0 text-emerald-400" aria-hidden="true" />
                 )}
               </button>
             );

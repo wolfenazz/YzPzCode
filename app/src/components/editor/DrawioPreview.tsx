@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
+import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 
 interface DrawioPreviewProps {
   filePath: string;
@@ -18,7 +19,7 @@ const drawioBaseUrl = (): string =>
 export const DrawioPreview: React.FC<DrawioPreviewProps> = ({ filePath, content }) => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const contentRef = useRef(content);
-  const isDark = useAppStore((s) => s.theme) === 'dark';
+  const isDark = useEffectiveTheme() === 'dark';
   const updateFileContent = useAppStore((s) => s.updateFileContent);
   const markFileSaved = useAppStore((s) => s.markFileSaved);
   const closeFileTab = useAppStore((s) => s.closeFileTab);

@@ -181,14 +181,14 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
     return (
       <div>
         <div className="flex items-center gap-2 mb-3">
-          <span className="text-zinc-600 text-xs font-mono">$</span>
-          <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
+          <span className="text-[var(--text-secondary)] text-xs font-mono">$</span>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] font-mono uppercase tracking-[0.15em]">
             Initialize Workspace
           </label>
         </div>
-        <div className="px-5 py-10 border border-dashed border-zinc-800/60 rounded-xl text-center bg-zinc-950/30">
-          <Icon icon="simple-icons:codeberg" className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-          <p className="text-[11px] font-mono text-zinc-600">Select a directory first to initialize a project</p>
+        <div className="px-5 py-10 border border-dashed border-[var(--border-primary)] rounded-xl text-center bg-[var(--bg-primary)]/30">
+          <Icon icon="simple-icons:codeberg" className="w-8 h-8 text-[var(--text-secondary)] mx-auto mb-3" />
+          <p className="text-[11px] font-mono text-[var(--text-secondary)]">Select a directory first to initialize a project</p>
         </div>
       </div>
     );
@@ -198,8 +198,8 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-600 text-xs font-mono">$</span>
-          <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
+          <span className="text-[var(--text-secondary)] text-xs font-mono">$</span>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] font-mono uppercase tracking-[0.15em]">
             Initialize Workspace
           </label>
         </div>
@@ -207,7 +207,7 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
 
       {/* Search */}
       <div className="relative mb-3">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
         </svg>
         <input
@@ -221,7 +221,7 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
           <button
             type="button"
             onClick={() => setSearch('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-600 hover:text-zinc-300 cursor-pointer"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] cursor-pointer"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -267,7 +267,7 @@ export const InitializeWorkspace: React.FC<InitializeWorkspaceProps> = ({ select
           ))}
           {filteredTemplates.length === 0 && (
             <div className="col-span-full py-6 text-center">
-              <p className="text-[11px] font-mono text-zinc-600">No templates match "{search}"</p>
+              <p className="text-[11px] font-mono text-[var(--text-secondary)]">No templates match "{search}"</p>
             </div>
           )}
         </div>

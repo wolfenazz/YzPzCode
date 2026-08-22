@@ -281,7 +281,7 @@ export const FileEditor: React.FC = () => {
       wordWrap: editorWordWrap ? "on" : "off",
       lineNumbers: editorLineNumbers,
       fontSize: editorFontSize,
-      fontFamily: `'${editorFontFamily}', 'JetBrains Mono', 'Fira Code', Consolas, monospace`,
+      fontFamily: `'${editorFontFamily}', 'Cascadia Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace`,
       tabSize: editorTabSize,
       bracketPairColorization: { enabled: editorBracketColorization },
       automaticLayout: true, // CRITICAL for resize inside the Tauri webview
@@ -370,14 +370,14 @@ export const FileEditor: React.FC = () => {
 
   const toolbarBtnClass = (active: boolean, accent: "default" | "emerald" = "default"): string => {
     const base =
-      "group/tb inline-flex items-center gap-1.5 rounded-md border px-2.5 py-[5px] text-[10px] font-mono font-semibold uppercase tracking-[0.16em] transition-all duration-150 cursor-pointer select-none";
+      "group/tb inline-flex items-center gap-1.5 rounded-md border px-2.5 py-[5px] text-[11px] font-medium transition-colors duration-150 cursor-pointer select-none";
     if (active) {
       return accent === "emerald"
-        ? `${base} border-emerald-500/40 bg-emerald-500/10 text-emerald-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_0_14px_-4px_rgba(16,185,129,0.55)] hover:bg-emerald-500/15`
-        : `${base} border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_14px_-4px_var(--accent-glow)] hover:bg-[var(--accent-light)]`;
+        ? `${base} border-emerald-700/60 bg-emerald-950/20 text-emerald-300 hover:bg-emerald-950/30`
+        : `${base} border-[var(--text-secondary)] bg-[var(--bg-tertiary)] text-[var(--text-primary)] hover:bg-[var(--bg-secondary)]`;
     }
 
-    return `${base} border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--text-secondary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--accent)] hover:shadow-[0_0_14px_-4px_var(--accent-glow)]`;
+    return `${base} border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]`;
   };
 
   return (
@@ -397,13 +397,12 @@ export const FileEditor: React.FC = () => {
       <div className="flex-1 min-h-0">
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
           {activeFile && (
-            <div className="relative shrink-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/95 px-4 py-2.5 backdrop-blur-sm shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent opacity-60" />
+            <div className="relative shrink-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-2.5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <div className="flex items-center gap-1.5 px-2 py-0.5 shrink-0 border border-[var(--accent-border)] bg-[var(--accent-light)] group/fe">
                     <FileIcon extension={fileExt} isDir={false} className="w-3 h-3 shrink-0" />
-                    <span className="text-[9px] uppercase font-black tracking-widest text-[var(--accent)]">
+                    <span className="text-[10px] font-medium text-[var(--text-secondary)]">
                       {fileExt ? `.${fileExt}` : 'file'}
                     </span>
                   </div>
@@ -416,17 +415,16 @@ export const FileEditor: React.FC = () => {
                         )}
                       </span>
                       {activeFile.isDirty && (
-                        <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-1.5 py-0.5 text-[9px] font-mono font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
+                          <span className="inline-flex items-center gap-1.5 rounded border border-amber-700/50 bg-amber-950/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-300">
                           <span className="relative flex h-1.5 w-1.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-60" />
-                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent-glow)]" />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-300" />
                           </span>
                           unsaved
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-[var(--text-secondary)]">
-                      <span className="text-[var(--accent-text)]">~/</span>
+                    <div className="mt-1 truncate font-mono text-[10px] text-[var(--text-secondary)]">
+                      <span className="text-[var(--text-secondary)]">~/</span>
                       {getBreadcrumb(activeFile.path)}
                     </div>
                   </div>
@@ -644,13 +642,13 @@ export const FileEditor: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                     </svg>
                   </div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.22em] text-zinc-300">
-                    Editor Ready
+                  <div className="text-sm font-medium text-[var(--text-primary)]">
+                    Editor ready
                   </div>
-                  <div className="mt-3 text-[11px] leading-5 text-zinc-500">
+                  <div className="mt-3 text-[11px] leading-5 text-[var(--text-secondary)]">
                     Open any file from the explorer to edit it here. Monaco powers this editor with the same engine as VS Code.
                   </div>
-                  <div className="mt-4 text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-600">
+                  <div className="mt-4 text-[10px] font-mono text-[var(--text-secondary)]">
                     Ctrl+F Find  /  Ctrl+S Save  /  Ctrl+G Go To Line
                   </div>
                 </div>
@@ -661,14 +659,14 @@ export const FileEditor: React.FC = () => {
           </div>
 
           <div className={`shrink-0 border-t px-4 py-1.5 ${toolbarClass}`}>
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono uppercase tracking-[0.18em]">
-              <div className="flex flex-wrap items-center gap-3 text-zinc-400">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono">
+              <div className="flex flex-wrap items-center gap-3 text-[var(--text-secondary)]">
                 <span>{activeFile?.language ?? "No file"}</span>
                 <span>{cursorStatus.lineCount.toLocaleString()} lines</span>
                 <span>{cursorStatus.characterCount.toLocaleString()} chars</span>
                 <span>tab {editorTabSize}</span>
               </div>
-              <div className="flex flex-wrap items-center gap-3 text-zinc-400">
+              <div className="flex flex-wrap items-center gap-3 text-[var(--text-secondary)]">
                 <span>Ln {cursorStatus.line}</span>
                 <span>Col {cursorStatus.column}</span>
                 <span>Sel {cursorStatus.selection}</span>

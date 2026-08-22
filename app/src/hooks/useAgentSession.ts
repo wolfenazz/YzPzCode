@@ -463,12 +463,8 @@ export const useAgentSession = (
   // ── Prompt queue bookkeeping ─────────────────────────────────────────
   const queuedPromptsRef = useRef<AgentQueuedPrompt[]>([]);
   queuedPromptsRef.current = queuedPrompts;
-  /** Locally-originated queued prompts (prompt + real attachments), FIFO. */
-  const pendingLocalRef = useRef<Array<{ prompt: string; attachments: AgentAttachment[] }>>([]);
-  /** Queue ids the user cancelled — never re-surface them as started prompts. */
-  const cancelledQueueIdsRef = useRef<Set<string>>(new Set());
-  /** Last queue ids seen from the harness, to detect when a prompt starts. */
-  const previousQueueIdsRef = useRef<string[]>([]);
+  /** Local previews keyed by the harness queue id; file data stays out of events. */
+  const queuedAttachmentsRef = useRef<Map<string, AgentAttachment[]>>(new Map());
 
   // ── Message helpers ────────────────────────────────────────────────
   const appendAssistantText = useCallback((text: string, providerId?: string, modelId?: string) => {
@@ -603,7 +599,6 @@ export const useAgentSession = (
       const prompts = (await listPendingPrompts(sid)) as AgentQueuedPrompt[];
       const clean = Array.isArray(prompts) ? prompts.filter((p) => p && typeof p.id === 'string') : [];
       queuedPromptsRef.current = clean;
-      previousQueueIdsRef.current = clean.map((p) => p.id);
       setQueuedPrompts(clean);
     } catch (err) {
       console.error('[agent] failed to read pending prompts:', err);
@@ -864,31 +859,18 @@ export const useAgentSession = (
         } else if (payload.type === 'pending_prompts') {
           const list = (payload.payload as { prompts?: AgentQueuedPrompt[] }).prompts;
           const prompts = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string') : [];
-          const nextIds = prompts.map((p) => p.id);
-          const prevIds = previousQueueIdsRef.current;
-          previousQueueIdsRef.current = nextIds;
-          // Prompts that left the queue without being cancelled have started
-          // processing — surface them in the transcript now.
-          if (prevIds.length > 0) {
-            const started = prevIds.filter(
-              (id) => !nextIds.includes(id) && !cancelledQueueIdsRef.current.has(id),
-            );
-            const local = pendingLocalRef.current;
-            for (let i = 0; i < started.length && local.length > 0; i += 1) {
-              const item = local.shift();
-              if (item) appendUserMessage(item.prompt, item.attachments);
-            }
-          }
           queuedPromptsRef.current = prompts;
           setQueuedPrompts(prompts);
-        } else if (payload.type === 'pending_prompt_submitted') {
-          const submitted = (payload.payload ?? {}) as unknown as AgentQueuedPrompt;
-          if (submitted && typeof submitted.id === 'string') {
-            setQueuedPrompts((prev) =>
-              prev.some((p) => p.id === submitted.id) ? prev : [...prev, submitted],
-            );
-            const prev = previousQueueIdsRef.current;
-            if (!prev.includes(submitted.id)) previousQueueIdsRef.current = [...prev, submitted.id];
+        } else if (payload.type === 'queued_prompt_started') {
+          const started = (payload.payload as { prompt?: AgentQueuedPrompt } | undefined)?.prompt;
+          if (started && typeof started.id === 'string') {
+            const attachments = queuedAttachmentsRef.current.get(started.id) ?? [];
+            queuedAttachmentsRef.current.delete(started.id);
+            lastPromptRef.current = started.prompt;
+            appendUserMessage(started.prompt, attachments);
+            setStatus('running');
+            setError(null);
+            setNotice(null);
           }
         }
       })
@@ -1060,11 +1042,20 @@ export const useAgentSession = (
     async (prompt: string, attachments: AgentAttachment[] = []) => {
       const sid = sessionIdRef.current;
       if (!sid || !prompt.trim()) return;
-      // While a turn is in flight the message is queued by the harness (SDK
-      // `delivery: "steer"`). Keep the live-stream state untouched and let the
-      // queue events surface the prompt instead of echoing it into the chat.
-      const busy = statusRef.current === 'running' || statusRef.current === 'starting';
-      if (!busy) {
+      try {
+        const m = modeRef.current;
+        const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'orchestrator' : undefined;
+        const result = await sendMessage(sid, prompt, modeToSend, attachments);
+        if (!result.accepted) {
+          throw new Error(result.error || 'The agent did not accept the prompt.');
+        }
+
+        if (result.queued) {
+          if (result.promptId) queuedAttachmentsRef.current.set(result.promptId, attachments);
+          markActivity();
+          return;
+        }
+
         setError(null);
         setNotice(null);
         setCompaction(null);
@@ -1078,16 +1069,10 @@ export const useAgentSession = (
         markActivity();
         lastPromptRef.current = prompt;
         appendUserMessage(prompt, attachments);
-      } else {
-        pendingLocalRef.current.push({ prompt, attachments });
-      }
-      try {
-        const m = modeRef.current;
-        const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'orchestrator' : undefined;
-        await sendMessage(sid, prompt, modeToSend, attachments);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStatus('error');
+        throw err;
       }
     },
     [appendUserMessage, clearStreamFlush, markActivity, sendMessage]
@@ -1110,12 +1095,10 @@ export const useAgentSession = (
     setStreamingThinking('');
     setError(null);
     setTurnIdle(null);
-    // Aborting also drops the harness's native queue (SDK discardQueue).
+    // Aborting also drops the harness-owned run-after-completion queue.
     setQueuedPrompts([]);
     queuedPromptsRef.current = [];
-    pendingLocalRef.current = [];
-    previousQueueIdsRef.current = [];
-    cancelledQueueIdsRef.current = new Set();
+    queuedAttachmentsRef.current.clear();
   }, [abortSession, clearStreamFlush, finalizeStream]);
 
   /** One-click recovery: re-send the last user prompt after an error. */
@@ -1220,7 +1203,7 @@ export const useAgentSession = (
   const removeQueuedPrompt = useCallback(
     async (promptId: string) => {
       const sid = sessionIdRef.current;
-      cancelledQueueIdsRef.current.add(promptId);
+      queuedAttachmentsRef.current.delete(promptId);
       setQueuedPrompts((prev) => {
         const next = prev.filter((p) => p.id !== promptId);
         queuedPromptsRef.current = next;
@@ -1241,9 +1224,7 @@ export const useAgentSession = (
   const clearQueue = useCallback(async () => {
     const sid = sessionIdRef.current;
     const prompts = queuedPromptsRef.current;
-    prompts.forEach((p) => cancelledQueueIdsRef.current.add(p.id));
-    pendingLocalRef.current = [];
-    previousQueueIdsRef.current = [];
+    queuedAttachmentsRef.current.clear();
     queuedPromptsRef.current = [];
     setQueuedPrompts([]);
     if (sid && prompts.length > 0) {

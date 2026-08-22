@@ -1,5 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Icon } from '@iconify/react';
+import {
+  ArrowsIn,
+  ArrowsOut,
+  Brain,
+  ChatCircle,
+  Check,
+  DotsThree,
+  Eye,
+  EyeSlash,
+  Info,
+  Lightning,
+  ListChecks,
+  Memory,
+  PencilSimple,
+  SealCheck,
+  ShareNetwork,
+  X,
+} from '@phosphor-icons/react';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { AgentChat } from './AgentChat';
 import { AgentInput } from './AgentInput';
@@ -32,36 +49,17 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   error: { label: 'needs attention', color: 'text-rose-500' },
 };
 
-const MODE_ICON_META: Record<AgentMode, { icon: string; colorClass: string; glow: string }> = {
-  ask: {
-    icon: 'material-symbols:chat-bubble-rounded',
-    colorClass: 'text-sky-400',
-    glow: 'rgba(56, 189, 248, 0.5)',
-  },
-  act: {
-    icon: 'material-symbols:bolt-rounded',
-    colorClass: 'text-emerald-400',
-    glow: 'rgba(52, 211, 153, 0.5)',
-  },
-  plan: {
-    icon: 'material-symbols:checklist-rounded',
-    colorClass: 'text-amber-400',
-    glow: 'rgba(251, 191, 36, 0.5)',
-  },
-  orchestrator: {
-    icon: 'material-symbols:hub-rounded',
-    colorClass: 'text-violet-400',
-    glow: 'rgba(167, 139, 250, 0.55)',
-  },
+const MODE_ICON_META: Record<AgentMode, { icon: React.ReactNode; colorClass: string }> = {
+  ask: { icon: <ChatCircle size={16} />, colorClass: 'text-[var(--text-secondary)]' },
+  act: { icon: <Lightning size={16} />, colorClass: 'text-[var(--text-secondary)]' },
+  plan: { icon: <ListChecks size={16} />, colorClass: 'text-[var(--text-secondary)]' },
+  orchestrator: { icon: <ShareNetwork size={16} />, colorClass: 'text-[var(--text-secondary)]' },
 };
 
-const ModeIcon: React.FC<{ meta: { icon: string; colorClass: string; glow: string } }> = ({ meta }) => (
-  <Icon
-    icon={meta.icon}
-    className={`h-4 w-4 animate-mode-icon ${meta.colorClass}`}
-    style={{ '--icon-glow': meta.glow } as React.CSSProperties}
-    aria-hidden="true"
-  />
+const ModeIcon: React.FC<{ meta: { icon: React.ReactNode; colorClass: string } }> = ({ meta }) => (
+  <span className={`inline-flex ${meta.colorClass}`} aria-hidden="true">
+    {meta.icon}
+  </span>
 );
 
 const MODE_ICON: Record<AgentMode, React.ReactNode> = {
@@ -118,9 +116,7 @@ const EffortSelect: React.FC<{
             : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
         }`}
       >
-        <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0013 19.5V20a1 1 0 01-1 1 1 1 0 01-1-1v-.5c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
+        <Brain size={12} weight="regular" />
         <span>{selected ? selected.label : 'Default'}</span>
       </button>
       <AgentPaneMenu open={open} onClose={() => setOpen(false)} anchorRef={anchorRef} width={140}>
@@ -141,9 +137,7 @@ const EffortSelect: React.FC<{
             >
               <span className="truncate">{opt.label}</span>
               {opt.value === value && (
-                <svg className="w-3 h-3 flex-shrink-0 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
+                <Check size={12} weight="bold" className="flex-shrink-0 text-[var(--accent)]" />
               )}
             </button>
           ))}
@@ -229,6 +223,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   const runStartedAtRef = useRef<number | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState('');
+  const [replyDraft, setReplyDraft] = useState<string | null>(null);
   const skipTitleCommitRef = useRef(false);
 
   // Per-pane UI density (defaults to minimal so new agent panes start relaxed).
@@ -558,15 +553,13 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
 
   // Full mode keeps every control in the header; minimal mode moves them into
   // the "⋯" overflow menu and only shows a slim status line while active.
-  const showHeaderExtras = uiMode === 'full' && !isNarrow;
+  // Keep the conversation header calm at every density. Provider, model,
+  // usage, and reasoning controls remain available in the overflow menu.
+  const showHeaderExtras = false;
   const inputCompact = uiMode === 'minimal' || isShort;
   const showSlimLine =
     uiMode === 'minimal' &&
     (isWorking || status === 'error' || !!error || approvals.length > 0 || !!activeTool);
-  // Orchestrator work needs an always-visible activity surface. Replace the
-  // otherwise-empty task rail with the teammate rail when there is enough
-  // room, and keep a compact disclosure above the composer in narrow panes.
-  const showTeamSidebar = mode === 'orchestrator' && width >= NARROW_WIDTH;
   const ctxPct = contextPercent(
     contextTokens === null ? usage : { inputTokens: contextTokens, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, totalCost: 0 },
     contextWindow,
@@ -620,28 +613,24 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
   return (
     <div
       ref={paneRef}
-      className={`premium-pane agent-pane-scale flex flex-col h-full w-full overflow-hidden ${isWorking ? 'premium-pane--active' : ''}`}
+      className={`premium-pane agent-pane-scale relative flex h-full w-full flex-col overflow-hidden ${isWorking ? 'premium-pane--active' : ''}`}
       style={{
         '--agent-interface-scale': agentInterfaceScale / 100,
         '--agent-session-text-size': `${agentSessionFontSize}px`,
       } as React.CSSProperties}
     >
       {/* Pane header */}
-      <div className="premium-header flex items-center gap-1.5 px-2 py-1 select-none shrink-0">
+      <div className="premium-header flex min-h-12 shrink-0 items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-2 select-none">
         {/* UI density toggle: minimize / maximize the number of options */}
         <button
           onClick={() => setUiMode(uiMode === 'full' ? 'minimal' : 'full')}
           title={uiMode === 'full' ? 'Collapse controls (minimal UI)' : 'Expand controls (full UI)'}
-          className="electric-btn w-5 h-5 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer shrink-0"
+          className="app-icon-button h-7 w-7"
         >
           {uiMode === 'full' ? (
-            <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 3v3a2 2 0 01-2 2H3m18 0h-3a2 2 0 01-2-2V3m0 18v-3a2 2 0 012-2h3M3 16h3a2 2 0 012 2v3" />
-            </svg>
+            <ArrowsIn size={14} weight="regular" />
           ) : (
-            <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-            </svg>
+            <ArrowsOut size={14} weight="regular" />
           )}
         </button>
 
@@ -666,12 +655,12 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               }
             }}
             maxLength={80}
-            className="min-w-0 flex-1 max-w-[160px] md:max-w-[280px] h-6 rounded-md border border-[var(--accent-border)] bg-[var(--bg-main)] px-1.5 text-[11px] font-medium text-[var(--text-primary)] focus:outline-none"
+            className="app-input h-8 min-h-0 min-w-0 max-w-[280px] flex-1 px-2 py-1 text-sm"
             aria-label="Rename session"
           />
         ) : (
           <span
-            className="group flex items-center gap-1 text-[11px] font-medium text-[var(--text-primary)] truncate min-w-0 flex-1 max-w-[160px] md:max-w-[280px] cursor-text"
+            className="group flex min-w-0 max-w-[280px] flex-1 cursor-text items-center gap-1 truncate text-sm font-medium text-[var(--text-primary)]"
             title={`${title} — double-click to rename`}
             onDoubleClick={() => {
               setTitleDraft(title);
@@ -679,24 +668,20 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             }}
           >
             {title}
-            <svg
-              className="w-3 h-3 shrink-0 text-[var(--text-secondary)]/50 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+            <PencilSimple
+              size={12}
+              className="shrink-0 text-[var(--text-secondary)]/50 opacity-0 group-hover:opacity-100 transition-opacity duration-100"
+            />
           </span>
         )}
         {showHeaderExtras && <span className="hidden xl:inline-flex items-center gap-1 shrink-0">{MODE_ICON[mode]}</span>}
         {!showHeaderExtras && (
           <span
-            className="min-w-0 max-w-[min(38vw,260px)] flex items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)]/45 px-1.5 py-0.5 font-mono text-[9px] text-[var(--text-secondary)]"
+            className="flex min-w-0 max-w-[min(38vw,260px)] items-center gap-1.5 truncate text-[11px] text-[var(--text-secondary)]"
             title={`Provider: ${providerName}\nModel: ${modelName}`}
             aria-label={`Provider ${providerName}; model ${modelName}`}
           >
-            <Icon icon="material-symbols:memory-alt-rounded" className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+            <Memory size={12} className="shrink-0 text-[var(--accent)]" aria-hidden="true" />
             <span className="truncate">{connectionLabel}</span>
           </span>
         )}
@@ -743,14 +728,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 }`}
               >
                 {showAgentReasoning ? (
-                  <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
+                  <EyeSlash size={12} />
                 ) : (
-                  <svg className="electric-icon w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                  </svg>
+                  <Eye size={12} />
                 )}
               </button>
               {hasReasoning && effortValues.length > 0 && (
@@ -811,7 +791,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               className="electric-chip font-mono text-[9px] font-bold uppercase tracking-widest rounded-md border px-1.5 py-0.5 shrink-0"
               title="Fast mode is ON — the agent skips extra thinking and works as fast as possible (toggle in ⋯ menu)."
             >
-              <Icon icon="lucide:zap" className="electric-icon h-3 w-3" aria-hidden="true" />
+              <Lightning size={12} weight="fill" aria-hidden="true" />
               {!isVeryNarrow && <span>Fast</span>}
             </span>
           )}
@@ -821,28 +801,11 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             </span>
           )}
 
-          <button
-            type="button"
-            onClick={() => void handleFreeMode()}
-            disabled={switchingToFree}
-            title={
-              isFreeActive
-                ? 'Free mode is active. Click to switch back to your previous provider and model.'
-                : 'Switch this session to OpenRouter Free Models Router (click again to restore your previous connection)'
-            }
-            className={`electric-btn h-6 flex items-center gap-1 rounded-md border px-1.5 text-[9px] font-bold uppercase tracking-wider transition-all duration-150 shrink-0 ${
-              isFreeActive
-                ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
-                : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:border-emerald-500/40 hover:bg-emerald-500/10 hover:text-emerald-400'
-            } ${switchingToFree ? 'cursor-wait opacity-70' : 'cursor-pointer'}`}
-          >
-            <Icon
-              icon={switchingToFree ? 'svg-spinners:3-dots-fade' : 'material-symbols:bolt-rounded'}
-              className="electric-icon h-3.5 w-3.5"
-              aria-hidden="true"
-            />
-            {!isVeryNarrow && <span>{isFreeActive ? 'Free active' : 'Free mode'}</span>}
-          </button>
+          {isFreeActive && !isVeryNarrow && (
+            <span className="rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2 py-1 text-[10px] text-[var(--text-secondary)]">
+              Free routing
+            </span>
+          )}
 
           {/* Start a new chat (clears all context for this agent) */}
           <button
@@ -850,10 +813,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             className="electric-btn w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-100 cursor-pointer"
             title="Start a new chat (clear context)"
           >
-            <svg className="electric-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h8m-4-4v8" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 21a9 9 0 10-8.5-6L2 22l7.1-1.5a9 9 0 002.9.5z" />
-            </svg>
+            <ChatCircle size={14} />
           </button>
 
           {/* Overflow menu */}
@@ -863,20 +823,14 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             className="electric-btn w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
             title="More options"
           >
-            <svg className="electric-icon w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
-              <circle cx="5" cy="12" r="1.6" />
-              <circle cx="12" cy="12" r="1.6" />
-              <circle cx="19" cy="12" r="1.6" />
-            </svg>
+            <DotsThree size={14} weight="fill" />
           </button>
           <button
             onClick={() => onClose(session.sessionId)}
             className="electric-btn w-6 h-6 flex items-center justify-center rounded-md hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-100 cursor-pointer"
             title="Close agent"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={12} />
           </button>
         </div>
       </div>
@@ -886,7 +840,11 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
           role="status"
           className="shrink-0 flex items-center gap-2 px-2.5 py-1 border-b border-[var(--border-primary)] bg-emerald-500/[0.045] text-[10px] text-[var(--text-secondary)]"
         >
-          <Icon icon={configuredProviders.has(OPENROUTER_PROVIDER_ID) ? 'material-symbols:verified-rounded' : 'material-symbols:info-rounded'} className="h-3.5 w-3.5 shrink-0 text-emerald-400" aria-hidden="true" />
+          {configuredProviders.has(OPENROUTER_PROVIDER_ID) ? (
+            <SealCheck size={14} className="shrink-0 text-emerald-400" aria-hidden="true" />
+          ) : (
+            <Info size={14} className="shrink-0 text-emerald-400" aria-hidden="true" />
+          )}
           <span className="min-w-0 truncate">{freeModeNotice}</span>
           <button
             type="button"
@@ -895,7 +853,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             title="Dismiss"
             aria-label="Dismiss Free mode notice"
           >
-            <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+            <X size={14} aria-hidden="true" />
           </button>
         </div>
       )}
@@ -931,7 +889,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
 
       {/* Context window gauge — always visible because it is critical to track;
           collapses to a slim one-line readout in minimal mode or when the pane is short */}
-      <ContextGauge usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} slim={uiMode === 'minimal' || isShort} />
+      {uiMode === 'full' && (
+        <ContextGauge usage={usage} aggregateUsage={aggregateUsage} contextWindow={contextWindow} contextTokens={contextTokens} slim={isShort} />
+      )}
 
       {/* Linked MCP servers status (full mode; collapses to one chip when tight) */}
       {uiMode === 'full' && (
@@ -943,10 +903,10 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
         />
       )}
 
-      {/* The lead conversation keeps its own stable column. Orchestrator
-          details live in a side rail rather than displacing the composer or
-          flooding the transcript with teammate event noise. */}
-      <div className="flex flex-1 min-h-0">
+      {/* The conversation always keeps the full pane width. Orchestrator
+          activity is a session-local overlay drawer, so opening it never
+          changes chat or composer measurements. */}
+      <div className="relative flex flex-1 min-h-0">
         <div className="flex min-w-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
             {/* The floating task rail layers on top of the chat (left gutter),
@@ -969,6 +929,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 turnIdle={turnIdle}
                 onClearIdleTurn={clearIdleTurn}
                 onStopTurn={() => void abort()}
+                onReply={(text) => setReplyDraft(text)}
                 onSuggestion={(prompt) => void send(prompt)}
                 completed={status === 'done' && messages.length > 0}
                 elapsedSec={elapsed}
@@ -1001,6 +962,8 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                     queuedPrompts={queuedPrompts}
                     onRemoveQueued={(id) => void removeQueuedPrompt(id)}
                     onClearQueue={() => void clearQueue()}
+                    replyTo={replyDraft}
+                    onReplyConsumed={() => setReplyDraft(null)}
                   />
                 </div>
               </div>
@@ -1012,14 +975,15 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               onAlwaysAllow={handleAlwaysAllow}
             />
 
-            {mode === 'orchestrator' && !showTeamSidebar && (
-              <TeamProgressPanel team={team} subAgents={subAgents} layout="inline" />
-            )}
-
           </div>
-
-          {showTeamSidebar && <TeamProgressPanel team={team} subAgents={subAgents} layout="sidebar" />}
         </div>
+
+        <TeamProgressPanel
+          team={team}
+          subAgents={subAgents}
+          containerWidth={availableWidth}
+          visible={mode === 'orchestrator'}
+        />
       </div>
 
       {/* Overflow menu: providers, models, usage, context, UI mode */}
@@ -1033,9 +997,7 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             className="flex items-center justify-center w-5 h-5 rounded-sm text-[var(--text-secondary)]/60 hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] cursor-pointer"
             title="Close"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={12} />
           </button>
         </div>
         <div className="p-2 space-y-2">
@@ -1084,6 +1046,24 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
             </span>
             <span className="ml-auto font-mono text-[8px] text-[var(--text-secondary)]/50">
               {showAgentReasoning ? 'on' : 'off'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              void handleFreeMode();
+            }}
+            disabled={switchingToFree}
+            className="premium-btn-ghost w-full flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-left disabled:cursor-wait disabled:opacity-60"
+            title={isFreeActive ? 'Restore the previous provider and model' : 'Use the OpenRouter Free Models Router'}
+          >
+            <span className="text-[11px] font-medium text-[var(--text-primary)]">
+              {isFreeActive ? 'Leave free routing' : 'Use free routing'}
+            </span>
+            <span className="ml-auto text-[10px] text-[var(--text-secondary)]">
+              {switchingToFree ? 'Switching…' : isFreeActive ? 'active' : 'OpenRouter'}
             </span>
           </button>
 

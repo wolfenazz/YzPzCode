@@ -2,20 +2,54 @@ import React, { useId, useMemo, useRef, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
-import remarkBreaks from 'remark-breaks';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import hljs from 'highlight.js';
-import { Icon } from '@iconify/react';
+import {
+  ArrowClockwise,
+  BookOpenText,
+  BookmarkSimple,
+  Bug,
+  ChatCircle,
+  Check,
+  CheckCircle,
+  CircleNotch,
+  Clock,
+  ClockCountdown,
+  Code,
+  Copy,
+  FileText,
+  Flask,
+  GitCommit,
+  Image,
+  PaperPlaneRight,
+  Sparkle,
+  Square,
+  Stack,
+  Translate,
+  WarningCircle,
+  X,
+} from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { ClineContentBlock, ClineMessage, ToolLogEntry } from '../../hooks/useAgentSession';
 import type { AgentCompactionStatus } from '../../hooks/useAgentSession';
 import { DiffView, isEditTool } from './DiffView';
 import { QuestionCard } from './QuestionCard';
 import { parseUiEditRequest, UiEditRequestCard } from './UiEditRequestCard';
+import {
+  Conversation as AiConversation,
+  ConversationContent as AiConversationContent,
+  ConversationEmptyState as AiConversationEmptyState,
+  ConversationScrollButton as AiConversationScrollButton,
+} from '../ai-elements/conversation';
+import { Message as AiMessage, MessageContent as AiMessageContent } from '../ai-elements/message';
+import {
+  Reasoning as AiReasoning,
+  ReasoningContent as AiReasoningContent,
+  ReasoningTrigger as AiReasoningTrigger,
+} from '../ai-elements/reasoning';
+import { Tool as AiTool, ToolContent as AiToolContent, ToolHeader as AiToolHeader } from '../ai-elements/tool';
 import { useProjectMemory } from '../../hooks/useProjectMemory';
-import BlurText from '../effects/BlurText';
 import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
 import type { AgentAttachment, AgentQuestion } from '../../types';
@@ -47,9 +81,9 @@ interface AgentChatProps {
   completed?: boolean;
   elapsedSec?: number;
   toolCount?: number;
-  autoScroll?: boolean;
   /** Reserves scroll room when the transparent composer overlays this chat. */
   composerOverlay?: boolean;
+  onReply?: (text: string) => void;
 }
 
 const toolLabel = (name: string): string => {
@@ -106,48 +140,6 @@ const humanizeAgentError = (raw: string): string => {
     return 'The conversation outgrew the model\u2019s context window. The agent will try to compact it — continue when ready.';
   }
   return 'The agent hit a hiccup while working. Your work and conversation are safe — continue to resume.';
-};
-
-const toolIcon: Record<string, string> = {
-  run_commands: 'lucide:terminal-square',
-  read_files: 'lucide:book-open',
-  search_codebase: 'lucide:search',
-  fetch_web: 'lucide:globe-2',
-  fetch_web_content: 'lucide:globe-2',
-  editor: 'lucide:pen-line',
-  apply_patch: 'lucide:file-pen-line',
-  write_file: 'lucide:file-plus-2',
-  create_directory: 'lucide:folder-plus',
-  mkdir: 'lucide:folder-plus',
-  skills: 'lucide:book-open-check',
-  skill: 'lucide:book-open-check',
-  todo_write: 'lucide:list-todo',
-};
-
-const TOOL_ACCENT: Record<string, string> = {
-  run_commands: 'text-emerald-500',
-  read_files: 'text-sky-400',
-  search_codebase: 'text-sky-400',
-  fetch_web: 'text-violet-400',
-  fetch_web_content: 'text-violet-400',
-  editor: 'text-[var(--accent)]',
-  apply_patch: 'text-amber-400',
-  write_file: 'text-[var(--accent)]',
-  create_directory: 'text-emerald-500',
-  mkdir: 'text-emerald-500',
-  skills: 'text-violet-400',
-  skill: 'text-violet-400',
-  todo_write: 'text-emerald-500',
-};
-
-const formatToolInput = (input: unknown): string => {
-  if (input == null) return '';
-  try {
-    const str = typeof input === 'string' ? input : JSON.stringify(input, null, 2);
-    return str.length > 20000 ? `${str.slice(0, 20000)}\n… (truncated)` : str;
-  } catch {
-    return String(input);
-  }
 };
 
 const formatToolResult = (content: unknown): string => {
@@ -222,20 +214,40 @@ const GeneratedImageBlock = React.memo(function GeneratedImageBlock({ source, la
     <figure className="overflow-hidden rounded-xl border border-[var(--accent-border)]/70 bg-[var(--bg-tertiary)]/35 shadow-[0_8px_24px_-18px_var(--accent)]">
       <img src={source} alt={label} loading="lazy" className="max-h-96 w-full max-w-[520px] object-contain" />
       <figcaption className="flex items-center gap-1.5 border-t border-[var(--accent-border)]/45 px-2.5 py-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/70">
-        <Icon icon="lucide:image" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
+        <Image size={12} className="text-[var(--accent)]" aria-hidden="true" />
         {label}
       </figcaption>
     </figure>
   );
 });
 
+const isRemoteImageUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'https:' || url.protocol === 'http:') &&
+      /\.(?:avif|gif|jpe?g|png|svg|webp)(?:$|[?#])/i.test(url.pathname + url.search);
+  } catch {
+    return false;
+  }
+};
+
+const RemoteImageCard: React.FC<{ src?: string; alt?: string }> = ({ src, alt = 'Image from the agent' }) => {
+  if (!src || !isRemoteImageUrl(src)) return <span>{alt}</span>;
+  return (
+    <figure className="agent-remote-image group my-3 max-w-[min(100%,620px)] overflow-hidden rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/45 shadow-[0_14px_34px_-24px_rgba(0,0,0,0.7)]">
+      <a href={src} target="_blank" rel="noreferrer" className="block" title="Open image in a new window">
+        <img src={src} alt={alt} loading="lazy" className="block max-h-[460px] w-full object-contain transition-transform duration-300 group-hover:scale-[1.01]" />
+      </a>
+      <figcaption className="flex items-center gap-2 border-t border-[var(--border-primary)] px-3 py-2 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--text-secondary)]/75">
+        <Image size={13} className="shrink-0 text-[var(--accent)]" aria-hidden="true" />
+        <span className="truncate">Image · click to open full size</span>
+      </figcaption>
+    </figure>
+  );
+};
+
 const markdownPlugins = [remarkGfm, remarkMath];
 const markdownRehype = [rehypeKatex];
-// Thinking streams often use single line breaks instead of blank lines. By
-// default CommonMark collapses a lone `\n` into a space, which flattens the
-// reasoning into an unreadable wall of text — `remarkBreaks` keeps those
-// breaks visible without touching how normal assistant prose renders.
-const reasoningPlugins = [remarkGfm, remarkMath, remarkBreaks];
 
 const hasArabicText = (text: string): boolean => /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text);
 
@@ -335,7 +347,7 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
           className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
           title={`Translate this section to ${selectedLanguage?.label ?? targetLanguage}`}
         >
-          <Icon icon={isTranslating ? 'svg-spinners:3-dots-scale' : 'material-symbols:translate-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
+          {isTranslating ? <CircleNotch size={14} weight="bold" className="animate-spin" /> : <Translate size={14} />}
           {isTranslating ? 'Translating' : 'Translate'}
         </button>
         <button
@@ -344,7 +356,7 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
           className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)]"
           title={copied ? 'Copied agent response' : 'Copy agent response'}
         >
-          <Icon icon={copied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
+          {copied ? <Check size={14} /> : <Copy size={14} />}
           {copied ? 'Copied' : 'Copy'}
         </button>
         <button
@@ -353,7 +365,7 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
           className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)]"
           title={remembered ? 'Saved to project memory' : 'Save this response to project memory (.yzpzcode/memory.md)'}
         >
-          <Icon icon={remembered ? 'material-symbols:check-rounded' : 'material-symbols:memory-export-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
+          {remembered ? <Check size={14} /> : <BookmarkSimple size={14} />}
           {remembered ? 'Remembered' : 'Remember'}
         </button>
       </div>
@@ -369,7 +381,7 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
       {translation && (
         <section className="mt-2 rounded-lg border border-[var(--accent-border)]/35 bg-[var(--accent-light)]/[0.06] px-3 py-2.5 not-prose">
           <div className="mb-2 flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.08em] text-[var(--accent)]">
-            <Icon icon="material-symbols:translate-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+            <Translate size={14} className="text-[var(--accent)]" aria-hidden="true" />
             Translated to {selectedLanguage?.label}
             <button
               type="button"
@@ -378,7 +390,7 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
               title="Hide translation"
               aria-label="Hide translation"
             >
-              <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+              <X size={14} aria-hidden="true" />
             </button>
           </div>
           <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(translation)}>
@@ -583,94 +595,23 @@ const CodeBlock: React.FC<{ className?: string; children?: React.ReactNode }> = 
   );
 };
 
-type ToolInputRecord = Record<string, unknown>;
-
-interface ToolInputDetails {
-  commands: string[];
-  paths: string[];
-  skills: string[];
-  fields: Array<{ label: string; value: string; icon: string }>;
-  raw: string;
-}
-
-const toolInputLabels: Record<string, string> = {
-  cwd: 'Working folder',
-  directory: 'Folder',
-  dir: 'Folder',
-  query: 'Search for',
-  pattern: 'Pattern',
-  url: 'Web address',
-  description: 'Description',
-  task: 'Task',
-  content: 'Content',
-  recursive: 'Search subfolders',
-  timeout: 'Timeout',
-};
-
-const isToolInputRecord = (value: unknown): value is ToolInputRecord =>
+const isToolInputRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
-
-const readableToolInputValue = (value: unknown): string => {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value)) {
-    return value
-      .slice(0, 4)
-      .map((item) => readableToolInputValue(item))
-      .join(', ');
-  }
-  if (isToolInputRecord(value)) {
-    const path = value.path ?? value.filePath ?? value.name;
-    if (typeof path === 'string') return path;
-  }
-  return formatToolInput(value).replace(/\s+/g, ' ').trim();
-};
 
 const stringListFromInput = (value: unknown): string[] => {
   if (typeof value === 'string') return [value];
   if (!Array.isArray(value)) return [];
   return value
-    .map((item) => readableToolInputValue(item))
+    .map((item) => (typeof item === 'string' ? item : typeof item === 'object' && item !== null ? String((item as { path?: unknown }).path ?? '') : ''))
     .filter(Boolean);
 };
 
-const skillNamesFromInput = (input: unknown): string[] => {
-  if (typeof input === 'string' && input.trim()) return [input.trim()];
-  if (!isToolInputRecord(input)) return [];
-  const candidates = [input.skills, input.skillNames, input.skillName, input.skill_name, input.skill, input.name];
-  return [...new Set(candidates.flatMap((candidate) => stringListFromInput(candidate)).filter(Boolean))];
-};
-
-const getToolInputDetails = (name: string, input: unknown): ToolInputDetails => {
-  const raw = formatToolInput(input);
-  const skills = name === 'skills' || name === 'skill' ? skillNamesFromInput(input) : [];
-  if (!isToolInputRecord(input)) {
-    return {
-      commands: [],
-      paths: [],
-      skills,
-      fields: raw && skills.length === 0 ? [{ label: 'Details', value: raw, icon: 'lucide:info' }] : [],
-      raw,
-    };
-  }
-
+/** First shell command in a tool input, when there is one. Lets a running
+    activity row show exactly what is executing. */
+const getRunningCommand = (input: unknown): string | undefined => {
+  if (!isToolInputRecord(input)) return undefined;
   const commandValue = input.commands ?? input.command ?? input.cmd;
-  const commands = stringListFromInput(commandValue);
-  const pathKeys = ['paths', 'files', 'filePaths', 'path', 'filePath', 'directory', 'dir'];
-  const paths = pathKeys.flatMap((key) => stringListFromInput(input[key]));
-  const handledKeys = new Set([
-    'commands', 'command', 'cmd', ...pathKeys,
-    ...(skills.length > 0 ? ['skills', 'skillNames', 'skillName', 'skill_name', 'skill', 'name'] : []),
-  ]);
-  const fields = Object.entries(input)
-    .filter(([key, value]) => !handledKeys.has(key) && value != null)
-    .map(([key, value]) => ({
-      label: toolInputLabels[key] ?? key.replace(/([A-Z])/g, ' $1').replace(/^./, (letter) => letter.toUpperCase()),
-      value: readableToolInputValue(value),
-      icon: key === 'url' ? 'lucide:globe-2' : key === 'query' || key === 'pattern' ? 'lucide:search' : 'lucide:sliders-horizontal',
-    }));
-
-  return { commands, paths: [...new Set(paths)], skills, fields, raw };
+  return stringListFromInput(commandValue)[0];
 };
 
 /** Bordered output card: header (label + expand + copy) over a scrollable body. */
@@ -720,13 +661,9 @@ const OutputBlock = React.memo(function OutputBlock({
         }`}
       >
         {isError ? (
-          <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
+          <WarningCircle size={12} className="shrink-0" />
         ) : (
-          <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
+          <PaperPlaneRight size={12} className="shrink-0" />
         )}
         <span className="truncate">{label}</span>
         <span className="ml-auto flex items-center gap-2 shrink-0">
@@ -761,12 +698,34 @@ const OutputBlock = React.memo(function OutputBlock({
   );
 });
 
-const markdownComponents = { code: CodeBlock } as const;
+const markdownComponents = {
+  code: CodeBlock,
+  img: ({ src, alt }: React.ImgHTMLAttributes<HTMLImageElement>) => <RemoteImageCard src={src} alt={alt} />,
+  a: ({ href, children }: React.AnchorHTMLAttributes<HTMLAnchorElement>) =>
+    href && isRemoteImageUrl(href) ? <RemoteImageCard src={href} /> : <a href={href} target="_blank" rel="noreferrer">{children}</a>,
+} as const;
 
-const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { text: string; attachments?: AgentAttachment[] }) {
+const MessageActions: React.FC<{ text: string; onReply?: (text: string) => void; showCopy?: boolean }> = ({ text, onReply, showCopy = false }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1400);
+    } catch { /* clipboard unavailable */ }
+  };
   return (
-  <div className="flex justify-end gap-2 animate-fade-in-up">
-    <div className="max-w-[85%] rounded-2xl rounded-br-sm premium-surface !border-[var(--accent-border)] !bg-[var(--accent-light)]/25 px-3.5 py-2.5">
+    <div className="mt-2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      {onReply && <button type="button" onClick={() => onReply(text)} className="app-icon-button h-6 w-6" title="Reply to this message" aria-label="Reply to this message"><ChatCircle size={12} /></button>}
+      {showCopy && <button type="button" onClick={() => void copy()} className="app-icon-button h-6 w-6" title="Copy message" aria-label="Copy message">{copied ? <Check size={12} /> : <Copy size={12} />}</button>}
+    </div>
+  );
+};
+
+const UserBubble = React.memo(function UserBubble({ text, attachments = [], onReply }: { text: string; attachments?: AgentAttachment[]; onReply?: (text: string) => void }) {
+  return (
+    <div className="group flex w-fit max-w-full justify-end animate-fade-in-up">
+    <div className="w-fit max-w-full rounded-2xl rounded-br-md bg-[var(--bg-tertiary)] px-4 py-3">
       <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(text)}>
         <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
           {text}
@@ -789,34 +748,27 @@ const UserBubble = React.memo(function UserBubble({ text, attachments = [] }: { 
               </div>
             ) : (
               <span key={attachment.path} className="inline-flex max-w-full items-center gap-1 rounded-md bg-[var(--bg-main)]/45 px-1.5 py-1 font-mono text-[9px] text-[var(--text-secondary)]" title={attachment.path}>
-                <Icon icon={attachment.kind === 'image' ? 'lucide:image' : 'lucide:file-text'} className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+                {attachment.kind === 'image' ? <Image size={12} /> : <FileText size={12} />}
                 <span className="max-w-44 truncate">{attachment.name}</span>
               </span>
             )
           ))}
         </div>
       )}
-    </div>
-    <div className="w-6 h-6 rounded-lg bg-[var(--accent)] text-white flex items-center justify-center shrink-0 mt-0.5 shadow-sm">
-      <Icon icon="lucide:user-round" className="h-3.5 w-3.5" aria-hidden="true" />
+      <MessageActions text={text} onReply={onReply} showCopy />
     </div>
   </div>
   );
 });
 
 const AgentAvatar: React.FC = () => (
-  <div className="w-7 h-7 rounded-lg border border-[var(--accent-border)] bg-[var(--accent-light)]/20 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_0_14px_-5px_var(--accent)] overflow-hidden">
-    <img src={logo} alt="YzPzCode Agent" className="w-[18px] h-[18px] object-contain" draggable={false} />
+  <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+    <img src={logo} alt="YzPzCode Agent" className="h-4 w-4 object-contain" draggable={false} />
   </div>
 );
 
 const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { text: string; active?: boolean }) {
-  // Reasoning is part of the story, not a footnote — start expanded and stay
-  // expanded so users can read the agent's actual thinking even after the run
-  // finishes (the pane toggle hides the blocks entirely if preferred).
-  const [open, setOpen] = useState(true);
   const [copied, setCopied] = useState(false);
-  const reduceMotion = useReducedMotion();
   const hasReasoning = Boolean(text.trim());
   const wordCount = useMemo(() => (hasReasoning ? text.trim().split(/\s+/).length : 0), [text, hasReasoning]);
 
@@ -831,396 +783,82 @@ const ReasoningBlock = React.memo(function ReasoningBlock({ text, active }: { te
   };
 
   return (
-    <div
-      className={`premium-surface rounded-xl overflow-hidden transition-colors duration-150 ${
-        active
-          ? '!border-[var(--accent-border)] !bg-[var(--accent-light)]/10'
-          : ''
-      }`}
+    <AiReasoning
+      className={`agent-ai-reasoning app-surface mb-0 overflow-hidden ${active ? 'border-[var(--accent-border)]' : ''}`}
+      defaultOpen={false}
+      isStreaming={active}
     >
-      <div className="flex items-stretch">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2 cursor-pointer text-left hover:bg-[var(--bg-tertiary)]/50 transition-colors duration-100 group"
-        >
-          <span className={`relative flex items-center justify-center w-5 h-5 rounded-md shrink-0 ${active ? 'bg-[var(--accent-light)]/40' : 'bg-[var(--bg-tertiary)]'}`}>
-            <svg className={`w-3 h-3 ${active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/60'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-            {active && (
-              <span className="absolute inset-0 rounded-md border border-[var(--accent-border)]/50 animate-reasoning-ping" />
-            )}
-          </span>
-          <span className="min-w-0">
-            <span className={`block font-mono text-[9px] font-bold uppercase tracking-widest ${active ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/70'}`}>
-              {active ? 'Thinking through the next step' : 'Reasoning'}
-            </span>
-            {!active && hasReasoning && (
-              <span className="block font-mono text-[8px] normal-case tracking-normal text-[var(--text-secondary)]/45">
-                {wordCount} word{wordCount === 1 ? '' : 's'}
-              </span>
-            )}
-          </span>
-          {active && (
-            <span className="flex items-center gap-1 px-1.5 h-4 rounded-sm bg-[var(--accent-light)]/25 text-[var(--accent)] font-mono text-[8px] font-bold uppercase tracking-widest animate-fade-in shrink-0">
-              <span className="typing-dot bg-current" style={{ animationDelay: '0ms' }} />
-              <span className="typing-dot bg-current" style={{ animationDelay: '150ms' }} />
-              <span className="typing-dot bg-current" style={{ animationDelay: '300ms' }} />
-            </span>
+      <div className="flex items-center gap-2 px-3 py-2">
+        <AiReasoningTrigger
+          className="min-w-0 flex-1 text-left text-xs"
+          getThinkingMessage={(streaming) => (
+            <span>{streaming ? 'Thinking through the next step' : `${wordCount} word${wordCount === 1 ? '' : 's'} of reasoning`}</span>
           )}
-          <span className="ml-auto flex items-center gap-1.5 shrink-0">
-            <svg className={`w-3.5 h-3.5 text-[var(--text-secondary)]/45 transition-transform duration-150 ${open ? '' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </span>
-        </button>
+        />
         {hasReasoning && !active && (
           <button
             type="button"
             onClick={() => void handleCopy()}
             title="Copy thinking text"
-            className="shrink-0 self-center mr-2.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[8px] uppercase tracking-widest text-[var(--text-secondary)]/50 hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors duration-100 cursor-pointer"
+            className="app-icon-button h-6 w-6 shrink-0"
           >
-            {copied ? (
-              <>
-                <Icon icon="lucide:check" className="h-3 w-3 text-emerald-400" aria-hidden="true" />
-                copied
-              </>
-            ) : (
-              <>
-                <Icon icon="lucide:copy" className="h-3 w-3" aria-hidden="true" />
-                copy
-              </>
-            )}
+            {copied ? <Check size={12} /> : <Copy size={12} />}
           </button>
         )}
       </div>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
-            transition={{ duration: reduceMotion ? 0 : 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="mx-3 mb-2.5 rounded-md border border-[var(--border-primary)]/50 bg-[var(--bg-main)]/45 px-3 py-2.5"
-            aria-live={active ? 'polite' : undefined}
-          >
-            {hasReasoning ? (
-              <div className="agent-rich-text reasoning-body text-[11.5px] leading-relaxed text-[var(--text-secondary)] markdown-body" {...richTextDirection(text)}>
-                <ReactMarkdown remarkPlugins={reasoningPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
-                  {text}
-                </ReactMarkdown>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 py-0.5 text-[10px] leading-relaxed text-[var(--text-secondary)]">
-                <Icon icon="lucide:scan-text" className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-                <span>Reviewing the request and preparing the next action.</span>
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <AiReasoningContent className="mx-3 mb-3 mt-0 border-t border-[var(--border-primary)] pt-3 text-xs leading-relaxed">
+        {hasReasoning ? text : 'Reviewing the request and preparing the next action.'}
+      </AiReasoningContent>
+    </AiReasoning>
+  );
+});
+
+/** Transient one-line activity row for a tool executing right now. Non-edit
+    tools never get a card — only file edits get the diff surface; while a
+    command is actually running this row shows it inline without card chrome. */
+const ToolActivityRow = React.memo(function ToolActivityRow({ name, input }: { name: string; input: unknown }) {
+  const command = getRunningCommand(input);
+  return (
+    <div
+      className="flex min-w-0 items-center gap-2 py-0.5 text-[11px] text-[var(--text-secondary)] animate-fade-in"
+      aria-live="polite"
+    >
+      <CircleNotch size={12} weight="bold" className="shrink-0 animate-spin text-[var(--accent)]" aria-hidden="true" />
+      <span className="truncate font-medium text-[var(--text-primary)]">{toolLabel(name)}</span>
+      {command && <code className="min-w-0 truncate font-mono text-[10px]">{`$ ${command}`}</code>}
     </div>
   );
 });
 
-/** Human-readable tool parameters with raw transport data kept deliberately secondary. */
-const ToolInputDetails: React.FC<{ name: string; input: unknown }> = ({ name, input }) => {
-  const [showRaw, setShowRaw] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const rawInputId = useId();
-  const reduceMotion = useReducedMotion();
-  const details = useMemo(() => getToolInputDetails(name, input), [name, input]);
-  const hasSummary = details.commands.length > 0 || details.paths.length > 0 || details.skills.length > 0 || details.fields.length > 0;
-  const entryMotion = reduceMotion
-    ? { initial: false, animate: { opacity: 1 } }
-    : { initial: { opacity: 0, y: 6 }, animate: { opacity: 1, y: 0 } };
-
-  const copyRaw = async (): Promise<void> => {
-    try {
-      await navigator.clipboard.writeText(details.raw);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1200);
-    } catch {
-      // Clipboard access can be unavailable in an embedded webview.
-    }
-  };
-
-  return (
-    <motion.div
-      {...entryMotion}
-      transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.16, 1, 0.3, 1] }}
-      className="space-y-2.5 px-0.5 py-0.5"
-    >
-      {details.skills.length > 0 && (
-        <section aria-label="Skills applied by the agent">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium text-[var(--text-secondary)]">
-            <Icon icon="lucide:book-open-check" className="h-3.5 w-3.5 text-violet-400" aria-hidden="true" />
-            <span>{details.skills.length === 1 ? 'Skill applied' : `${details.skills.length} skills applied`}</span>
-          </div>
-          <div className="rounded-md border border-violet-500/15 bg-violet-500/[0.045] px-2.5 py-2">
-            <div className="flex flex-wrap gap-1.5">
-              {details.skills.map((skill, index) => (
-                <motion.span
-                  key={`${skill}-${index}`}
-                  initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.16, delay: reduceMotion ? 0 : index * 0.035 }}
-                  className="inline-flex items-center gap-1 rounded-md bg-violet-500/10 px-1.5 py-1 font-mono text-[9.5px] text-violet-200"
-                >
-                  <Icon icon="lucide:bookmark-check" className="h-3 w-3" aria-hidden="true" />
-                  {skill}
-                </motion.span>
-              ))}
-            </div>
-            <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--text-secondary)]">
-              The agent is following the specialized guidance from this skill for the current task.
-            </p>
-          </div>
-        </section>
-      )}
-
-      {details.commands.length > 0 && (
-        <section aria-label="Commands to run">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium text-[var(--text-secondary)]">
-            <Icon icon="lucide:terminal-square" className="h-3.5 w-3.5 text-emerald-500" aria-hidden="true" />
-            <span>{details.commands.length === 1 ? 'Command' : `${details.commands.length} commands`}</span>
-          </div>
-          <div className="overflow-hidden rounded-md border border-emerald-500/15 bg-emerald-500/[0.045]">
-            {details.commands.map((command, index) => (
-              <motion.div
-                key={`${command}-${index}`}
-                initial={reduceMotion ? false : { opacity: 0, x: -5 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.16, delay: reduceMotion ? 0 : index * 0.035 }}
-                className="flex gap-2 px-2.5 py-2 font-mono text-[10.5px] leading-relaxed text-[var(--text-primary)] [&:not(:last-child)]:border-b [&:not(:last-child)]:border-emerald-500/10"
-              >
-                <span className="select-none text-emerald-500/70" aria-hidden="true">$</span>
-                <code className="min-w-0 break-words">{command}</code>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {details.paths.length > 0 && (
-        <section aria-label="Files and folders involved">
-          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-medium text-[var(--text-secondary)]">
-            <Icon icon="lucide:files" className="h-3.5 w-3.5 text-sky-400" aria-hidden="true" />
-            <span>{details.paths.length === 1 ? 'File or folder' : `${details.paths.length} files or folders`}</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {details.paths.map((path, index) => (
-              <motion.span
-                key={`${path}-${index}`}
-                initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.16, delay: reduceMotion ? 0 : index * 0.03 }}
-                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-sky-500/15 bg-sky-500/[0.045] px-2 py-1.5 font-mono text-[10px] text-[var(--text-secondary)]"
-                title={path}
-              >
-                <Icon icon="lucide:file" className="h-3 w-3 shrink-0 text-sky-400" aria-hidden="true" />
-                <span className="max-w-96 truncate">{path}</span>
-              </motion.span>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {details.fields.length > 0 && (
-        <section className="grid gap-1.5 sm:grid-cols-2" aria-label="Tool details">
-          {details.fields.map((field, index) => (
-            <motion.div
-              key={field.label}
-              initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: reduceMotion ? 0 : 0.16, delay: reduceMotion ? 0 : index * 0.03 }}
-              className="min-w-0 rounded-md bg-[var(--bg-tertiary)]/45 px-2.5 py-2"
-            >
-              <div className="mb-1 flex items-center gap-1.5 text-[9px] font-medium text-[var(--text-secondary)]/65">
-                <Icon icon={field.icon} className="h-3 w-3 shrink-0" aria-hidden="true" />
-                <span>{field.label}</span>
-              </div>
-              <p className="break-words text-[10.5px] leading-relaxed text-[var(--text-primary)]">{field.value}</p>
-            </motion.div>
-          ))}
-        </section>
-      )}
-
-      {!hasSummary && (
-        <div className="flex items-center gap-2 rounded-md bg-[var(--bg-tertiary)]/40 px-2.5 py-2 text-[10.5px] text-[var(--text-secondary)]">
-          <Icon icon="lucide:info" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span>This step did not include additional parameters.</span>
-        </div>
-      )}
-
-      {details.raw && (
-        <div className="flex items-center justify-between border-t border-[var(--border-primary)]/55 pt-2">
-          <span className="text-[9px] text-[var(--text-secondary)]/55">Technical details</span>
-          <div className="flex items-center gap-2">
-            <motion.button
-              type="button"
-              onClick={() => void copyRaw()}
-              whileHover={reduceMotion ? undefined : { y: -1 }}
-              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-              className="inline-flex items-center gap-1 text-[9px] font-medium text-[var(--text-secondary)]/65 transition-colors hover:text-[var(--text-primary)]"
-            >
-              <Icon icon={copied ? 'lucide:check' : 'lucide:copy'} className="h-3 w-3" aria-hidden="true" />
-              {copied ? 'Copied' : 'Copy'}
-            </motion.button>
-            <motion.button
-              type="button"
-              onClick={() => setShowRaw((value) => !value)}
-              whileHover={reduceMotion ? undefined : { y: -1 }}
-              whileTap={reduceMotion ? undefined : { scale: 0.97 }}
-              className="inline-flex items-center gap-1 rounded-md bg-[var(--bg-tertiary)]/70 px-1.5 py-1 text-[9px] font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-              aria-expanded={showRaw}
-              aria-controls={`tool-raw-input-${name}-${rawInputId}`}
-            >
-              <Icon icon={showRaw ? 'lucide:chevron-up' : 'lucide:braces'} className="h-3 w-3" aria-hidden="true" />
-              {showRaw ? 'Hide raw' : 'View raw'}
-            </motion.button>
-          </div>
-        </div>
-      )}
-
-      <AnimatePresence initial={false}>
-        {showRaw && (
-          <motion.div
-            id={`tool-raw-input-${name}-${rawInputId}`}
-            initial={reduceMotion ? false : { opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: -4 }}
-            transition={{ duration: reduceMotion ? 0 : 0.14, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden rounded-md border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/35"
-          >
-            <pre className="max-h-72 overflow-auto px-2.5 py-2 font-mono text-[9.5px] leading-relaxed text-[var(--text-secondary)] whitespace-pre-wrap">
-              {details.raw}
-            </pre>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
-
 const ToolBlock = React.memo(function ToolBlock({ name, input, result, running }: { name: string; input: unknown; result?: unknown; running?: boolean }) {
-  // Show every tool's payload (commands, files, parameters) by default so the
-  // user can see exactly what the agent ran without expanding each step.
   const editTool = isEditTool(name);
-  const [open, setOpen] = useState(true);
-  const [completionPulse, setCompletionPulse] = useState(false);
-  const wasRunningRef = useRef(Boolean(running));
-  const reduceMotion = useReducedMotion();
-  const animationsEnabled = useAppStore((s) => s.animationsEnabled);
-  const shouldAnimate = animationsEnabled && !reduceMotion;
-  const visible = editTool || open;
-  const accent = TOOL_ACCENT[name] ?? 'text-[var(--text-secondary)]';
-  const appliedSkills = name === 'skills' || name === 'skill' ? skillNamesFromInput(input) : [];
 
-  useEffect(() => {
-    if (wasRunningRef.current && !running && shouldAnimate) {
-      setCompletionPulse(true);
-      const timer = window.setTimeout(() => setCompletionPulse(false), 520);
-      wasRunningRef.current = false;
-      return () => window.clearTimeout(timer);
-    }
-    wasRunningRef.current = Boolean(running);
-    return undefined;
-  }, [running, shouldAnimate]);
+  // Quiet by default: finished non-edit tools leave the transcript (the agent's
+  // next message explains the result). While running they are one quiet line.
+  if (!editTool) {
+    if (!running) return null;
+    return <ToolActivityRow name={name} input={input} />;
+  }
 
+  // The one card that deserves a surface: a real file diff.
   return (
-    <motion.div
-      initial={shouldAnimate ? { opacity: 0, y: 10, scale: 0.992 } : false}
-      animate={completionPulse ? { opacity: 1, y: 0, scale: [1, 1.008, 1] } : { opacity: 1, y: 0, scale: 1 }}
-      transition={completionPulse
-        ? { duration: 0.42, ease: [0.16, 1, 0.3, 1] }
-        : { type: 'spring', stiffness: 360, damping: 28, mass: 0.72 }}
-      className={`premium-surface relative overflow-hidden rounded-xl transition-colors duration-150 ${running ? '!border-[var(--accent-border)] !bg-[var(--accent-light)]/5' : ''}`}
+    <AiTool
+      className="agent-ai-tool mb-0 overflow-hidden rounded-xl border-[var(--border-primary)] bg-[var(--bg-secondary)]"
+      open
+      onOpenChange={() => undefined}
     >
-      <AnimatePresence initial={false}>
-        {running && shouldAnimate && (
-          <motion.span
-            initial={{ opacity: 0, scaleY: 0.35 }}
-            animate={{ opacity: [0.45, 1, 0.45], scaleY: [0.45, 1, 0.45] }}
-            exit={{ opacity: 0, scaleY: 0.35 }}
-            transition={{ duration: 1.35, repeat: Infinity, ease: 'easeInOut' }}
-            className="pointer-events-none absolute inset-y-2 left-0 w-px origin-center bg-[var(--accent)]"
-            aria-hidden="true"
-          />
-        )}
-      </AnimatePresence>
-      <motion.button
-        type="button"
-        onClick={() => {
-          if (!editTool) setOpen((v) => !v);
-        }}
-        whileHover={reduceMotion ? undefined : { y: -1 }}
-        whileTap={reduceMotion ? undefined : { scale: 0.99 }}
-        className={`w-full flex items-center gap-2 px-3 py-2 text-left cursor-pointer transition-colors duration-100 ${running ? 'bg-[var(--accent-light)]/10' : 'hover:bg-[var(--bg-tertiary)]/60'}`}
-        aria-expanded={visible}
-      >
-        <Icon icon={toolIcon[name] ?? 'lucide:wrench'} className={`h-3.5 w-3.5 shrink-0 ${accent}`} aria-hidden="true" />
-        <span className={`text-[11px] font-medium ${running ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-          {toolLabel(name)}
-        </span>
-        {appliedSkills.length > 0 && (
-          <span className="min-w-0 truncate rounded-sm bg-violet-500/10 px-1.5 py-0.5 font-mono text-[9px] text-violet-300" title={appliedSkills.join(', ')}>
-            {appliedSkills.join(', ')}
-          </span>
-        )}
-        <AnimatePresence initial={false} mode="wait">
-          {running ? (
-            <motion.span
-              key="working"
-              initial={shouldAnimate ? { opacity: 0, x: -4 } : false}
-              animate={{ opacity: 1, x: 0 }}
-              exit={shouldAnimate ? { opacity: 0, x: 3 } : undefined}
-              transition={{ duration: shouldAnimate ? 0.14 : 0 }}
-              className="ml-auto flex items-center gap-1.5 shrink-0"
-            >
-              <motion.span
-                animate={shouldAnimate ? { rotate: 360 } : undefined}
-                transition={{ duration: 1.1, repeat: Infinity, ease: 'linear' }}
-                className="flex h-3 w-3 items-center justify-center"
-                aria-hidden="true"
-              >
-                <Icon icon="lucide:loader-circle" className="h-3 w-3 text-[var(--accent)]" />
-              </motion.span>
-              <span className="text-[10px] text-[var(--accent)]">Working</span>
-            </motion.span>
-          ) : (
-            <motion.span
-              key="done"
-              initial={shouldAnimate ? { opacity: 0, scale: 0.86, x: -3 } : false}
-              animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={shouldAnimate ? { opacity: 0, x: 3 } : undefined}
-              transition={{ type: 'spring', stiffness: 420, damping: 24, mass: 0.65 }}
-              className="ml-auto flex items-center gap-1.5 shrink-0"
-            >
-              <Icon icon="lucide:check" className="h-3 w-3 text-emerald-500" aria-hidden="true" />
-              <span className="text-[10px] text-[var(--text-secondary)]/50">Done</span>
-            </motion.span>
-          )}
-        </AnimatePresence>
-        <Icon icon={visible ? 'lucide:chevron-up' : 'lucide:chevron-down'} className="ml-1 h-3 w-3 shrink-0 text-[var(--text-secondary)]/40" aria-hidden="true" />
-      </motion.button>
-      <AnimatePresence initial={false}>
-        {visible && (
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: -5 }}
-            transition={{ duration: reduceMotion ? 0 : 0.16, ease: [0.16, 1, 0.3, 1] }}
-            className="border-t border-[var(--border-primary)]/70 bg-[var(--bg-main)] p-2"
-          >
-            {editTool ? <DiffView toolName={name} input={input} result={result} /> : <ToolInputDetails name={name} input={input} />}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+      <AiToolHeader
+        className="bg-[var(--bg-tertiary)]/50"
+        state="output-available"
+        title={toolLabel(name)}
+        toolName={name}
+        type="dynamic-tool"
+        showStatus={false}
+      />
+      <AiToolContent className="border-t border-[var(--border-primary)] bg-[var(--bg-primary)] p-3">
+        <DiffView toolName={name} input={input} result={result} />
+      </AiToolContent>
+    </AiTool>
   );
 });
 
@@ -1249,7 +887,7 @@ const ToolResultBlock = React.memo(function ToolResultBlock({ content, isError }
         className="w-full flex items-center gap-2 rounded-xl premium-surface premium-lift px-2.5 py-1.5 text-left cursor-pointer transition-colors duration-100"
         title="Click to view full output"
       >
-        <Icon icon={isError ? 'lucide:triangle-alert' : 'lucide:check'} className={`h-3 w-3 shrink-0 ${isError ? 'text-amber-500/80' : 'text-emerald-500/80'}`} aria-hidden="true" />
+        {isError ? <WarningCircle size={12} /> : <Check size={12} />}
         <span className={`font-mono text-[9px] font-bold uppercase tracking-widest shrink-0 ${isError ? 'text-amber-500/70' : 'text-[var(--text-secondary)]/60'}`}>
           {isError ? 'A step needs attention' : `Output · ${lineCount} line${lineCount === 1 ? '' : 's'}`}
         </span>
@@ -1299,7 +937,7 @@ const ErrorCard = React.memo(function ErrorCard({ message, onContinue }: { messa
   return (
     <div className="rounded-lg border border-rose-500/25 bg-rose-950/10 px-3 py-2.5 animate-fade-in-up" role="alert">
       <div className="flex items-center gap-2">
-        <Icon icon="lucide:triangle-alert" className="h-3.5 w-3.5 shrink-0 text-rose-400" aria-hidden="true" />
+        <WarningCircle size={14} className="shrink-0 text-rose-400" aria-hidden="true" />
         <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-rose-400">
           The agent needs attention
         </span>
@@ -1320,7 +958,7 @@ const ErrorCard = React.memo(function ErrorCard({ message, onContinue }: { messa
             onClick={() => onContinue()}
             className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 text-[var(--accent)] hover:bg-[var(--accent-light)]/30 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
           >
-            <Icon icon="lucide:refresh-cw" className="h-3 w-3" aria-hidden="true" />
+            <ArrowClockwise size={12} aria-hidden="true" />
             Continue task
           </button>
         )}
@@ -1350,7 +988,7 @@ const IdleTurnCard = React.memo(function IdleTurnCard({
   return (
     <div className="rounded-lg border border-amber-500/25 bg-amber-950/10 px-3 py-2.5 animate-fade-in-up" role="alert">
       <div className="flex items-center gap-2">
-        <Icon icon="lucide:timer-off" className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+        <ClockCountdown size={14} className="shrink-0 text-amber-400" aria-hidden="true" />
         <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-amber-400">
           No activity for {minutes} min
         </span>
@@ -1366,7 +1004,7 @@ const IdleTurnCard = React.memo(function IdleTurnCard({
             onClick={() => onKeepWaiting()}
             className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 text-[var(--accent)] hover:bg-[var(--accent-light)]/30 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
           >
-            <Icon icon="lucide:clock-4" className="h-3 w-3" aria-hidden="true" />
+            <Clock size={12} aria-hidden="true" />
             Keep waiting
           </button>
         )}
@@ -1376,7 +1014,7 @@ const IdleTurnCard = React.memo(function IdleTurnCard({
             onClick={() => onStopTurn()}
             className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-rose-500/30 bg-rose-500/5 text-rose-400 hover:bg-rose-500/15 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
           >
-            <Icon icon="lucide:square" className="h-3 w-3" aria-hidden="true" />
+            <Square size={12} weight="fill" aria-hidden="true" />
             Stop turn
           </button>
         )}
@@ -1397,14 +1035,21 @@ const CompactionStatusCard = React.memo(function CompactionStatusCard({ status }
             ? 'Could not reduce context automatically. The agent will surface the next safe recovery step.'
             : 'Preserving the recent work and reducing older conversation context.';
   const active = status.phase === 'working';
-  const icon = status.phase === 'failed' ? 'lucide:triangle-alert' : status.phase === 'completed' ? 'lucide:check-circle-2' : 'lucide:layers-3';
+  const phaseIcon =
+    status.phase === 'failed' ? (
+      <WarningCircle size={14} />
+    ) : status.phase === 'completed' ? (
+      <CheckCircle size={14} />
+    ) : (
+      <Stack size={14} />
+    );
   const tone = status.phase === 'failed' ? 'text-rose-400 border-rose-500/30 bg-rose-500/5' : active ? 'text-[var(--accent)] border-[var(--accent-border)] bg-[var(--accent-light)]/10' : 'text-emerald-400 border-emerald-500/25 bg-emerald-500/5';
   const title = active ? 'Compacting conversation' : status.phase === 'completed' ? 'Conversation compacted' : status.phase === 'skipped' ? 'Context check complete' : 'Compaction needs attention';
 
   return (
     <div className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 animate-fade-in-up ${tone}`} aria-live="polite">
       <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-md bg-current/10 ${active ? 'animate-pulse' : ''}`}>
-        <Icon icon={icon} className="h-3.5 w-3.5" aria-hidden="true" />
+        {phaseIcon}
       </span>
       <div className="min-w-0">
         <div className="text-[11px] font-medium text-[var(--text-primary)]">{title}</div>
@@ -1448,32 +1093,60 @@ const AssistantBlock = React.memo(function AssistantBlock({ block }: { block: Cl
   return null;
 });
 
+/** Keep message chrome out of the transcript when every provider block is intentionally hidden. */
+const isVisibleAssistantBlock = (
+  block: ClineMessage['content'][number],
+  showAgentReasoning: boolean,
+): boolean => {
+  if (block.type === 'text') {
+    return typeof block.text === 'string' && block.text.trim().length > 0;
+  }
+  if (block.type === 'tool_use') {
+    const tool = block as { name?: string; toolName?: string; status?: 'running' | 'done' };
+    return tool.status === 'running' || isEditTool(tool.name ?? tool.toolName ?? 'tool');
+  }
+  if (block.type === 'tool_result') {
+    const result = block as { content?: unknown; isError?: boolean };
+    return collectImageSources(result.content).length > 0
+      || Boolean(result.isError && formatToolResult(result.content).trim());
+  }
+  if (block.type === 'image') {
+    return collectImageSources(block).length > 0;
+  }
+  if (block.type === 'thinking' || block.type === 'reasoning') {
+    const reasoning = block as { text?: string; thinking?: string; content?: string };
+    const text = reasoning.text ?? reasoning.thinking ?? reasoning.content ?? '';
+    return showAgentReasoning && text.trim().length > 0;
+  }
+  return false;
+};
+
 export /**
  * Example prompts for first-time users. Clicking one sends it as a normal
  * message in the current mode — no need to know the tools or the mode system.
  */
-const SUGGESTIONS: Array<{ prompt: string; hint: string; icon: string }> = [
-  { prompt: "What's in this project?", hint: 'short summary', icon: 'lucide:book-open' },
-  { prompt: 'Explain the code in simple words', hint: 'no jargon', icon: 'lucide:message-square-text' },
-  { prompt: 'Find any bugs and fix them', hint: 'review + fix', icon: 'lucide:bug' },
-  { prompt: 'Make the tests pass', hint: 'run + fix failures', icon: 'lucide:flask-conical' },
-  { prompt: 'Add a new feature', hint: 'describe what you want', icon: 'lucide:sparkles' },
-  { prompt: 'Summarize my recent changes', hint: 'git history', icon: 'lucide:git-commit-horizontal' },
+const SUGGESTIONS: Array<{ prompt: string; hint: string; icon: React.ReactNode }> = [
+  { prompt: "What's in this project?", hint: 'short summary', icon: <BookOpenText size={14} /> },
+  { prompt: 'Explain the code in simple words', hint: 'no jargon', icon: <ChatCircle size={14} /> },
+  { prompt: 'Find any bugs and fix them', hint: 'review + fix', icon: <Bug size={14} /> },
+  { prompt: 'Make the tests pass', hint: 'run + fix failures', icon: <Flask size={14} /> },
+  { prompt: 'Add a new feature', hint: 'describe what you want', icon: <Sparkle size={14} /> },
+  { prompt: 'Summarize my recent changes', hint: 'git history', icon: <GitCommit size={14} /> },
 ];
 
 const SuggestionGrid: React.FC<{ onSuggestion: (prompt: string) => void }> = ({ onSuggestion }) => (
-  <div className="grid grid-cols-2 gap-2 w-full max-w-[420px] mt-5">
+  <div className="app-surface mt-6 grid w-full max-w-xl grid-cols-1 overflow-hidden sm:grid-cols-2">
     {SUGGESTIONS.map((suggestion) => (
       <button
         key={suggestion.prompt}
         type="button"
         onClick={() => onSuggestion(suggestion.prompt)}
-        className="group flex items-start gap-2 rounded-lg border border-[var(--border-primary)]/80 bg-[var(--bg-tertiary)]/30 px-2.5 py-2 text-left transition-all duration-100 hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/10 cursor-pointer"
+        className="group flex items-start gap-2.5 border-b border-[var(--border-primary)] px-4 py-3 text-left transition-colors hover:bg-[var(--bg-tertiary)] sm:odd:border-r"
       >
-        <Icon icon={suggestion.icon} className="h-3.5 w-3.5 shrink-0 mt-0.5 text-[var(--accent)]" aria-hidden="true" />
+        <span className="mt-0.5 flex shrink-0 text-[var(--accent)]">{suggestion.icon}</span>
         <span className="min-w-0">
           <span className="block text-[10.5px] leading-snug text-[var(--text-primary)]">{suggestion.prompt}</span>
-          <span className="mt-0.5 block font-mono text-[8.5px] uppercase tracking-wider text-[var(--text-secondary)]/50">
+          <span className="mt-1 block text-[10px] text-[var(--text-secondary)]/65">
             {suggestion.hint}
           </span>
         </span>
@@ -1502,12 +1175,9 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   completed,
   elapsedSec,
   toolCount,
-  autoScroll = true,
   composerOverlay = false,
+  onReply,
 }) => {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const stickToLatestRef = useRef(true);
-  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
   const agentConversationWidth = useAppStore((s) => s.agentConversationWidth);
   const showLiveReasoning = showAgentReasoning && (isThinking || streamingThinking.trim().length > 0);
@@ -1519,28 +1189,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       .map((block) => block.id)),
   ), [messages]);
   const unplacedToolLog = toolLog.filter((tool) => !inlineToolIds.has(tool.id));
-
-  useEffect(() => {
-    if (autoScroll && stickToLatestRef.current && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [messages, streamingText, streamingThinking, activeTool, toolLog, isThinking, pendingQuestion, notice, compaction, autoScroll]);
-
-  const handleScroll = () => {
-    const container = scrollRef.current;
-    if (!container) return;
-    const isAtLatest = container.scrollHeight - container.scrollTop - container.clientHeight < 72;
-    stickToLatestRef.current = isAtLatest;
-    setShowJumpToLatest((previous) => previous === !isAtLatest ? previous : !isAtLatest);
-  };
-
-  const jumpToLatest = () => {
-    const container = scrollRef.current;
-    if (!container) return;
-    container.scrollTop = container.scrollHeight;
-    stickToLatestRef.current = true;
-    setShowJumpToLatest(false);
-  };
 
   const content = useMemo(() => {
     return messages.map((message, i) => {
@@ -1583,20 +1231,35 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           // center, and developer details behind collapsible sections.
           return <UiEditRequestCard key={i} request={uiEditRequest} />;
         }
-        return <UserBubble key={i} text={text} attachments={attachments} />;
+        return (
+          <AiMessage from="user" key={i}>
+            <AiMessageContent className="bg-transparent p-0">
+              <UserBubble text={text} attachments={attachments} onReply={onReply} />
+            </AiMessageContent>
+          </AiMessage>
+        );
       }
+      const visibleBlocks = message.content.filter((block) => isVisibleAssistantBlock(block, showAgentReasoning));
+      if (visibleBlocks.length === 0) return null;
       return (
-        <div key={i} className="flex gap-2 space-y-0">
-          <AgentAvatar />
-          <div className="min-w-0 flex-1 space-y-2">
-            {message.content.map((block, j) => (
-              <AssistantBlock key={j} block={block} />
-            ))}
-          </div>
-        </div>
+        <AiMessage from="assistant" key={i}>
+          <AiMessageContent className="w-full">
+            <div className="group flex gap-3">
+              <AgentAvatar />
+              <div className="min-w-0 flex-1 space-y-3">
+                {visibleBlocks.map((block, j) => (
+                  <AssistantBlock key={j} block={block} />
+                ))}
+                {message.content.some((block) => block.type === 'text') && (
+                  <MessageActions text={message.content.filter((block) => block.type === 'text').map((block) => (block as { text?: string }).text ?? '').join('\n')} onReply={onReply} />
+                )}
+              </div>
+            </div>
+          </AiMessageContent>
+        </AiMessage>
       );
     });
-  }, [messages]);
+  }, [messages, showAgentReasoning]);
 
   return (
     <div
@@ -1605,50 +1268,34 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         '--agent-session-content-width': `${agentConversationWidth}px`,
       } as React.CSSProperties}
     >
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className={`h-full overflow-y-auto custom-scrollbar px-4 sm:px-6 pt-5 ${
-          composerOverlay ? 'pb-36 sm:pb-40' : 'pb-5'
-        }`}
-      >
+      <AiConversation className="h-full">
+      <AiConversationContent className={`min-h-full gap-0 px-4 pt-8 sm:px-8 ${composerOverlay ? 'pb-40 sm:pb-44' : 'pb-8'}`}>
       {messages.length === 0 && !hasNewContent && (
-        <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center space-y-4 opacity-80">
-          <div className="relative">
-            <div className="agent-ready-icon w-12 h-12 flex items-center justify-center">
-              <img src={logo} alt="YzPzCode Agent" className="agent-ready-logo w-8 h-8 object-contain" draggable={false} />
-            </div>
+        <AiConversationEmptyState className="min-h-[360px] px-4 py-12">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
+            <img src={logo} alt="YzPzCode Agent" className="h-6 w-6 object-contain" draggable={false} />
           </div>
-          <div className="text-[13px] font-medium text-[var(--text-primary)]">
-            <BlurText
-              text="Ready when you are"
-              animateBy="words"
-              delay={90}
-              stepDuration={0.4}
-              easing={[0.16, 1, 0.3, 1]}
-              className="justify-center text-center text-[16px] font-semibold tracking-tight text-[var(--text-primary)]"
-            />
+          <div className="mt-2 space-y-2">
+            <h2 className="m-0 text-xl font-semibold">What would you like to work on?</h2>
+            <p className="mx-auto max-w-md text-sm leading-6 text-[var(--text-secondary)]">
+              Ask about the project, plan a change, or hand the agent a task to complete.
+            </p>
           </div>
-          <p className="max-w-xs font-mono text-[10px] text-[var(--text-secondary)]/50">
-            Just type what you want done — or tap an example below to get started.
-          </p>
           {onSuggestion && (
             <>
               <SuggestionGrid onSuggestion={onSuggestion} />
-              <p className="font-mono text-[9px] text-[var(--text-secondary)]/40">
-                Tip: use Ask for questions · Act (default) to make changes · Plan to check first
+              <p className="mt-4 text-xs text-[var(--text-secondary)]/65">
+                Ask explores · Act changes files · Plan reviews the approach first
               </p>
             </>
           )}
-        </div>
+        </AiConversationEmptyState>
       )}
       <div className="mx-auto w-full max-w-[var(--agent-session-content-width)] space-y-3.5">
         {content}
         {notice && (
           <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--accent-border)]/40 bg-[var(--accent-light)]/10 font-mono text-[10px] text-[var(--accent)] animate-fade-in">
-            <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
+            <Code size={12} className="shrink-0" aria-hidden="true" />
             <span className="truncate">{notice}</span>
           </div>
         )}
@@ -1662,14 +1309,25 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         )}
         {compaction && <CompactionStatusCard status={compaction} />}
         {showLiveReasoning && <ReasoningBlock key="live-reasoning" text={streamingThinking} active />}
-        {unplacedToolLog.map((t) => (
-          <div key={t.id} className="space-y-1.5">
-            <ToolBlock name={t.name} input={t.input} result={t.result} running={t.status === 'running'} />
-            {t.status === 'done' && t.result !== undefined && (
-              <ToolResultBlock content={t.result} isError={t.isError} />
-            )}
-          </div>
-        ))}
+        {unplacedToolLog.map((t) => {
+          // ToolBlock owns visibility: edit tools always render, non-edit tools
+          // only render while running. Finished failures get an error card.
+          if (isEditTool(t.name) || t.status === 'running') {
+            return (
+              <ToolBlock
+                key={t.id}
+                name={t.name}
+                input={t.input}
+                result={t.result}
+                running={t.status === 'running'}
+              />
+            );
+          }
+          if (t.isError && t.result !== undefined) {
+            return <ToolResultBlock key={t.id} content={t.result} isError />;
+          }
+          return null;
+        })}
         {activeTool && !toolLog.some((t) => t.status === 'running') && (
           <ToolBlock name={activeTool.name} input={activeTool.input} running />
         )}
@@ -1690,7 +1348,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         )}
         {completed && (
           <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.045] px-3 py-2 animate-fade-in-up">
-            <Icon icon="lucide:check-circle-2" className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+            <CheckCircle size={16} className="shrink-0 text-emerald-400" aria-hidden="true" />
             <span className="text-[11px] font-medium text-[var(--text-primary)]">All done</span>
             {typeof elapsedSec === 'number' && elapsedSec >= 1 && (
               <span className="font-mono text-[9px] text-[var(--text-secondary)]/60 tabular-nums">
@@ -1706,16 +1364,9 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           </div>
         )}
       </div>
-      </div>
-      {showJumpToLatest && (
-        <button
-          type="button"
-          onClick={jumpToLatest}
-          className="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 rounded-full border border-[var(--accent-border)] bg-[var(--bg-secondary)] px-3 py-1.5 text-[10px] font-medium text-[var(--text-primary)] shadow-lg transition-colors hover:bg-[var(--bg-tertiary)] cursor-pointer"
-        >
-          Jump to latest
-        </button>
-      )}
+      </AiConversationContent>
+      <AiConversationScrollButton className={composerOverlay ? 'bottom-36' : 'bottom-4'} />
+      </AiConversation>
     </div>
   );
 };

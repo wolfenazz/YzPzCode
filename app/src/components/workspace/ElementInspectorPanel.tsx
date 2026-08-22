@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon } from '@iconify/react';
+import { Copy, DeviceMobile, PaperPlaneRight, Plus, SlidersHorizontal, Sparkle, X } from '@phosphor-icons/react';
 import type { BrowserSelectedElement, CliType, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
 import { htmlToPlainText } from '../../utils/richText';
 import { RichPromptEditor } from './RichPromptEditor';
@@ -21,11 +21,19 @@ interface ElementInspectorPanelProps {
   sessionOptions: SessionOption[];
   isSubmitting: boolean;
   initialHtml: string;
-  onSend: (plainText: string) => Promise<void> | void;
+  instructionSlots: string[];
+  activeInstructionSlot: number;
+  onSelectSlot: (index: number) => void;
+  onAddSlot: () => void;
+  onRemoveSlot: (index: number) => void;
+  onSend: (plainText?: string) => Promise<void> | void;
   onTargetSessionChange: (sessionId: string | null) => void;
   onDraftChange: (html: string) => void;
   onClear: () => void;
 }
+
+/** Maximum number of instruction slots the user can queue at once. */
+const MAX_INSTRUCTION_SLOTS = 4;
 
 const Meta: React.FC<{ label: string; value: string; accent?: boolean }> = ({ label, value, accent }) => (
   <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
@@ -46,9 +54,9 @@ const escapePromptHtml = (value: string): string =>
 const promptToHtml = (text: string): string =>
   escapePromptHtml(text).replace(/\n/g, '<br>');
 
-const PROMPT_GROUPS: { group: InspectorQuickPromptGroup; label: string; icon: string }[] = [
-  { group: 'enhance', label: 'enhance', icon: 'material-symbols:auto-awesome-rounded' },
-  { group: 'adjust', label: 'adjust / edit', icon: 'material-symbols:tune-rounded' },
+const PROMPT_GROUPS: { group: InspectorQuickPromptGroup; label: string; icon: React.ReactNode }[] = [
+  { group: 'enhance', label: 'enhance', icon: <Sparkle size={12} /> },
+  { group: 'adjust', label: 'adjust / edit', icon: <SlidersHorizontal size={12} /> },
 ];
 
 export const ElementInspectorPanel = memo(function ElementInspectorPanel({
@@ -58,6 +66,11 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   sessionOptions,
   isSubmitting,
   initialHtml,
+  instructionSlots,
+  activeInstructionSlot,
+  onSelectSlot,
+  onAddSlot,
+  onRemoveSlot,
   onSend,
   onTargetSessionChange,
   onDraftChange,
@@ -80,6 +93,11 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
 
   const charCount = useMemo(() => htmlToPlainText(initialHtml).length, [initialHtml]);
 
+  const filledSlotCount = useMemo(
+    () => instructionSlots.filter((slot) => htmlToPlainText(slot).trim().length > 0).length,
+    [instructionSlots],
+  );
+
   const handleSend = useCallback(
     async (plainText?: string) => {
       if (isSubmitting) return;
@@ -93,6 +111,29 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
       }
     },
     [initialHtml, isSubmitting, onDraftChange, onSend],
+  );
+
+  const handleSelectSlot = useCallback(
+    (index: number) => {
+      if (index === activeInstructionSlot || index >= instructionSlots.length) return;
+      onDraftChange(instructionSlots[activeInstructionSlot] ?? '');
+      onSelectSlot(index);
+    },
+    [activeInstructionSlot, instructionSlots, onDraftChange, onSelectSlot],
+  );
+
+  const handleAddSlot = useCallback(() => {
+    if (instructionSlots.length >= MAX_INSTRUCTION_SLOTS) return;
+    onDraftChange(instructionSlots[activeInstructionSlot] ?? '');
+    onAddSlot();
+  }, [activeInstructionSlot, instructionSlots, onAddSlot, onDraftChange]);
+
+  const handleRemoveSlot = useCallback(
+    (index: number) => {
+      if (instructionSlots.length <= 1) return;
+      onRemoveSlot(index);
+    },
+    [instructionSlots.length, onRemoveSlot],
   );
 
   const handleCopyHtml = useCallback(() => {
@@ -145,7 +186,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
                 : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--text-primary)]'
             }`}
           >
-            <Icon icon="material-symbols:developer-mode-rounded" className="h-3 w-3" aria-hidden="true" />
+            <DeviceMobile size={12} aria-hidden="true" />
             dev
           </button>
           <button
@@ -155,7 +196,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
             aria-label="Clear selection"
             className="flex h-6 w-6 items-center justify-center text-[var(--text-secondary)] transition-colors hover:text-rose-400 cursor-pointer"
           >
-            <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+            <X size={14} aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -241,7 +282,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
                   onClick={handleCopyHtml}
                   className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60 transition-colors hover:text-[var(--text-primary)] cursor-pointer"
                 >
-                  <Icon icon="material-symbols:content-copy-rounded" className="h-3 w-3" aria-hidden="true" />
+                  <Copy size={12} aria-hidden="true" />
                   copy
                 </button>
               </div>
@@ -302,11 +343,60 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
           </div>
         </section>
 
-        {/* ── Instruction ─────────────────────────────────────────────── */}
+        {/* ── Instruction (multi-slot) ────────────────────────────────── */}
         <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
           <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
             <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">instruction</span>
             <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/40">{charCount} ch</span>
+          </div>
+          <div className="flex items-center gap-1 border-b border-[var(--border-primary)]/70 px-3 py-2">
+            {instructionSlots.map((slot, index) => {
+              const filled = htmlToPlainText(slot).trim().length > 0;
+              const isActive = index === activeInstructionSlot;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => handleSelectSlot(index)}
+                  title={`Instruction ${index + 1}${filled ? ' (filled)' : ''}`}
+                  aria-label={`Instruction ${index + 1}`}
+                  aria-current={isActive ? 'true' : undefined}
+                  className={`flex h-5 min-w-5 items-center justify-center gap-1 rounded-sm border px-1.5 font-mono text-[9px] font-bold transition-colors cursor-pointer ${
+                    isActive
+                      ? 'border-emerald-800 bg-emerald-950/40 text-emerald-300'
+                      : filled
+                        ? 'border-[var(--accent-border)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                        : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40 text-[var(--text-secondary)]/50 hover:text-[var(--text-primary)]'
+                  }`}
+                >
+                  {index + 1}
+                  {filled && <span className="h-1 w-1 rounded-full bg-emerald-400" aria-hidden="true" />}
+                </button>
+              );
+            })}
+            {instructionSlots.length < MAX_INSTRUCTION_SLOTS && (
+              <button
+                type="button"
+                onClick={handleAddSlot}
+                title={`Add instruction (${instructionSlots.length}/${MAX_INSTRUCTION_SLOTS})`}
+                aria-label="Add instruction slot"
+                className="flex h-5 w-5 items-center justify-center rounded-sm border border-dashed border-[var(--border-primary)] text-[var(--text-secondary)]/60 transition-colors hover:border-[var(--accent-border)] hover:text-[var(--text-primary)] cursor-pointer"
+              >
+                <Plus size={10} aria-hidden="true" />
+              </button>
+            )}
+            {instructionSlots.length > 1 && (
+              <button
+                type="button"
+                onClick={() => handleRemoveSlot(activeInstructionSlot)}
+                title={`Remove instruction ${activeInstructionSlot + 1}`}
+                aria-label={`Remove instruction ${activeInstructionSlot + 1}`}
+                className="ml-auto flex h-5 items-center gap-1 rounded-sm border border-transparent px-1.5 text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50 transition-colors hover:text-rose-400 cursor-pointer"
+              >
+                <X size={10} aria-hidden="true" />
+                remove
+              </button>
+            )}
           </div>
           <div className="p-3">
             <RichPromptEditor
@@ -317,8 +407,12 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
               submitting={isSubmitting}
             />
             <div className="mt-1.5 flex items-center justify-between text-[9px] font-medium uppercase tracking-widest text-[var(--text-secondary)]/40">
-              <span>enter ↵ send</span>
-              <span>shift+enter newline</span>
+              <span>enter ↵ send slot</span>
+              <span>
+                {instructionSlots.length > 1
+                  ? `send batches ${filledSlotCount}`
+                  : 'shift+enter newline'}
+              </span>
             </div>
           </div>
         </section>
@@ -338,7 +432,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
               return (
                 <div key={group}>
                   <div className="mb-1.5 flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">
-                    <Icon icon={icon} className="h-3 w-3" aria-hidden="true" />
+                    <span className="flex h-3 w-3 text-[var(--text-secondary)]/50" aria-hidden="true">{icon}</span>
                     {label}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -367,8 +461,14 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
           disabled={isSubmitting || sessionOptions.length === 0}
           className="flex w-full items-center justify-center gap-2 border border-emerald-800/70 bg-emerald-950/40 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300 transition-colors hover:border-emerald-700 hover:bg-emerald-900/40 hover:text-emerald-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
-          <Icon icon="material-symbols:send-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
-          <span>{isSubmitting ? 'sending…' : 'send to agent'}</span>
+          <PaperPlaneRight size={14} aria-hidden="true" />
+          <span>
+            {isSubmitting
+              ? 'sending…'
+              : filledSlotCount > 1
+                ? `send ${filledSlotCount} instructions`
+                : 'send to agent'}
+          </span>
         </button>
       </div>
     </aside>

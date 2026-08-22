@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, CliType, ManagedTerminalCommandState } from '../../types';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
+import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 import { useAppStore } from '../../stores/appStore';
 import { registerTerminal } from '../../utils/terminalRegistry';
 import '@xterm/xterm/css/xterm.css';
@@ -307,9 +308,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const launchState: CliLaunchState | null | undefined = session.agent ? getLaunchStateSync(session.id) : undefined;
   const authInfo: AuthInfo | null | undefined = session.agent ? getAuthInfoSync(session.agent) : undefined;
 
-  const customBackgroundEnabled = useAppStore((s) => s.customBackgroundEnabled);
-  const customBackgroundColor = useAppStore((s) => s.customBackgroundColor);
-  const lightThemeEnabled = useAppStore((s) => s.lightThemeEnabled);
+  const effectiveTheme = useEffectiveTheme();
 
   // xterm's color parser rejects CSS var strings, so read the resolved value
   // of --bg-terminal (app background darkened) for the canvas background.
@@ -320,7 +319,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       background: bg || DARK_TERMINAL_THEME.background,
       cursorAccent: bg || DARK_TERMINAL_THEME.cursorAccent,
     };
-  }, [customBackgroundEnabled, customBackgroundColor, lightThemeEnabled]);
+  }, [effectiveTheme]);
   const managedCommandActive =
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
@@ -1239,10 +1238,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`h-full flex flex-col overflow-hidden font-mono bg-theme-terminal transition-[border-color,box-shadow] duration-200 ${
+      className={`h-full flex flex-col overflow-hidden font-mono transition-[background-color,border-color,box-shadow] duration-200 ${
         isActive
-          ? 'border border-accent/90 rounded-sm shadow-[0_0_0_1px_var(--accent-glow),0_0_16px_var(--accent-glow),0_0_32px_rgba(216,119,87,0.12),inset_0_0_10px_rgba(0,0,0,0.5)]'
-          : 'border border-zinc-700/60 rounded-sm'
+          ? 'border border-[var(--accent)] bg-[var(--accent-light)] rounded-sm shadow-[inset_0_0_0_1px_var(--accent-border)]'
+          : 'border border-[var(--border-primary)] bg-[var(--bg-terminal)] rounded-sm'
       }`}
       onMouseDown={() => setActiveSession(session.id)}
     >
@@ -1271,7 +1270,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       />
 
       {showSearch && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-zinc-900 border-zinc-800">
+        <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5">
           <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
@@ -1287,7 +1286,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
               }
             }}
             placeholder="Search..."
-            className="flex-1 bg-transparent text-xs outline-none text-zinc-300 placeholder-zinc-600"
+            className="flex-1 bg-transparent text-xs outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
             autoFocus
           />
           <button

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Icon } from '@iconify/react';
+import { SlidersHorizontal, TerminalWindow } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
 import { useAgentCli } from '../../../hooks/useAgentCli';
 import { useToolCli } from '../../../hooks/useToolCli';
@@ -101,7 +102,7 @@ export const SettingsAgents: React.FC = () => {
         <h2 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
           CLI Management
         </h2>
-        <p className="text-[10px] text-zinc-600 uppercase tracking-[0.15em]">
+        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-[0.15em]">
           Manage AI agent CLIs, tool CLIs, and configuration
         </p>
       </div>
@@ -109,30 +110,28 @@ export const SettingsAgents: React.FC = () => {
       {/* AI Agent CLIs Section */}
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-2">
-          <svg className="w-3.5 h-3.5 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">
+          <TerminalWindow size={14} className="text-[var(--accent)]" aria-hidden="true" />
+          <h3 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">
             AI Agent CLIs
           </h3>
-          <span className="px-1.5 py-0.5 rounded text-[8px] font-mono text-zinc-500 border border-zinc-800 bg-zinc-900/50">
+          <span className="px-1.5 py-0.5 rounded text-[8px] font-mono text-[var(--text-secondary)] border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/50">
             {installedCount}/{cliTools.length} installed
           </span>
           <button
             onClick={() => { detectAllClis(); }}
             disabled={loading}
-            className="ml-auto px-3 py-1 rounded-md bg-[#3e3e38] text-zinc-500 hover:text-zinc-300 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-auto px-3 py-1 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] border border-[var(--border-primary)] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Detecting...' : 'Re-detect'}
           </button>
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <div className="flex items-center gap-3">
-            <span className="text-[10px] text-zinc-500 font-mono shrink-0">
+            <span className="text-[10px] text-[var(--text-secondary)] font-mono shrink-0">
               {installedCount}/{cliTools.length}
             </span>
-            <div className="flex-1 h-1 bg-zinc-800/80 rounded-full overflow-hidden">
+            <div className="flex-1 h-1 bg-[var(--bg-tertiary)]/80 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
@@ -151,7 +150,7 @@ export const SettingsAgents: React.FC = () => {
               return (
                 <div
                   key={tool.agent}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#262626]/40 border border-[#3e3e38]/30 hover:border-[var(--accent-border)] hover:bg-[#262626]/80 transition-colors duration-200"
+                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#262626]/40 border border-[var(--border-primary)]/70 hover:border-[var(--accent-border)] hover:bg-[#262626]/80 transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3">
                     {AGENT_ICONS[tool.agent] && (
@@ -162,8 +161,8 @@ export const SettingsAgents: React.FC = () => {
                       />
                     )}
                     <div>
-                      <p className="text-xs text-zinc-300 font-medium">{tool.displayName}</p>
-                      <p className="text-[10px] text-zinc-600">{tool.provider}</p>
+                      <p className="text-xs text-[var(--text-primary)] font-medium">{tool.displayName}</p>
+                      <p className="text-[10px] text-[var(--text-secondary)]">{tool.provider}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -184,7 +183,7 @@ export const SettingsAgents: React.FC = () => {
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : tool.status === 'Checking'
                           ? 'bg-amber-500/10 text-amber-400/80 border border-amber-500/20'
-                          : 'bg-zinc-800/50 text-zinc-600 border border-zinc-700/50'
+                          : 'bg-[var(--bg-tertiary)]/50 text-[var(--text-secondary)] border border-[var(--border-primary)]/50'
                       }`}
                     >
                       {tool.status === 'Installed'
@@ -213,39 +212,36 @@ export const SettingsAgents: React.FC = () => {
 
       {/* Divider */}
       <div className="flex items-center gap-4">
-        <div className="flex-1 h-px bg-zinc-800/60" />
-        <span className="text-[9px] font-mono text-zinc-700 uppercase tracking-[0.3em]">Tools & Infrastructure</span>
-        <div className="flex-1 h-px bg-zinc-800/60" />
+        <div className="flex-1 h-px bg-[var(--bg-tertiary)]/60" />
+        <span className="text-[9px] font-mono text-[var(--text-secondary)] uppercase tracking-[0.3em]">Tools & Infrastructure</span>
+        <div className="flex-1 h-px bg-[var(--bg-tertiary)]/60" />
       </div>
 
       {/* Tool CLIs Section */}
       <div className="space-y-6">
         <div className="flex items-center gap-2 mb-2">
-          <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-.756-.426-.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">
+          <SlidersHorizontal size={14} className="text-[var(--text-secondary)]" aria-hidden="true" />
+          <h3 className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-[0.2em]">
             Tool CLIs
           </h3>
-          <span className="px-1.5 py-0.5 rounded text-[8px] font-mono text-zinc-500 border border-zinc-800 bg-zinc-900/50">
+          <span className="px-1.5 py-0.5 rounded text-[8px] font-mono text-[var(--text-secondary)] border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/50">
             {installedToolCount}/{toolClis.length} installed
           </span>
           <button
             onClick={() => { detectAllToolClis(); }}
             disabled={toolLoading}
-            className="ml-auto px-3 py-1 rounded-md bg-[#3e3e38] text-zinc-500 hover:text-zinc-300 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-auto px-3 py-1 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] border border-[var(--border-primary)] transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {toolLoading ? 'Detecting...' : 'Re-detect'}
           </button>
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <div className="flex items-center gap-3">
-            <span className="text-[10px] text-zinc-500 font-mono shrink-0">
+            <span className="text-[10px] text-[var(--text-secondary)] font-mono shrink-0">
               {installedToolCount}/{toolClis.length}
             </span>
-            <div className="flex-1 h-1 bg-zinc-800/80 rounded-full overflow-hidden">
+            <div className="flex-1 h-1 bg-[var(--bg-tertiary)]/80 rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{
@@ -266,15 +262,15 @@ export const SettingsAgents: React.FC = () => {
               return (
                 <div
                   key={tool.tool}
-                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#262626]/40 border border-[#3e3e38]/30 hover:border-zinc-700 hover:bg-[#262626]/80 transition-colors duration-200"
+                  className="flex items-center justify-between px-4 py-3 rounded-lg bg-[#262626]/40 border border-[var(--border-primary)]/70 hover:border-[var(--border-primary)] hover:bg-[#262626]/80 transition-colors duration-200"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-5 h-5 flex items-center justify-center shrink-0">
                       <Icon icon={iconName} style={{ color: iconColor }} className="w-4 h-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs text-zinc-300 font-medium truncate">{tool.displayName}</p>
-                      <p className="text-[10px] text-zinc-600 truncate">{tool.provider}</p>
+                      <p className="text-xs text-[var(--text-primary)] font-medium truncate">{tool.displayName}</p>
+                      <p className="text-[10px] text-[var(--text-secondary)] truncate">{tool.provider}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
@@ -295,7 +291,7 @@ export const SettingsAgents: React.FC = () => {
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : tool.status === 'Checking'
                           ? 'bg-amber-500/10 text-amber-400/80 border border-amber-500/20'
-                          : 'bg-zinc-800/50 text-zinc-600 border border-zinc-700/50'
+                          : 'bg-[var(--bg-tertiary)]/50 text-[var(--text-secondary)] border border-[var(--border-primary)]/50'
                       }`}
                     >
                       {tool.status === 'Installed'
@@ -323,7 +319,7 @@ export const SettingsAgents: React.FC = () => {
       </div>
 
       {/* Timeout */}
-      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Timeout
         </h3>

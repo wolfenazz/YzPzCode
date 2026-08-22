@@ -1,40 +1,62 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Icon } from '@iconify/react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import {
+  ArrowsIn,
+  ArrowsOut,
+  Brain,
+  CaretDown,
+  CaretLeft,
+  CaretRight,
+  CaretUp,
+  ChatCircle,
+  CheckCircle,
+  CircleNotch,
+  ClipboardText,
+  DotsSixVertical,
+  Flag,
+  ShareNetwork,
+  WarningCircle,
+  Wrench,
+} from '@phosphor-icons/react';
 import type { AgentSubAgentActivity, AgentSubAgentEvent, AgentTeamProgressSummary } from '../../types';
 
 interface TeamProgressPanelProps {
   team: AgentTeamProgressSummary | null;
   subAgents: AgentSubAgentActivity[];
-  layout?: 'sidebar' | 'inline';
+  containerWidth: number;
+  visible: boolean;
 }
 
-const STATUS_META: Record<AgentSubAgentActivity['status'], { label: string; icon: string; tone: string; iconTone: string }> = {
+const DEFAULT_PANEL_WIDTH = 340;
+const MIN_PANEL_WIDTH = 280;
+const PANEL_EDGE_TAB_WIDTH = 40;
+
+const STATUS_META: Record<AgentSubAgentActivity['status'], { label: string; icon: React.ReactNode; tone: string; iconTone: string }> = {
   running: {
     label: 'Working',
-    icon: 'material-symbols:progress-activity-rounded',
+    icon: <CircleNotch size={16} weight="bold" />,
     tone: 'border-[var(--accent-border)] bg-[var(--accent-light)]/10',
     iconTone: 'text-[var(--accent)]',
   },
   done: {
     label: 'Complete',
-    icon: 'material-symbols:task-alt-rounded',
+    icon: <CheckCircle size={16} />,
     tone: 'border-emerald-500/20 bg-emerald-500/[0.035]',
     iconTone: 'text-emerald-400',
   },
   error: {
     label: 'Needs attention',
-    icon: 'material-symbols:error-outline-rounded',
+    icon: <WarningCircle size={16} />,
     tone: 'border-rose-500/25 bg-rose-500/[0.045]',
     iconTone: 'text-rose-400',
   },
 };
 
-const EVENT_META: Record<AgentSubAgentEvent['kind'], { label: string; icon: string; tone: string }> = {
-  message: { label: 'Update', icon: 'material-symbols:chat-bubble-outline-rounded', tone: 'text-[var(--text-secondary)]' },
-  reasoning: { label: 'Reviewing', icon: 'material-symbols:psychology-alt-rounded', tone: 'text-[var(--text-secondary)]/75' },
-  tool: { label: 'Using tool', icon: 'material-symbols:build-rounded', tone: 'text-[var(--text-secondary)]/75' },
-  result: { label: 'Result', icon: 'material-symbols:check-circle-outline-rounded', tone: 'text-emerald-400' },
-  status: { label: 'Status', icon: 'material-symbols:flag-rounded', tone: 'text-[var(--text-secondary)]' },
+const EVENT_META: Record<AgentSubAgentEvent['kind'], { label: string; icon: React.ReactNode; tone: string }> = {
+  message: { label: 'Update', icon: <ChatCircle size={12} />, tone: 'text-[var(--text-secondary)]' },
+  reasoning: { label: 'Reviewing', icon: <Brain size={12} />, tone: 'text-[var(--text-secondary)]/75' },
+  tool: { label: 'Using tool', icon: <Wrench size={12} />, tone: 'text-[var(--text-secondary)]/75' },
+  result: { label: 'Result', icon: <CheckCircle size={12} />, tone: 'text-emerald-400' },
+  status: { label: 'Status', icon: <Flag size={12} />, tone: 'text-[var(--text-secondary)]' },
 };
 
 const shortId = (id: string): string => (id.length > 26 ? `${id.slice(0, 18)}…${id.slice(-5)}` : id);
@@ -46,11 +68,26 @@ const shortId = (id: string): string => (id.length > 26 ? `${id.slice(0, 18)}…
 export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
   team,
   subAgents,
-  layout = 'sidebar',
+  containerWidth,
+  visible,
 }) => {
+  const panelId = useId();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [isOpen, setIsOpen] = useState(layout === 'sidebar');
-  const isSidebar = layout === 'sidebar';
+  const [isOpen, setIsOpen] = useState(subAgents.length > 0);
+  const [panelWidth, setPanelWidth] = useState(DEFAULT_PANEL_WIDTH);
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
+  const resizeStateRef = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
+  const restoreWidthRef = useRef(DEFAULT_PANEL_WIDTH);
+  const hasAutoOpenedRef = useRef(subAgents.length > 0);
+  const maxPanelWidth = containerWidth > 0
+    ? Math.max(220, Math.floor(containerWidth - PANEL_EDGE_TAB_WIDTH))
+    : 560;
+  const minPanelWidth = Math.min(MIN_PANEL_WIDTH, maxPanelWidth);
+  const resolvedWidth = isMaximized
+    ? maxPanelWidth
+    : Math.min(Math.max(panelWidth, minPanelWidth), maxPanelWidth);
   const sortedAgents = useMemo(
     () => [...subAgents].sort((a, b) => {
       const priority = (status: AgentSubAgentActivity['status']) =>
@@ -88,53 +125,201 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
   }, [selectedAgentId, sortedAgents]);
 
   useEffect(() => {
-    if (isSidebar) setIsOpen(true);
-  }, [isSidebar]);
+    if (subAgents.length === 0 || hasAutoOpenedRef.current) return;
+    hasAutoOpenedRef.current = true;
+    setIsOpen(true);
+  }, [subAgents.length]);
+
+  useEffect(() => {
+    if (isMaximized) return;
+    setPanelWidth((current) => Math.min(Math.max(current, minPanelWidth), maxPanelWidth));
+  }, [isMaximized, maxPanelWidth, minPanelWidth]);
+
+  useEffect(() => {
+    if (!isResizing) return undefined;
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    return () => {
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [isResizing]);
+
+  const toggleMaximized = useCallback(() => {
+    if (isMaximized) {
+      setPanelWidth(Math.min(Math.max(restoreWidthRef.current, minPanelWidth), maxPanelWidth));
+      setIsMaximized(false);
+      return;
+    }
+    restoreWidthRef.current = resolvedWidth;
+    setIsMaximized(true);
+    setIsOpen(true);
+  }, [isMaximized, maxPanelWidth, minPanelWidth, resolvedWidth]);
+
+  const minimizePanel = useCallback(() => {
+    setIsOpen(false);
+    window.requestAnimationFrame(() => toggleButtonRef.current?.focus());
+  }, []);
+
+  const handlePanelKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    minimizePanel();
+  }, [minimizePanel]);
+
+  const handleResizeStart = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    resizeStateRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: resolvedWidth,
+    };
+    setIsMaximized(false);
+    setIsResizing(true);
+  }, [resolvedWidth]);
+
+  const handleResizeMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    const resizeState = resizeStateRef.current;
+    if (!resizeState || resizeState.pointerId !== event.pointerId) return;
+    const nextWidth = resizeState.startWidth + (resizeState.startX - event.clientX);
+    setPanelWidth(Math.min(Math.max(nextWidth, minPanelWidth), maxPanelWidth));
+  }, [maxPanelWidth, minPanelWidth]);
+
+  const handleResizeEnd = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (resizeStateRef.current?.pointerId !== event.pointerId) return;
+    resizeStateRef.current = null;
+    setIsResizing(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }, []);
+
+  const handleResizeKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>) => {
+    const step = event.shiftKey ? 48 : 16;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setIsMaximized(false);
+      setPanelWidth((current) => Math.min(current + step, maxPanelWidth));
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setIsMaximized(false);
+      setPanelWidth((current) => Math.max(current - step, minPanelWidth));
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setIsMaximized(false);
+      setPanelWidth(minPanelWidth);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      restoreWidthRef.current = resolvedWidth;
+      setIsMaximized(true);
+    }
+  }, [maxPanelWidth, minPanelWidth, resolvedWidth]);
+
+  if (!visible) return null;
 
   return (
     <aside
-      className={isSidebar
-        ? 'flex h-full w-[296px] shrink-0 flex-col border-l border-[var(--border-primary)] bg-[var(--bg-secondary)]/55'
-        : 'shrink-0 border-t border-[var(--border-primary)] bg-[var(--bg-secondary)]/45'}
+      className={`absolute inset-y-2 right-0 z-30 flex flex-col overflow-visible ${
+        isResizing ? 'transition-none' : 'transition-[transform,width] duration-300 ease-out motion-reduce:transition-none'
+      } ${
+        isOpen ? 'translate-x-0' : 'translate-x-full'
+      }`}
+      style={{ width: resolvedWidth }}
       aria-label="Delegated work"
+      onKeyDown={handlePanelKeyDown}
     >
       <button
+        ref={toggleButtonRef}
         type="button"
-        onClick={() => setIsOpen((open) => !open)}
+        onClick={() => (isOpen ? minimizePanel() : setIsOpen(true))}
         aria-expanded={isOpen}
-        className={`premium-lift flex w-full items-center gap-2.5 px-3 text-left cursor-pointer ${
-          isSidebar ? 'min-h-12 border-b border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)]/35' : 'min-h-10 hover:bg-[var(--bg-tertiary)]/30'
-        }`}
-      >
-        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${
+        aria-controls={panelId}
+        className={`absolute left-[-36px] top-5 flex h-[76px] w-9 flex-col items-center justify-center gap-1.5 rounded-l-lg border border-r-0 bg-[var(--bg-secondary)] shadow-[-8px_0_24px_rgba(0,0,0,0.2)] transition-colors cursor-pointer ${
           errorCount > 0
-            ? 'border-rose-500/30 bg-rose-500/[0.08] text-rose-400'
+            ? 'border-rose-500/35 text-rose-400 hover:bg-rose-500/[0.08]'
             : activeCount > 0
-              ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/15 text-[var(--accent)]'
-              : 'border-[var(--border-primary)] bg-[var(--bg-main)]/45 text-[var(--text-secondary)]'
-        }`}>
-          <Icon icon="material-symbols:account-tree-rounded" className={`h-4 w-4 ${activeCount > 0 ? 'animate-pulse' : ''}`} aria-hidden="true" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[11px] font-semibold text-[var(--text-primary)]">{teamLabel}</span>
-          <span className={`mt-0.5 block font-mono text-[8.5px] ${errorCount > 0 ? 'text-rose-400' : 'text-[var(--text-secondary)]/65'}`}>
-            {stateLabel}
-          </span>
-        </span>
-        {teammateCount > 0 && (
-          <span className="shrink-0 font-mono text-[9px] tabular-nums text-[var(--text-secondary)]/65" title="Teammates">
-            {teammateCount}
-          </span>
-        )}
-        <Icon
-          icon={isOpen ? 'material-symbols:keyboard-arrow-up-rounded' : 'material-symbols:keyboard-arrow-down-rounded'}
-          className="h-4 w-4 shrink-0 text-[var(--text-secondary)]/60"
-          aria-hidden="true"
-        />
+              ? 'border-[var(--accent-border)] text-[var(--accent)] hover:bg-[var(--accent-light)]/12'
+              : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
+        }`}
+        title={isOpen ? 'Minimize coordinator' : 'Open coordinator'}
+      >
+        <ShareNetwork size={16} className={activeCount > 0 ? 'animate-pulse' : ''} aria-hidden="true" />
+        {teammateCount > 0 && <span className="font-mono text-[8px] font-semibold tabular-nums">{teammateCount}</span>}
+        {isOpen ? <CaretRight size={13} aria-hidden="true" /> : <CaretLeft size={13} aria-hidden="true" />}
+        <span className="sr-only">{isOpen ? 'Minimize coordinator' : 'Open coordinator'}</span>
       </button>
 
       {isOpen && (
-        <div className={`min-h-0 ${isSidebar ? 'flex flex-1 flex-col' : ''}`}>
+        <button
+          type="button"
+          onPointerDown={handleResizeStart}
+          onPointerMove={handleResizeMove}
+          onPointerUp={handleResizeEnd}
+          onPointerCancel={handleResizeEnd}
+          onDoubleClick={toggleMaximized}
+          onKeyDown={handleResizeKeyDown}
+          className={`group absolute inset-y-0 left-[-5px] z-10 flex w-[10px] touch-none items-center justify-center cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
+            isResizing ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/35 hover:text-[var(--accent)]'
+          }`}
+          role="separator"
+          aria-label="Resize coordinator panel"
+          aria-orientation="vertical"
+          aria-valuemin={minPanelWidth}
+          aria-valuemax={maxPanelWidth}
+          aria-valuenow={Math.round(resolvedWidth)}
+          title="Drag to resize · Double-click to maximize"
+        >
+          <span className="flex h-10 w-2 items-center justify-center rounded-full border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-sm transition-colors group-hover:border-[var(--accent-border)]">
+            <DotsSixVertical size={10} aria-hidden="true" />
+          </span>
+        </button>
+      )}
+
+      <div
+        id={panelId}
+        inert={!isOpen}
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-l-xl border border-r-0 border-[var(--border-primary)] bg-[var(--bg-main)]/96 shadow-[-16px_0_40px_rgba(0,0,0,0.3)] backdrop-blur-md"
+      >
+        <header className="flex min-h-12 shrink-0 items-center gap-2.5 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/88 px-3">
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${
+            errorCount > 0
+              ? 'border-rose-500/30 bg-rose-500/[0.08] text-rose-400'
+              : activeCount > 0
+                ? 'border-[var(--accent-border)] bg-[var(--accent-light)]/15 text-[var(--accent)]'
+                : 'border-[var(--border-primary)] bg-[var(--bg-main)]/45 text-[var(--text-secondary)]'
+          }`}>
+            <ShareNetwork size={15} className={activeCount > 0 ? 'animate-pulse' : ''} aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[11px] font-semibold text-[var(--text-primary)]">{teamLabel}</span>
+            <span className={`mt-0.5 block truncate font-mono text-[8.5px] ${errorCount > 0 ? 'text-rose-400' : 'text-[var(--text-secondary)]/65'}`}>
+              {stateLabel}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={toggleMaximized}
+            className="app-icon-button h-7 w-7"
+            title={isMaximized ? 'Restore coordinator width' : 'Maximize coordinator'}
+            aria-label={isMaximized ? 'Restore coordinator width' : 'Maximize coordinator'}
+          >
+            {isMaximized ? <ArrowsIn size={14} aria-hidden="true" /> : <ArrowsOut size={14} aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            onClick={minimizePanel}
+            className="app-icon-button h-7 w-7"
+            title="Minimize coordinator"
+            aria-label="Minimize coordinator"
+          >
+            <CaretRight size={14} aria-hidden="true" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex flex-1 flex-col">
           <div className="flex flex-wrap gap-x-3 gap-y-1 px-3 py-2 font-mono text-[8.5px] text-[var(--text-secondary)]/65">
             <span><b className="font-semibold text-[var(--text-primary)]">{activeCount}</b> working</span>
             <span><b className="font-semibold text-emerald-400">{doneCount}</b> complete</span>
@@ -148,7 +333,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
               </p>
             </div>
           ) : (
-            <div className={`custom-scrollbar premium-scrollbar px-2 pb-2 ${isSidebar ? 'min-h-0 flex-1 overflow-y-auto' : ''}`}>
+            <div className="custom-scrollbar premium-scrollbar min-h-0 flex-1 overflow-y-auto px-2 pb-2">
               <div className="space-y-1">
                 {sortedAgents.map((agent) => {
                   const status = STATUS_META[agent.status];
@@ -166,7 +351,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
                         aria-expanded={selected}
                         className="flex w-full items-center gap-2 px-2.5 py-2 text-left cursor-pointer"
                       >
-                        <Icon icon={status.icon} className={`h-4 w-4 shrink-0 ${status.iconTone} ${agent.status === 'running' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+                        <span className={`flex shrink-0 ${status.iconTone} ${agent.status === 'running' ? 'animate-pulse' : ''}`}>{status.icon}</span>
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline gap-1.5">
                             <span className="truncate font-mono text-[9.5px] font-semibold text-[var(--text-primary)]">{shortId(agent.agentId)}</span>
@@ -174,17 +359,13 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
                           </span>
                           <span className="mt-0.5 block truncate font-mono text-[8.5px] text-[var(--text-secondary)]/70">{agent.lastActivity}</span>
                         </span>
-                        <Icon
-                          icon={selected ? 'material-symbols:expand-less-rounded' : 'material-symbols:expand-more-rounded'}
-                          className="h-3.5 w-3.5 shrink-0 text-[var(--text-secondary)]/50"
-                          aria-hidden="true"
-                        />
+                        {selected ? <CaretUp size={14} /> : <CaretDown size={14} />}
                       </button>
 
                       {selected && (
                         <div className="border-t border-[var(--border-primary)]/65 bg-[var(--bg-main)]/25 px-2.5 py-2.5">
                           <div className="flex items-center gap-1.5 text-[var(--text-secondary)]/55">
-                            <Icon icon="material-symbols:assignment-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                            <ClipboardText size={14} aria-hidden="true" />
                             <span className="font-mono text-[8px] font-semibold uppercase tracking-[0.12em]">Assignment</span>
                           </div>
                           <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--text-primary)]/85">{agent.task}</p>
@@ -196,7 +377,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
                                 const meta = EVENT_META[event.kind];
                                 return (
                                   <div key={event.id} className="flex items-start gap-1.5">
-                                    <Icon icon={meta.icon} className={`mt-0.5 h-3 w-3 shrink-0 ${meta.tone}`} aria-hidden="true" />
+                                    <span className={`mt-0.5 flex shrink-0 ${meta.tone}`}>{meta.icon}</span>
                                     <p className="min-w-0 break-words font-mono text-[8.5px] leading-relaxed text-[var(--text-secondary)]">
                                       <span className="mr-1 text-[var(--text-secondary)]/50">{meta.label}</span>
                                       {event.summary}
@@ -215,7 +396,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
             </div>
           )}
         </div>
-      )}
+      </div>
     </aside>
   );
 };

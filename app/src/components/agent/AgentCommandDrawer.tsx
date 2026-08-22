@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { CaretLeft, CaretRight, TerminalWindow, TextT, X } from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalPane } from '../workspace/TerminalPane';
 import type { TerminalSession } from '../../types';
@@ -89,12 +90,8 @@ export const AgentCommandDrawer: React.FC<AgentCommandDrawerProps> = ({ workspac
         className="absolute left-[-34px] top-1/2 flex h-20 w-[34px] -translate-y-1/2 flex-col items-center justify-center gap-2 rounded-l-lg border border-r-0 border-[var(--accent-border)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] shadow-[-8px_0_24px_rgba(0,0,0,0.22)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--accent)] cursor-pointer"
         title={open ? 'Hide command terminal' : 'Open command terminal'}
       >
-        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 6h16M4 12h10M4 18h7" />
-        </svg>
-        <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={open ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'} />
-        </svg>
+        <TextT size={16} aria-hidden="true" />
+        {open ? <CaretRight size={14} /> : <CaretLeft size={14} />}
         <span className="sr-only">{open ? 'Hide command terminal' : 'Open command terminal'}</span>
       </button>
 
@@ -103,9 +100,7 @@ export const AgentCommandDrawer: React.FC<AgentCommandDrawerProps> = ({ workspac
         className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-l-xl border border-r-0 border-[var(--accent-border)] bg-[var(--bg-main)] shadow-[-16px_0_40px_rgba(0,0,0,0.32)]"
       >
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3">
-          <svg className="h-3.5 w-3.5 text-[var(--accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 002 2v12a2 2 0 002 2z" />
-          </svg>
+          <TerminalWindow size={14} className="text-[var(--accent)]" aria-hidden="true" />
           <span className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--text-primary)]">{terminalLabel}</span>
           <span className="ml-auto font-mono text-[9px] text-[var(--text-secondary)]/50">independent shell</span>
           <button
@@ -115,9 +110,7 @@ export const AgentCommandDrawer: React.FC<AgentCommandDrawerProps> = ({ workspac
             title="Hide command terminal"
             aria-label="Hide command terminal"
           >
-            <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={14} aria-hidden="true" />
           </button>
         </div>
 

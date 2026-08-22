@@ -4,6 +4,7 @@ import { SettingsToggle } from '../../common/SettingsToggle';
 import { SettingsSlider } from '../../common/SettingsSlider';
 
 const FONT_FAMILIES = [
+  'Cascadia Mono',
   'JetBrains Mono',
   'Fira Code',
   'Cascadia Code',
@@ -50,15 +51,15 @@ export const SettingsEditor: React.FC = () => {
     <div className="space-y-8 font-mono">
       <div>
         <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Editor</h2>
-        <p className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">Configure code editor behavior and appearance</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">Configure code editor behavior and appearance</p>
       </div>
 
       <div className="space-y-6">
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Font</h3>
 
           <div>
-            <p className="text-xs text-zinc-300 font-mono mb-2">Font Family</p>
+            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Font Family</p>
             <div className="flex items-center gap-2 flex-wrap">
               {FONT_FAMILIES.map((font) => (
                 <button
@@ -67,7 +68,7 @@ export const SettingsEditor: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
                     editorFontFamily === font
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
+                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                   }`}
                   style={{ fontFamily: font }}
                 >
@@ -88,11 +89,11 @@ export const SettingsEditor: React.FC = () => {
           />
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Formatting</h3>
 
           <div>
-            <p className="text-xs text-zinc-300 font-mono mb-2">Tab Size</p>
+            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Tab Size</p>
             <div className="flex items-center gap-2">
               {TAB_SIZES.map((size) => (
                 <button
@@ -101,7 +102,7 @@ export const SettingsEditor: React.FC = () => {
                   className={`w-10 h-8 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
                     editorTabSize === size
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
+                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                   }`}
                 >
                   {size}
@@ -111,7 +112,7 @@ export const SettingsEditor: React.FC = () => {
           </div>
 
           <div>
-            <p className="text-xs text-zinc-300 font-mono mb-2">Line Numbers</p>
+            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Line Numbers</p>
             <div className="flex items-center gap-2">
               {LINE_NUMBER_MODES.map((mode) => (
                 <button
@@ -120,7 +121,7 @@ export const SettingsEditor: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     editorLineNumbers === mode.value
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
+                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                   }`}
                 >
                   {mode.label}
@@ -130,7 +131,7 @@ export const SettingsEditor: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Toggles</h3>
 
           <div className="space-y-3">

@@ -3,7 +3,8 @@ export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
-export type WorkspaceView = "terminal" | "agent" | "editor" | "browser" | "image";
+export type WorkspaceView = "terminal" | "agent" | "editor" | "browser";
+export type ThemeMode = "light" | "dark" | "system";
 
 export interface ImageEditorWorkspaceState {
   path: string | null;
@@ -374,6 +375,10 @@ export interface BrowserWorkspaceState {
   deviceOrientation: BrowserDeviceOrientation;
   selectedElement: BrowserSelectedElement | null;
   prompt: string;
+  /** Multi-instruction queue: each slot holds its own HTML draft for a UI edit. */
+  instructionSlots: string[];
+  /** Index of the currently-active instruction slot (0-based). */
+  activeInstructionSlot: number;
   uiReferencePrompt: string;
   uiReferenceMode: BrowserUiIntegrationMode;
   targetSessionId: string | null;
@@ -618,7 +623,7 @@ export interface AgentTodo {
 export interface AgentQueuedPrompt {
   id: string;
   prompt: string;
-  delivery: 'queue' | 'steer';
+  delivery: 'queue';
   attachmentCount: number;
 }
 

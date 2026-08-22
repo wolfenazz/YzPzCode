@@ -59,8 +59,8 @@ export const IdesTable: React.FC<IdesTableProps> = ({ selectedPath }) => {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
         <span className="uppercase tracking-wider">IDEs</span>
-        <span className="text-zinc-600">[{installedCount}/{ideList.length} installed]</span>
-        <span className="text-zinc-700 group-hover:text-zinc-500 ml-1">[expand]</span>
+        <span className="text-[var(--text-secondary)]">[{installedCount}/{ideList.length} installed]</span>
+        <span className="text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] ml-1">[expand]</span>
       </button>
 
       {isOpen && (
@@ -82,7 +82,7 @@ export const IdesTable: React.FC<IdesTableProps> = ({ selectedPath }) => {
                       ? isSelected
                         ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400 shadow-sm shadow-emerald-500/20'
                         : 'border-theme hover:border-zinc-500 bg-theme-card hover:bg-theme-hover text-theme-secondary hover:text-theme-main cursor-pointer'
-                      : 'border-theme/30 bg-theme-card/50 text-zinc-600 cursor-not-allowed opacity-50'
+                      : 'border-theme/30 bg-theme-card/50 text-[var(--text-secondary)] cursor-not-allowed opacity-50'
                     }
                   `}
                   title={isInstalled ? ide.path || ide.name : 'Not installed'}
@@ -106,7 +106,7 @@ export const IdesTable: React.FC<IdesTableProps> = ({ selectedPath }) => {
                   </div>
                   <span className="truncate w-full text-center">{IDE_DISPLAY_NAMES[ide.ide]}</span>
                   {!isInstalled && (
-                    <span className="text-[8px] text-zinc-600 mt-0.5">✗</span>
+                    <span className="text-[8px] text-[var(--text-secondary)] mt-0.5">✗</span>
                   )}
                 </button>
               );
@@ -121,7 +121,7 @@ export const IdesTable: React.FC<IdesTableProps> = ({ selectedPath }) => {
                     <span className="text-emerald-400">{selectedInstalledIdes.length}</span> IDE{selectedInstalledIdes.length !== 1 ? 's' : ''} selected
                   </>
                 ) : (
-                  <span className="text-zinc-500">No IDEs selected</span>
+                  <span className="text-[var(--text-secondary)]">No IDEs selected</span>
                 )}
               </span>
               {!selectedPath && selectedInstalledIdes.length > 0 && (

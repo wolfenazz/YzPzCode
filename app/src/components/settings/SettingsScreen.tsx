@@ -1,19 +1,35 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import {
+  ArrowsClockwise,
+  BracketsAngle,
+  ChatsCircle,
+  Code,
+  Database,
+  Flask,
+  Info,
+  Keyboard,
+  PaintBrushBroad,
+  PlugsConnected,
+  Robot,
+  SquaresFour,
+  TerminalWindow,
+} from '@phosphor-icons/react';
+import { AppChrome } from '../common/AppChrome';
 import { AppFooter } from '../common/AppFooter';
-import { SettingsAppearance } from './sections/SettingsAppearance';
-import { SettingsTerminal } from './sections/SettingsTerminal';
-import { SettingsEditor } from './sections/SettingsEditor';
-import { SettingsWorkspace } from './sections/SettingsWorkspace';
-import { SettingsAgents } from './sections/SettingsAgents';
-import { SettingsIde } from './sections/SettingsIde';
-import { SettingsShortcuts } from './sections/SettingsShortcuts';
-import { SettingsUpdates } from './sections/SettingsUpdates';
-import { SettingsData } from './sections/SettingsData';
 import { SettingsAbout } from './sections/SettingsAbout';
-import { SettingsEnvironment } from './sections/SettingsEnvironment';
-import { SettingsQuickPrompts } from './sections/SettingsQuickPrompts';
 import { SettingsAgent } from './sections/SettingsAgent';
-import logo from '../../assets/YzPzCodeLogo.png';
+import { SettingsAgents } from './sections/SettingsAgents';
+import { SettingsAppearance } from './sections/SettingsAppearance';
+import { SettingsData } from './sections/SettingsData';
+import { SettingsEditor } from './sections/SettingsEditor';
+import { SettingsEnvironment } from './sections/SettingsEnvironment';
+import { SettingsIde } from './sections/SettingsIde';
+import { SettingsQuickPrompts } from './sections/SettingsQuickPrompts';
+import { SettingsShortcuts } from './sections/SettingsShortcuts';
+import { SettingsTerminal } from './sections/SettingsTerminal';
+import { SettingsUpdates } from './sections/SettingsUpdates';
+import { SettingsWorkspace } from './sections/SettingsWorkspace';
 
 type SettingsSection =
   | 'appearance'
@@ -38,138 +54,42 @@ interface SettingsScreenProps {
   onCloseWindow: () => void;
 }
 
-const SECTIONS: { id: SettingsSection; label: string; icon: React.ReactNode }[] = [
-  {
-    id: 'appearance',
-    label: 'Appearance',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.53 16.122a3 3 0 00-5.78 1.128 2.625 2.625 0 01-2.625 2.625h5.25a2.625 2.625 0 002.625-2.625 3 3 0 00-.772-.944" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'terminal',
-    label: 'Terminal',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3" />
-        <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth={1.5} />
-      </svg>
-    ),
-  },
-  {
-    id: 'editor',
-    label: 'Editor',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
-      </svg>
-    ),
-  },
-  {
-    id: 'workspace',
-    label: 'Workspace',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'environment',
-    label: 'Environment',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
-      </svg>
-    ),
-  },
-  {
-    id: 'agents',
-    label: 'CLIs',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.288 15.038a5.25 5.25 0 017.424 0M5.106 11.856c3.807-3.808 9.98-3.808 13.788 0M1.924 8.674c5.565-5.565 14.587-5.565 20.152 0M12.53 18.22l-.53.53-.53-.53a.75.75 0 011.06 0z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'agent',
-    label: 'YZPZ Agent',
-    icon: (
-      <img src={logo} alt="YZPZ Agent" className="w-[14px] h-[14px] object-contain" draggable={false} />
-    ),
-  },
-  {
-    id: 'ide',
-    label: 'IDE Integration',    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.25 9.75L16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0020.25 18V6A2.25 2.25 0 0018 3.75H6A2.25 2.25 0 003.75 6v12A2.25 2.25 0 006 20.25z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'shortcuts',
-    label: 'Keyboard Shortcuts',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 5.25h16.5a1.5 1.5 0 011.5 1.5v10.5a1.5 1.5 0 01-1.5 1.5H3.75a1.5 1.5 0 01-1.5-1.5V6.75a1.5 1.5 0 011.5-1.5z" />
-        <path strokeLinecap="round" strokeWidth={1.5} d="M6 9h.008M9 9h.008M12 9h.008M15 9h.008M6 12.75h.008M9 12.75h.008M12 12.75h.008M15 12.75h.008M18 12.75h.008M7.5 15.75h9" />
-      </svg>
-    ),
-  },
-  {
-    id: 'updates',
-    label: 'Updates',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182M21.015 4.356v4.992" />
-      </svg>
-    ),
-  },
-  {
-    id: 'data',
-    label: 'Data & Storage',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75m16.5 0c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
-      </svg>
-    ),
-  },
-  {
-    id: 'quickPrompts',
-    label: 'Quick Prompts',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
-      </svg>
-    ),
-  },
-  {
-    id: 'about',
-    label: 'About',
-    icon: (
-      <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-      </svg>
-    ),
-  },
+interface SettingsNavItem {
+  id: SettingsSection;
+  label: string;
+  icon: ReactNode;
+}
+
+const ICON_SIZE = 17;
+
+const SECTIONS: SettingsNavItem[] = [
+  { id: 'appearance', label: 'Appearance', icon: <PaintBrushBroad size={ICON_SIZE} /> },
+  { id: 'terminal', label: 'Terminal', icon: <TerminalWindow size={ICON_SIZE} /> },
+  { id: 'editor', label: 'Editor', icon: <Code size={ICON_SIZE} /> },
+  { id: 'workspace', label: 'Workspace', icon: <SquaresFour size={ICON_SIZE} /> },
+  { id: 'environment', label: 'Environment', icon: <Flask size={ICON_SIZE} /> },
+  { id: 'agents', label: 'CLI tools', icon: <PlugsConnected size={ICON_SIZE} /> },
+  { id: 'agent', label: 'YzPz Agent', icon: <Robot size={ICON_SIZE} /> },
+  { id: 'ide', label: 'IDE integration', icon: <BracketsAngle size={ICON_SIZE} /> },
+  { id: 'shortcuts', label: 'Keyboard shortcuts', icon: <Keyboard size={ICON_SIZE} /> },
+  { id: 'updates', label: 'Updates', icon: <ArrowsClockwise size={ICON_SIZE} /> },
+  { id: 'data', label: 'Data and storage', icon: <Database size={ICON_SIZE} /> },
+  { id: 'quickPrompts', label: 'Quick prompts', icon: <ChatsCircle size={ICON_SIZE} /> },
+  { id: 'about', label: 'About', icon: <Info size={ICON_SIZE} /> },
 ];
 
-export const SettingsScreen: React.FC<SettingsScreenProps> = ({
+export const SettingsScreen = ({
   isWindows,
   onBack,
   onMinimizeWindow,
   onMaximizeWindow,
   onCloseWindow,
-}) => {
+}: SettingsScreenProps) => {
   const [activeSection, setActiveSection] = useState<SettingsSection>('appearance');
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
         onBack();
       }
     };
@@ -205,135 +125,51 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         return <SettingsQuickPrompts />;
       case 'about':
         return <SettingsAbout />;
-      default:
-        return null;
     }
   }, [activeSection]);
 
-  const activeLabel = SECTIONS.find((s) => s.id === activeSection)?.label ?? activeSection;
-  const activeIndex = SECTIONS.findIndex((s) => s.id === activeSection) + 1;
+  const activeLabel = SECTIONS.find((section) => section.id === activeSection)?.label ?? activeSection;
 
   return (
-    <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
-      <header
-        data-tauri-drag-region
-        className="relative z-50 flex items-center h-11 bg-theme-main/90 backdrop-blur-xl border-b border-[var(--accent-border)] select-none titlebar-drag flex-shrink-0"
-      >
-        <div className="flex items-center h-full titlebar-nodrag">
-          <button
-            onClick={onBack}
-            className="group/back flex items-center gap-1.5 px-4 h-full border-r border-theme hover:bg-theme-hover transition-all duration-150 text-zinc-500 hover:text-[var(--accent)] cursor-pointer"
-            title="Back (Esc)"
-          >
-            <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 19l-7-7 7-7" />
-            </svg>
-            <span className="text-[9px] font-mono tracking-[0.15em] uppercase">esc</span>
-          </button>
+    <div className="flex h-screen flex-col overflow-hidden bg-theme-main text-theme-main">
+      <AppChrome
+        center={<span className="text-xs text-[var(--text-secondary)]">Settings · {activeLabel}</span>}
+        isWindows={isWindows}
+        onBack={onBack}
+        onClose={onCloseWindow}
+        onMaximize={onMaximizeWindow}
+        onMinimize={onMinimizeWindow}
+        title="Settings"
+      />
 
-          <div className="flex items-center gap-2.5 px-4 h-full border-r border-theme cursor-default">
-            <img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-60" />
-            <div className="flex items-center gap-1.5 font-mono">
-              <span className="text-zinc-600 text-[10px]">~</span>
-              <span className="text-[10px] text-zinc-500">/</span>
-              <span className="text-[10px] text-zinc-400">yzpz</span>
-              <span className="text-[10px] text-zinc-600">/</span>
-              <span className="text-[10px] text-[var(--accent)]">settings</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 flex items-center h-full min-w-0">
-          <div className="hidden lg:flex items-center gap-2 px-4 text-[10px] font-mono titlebar-nodrag">
-            <span className="text-zinc-600">{String(activeIndex).padStart(2, '0')}</span>
-            <span className="text-zinc-700">//</span>
-            <span className="text-zinc-500 tracking-wide">{activeSection}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center h-full titlebar-nodrag">
-          {isWindows && (
-            <div className="flex h-full border-l border-theme">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <nav className="app-sidebar w-60 shrink-0 overflow-y-auto px-3 py-5 custom-scrollbar" aria-label="Settings">
+          <p className="app-section-label mb-3 px-2">Preferences</p>
+          <div className="space-y-0.5">
+            {SECTIONS.map((section) => (
               <button
-                onClick={onMinimizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors duration-150 cursor-pointer"
-                title="Minimize"
+                aria-current={activeSection === section.id ? 'page' : undefined}
+                className="app-nav-item"
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                type="button"
               >
-                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
-                  <rect fill="currentColor" width="10" height="1" x="1" y="5.5" />
-                </svg>
+                <span className="text-[var(--text-secondary)]">{section.icon}</span>
+                <span>{section.label}</span>
               </button>
-              <button
-                onClick={onMaximizeWindow}
-                className="w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors duration-150 cursor-pointer"
-                title="Maximize"
-              >
-                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
-                  <rect fill="none" stroke="currentColor" width="8" height="8" x="2" y="2" strokeWidth="1" />
-                </svg>
-              </button>
-              <button
-                onClick={onCloseWindow}
-                className="w-[48px] h-full flex items-center justify-center hover:bg-[#c42b1c] text-zinc-500 hover:text-white transition-colors duration-150 cursor-pointer"
-                title="Close"
-              >
-                <svg className="w-2.5 h-2.5" viewBox="0 0 12 12">
-                  <path fill="none" stroke="currentColor" strokeWidth="1.2" d="M2.5,2.5 L9.5,9.5 M2.5,9.5 L9.5,2.5" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <div className="flex-1 flex overflow-hidden">
-        <nav className="w-48 flex-shrink-0 bg-[#1f1f1f]/60 border-r border-white/[0.03] overflow-y-auto custom-scrollbar">
-          <div className="py-4 px-3">
-            <div className="mb-4 px-2">
-              <p className="text-[9px] font-mono text-zinc-600 uppercase tracking-[0.2em]">Configuration</p>
-            </div>
-            <div className="space-y-[1px]">
-              {SECTIONS.map((section) => {
-                const isActive = activeSection === section.id;
-                return (
-                  <button
-                    key={section.id}
-                    onClick={() => setActiveSection(section.id)}
-                    className={`w-full flex items-center gap-2.5 px-2.5 py-[6px] rounded-md text-[11px] font-mono transition-all duration-150 cursor-pointer group ${
-                      isActive
-                        ? 'bg-[var(--accent-light)] text-[var(--accent)]'
-                        : 'text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.02]'
-                    }`}
-                  >
-                    <span className={`transition-colors duration-150 ${
-                      isActive ? 'text-[var(--accent)]' : 'text-zinc-700 group-hover:text-zinc-500'
-                    }`}>
-                      {section.icon}
-                    </span>
-                    <span className={`tracking-wide ${isActive ? 'font-medium' : ''}`}>
-                      {section.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            ))}
           </div>
         </nav>
 
-        <main className="flex-1 bg-[var(--bg-primary)] overflow-y-auto custom-scrollbar">
-          <div className="max-w-3xl mx-auto">
-            <div className="sticky top-0 z-10 bg-[var(--bg-primary)]/80 backdrop-blur-md px-8 pt-6 pb-4 border-b border-white/[0.03]">
-              <div className="flex items-center gap-2 font-mono">
-                <span className="text-[var(--accent)]/40 text-[10px]">&gt;</span>
-                <span className="text-[10px] text-zinc-600">settings</span>
-                <span className="text-[10px] text-zinc-700">/</span>
-                <span className="text-[11px] text-zinc-300 tracking-wide">{activeLabel}</span>
-                <span className="text-[10px] text-zinc-700 ml-1">.config</span>
-              </div>
-            </div>
-            <div className="p-8 pt-6">
-              {renderSection()}
-            </div>
+        <main className="min-w-0 flex-1 overflow-y-auto custom-scrollbar">
+          <div className="app-page app-page--narrow">
+            <header className="mb-10 border-b border-[var(--border-primary)] pb-6">
+              <h1 className="m-0 text-3xl leading-none">{activeLabel}</h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-[var(--text-secondary)]">
+                Changes are saved automatically and apply across every workspace.
+              </p>
+            </header>
+            {renderSection()}
           </div>
         </main>
       </div>

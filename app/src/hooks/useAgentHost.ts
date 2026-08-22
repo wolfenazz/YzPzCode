@@ -41,6 +41,13 @@ export interface CreateAgentSessionResult {
   messagesPath: string;
 }
 
+export interface AgentSendResult {
+  accepted: boolean;
+  queued: boolean;
+  promptId?: string;
+  error?: string;
+}
+
 export const useAgentHost = () => {
   const ensureHost = useCallback(async (): Promise<AgentHostStatus> => {
     return invoke<AgentHostStatus>('ensure_agent_host');
@@ -63,7 +70,7 @@ export const useAgentHost = () => {
   );
 
   const sendMessage = useCallback(async (sessionId: string, prompt: string, mode?: string, attachments: AgentAttachment[] = []) => {
-    return invoke('send_agent_message', {
+    return invoke<AgentSendResult>('send_agent_message', {
       sessionId,
       prompt,
       mode: mode ?? null,

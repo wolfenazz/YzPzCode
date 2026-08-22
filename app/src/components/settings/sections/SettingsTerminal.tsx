@@ -131,19 +131,19 @@ export const SettingsTerminal: React.FC = () => {
         <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
           Terminal
         </h2>
-        <p className="text-[10px] text-zinc-600 font-mono uppercase tracking-wider">
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">
           Configure terminal appearance and behavior
         </p>
       </div>
 
       <div className="space-y-4">
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Font
           </h3>
 
           <div>
-            <p className="text-xs text-zinc-300 font-mono mb-2">Font Family</p>
+            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Font Family</p>
             <div className="flex items-start gap-2 flex-wrap">
               {FONT_OPTIONS.map((font) => {
                 const status = statusOf(font, platform);
@@ -154,7 +154,7 @@ export const SettingsTerminal: React.FC = () => {
                     className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
                       terminalFontFamily === font.name
                         ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                        : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
+                        : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                     }`}
                   >
                     <span style={{ fontFamily: font.name }}>{font.name}</span>
@@ -164,7 +164,7 @@ export const SettingsTerminal: React.FC = () => {
                           ? 'bg-emerald-500/10 text-emerald-400'
                           : status.tone === 'warn'
                             ? 'bg-amber-500/10 text-amber-400'
-                            : 'bg-zinc-500/10 text-zinc-500'
+                            : 'bg-zinc-500/10 text-[var(--text-secondary)]'
                       }`}
                     >
                       {status.label}
@@ -175,7 +175,7 @@ export const SettingsTerminal: React.FC = () => {
             </div>
 
             <div className="mt-3 space-y-3">
-              <div className="flex items-center gap-3 flex-wrap text-[9px] font-mono text-zinc-500">
+              <div className="flex items-center gap-3 flex-wrap text-[9px] font-mono text-[var(--text-secondary)]">
                 <span className="flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-400/70" />
                   Bundled — works everywhere
@@ -197,7 +197,7 @@ export const SettingsTerminal: React.FC = () => {
                   </p>
                   <ul className="space-y-1.5">
                     {needsInstall.map((font) => (
-                      <li key={font.name} className="text-[10px] font-mono text-zinc-400 leading-relaxed">
+                      <li key={font.name} className="text-[10px] font-mono text-[var(--text-secondary)] leading-relaxed">
                         <span className="text-zinc-200">{font.name}</span>
                         {font.downloadUrl ? (
                           <>
@@ -208,7 +208,7 @@ export const SettingsTerminal: React.FC = () => {
                             >
                               {font.downloadLabel ?? 'Download'}
                             </button>
-                            <span className="text-zinc-600"> {INSTALL_STEPS[platform]}</span>
+                            <span className="text-[var(--text-secondary)]"> {INSTALL_STEPS[platform]}</span>
                           </>
                         ) : (
                           <span> — {font.note}</span>
@@ -234,13 +234,13 @@ export const SettingsTerminal: React.FC = () => {
           />
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Cursor
           </h3>
 
           <div>
-            <p className="text-xs text-zinc-300 font-mono mb-2">Cursor Style</p>
+            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Cursor Style</p>
             <div className="flex items-center gap-2">
               {CURSOR_STYLES.map((style) => (
                 <button
@@ -249,7 +249,7 @@ export const SettingsTerminal: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     terminalCursorStyle === style.value
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-zinc-600'
+                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                   }`}
                 >
                   {style.label}
@@ -268,7 +268,7 @@ export const SettingsTerminal: React.FC = () => {
           />
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Behavior
           </h3>

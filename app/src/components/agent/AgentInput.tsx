@@ -1,5 +1,20 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Icon } from '@iconify/react';
+import {
+  ChatCircle,
+  CircleNotch,
+  Clock,
+  FileText,
+  Image,
+  Lightning,
+  ListChecks,
+  ListPlus,
+  Paperclip,
+  PaperPlaneRight,
+  ShareNetwork,
+  Square,
+  Translate,
+  X,
+} from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import type { AgentAttachment, AgentMode, AgentQueuedPrompt } from '../../types';
@@ -7,7 +22,6 @@ import { useAppStore } from '../../stores/appStore';
 import { useAgentMention } from '../../hooks/useAgentMention';
 import type { MentionItem } from '../../hooks/useAgentMention';
 import { AgentMentionMenu } from './AgentMentionMenu';
-import Strands from '../effects/Strands';
 
 interface AgentInputProps {
   disabled?: boolean;
@@ -28,6 +42,8 @@ interface AgentInputProps {
   queuedPrompts?: AgentQueuedPrompt[];
   onRemoveQueued?: (id: string) => void;
   onClearQueue?: () => void;
+  replyTo?: string | null;
+  onReplyConsumed?: () => void;
 }
 
 const MODE_ORDER: AgentMode[] = ['ask', 'act', 'plan', 'orchestrator'];
@@ -42,25 +58,25 @@ const MODE_TABS: Array<{
     id: 'ask',
     label: 'Ask',
     title: 'Answer questions without editing files (read-only)',
-    icon: <Icon icon="material-symbols:chat-bubble-rounded" className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+    icon: <ChatCircle size={14} className="shrink-0" aria-hidden="true" />,
   },
   {
     id: 'act',
     label: 'Act',
     title: 'Execute tools immediately',
-    icon: <Icon icon="material-symbols:bolt-rounded" className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+    icon: <Lightning size={14} className="shrink-0" aria-hidden="true" />,
   },
   {
     id: 'plan',
     label: 'Plan',
     title: 'Plan first, then ask for approval before acting',
-    icon: <Icon icon="material-symbols:checklist-rounded" className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+    icon: <ListChecks size={14} className="shrink-0" aria-hidden="true" />,
   },
   {
     id: 'orchestrator',
     label: 'Orchestrator',
     title: 'Lead agent orchestrates sub-agents across the workspace',
-    icon: <Icon icon="material-symbols:hub-rounded" className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />,
+    icon: <ShareNetwork size={14} className="shrink-0" aria-hidden="true" />,
   },
 ];
 
@@ -112,6 +128,7 @@ const MIN_HEIGHT = 38;
 const MAX_HEIGHT = 240;
 const MAX_AGENT_IMAGE_ENCODED_BYTES = 4_700_000;
 const MAX_AGENT_IMAGE_DIMENSION = 2048;
+const MAX_CLIPBOARD_FILE_BYTES = 25 * 1024 * 1024;
 // Keep this in sync with the image media types accepted by the agent SDK.
 // The canvas normalization below also lets providers receive common JPEG
 // content when the original file is SVG/BMP/AVIF/TIFF/etc.
@@ -119,10 +136,22 @@ const IMAGE_EXTENSION = /\.(?:avif|bmp|gif|ico|jpe?g|png|svg|tiff?|webp)$/i;
 const ARABIC_SCRIPT = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
 const LATIN_SCRIPT = /[A-Za-z]/;
 
-/** How long after the last keystroke the orb keeps spinning before winding down. */
-const TYPING_IDLE_MS = 1400;
-
 const attachmentName = (path: string): string => path.split(/[\\/]/).pop() || path;
+
+const sanitizeAttachmentName = (name: string): string => {
+  const fallback = name.toLowerCase().startsWith('image/') ? 'pasted-image.png' : 'pasted-file';
+  const trimmed = name.trim() || fallback;
+  return trimmed.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120) || fallback;
+};
+
+const toBase64 = (bytes: Uint8Array): string => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+};
 
 const readImageDataUrl = async (path: string): Promise<string> => {
   return invoke<string>('read_file_as_base64', { path });
@@ -146,7 +175,7 @@ const normalizeImageForAgent = async (path: string): Promise<string> => {
   }
 
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const element = new Image();
+    const element = new globalThis.Image();
     element.onload = () => resolve(element);
     element.onerror = () => reject(new Error('The selected image could not be decoded.'));
     element.src = source;
@@ -197,14 +226,14 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   queuedPrompts,
   onRemoveQueued,
   onClearQueue,
+  replyTo,
+  onReplyConsumed,
 }) => {
   const [value, setValue] = useState('');
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
-  const [typing, setTyping] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const valueRef = useRef(value);
 
   const workspacePath = useAppStore((s) => s.currentWorkspace?.path);
@@ -237,12 +266,12 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     valueRef.current = value;
   }, [value]);
 
-  // Clear the typing debounce timer on unmount.
   useEffect(() => {
-    return () => {
-      if (typingTimer.current) clearTimeout(typingTimer.current);
-    };
-  }, []);
+    if (!replyTo) return;
+    setValue((current) => current || `> ${replyTo}\n\n`);
+    onReplyConsumed?.();
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [replyTo, onReplyConsumed]);
 
   // Re-measure when the textarea width changes (grid/pane reflow) without
   // looping on the height changes we make ourselves.
@@ -263,15 +292,25 @@ export const AgentInput: React.FC<AgentInputProps> = ({
 
   const handleSend = useCallback(async () => {
     const prompt = value.trim();
-    if (!prompt || disabled) return;
+    if ((!prompt && attachments.length === 0) || disabled) return;
+    const submittedAttachments = attachments;
     close();
     setValue('');
+    setAttachments([]);
+    setAttachmentNotice(null);
     try {
-      await onSend(prompt, attachments);
-      setAttachments([]);
-      setAttachmentNotice(null);
+      await onSend(prompt, submittedAttachments);
     } catch (err) {
       console.error('[agent] send failed:', err);
+      // Preserve work when IPC or the harness rejects a send. Functional
+      // updates avoid overwriting anything typed while the request was in flight.
+      setValue((current) => current || prompt);
+      setAttachments((current) => {
+        const seen = new Set(current.map((attachment) => attachment.path));
+        return [...submittedAttachments.filter((attachment) => !seen.has(attachment.path)), ...current];
+      });
+      setAttachmentNotice(err instanceof Error ? err.message : 'The prompt could not be sent.');
+      requestAnimationFrame(() => textareaRef.current?.focus());
     }
   }, [value, attachments, disabled, onSend, close]);
 
@@ -313,6 +352,47 @@ export const AgentInput: React.FC<AgentInputProps> = ({
       setAttachmentNotice(error instanceof Error ? error.message : 'Could not attach the selected file.');
     }
   }, [disabled, isRunning, supportsImages]);
+
+  const handlePaste = useCallback(async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (disabled || !workspacePath) return;
+    const files = Array.from(event.clipboardData.files);
+    if (files.length === 0) return;
+
+    event.preventDefault();
+    const accepted = files.filter((file) => file.size <= MAX_CLIPBOARD_FILE_BYTES);
+    if (accepted.length !== files.length) {
+      setAttachmentNotice('Some pasted files were skipped because they exceed the 25 MB limit.');
+    }
+    if (accepted.length === 0) return;
+
+    try {
+      const pasted = await Promise.all(accepted.map(async (file, index): Promise<AgentAttachment> => {
+        const name = sanitizeAttachmentName(file.name || (file.type.startsWith('image/') ? 'pasted-image.png' : 'pasted-file'));
+        const path = `${workspacePath}/.yzpzcode/attachments/${Date.now()}-${index}-${name}`;
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        await invoke('write_file_bytes', { path, base64Data: toBase64(bytes) });
+        const kind = file.type.startsWith('image/') ? 'image' : 'file';
+        const previewData = kind === 'image' && bytes.length <= MAX_AGENT_IMAGE_ENCODED_BYTES
+          ? `data:${file.type || 'image/png'};base64,${toBase64(bytes)}`
+          : undefined;
+        return { path, name, kind, previewData };
+      }));
+      const usable = supportsImages ? pasted : pasted.filter((attachment) => attachment.kind !== 'image');
+      setAttachments((current) => {
+        const seen = new Set(current.map((attachment) => attachment.path));
+        return [...current, ...usable.filter((attachment) => !seen.has(attachment.path))];
+      });
+      if (usable.length !== pasted.length) {
+        setAttachmentNotice('This model does not advertise image support, so pasted images were skipped.');
+      } else if (usable.some((attachment) => attachment.kind === 'image' && !attachment.previewData)) {
+        setAttachmentNotice('The pasted image is attached; its preview is too large to display.');
+      } else if (accepted.length === files.length) {
+        setAttachmentNotice(null);
+      }
+    } catch (error) {
+      setAttachmentNotice(error instanceof Error ? error.message : 'Could not attach the pasted file.');
+    }
+  }, [disabled, supportsImages, workspacePath]);
 
   const removeAttachment = useCallback((path: string) => {
     setAttachments((current) => current.filter((attachment) => attachment.path !== path));
@@ -425,23 +505,17 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     [mention, move, close, handleMentionSelect, handleSend, cycleMode]
   );
 
-  const style = MODE_STYLES[mode];
-  const activeTab = MODE_TABS.find((t) => t.id === mode);
   const direction = promptDirection(value);
 
   return (
-    /* Opaque composer island over a transparent session overlay: the island
-       stays readable while the surrounding transcript remains visible. */
     <div className={`relative z-10 flex justify-center px-3 ${compact ? 'pt-1 pb-2' : 'pt-1.5 pb-3'}`}>
       <div
-        className={`agent-input-island w-full space-y-2 ${
-          compact ? 'max-w-2xl px-2 py-1.5' : 'max-w-3xl px-3.5 py-2.5'
+        className={`agent-input-island agent-composer app-surface app-surface--raised w-full overflow-hidden ${
+          compact ? 'max-w-2xl' : 'max-w-4xl'
         } ${isRunning ? 'agent-input-island--active' : ''}`}
       >
-      {/* Mode tabs + isolated fast keycap — the fast toggle floats outside
-          the segmented control as its own 3D key. */}
-      <div className="flex items-center justify-between gap-2">
-      <div className={`premium-segmented w-fit rounded-xl! items-center gap-0.5 p-0.5`}>
+      <header className={`agent-composer-toolbar flex items-center gap-2 ${compact ? 'px-2 pt-1.5 pb-1' : 'px-3 pt-2 pb-1.5'}`}>
+      <div className="premium-segmented w-fit items-center gap-0.5 p-0.5">
         {MODE_TABS.map((tab) => {
           const active = mode === tab.id;
           if (compact && !active) return null;
@@ -454,8 +528,8 @@ export const AgentInput: React.FC<AgentInputProps> = ({
               title={tab.title}
               aria-label={tab.label}
               aria-selected={active}
-              className={`premium-segmented-item flex items-center justify-center gap-1.5 rounded-lg border font-mono text-[9px] font-bold uppercase leading-none tracking-[0.08em] transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
-                compact ? 'px-2 h-6 text-[8px]' : 'px-2 h-8'
+              className={`premium-segmented-item flex items-center justify-center gap-1.5 rounded-lg border text-[11px] font-medium leading-none transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.97] ${
+                compact ? 'h-6 px-2 text-[10px]' : 'h-8 px-2.5'
               } ${
                 active
                   ? `is-active ${tabStyle.active}`
@@ -467,35 +541,27 @@ export const AgentInput: React.FC<AgentInputProps> = ({
             </button>
           );
         })}
-        <div className="ml-auto flex items-center gap-1 pl-1.5 border-l border-[var(--border-primary)]/60">
-          {isRunning && !compact && (
-            <span className="font-mono text-[9px] uppercase leading-none tracking-[0.08em] text-[var(--accent)] animate-pulse">
-              ● running
-            </span>
-          )}
-          <button
-            onClick={() => void onAbort()}
-            disabled={!isRunning}
-            title={isRunning ? 'Interrupt the running task (also drops queued prompts)' : 'Nothing to interrupt'}
-            className={`flex items-center gap-1 rounded-lg border font-mono font-bold uppercase tracking-widest transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.96] ${
-              compact ? 'px-1.5 h-6 text-[8px]' : 'px-2.5 h-8 text-[9px]'
-            } ${
-              isRunning
-                ? 'border-rose-900/50 text-rose-500 hover:bg-rose-950/30 hover:text-rose-400 hover:shadow-[0_0_12px_-4px_rgba(244,63,94,0.45)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500/60'
-                : 'border-transparent text-[var(--text-secondary)]/40 cursor-not-allowed'
-            }`}
-          >
-            <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="6" y="6" width="12" height="12" rx="1.5" />
-            </svg>
-            {!compact && 'Stop'}
-          </button>
-        </div>
       </div>
 
-      {/* Isolated fast-mode keycap — deliberately outside the segmented
-          control. Clean 3D key face (no beams/bloom); only the zap icon
-          carries the amber charge when fast is ON. */}
+        <div className="ml-auto flex items-center gap-1.5">
+          {!compact && (
+            <span className={`agent-composer-status inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium ${isRunning ? 'is-running' : ''}`}>
+              <span className="agent-composer-status-dot" aria-hidden="true" />
+              {isRunning ? 'Working' : 'Ready'}
+            </span>
+          )}
+          {isRunning && (
+            <button
+              onClick={() => void onAbort()}
+              title="Interrupt the running task and remove its queued prompts"
+              className={`flex cursor-pointer items-center gap-1.5 rounded-md border border-rose-500/25 bg-rose-500/[0.06] text-[10px] font-medium text-rose-400 transition-all duration-150 ease-out hover:border-rose-500/45 hover:bg-rose-500/[0.1] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500/60 active:scale-[0.97] ${
+                compact ? 'h-6 px-1.5' : 'h-8 px-2.5'
+              }`}
+            >
+              <Square size={10} weight="fill" aria-hidden="true" />
+              {!compact && 'Stop'}
+            </button>
+          )}
       {onToggleFastMode && (
         <button
           type="button"
@@ -507,17 +573,20 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           }
           aria-pressed={fastMode}
           aria-label="Toggle fast mode"
-          className={`agent-input-keycap flex shrink-0 items-center justify-center gap-1 rounded-lg cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] ${
-            compact ? 'h-6 w-6' : 'h-8 px-2'
+          className={`agent-input-keycap flex shrink-0 items-center justify-center gap-1.5 rounded-md cursor-pointer select-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-primary)] ${
+            compact ? 'h-6 w-6' : 'h-8 px-2.5'
           } ${fastMode ? 'is-fast' : ''}`}
         >
-          <Icon icon="lucide:zap" className="electric-icon h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <Lightning size={14} className="shrink-0" aria-hidden="true" />
           {!compact && fastMode && (
-            <span className="font-mono text-[8px] font-bold uppercase leading-none tracking-[0.08em]">fast</span>
+            <span className="text-[10px] font-medium leading-none">Fast</span>
           )}
         </button>
       )}
-      </div>
+        </div>
+      </header>
+
+      <div className={`agent-composer-body ${compact ? 'space-y-1.5 px-2 pt-1 pb-2' : 'space-y-2 px-3 pt-1.5 pb-2.5'}`}>
 
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
@@ -527,7 +596,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
               className="premium-chip inline-flex max-w-full items-center gap-1.5 rounded-full border border-[var(--border-primary)] bg-[var(--bg-main)] py-1 pl-2 pr-1 font-mono text-[9px] text-[var(--text-secondary)]"
               title={attachment.path}
             >
-              <Icon icon={attachment.kind === 'image' ? 'material-symbols:image-rounded' : 'material-symbols:description-rounded'} className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+              {attachment.kind === 'image' ? <Image size={12} /> : <FileText size={12} />}
               <span className="max-w-40 truncate">{attachment.name}</span>
               <button
                 type="button"
@@ -536,41 +605,32 @@ export const AgentInput: React.FC<AgentInputProps> = ({
                 title={`Remove ${attachment.name}`}
                 aria-label={`Remove ${attachment.name}`}
               >
-                <Icon icon="material-symbols:close-rounded" className="h-3 w-3" aria-hidden="true" />
+                <X size={12} aria-hidden="true" />
               </button>
             </span>
           ))}
         </div>
       )}
 
-      {/* Queued prompts strip — shown while the agent works so follow-up
-          messages are visible and cancellable before they run. */}
       {queuedPrompts && queuedPrompts.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-[var(--accent-border)]/45 bg-[var(--accent-light)]/[0.06]">
-          <div className="flex items-center gap-2 px-2.5 py-1.5 border-b border-[var(--border-primary)]/50">
-            <Icon icon="lucide:list-plus" className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-            <span className="truncate font-mono text-[9px] font-bold uppercase leading-none tracking-[0.08em] text-[var(--text-secondary)]">
-              {queuedPrompts.length} queued — runs after the current task
+        <section className="agent-composer-queue overflow-hidden rounded-xl border" aria-label="Queued prompts">
+          <div className="flex items-center gap-2.5 border-b border-[var(--border-primary)] px-3 py-2">
+            <span className="agent-composer-queue-icon flex h-7 w-7 shrink-0 items-center justify-center rounded-lg">
+              <Clock size={14} weight="bold" aria-hidden="true" />
             </span>
-            <span className="ml-auto flex items-center gap-2.5 shrink-0">
-              {isRunning && (
-                <button
-                  type="button"
-                  onClick={() => void onAbort()}
-                  className="flex items-center gap-1 font-mono text-[9px] font-medium uppercase leading-none tracking-[0.08em] text-rose-500/80 transition-colors hover:text-rose-400 cursor-pointer"
-                  title="Interrupt the running task (also drops queued prompts)"
-                >
-                  <svg className="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <rect x="6" y="6" width="12" height="12" rx="1.5" />
-                  </svg>
-                  Stop
-                </button>
-              )}
+            <span className="min-w-0">
+              <span className="block text-[11px] font-semibold leading-tight text-[var(--text-primary)]">Up next</span>
+              <span className="block truncate text-[9px] leading-tight text-[var(--text-secondary)]">Held until the current task fully finishes</span>
+            </span>
+            <span className="ml-auto flex shrink-0 items-center gap-2.5">
+              <span className="agent-composer-queue-count rounded-md px-1.5 py-0.5 font-mono text-[9px] font-semibold tabular-nums">
+                {queuedPrompts.length}
+              </span>
               {onClearQueue && (
                 <button
                   type="button"
                   onClick={() => void onClearQueue()}
-                  className="font-mono text-[9px] font-medium uppercase leading-none tracking-[0.08em] text-[var(--text-secondary)]/60 transition-colors hover:text-rose-400 cursor-pointer"
+                  className="cursor-pointer text-[9px] font-medium leading-none text-[var(--text-secondary)] transition-colors hover:text-rose-400 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500/50"
                   title="Remove all queued prompts"
                 >
                   Clear all
@@ -578,67 +638,47 @@ export const AgentInput: React.FC<AgentInputProps> = ({
               )}
             </span>
           </div>
-          <ul className="max-h-28 overflow-y-auto divide-y divide-[var(--border-primary)]/40">
-            {queuedPrompts.map((prompt) => (
-              <li key={prompt.id} className="group flex items-center gap-2 px-2.5 py-1.5">
-                <Icon icon="lucide:clock" className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/40" aria-hidden="true" />
-                <span className="min-w-0 flex-1 truncate text-[10px] text-[var(--text-primary)]">{prompt.prompt}</span>
+          <ol className="max-h-32 overflow-y-auto divide-y divide-[var(--border-primary)]/70">
+            {queuedPrompts.map((prompt, index) => (
+              <li key={prompt.id} className="group flex items-center gap-2.5 px-3 py-2">
+                <span className="w-5 shrink-0 font-mono text-[9px] font-medium tabular-nums text-[var(--text-secondary)]/60" aria-hidden="true">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-[var(--text-primary)]">{prompt.prompt}</span>
                 {prompt.attachmentCount > 0 && (
-                  <span className="shrink-0 rounded-sm bg-[var(--bg-tertiary)] px-1 py-0.5 font-mono text-[8px] text-[var(--text-secondary)]/70">
-                    {prompt.attachmentCount} att
+                  <span className="shrink-0 rounded-md bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-[8px] text-[var(--text-secondary)]">
+                    {prompt.attachmentCount} file{prompt.attachmentCount === 1 ? '' : 's'}
                   </span>
                 )}
                 {onRemoveQueued && (
                   <button
                     type="button"
                     onClick={() => void onRemoveQueued(prompt.id)}
-                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-sm text-[var(--text-secondary)]/40 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-[var(--bg-tertiary)] hover:text-rose-400 cursor-pointer"
+                    className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md text-[var(--text-secondary)]/50 opacity-60 transition-all group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-400 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500/50"
                     title="Remove from queue"
                     aria-label={`Remove queued prompt: ${prompt.prompt}`}
                   >
-                    <Icon icon="material-symbols:close-rounded" className="h-3 w-3" aria-hidden="true" />
+                    <X size={12} aria-hidden="true" />
                   </button>
                 )}
               </li>
             ))}
-          </ul>
-        </div>
+          </ol>
+        </section>
       )}
 
-      {/* Prompt field + send */}
-      <div className="flex items-end gap-2">
+      {attachmentNotice && !compact && (
+        <p role="status" className="m-0 px-1 text-[10px] leading-tight text-[var(--text-secondary)]/80">
+          {attachmentNotice}
+        </p>
+      )}
+
+      <div className={`agent-composer-compose flex items-center gap-2 rounded-xl border p-2 ${isRunning ? 'is-queueing' : ''}`}>
         <div
-          className={`group/field relative flex flex-1 items-center overflow-hidden rounded-lg border bg-[var(--bg-main)] transition-all duration-150 ease-out cursor-text focus-within:outline-none ${
+          className={`group/field relative flex flex-1 items-center overflow-hidden rounded-lg border border-transparent bg-transparent transition-all duration-150 ease-out cursor-text focus-within:outline-none ${
             disabled ? 'opacity-60' : ''
-          } ${style.field}`}
+          }`}
         >
-          {/* Strands slot — woven glowing strands on the left of the prompt
-              field. Idle: a straight, softly glowing line. Typing: the
-              strands wake up and the glow builds until they flow at full
-              energy; a short pause glides them back to the resting line. */}
-          <div
-            className={`ml-2 mr-1.5 h-9 w-9 shrink-0 transition-opacity duration-300 ${
-              typing ? 'opacity-100' : 'opacity-80'
-            }`}
-            aria-hidden="true"
-          >
-            <Strands
-              active={typing}
-              colors={['#9C43FE', '#4CC2E9', '#F97316']}
-              count={3}
-              speed={0.5}
-              amplitude={1.1}
-              waviness={1}
-              thickness={0.7}
-              glow={2.8}
-              taper={3}
-              spread={1}
-              intensity={0.6}
-              saturation={1.5}
-              opacity={1}
-              scale={1.4}
-            />
-          </div>
           <textarea
             ref={textareaRef}
             value={value}
@@ -646,17 +686,15 @@ export const AgentInput: React.FC<AgentInputProps> = ({
             onChange={(e) => {
               update(e.target.value, e.target.selectionStart ?? 0);
               setValue(e.target.value);
-              setTyping(true);
-              if (typingTimer.current) clearTimeout(typingTimer.current);
-              typingTimer.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS);
             }}
             onKeyDown={handleKeyDown}
+            onPaste={(event) => void handlePaste(event)}
             disabled={disabled}
             rows={1}
             style={{ minHeight: MIN_HEIGHT, maxHeight: MAX_HEIGHT }}
             placeholder={placeholder}
-            className={`peer flex-1 resize-none overflow-y-auto bg-transparent py-2 font-mono text-[length:var(--agent-session-text-size)] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/45 focus:outline-none ${
-              direction === 'rtl' ? 'pl-8 pr-2 text-right placeholder:text-right' : 'pl-2 pr-8 text-left placeholder:text-left'
+            className={`peer flex-1 resize-none overflow-y-auto bg-transparent px-2.5 py-2 text-[length:var(--agent-session-text-size)] leading-[1.6] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/55 focus:outline-none ${
+              direction === 'rtl' ? 'text-right placeholder:text-right' : 'text-left placeholder:text-left'
             }`}
           />
           <kbd
@@ -666,19 +704,12 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           >
             /
           </kbd>
-          <Icon
-            icon="material-symbols:search-rounded"
-            className={`pointer-events-none absolute top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[var(--text-secondary)]/70 opacity-0 scale-90 transition-all duration-150 peer-not-placeholder-shown:opacity-100 peer-not-placeholder-shown:scale-100 ${
-              direction === 'rtl' ? 'left-2.5' : 'right-2.5'
-            } ${compact ? 'hidden' : ''}`}
-            aria-hidden="true"
-          />
         </div>
         <button
           type="button"
           onClick={() => void handleTranslate()}
           disabled={disabled || !value.trim() || isTranslating}
-          className="electric-btn flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent bg-transparent text-[var(--text-secondary)] transition-colors hover:border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
           title={
             isTranslating
               ? 'Translating prompt to English…'
@@ -688,25 +719,21 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           }
           aria-label="Translate prompt to English"
         >
-          <Icon
-            icon={isTranslating ? 'svg-spinners:3-dots-scale' : 'material-symbols:translate-rounded'}
-            className="electric-icon h-4 w-4"
-            aria-hidden="true"
-          />
+          {isTranslating ? <CircleNotch size={16} weight="bold" className="animate-spin" /> : <Translate size={16} />}
         </button>
         <button
           type="button"
           onClick={() => void handleAttach()}
           disabled={disabled}
-          className="electric-btn flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-main)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-transparent bg-transparent text-[var(--text-secondary)] transition-colors hover:border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40"
           title="Attach images or files"
           aria-label="Attach images or files"
         >
-          <Icon icon="material-symbols:attach-file-rounded" className="electric-icon h-4 w-4" aria-hidden="true" />
+          <Paperclip size={16} aria-hidden="true" />
         </button>
         <button
           onClick={() => void handleSend()}
-          disabled={disabled || !value.trim()}
+          disabled={disabled || (!value.trim() && attachments.length === 0)}
           title={
             isRunning
               ? 'Agent is working — this prompt will be queued until the current task finishes'
@@ -714,32 +741,18 @@ export const AgentInput: React.FC<AgentInputProps> = ({
                 ? 'Send prompt (Enter)'
                 : 'Type a prompt first'
           }
-          className={`gradient-send-btn flex items-center gap-1.5 h-9 rounded-lg text-white font-mono text-[10px] font-bold uppercase leading-none tracking-[0.08em] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shrink-0 ${compact ? 'px-2.5' : 'px-3.5'}`}
+          className={`agent-composer-submit flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-lg border text-[11px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 ${
+            isRunning ? 'is-queue' : 'is-send'
+          } ${compact ? 'w-8 px-0' : 'px-3'}`}
         >
           {isRunning ? (
-            <Icon icon="lucide:list-plus" className="electric-icon w-3.5 h-3.5" aria-hidden="true" />
+            <ListPlus size={14} aria-hidden="true" />
           ) : (
-            <svg className="electric-icon w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-            </svg>
+            <PaperPlaneRight size={14} weight="fill" aria-hidden="true" />
           )}
-          {!compact && (isRunning ? 'Queue' : 'Send')}
+          {!compact && (isRunning ? 'Add to queue' : 'Send')}
         </button>
       </div>
-
-      {/* Helper footer */}
-      {!compact && (
-        <div className="flex items-center gap-2 px-0.5 leading-none">
-          <span className="truncate font-mono text-[10px] leading-none text-[var(--text-secondary)]/70">
-            {attachmentNotice ?? activeTab?.title}
-          </span>
-          <span className="ml-auto flex items-center gap-2.5 shrink-0 font-mono text-[9px] uppercase tracking-[0.06em] leading-none text-[var(--text-secondary)]/45">
-            <span>Tab ⇥ switch mode</span>
-            <span className="hidden sm:inline">Enter send</span>
-            <span className="hidden md:inline">Shift+Enter newline</span>
-          </span>
-        </div>
-      )}
 
       {/* `@` file-mention dropdown (portal-rendered, never clipped by the pane) */}
       {mention && (
@@ -755,6 +768,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           onClose={close}
         />
       )}
+      </div>
       </div>
     </div>
   );

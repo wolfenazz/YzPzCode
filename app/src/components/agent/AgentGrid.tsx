@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ClockCounterClockwise, Plus, SpinnerGap } from '@phosphor-icons/react';
 import { AgentPane } from './AgentPane';
 import { AgentCommandDrawer } from './AgentCommandDrawer';
 import { NewAgentDialog } from './NewAgentDialog';
@@ -6,8 +7,6 @@ import { SessionHistory } from './SessionHistory';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
 import { useProjectMemory } from '../../hooks/useProjectMemory';
 import { useAppStore } from '../../stores/appStore';
-import SoftAurora from '../effects/SoftAurora';
-import logo from '../../assets/YzPzCodeLogo.png';
 import type { AgentMode, AgentSessionSummary } from '../../types';
 
 interface AgentGridProps {
@@ -15,7 +14,7 @@ interface AgentGridProps {
 }
 
 const MIN_GRID_SIZE = 12;
-const GRID_GAP = 8;
+const GRID_GAP = 12;
 const GRID_DIVIDER = 3;
 
 const makeEqualSizes = (count: number): number[] => Array.from({ length: count }, () => 100 / count);
@@ -45,7 +44,6 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   } = useAgentHost();
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const { buildProjectBrief, ensureMemoryFile } = useProjectMemory();
-  const animationsEnabled = useAppStore((s) => s.animationsEnabled);
   const independentGridResize = useAppStore((s) => s.independentGridResize);
   const agentSessionsByWorkspace = useAppStore((s) => s.agentSessionsByWorkspace);
   const setAgentSessionsForWorkspace = useAppStore((s) => s.setAgentSessionsForWorkspace);
@@ -505,21 +503,15 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
   return (
     <div className="h-full w-full flex flex-col bg-[var(--bg-main)] relative overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] select-none shrink-0">
-        <span className="font-mono text-[10px] font-black tracking-[0.2em] uppercase text-[var(--text-primary)] premium-shimmer">
-          YZPZ Agent
-        </span>
-        <span className="w-px h-3.5 bg-[var(--border-primary)]" />
-        <span className="font-mono text-[10px] text-[var(--text-secondary)]">
-          {sessions.length} agent{sessions.length !== 1 ? 's' : ''} · {currentWorkspace?.name ?? 'workspace'}
+      <div className="flex h-12 shrink-0 select-none items-center gap-3 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4">
+        <span className="text-sm font-semibold text-[var(--text-primary)]">YzPz Agent</span>
+        <span className="text-xs text-[var(--text-secondary)]">
+          {sessions.length === 0 ? 'No active sessions' : `${sessions.length} active`} · {currentWorkspace?.name ?? 'Workspace'}
         </span>
         <span className="ml-auto flex items-center gap-1.5">
           {!hostReady && !hostError && (
-            <span className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-widest text-[var(--accent)]">
-              <svg className="animate-spin h-3 w-3 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+            <span className="flex items-center gap-1.5 text-xs text-[var(--text-secondary)]">
+              <SpinnerGap className="animate-spin" size={14} />
               {preparing ? 'preparing harness…' : 'starting harness…'}
             </span>
           )}
@@ -533,7 +525,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
                   setHostError(null);
                   void init();
                 }}
-                className="premium-btn-ghost shrink-0 h-5 px-2 rounded-md font-mono text-[9px] font-bold uppercase tracking-widest cursor-pointer"
+                className="app-button h-7 min-h-0 shrink-0 px-2"
                 title="Retry starting the YZPZ Agent"
               >
                 Retry
@@ -543,68 +535,36 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           <button
             onClick={() => setShowHistory(true)}
             disabled={!hostReady}
-            className="premium-btn-ghost flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="app-button h-8 min-h-0 disabled:cursor-not-allowed disabled:opacity-40"
             title="Browse previous agent sessions and resume or delete them"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <ClockCounterClockwise size={14} />
             History
           </button>
           <button
             onClick={() => void handleNewAgent()}
             disabled={!hostReady || creating}
-            className="premium-btn-primary flex items-center gap-1.5 h-7 px-2.5 rounded-lg text-[9px] font-bold uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+            className="app-button app-button--primary h-8 min-h-0 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            New Agent
+            <Plus size={14} />
+            New session
           </button>
         </span>
       </div>
 
       {/* Grid */}
-      <div className="flex-1 min-h-0 relative p-2">
-        {/* Ambient aurora backdrop — faint WebGL glow over a CSS fallback so
-            there is never a hard void when motion is reduced or GL fails. */}
-        <div className="absolute inset-0 aurora-fallback" aria-hidden="true">
-          {animationsEnabled && (
-            <SoftAurora
-              speed={0.5}
-              brightness={0.42}
-              scale={1.4}
-              color1="#d87757"
-              color2="#547ea8"
-              noiseFrequency={2.2}
-              bandHeight={0.42}
-              bandSpread={1.0}
-              octaveDecay={0.12}
-              layerOffset={0.35}
-              colorSpeed={1.0}
-              enableMouseInteraction={false}
-            />
-          )}
-        </div>
+      <div className="relative min-h-0 flex-1 bg-[var(--bg-primary)] p-3">
 
         {sessions.length === 0 ? (
-          <div className="relative h-full flex flex-col items-center justify-center gap-4">
-            <div className="w-12 h-12 flex items-center justify-center rounded-xl border border-[var(--accent-border)] bg-[var(--accent-light)]/20 overflow-hidden">
-              <img src={logo} alt="YzPzCode Agent" className="w-9 h-9 object-contain" draggable={false} />
-            </div>
-            <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-              No AI agents running
-            </div>
-            <p className="max-w-sm text-center font-mono text-[10px] text-[var(--text-secondary)]/50">
-              Spawn a YZPZ Agent to edit files, run commands, and inspect your codebase with a visual chat interface.
+          <div className="relative flex h-full flex-col items-center justify-center gap-4 text-center">
+            <div className="text-lg font-semibold text-[var(--text-primary)]">Start a focused agent session</div>
+            <p className="max-w-sm text-sm leading-6 text-[var(--text-secondary)]">
+              Ask about the codebase, plan a change, or let an agent work through a task with your approval.
             </p>
             {!hostReady && !hostError ? (
               <div className="flex items-center gap-2 text-[var(--accent)]">
-                <svg className="animate-spin h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <span className="font-mono text-[10px] uppercase tracking-widest">
+                <SpinnerGap size={16} className="animate-spin shrink-0" />
+                <span className="text-xs">
                   {preparing ? 'Preparing agent runtime…' : 'Starting agent runtime…'}
                 </span>
               </div>
@@ -612,9 +572,10 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
               <button
                 onClick={() => void handleNewAgent()}
                 disabled={!hostReady}
-                className="premium-btn-primary px-6 py-2.5 rounded-lg font-mono text-[11px] font-bold uppercase tracking-widest disabled:opacity-40 cursor-pointer"
+                className="app-button app-button--primary px-4 disabled:opacity-40"
               >
-                + New Agent
+                <Plus size={15} />
+                New session
               </button>
             )}
           </div>
@@ -659,7 +620,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
                   <button
                     onClick={() => void handleNewAgent()}
                     disabled={!hostReady}
-                    className="absolute flex min-h-0 min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-dashed border-[var(--border-primary)] bg-[var(--bg-tertiary)]/30 transition-colors duration-200 hover:border-[var(--accent-border)] hover:bg-[var(--bg-tertiary)]/60 disabled:opacity-40 cursor-pointer"
+                    className="absolute flex min-h-0 min-w-0 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-[var(--radius-surface)] border border-dashed border-[var(--border-primary)] bg-[var(--bg-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] disabled:opacity-40"
                     style={{
                       left: `calc(${left}% + ${column * GRID_GAP}px)`,
                       top: `calc(${top}% + ${row * GRID_GAP}px)`,
@@ -667,10 +628,8 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
                       height: `${cellRowSizes[column][row]}%`,
                     }}
                   >
-                    <svg className="h-6 w-6 text-[var(--text-secondary)]/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span className="font-mono text-[9px] font-black uppercase tracking-[0.3em] text-[var(--text-secondary)]/50">Spawn Agent</span>
+                    <Plus className="text-[var(--text-secondary)]" size={22} />
+                    <span className="text-xs font-medium text-[var(--text-secondary)]">New session</span>
                   </button>
                 );
               })()}
@@ -762,10 +721,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
       {creating && (
         <div className="fixed inset-0 z-[1000] bg-black/50 backdrop-blur-sm flex items-center justify-center">
           <div className="flex flex-col items-center gap-3 px-6 py-5 rounded-xl premium-surface">
-            <svg className="animate-spin h-7 w-7 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <SpinnerGap size={28} className="animate-spin text-[var(--accent)]" />
             <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--text-secondary)]">
               Creating agent session…
             </span>

@@ -297,15 +297,6 @@ html.animations-disabled *::after {
   box-shadow: 0 0 6px var(--accent-glow) !important;
 }
 
-/* ── Titlebar drag region (Tauri borderless) ─────────────────────────── */
-.titlebar-drag {
-  -webkit-app-region: drag;
-}
-
-.titlebar-nodrag {
-  -webkit-app-region: no-drag;
-}
-
 /* ── Animations ──────────────────────────────────────────────────────── */
 @keyframes fade-in {
   from { opacity: 0; }
@@ -398,49 +389,6 @@ html.animations-disabled *::after {
 
 .animate-mode-icon {
   animation: mode-icon-glow 2.6s ease-in-out infinite;
-}
-
-@keyframes gemini-border-flow {
-  0% {
-    background-position: 0% 50%;
-    filter: hue-rotate(0deg);
-  }
-  50% {
-    background-position: 100% 50%;
-    filter: hue-rotate(18deg);
-  }
-  100% {
-    background-position: 0% 50%;
-    filter: hue-rotate(0deg);
-  }
-}
-
-.inspect-button-gemini {
-  position: relative;
-  background: linear-gradient(90deg, #4285f4, #34a853, #fbbc05, #ea4335, #8ab4f8, #34a853);
-  background-size: 300% 300%;
-  box-shadow: 0 0 0 1px rgba(66, 133, 244, 0.16), 0 0 14px rgba(52, 168, 83, 0.08);
-}
-
-.inspect-button-gemini::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  background: inherit;
-  background-size: inherit;
-  z-index: -1;
-  animation: gemini-border-flow 3.5s linear infinite;
-  opacity: 0.9;
-  filter: blur(8px) saturate(1.35);
-}
-
-.inspect-button-gemini:not(.is-active) {
-  animation: gemini-border-flow 3.5s linear infinite;
-}
-
-.inspect-button-gemini.is-active {
-  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.25), 0 0 16px rgba(52, 211, 153, 0.28);
 }
 
 /* ── Help Tooltip ────────────────────────────────────────────────────── */
@@ -1731,46 +1679,6 @@ html.has-custom-cursor *::after {
   filter: drop-shadow(0 0 5px rgba(56,189,248,.95));
 }
 
-/* Subtle electric theme shared by the other session controls: cyan charge
-   glow on hover, icon flicker, and a beam sweep while hovered. */
-@keyframes electric-btn-flicker {
-  0%, 100% { filter: brightness(1); }
-  8% { filter: brightness(1.45); }
-  10% { filter: brightness(1); }
-  62% { filter: brightness(1.25); }
-  64% { filter: brightness(1); }
-}
-.electric-btn {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-  transition: border-color .15s ease, box-shadow .15s ease, color .15s ease;
-}
-.electric-btn:hover {
-  border-color: rgba(56,189,248,.55) !important;
-  box-shadow: 0 0 10px rgba(56,189,248,.3), inset 0 0 7px rgba(56,189,248,.10);
-}
-.electric-btn:hover .electric-icon {
-  animation: electric-btn-flicker .9s linear infinite;
-  filter: drop-shadow(0 0 4px rgba(56,189,248,.85));
-}
-.electric-btn::after {
-  content: '';
-  position: absolute;
-  top: -30%;
-  bottom: -30%;
-  left: 0;
-  width: 30%;
-  background: linear-gradient(90deg, transparent, rgba(165,243,252,.18), transparent);
-  transform: translateX(-160%) skewX(-18deg);
-  opacity: 0;
-  transition: opacity .15s ease;
-  pointer-events: none;
-}
-.electric-btn:hover::after {
-  opacity: 1;
-  animation: electric-beam 1.6s ease-in-out infinite;
-}
 /* Small "fast on" status chip in the pane header */
 .electric-chip {
   display: inline-flex;

@@ -2,8 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { DiffEditor } from '@monaco-editor/react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Icon } from '@iconify/react';
-import { useAppStore } from '../../stores/appStore';
+import { ArrowBendUpLeft, ArrowsLeftRight, ArrowClockwise, ClockCounterClockwise, FileText, Warning, X } from '@phosphor-icons/react';
+import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 import type { FileBackupInfo, GitFileDiff } from '../../types';
 
 interface DiffViewerProps {
@@ -29,7 +29,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
   const [notice, setNotice] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
   const [backups, setBackups] = useState<FileBackupInfo[]>([]);
-  const theme = useAppStore((s) => s.lightThemeEnabled);
+  const effectiveTheme = useEffectiveTheme();
   const language = useMemo(() => {
     const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
     return ext;
@@ -105,13 +105,13 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
     [workspacePath, filePath, fileName, load, onChanged]
   );
 
-  const editorTheme = theme ? 'light' : 'vs-dark';
+  const editorTheme = effectiveTheme === 'light' ? 'light' : 'vs-dark';
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-theme-card">
       {/* Header */}
       <div className="flex h-8 shrink-0 items-center gap-2 border-b border-[var(--border-primary)] px-2">
-        <Icon icon="lucide:git-compare" className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" aria-hidden="true" />
+        <ArrowsLeftRight size={14} className="shrink-0 text-[var(--accent)]" aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate font-mono text-[10px] font-bold text-[var(--text-primary)]">
           {fileName}
         </span>
@@ -136,7 +136,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
               : 'text-[var(--text-secondary)]/60 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
           }`}
         >
-          <Icon icon="lucide:history" className="h-3 w-3" aria-hidden="true" />
+          <ClockCounterClockwise size={12} aria-hidden="true" />
           History
         </button>
         <button
@@ -145,7 +145,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
           title="Refresh diff"
           className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-[var(--text-secondary)]/60 transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
-          <Icon icon="lucide:refresh-cw" className="h-3.5 w-3.5" aria-hidden="true" />
+          <ArrowClockwise size={14} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -153,7 +153,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
           title="Close diff"
           className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-[var(--text-secondary)]/60 transition-colors hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
         >
-          <Icon icon="lucide:x" className="h-3.5 w-3.5" aria-hidden="true" />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -166,7 +166,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
         )}
         {!loading && error && (
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
-            <Icon icon="lucide:triangle-alert" className="h-5 w-5 text-rose-400" aria-hidden="true" />
+            <Warning size={20} weight="fill" className="text-rose-400" aria-hidden="true" />
             <p className="max-w-sm font-mono text-[10px] text-[var(--text-secondary)]">{error}</p>
           </div>
         )}
@@ -210,7 +210,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
                 )}
                 {backups.map((backup) => (
                   <div key={backup.name} className="flex items-center gap-2 px-1 py-1">
-                    <Icon icon="lucide:file-clock" className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/50" aria-hidden="true" />
+                    <FileText size={12} className="shrink-0 text-[var(--text-secondary)]/50" aria-hidden="true" />
                     <span className="min-w-0 flex-1 truncate font-mono text-[9px] text-[var(--text-secondary)]">
                       {new Date(backup.timestampMs).toLocaleString()}
                     </span>
@@ -223,7 +223,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
                       disabled={busy}
                       className="inline-flex h-5 cursor-pointer items-center gap-1 rounded border border-[var(--accent-border)] bg-[var(--accent-light)]/10 px-1.5 font-mono text-[8px] font-bold uppercase tracking-widest text-[var(--accent)] transition-colors hover:bg-[var(--accent-light)]/25 disabled:opacity-40"
                     >
-                      <Icon icon="lucide:rotate-ccw" className="h-2.5 w-2.5" aria-hidden="true" />
+                      <ArrowBendUpLeft size={10} aria-hidden="true" />
                       Restore
                     </button>
                   </div>
@@ -242,7 +242,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
               disabled={busy || loading}
               className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-rose-500/30 bg-rose-500/5 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-rose-400 transition-colors hover:bg-rose-500/15 disabled:cursor-default disabled:opacity-40"
             >
-              <Icon icon="lucide:undo-2" className="h-3 w-3" aria-hidden="true" />
+              <ArrowBendUpLeft size={12} aria-hidden="true" />
               Discard
             </button>
           </div>

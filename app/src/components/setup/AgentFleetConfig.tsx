@@ -108,7 +108,7 @@ const CliCard: React.FC<CliCardProps> = ({
               <span className="px-1.5 py-0.5 rounded bg-zinc-700/50 text-[8px] text-zinc-400 font-mono uppercase tracking-wider">tpl</span>
             )}
           </div>
-          <span className="text-[9px] text-zinc-600 font-mono">{sublabel}</span>
+          <span className="text-[9px] text-[var(--text-secondary)] font-mono">{sublabel}</span>
         </div>
       </div>
       <button
@@ -277,13 +277,13 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     <div className="space-y-4 font-mono">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-600 text-xs font-mono">$</span>
-          <label className="block text-xs font-medium text-zinc-400 uppercase tracking-[0.15em] font-mono">
+          <span className="text-[var(--text-secondary)] text-xs font-mono">$</span>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] uppercase tracking-[0.15em] font-mono">
             Fleet Allocation
           </label>
           <HelpTooltip text="Assign CLI agents and tools to your terminal slots. Enable a CLI, then set how many terminals should run it. Remaining slots open as plain shells." />
           {(isRefreshing || cliLoading || toolLoading) && (
-            <span className="flex items-center gap-1 text-[10px] text-zinc-600">
+            <span className="flex items-center gap-1 text-[10px] text-[var(--text-secondary)]">
               <span className="inline-flex gap-0.5">
                 <span className="w-1 h-1 bg-zinc-500 rounded-full animate-cli-dot" style={{ animationDelay: '0ms' }} />
                 <span className="w-1 h-1 bg-zinc-500 rounded-full animate-cli-dot" style={{ animationDelay: '150ms' }} />
@@ -386,11 +386,11 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
       <div className="flex items-center gap-3 py-2">
         <div className="flex-1 h-px bg-zinc-800/40" />
         <div className="flex items-center gap-2">
-          <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-3 h-3 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-.756-.426-.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <span className="text-[9px] font-mono text-zinc-600 uppercase tracking-[0.2em]">Tool CLIs</span>
+          <span className="text-[9px] font-mono text-[var(--text-secondary)] uppercase tracking-[0.2em]">Tool CLIs</span>
         </div>
         <div className="flex-1 h-px bg-zinc-800/40" />
       </div>
@@ -422,7 +422,7 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
                 <span
                   className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm font-mono text-[10px] uppercase ${
                     isInstalled
-                      ? 'bg-emerald-950/30 border border-emerald-900/50 text-emerald-400'
+                      ? 'cli-status-badge--installed bg-emerald-950/30 border border-emerald-900/50 text-emerald-400'
                       : toolStatus?.status === 'Checking'
                         ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 animate-pulse'
                         : 'bg-rose-950/30 border border-rose-900/50 text-rose-400'
@@ -477,7 +477,7 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
             </div>
             <div>
               <span className="font-semibold text-zinc-300 uppercase tracking-[0.1em] text-sm block">/bin/sh</span>
-              <span className="text-[9px] text-zinc-600 font-mono">shell::native</span>
+              <span className="text-[9px] text-[var(--text-secondary)] font-mono">shell::native</span>
             </div>
           </div>
         </div>
@@ -494,11 +494,11 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
                 {remainingSlots}
               </motion.span>
             </span>
-            <span className="text-[10px] text-zinc-600 ml-2 uppercase font-mono">slot{remainingSlots !== 1 ? 's' : ''}</span>
+            <span className="text-[10px] text-[var(--text-secondary)] ml-2 uppercase font-mono">slot{remainingSlots !== 1 ? 's' : ''}</span>
           </div>
         </div>
 
-        <p className="text-[10px] text-zinc-600 text-center mt-3 pt-3.5 border-t border-zinc-800/60 font-mono">
+        <p className="text-[10px] text-[var(--text-secondary)] text-center mt-3 pt-3.5 border-t border-zinc-800/60 font-mono">
           Unallocated slots become native shells
         </p>
       </div>

@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { ArrowClockwise, ListBullets, MouseSimple, Plus, TerminalWindow, X } from '@phosphor-icons/react';
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession } from '../../types';
 import { QuickActions } from './QuickActions';
@@ -43,8 +45,8 @@ export const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGO
 
 const STATUS_COLORS = {
   idle: 'bg-zinc-600',
-  running: 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]',
-  error: 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.7)]',
+  running: 'bg-emerald-500',
+  error: 'bg-rose-500',
 };
 
 interface TerminalHeaderProps {
@@ -52,7 +54,7 @@ interface TerminalHeaderProps {
   onRefreshCli: () => void;
   isRefreshing: boolean;
   onClose?: () => void;
-  cliStatusBadge: React.ReactNode;
+  cliStatusBadge: ReactNode;
   dragListeners?: Record<string, unknown>;
   mouseTrackingEnabled?: boolean;
   onToggleMouseTracking?: () => void;
@@ -105,26 +107,29 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
 
   return (
     <div
-      className={`drag-handle flex items-center justify-between px-3 py-1.5 select-none shrink-0 cursor-grab active:cursor-grabbing bg-theme-terminal border-b border-zinc-800/80`}
+      className={`drag-handle flex min-h-8 items-center justify-between border-b px-2 py-1 select-none shrink-0 cursor-grab active:cursor-grabbing ${
+        isActive
+          ? 'border-[var(--accent-border)] bg-[var(--accent-light)]'
+          : 'border-[var(--border-primary)] bg-[var(--bg-secondary)]'
+      }`}
       {...dragListeners}
     >
-      <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+      <div className="flex items-center gap-2 min-w-0 overflow-hidden">
         <div className="relative flex h-2 w-2 shrink-0">
-           <span className={`relative inline-flex h-2 w-2 transition-colors duration-200 ${
-             isActive ? 'bg-accent shadow-[0_0_6px_var(--accent-glow)]' : STATUS_COLORS[session.status]
-           }`}></span>
+           <span className={`relative inline-flex h-2 w-2 rounded-full transition-colors duration-200 ${
+             isActive ? 'bg-[var(--accent)]' : STATUS_COLORS[session.status]
+           }`} />
         </div>
 
-        <span className="text-xs font-black tracking-[0.2em] uppercase shrink-0">
-          <span className="text-zinc-500">TTY::</span>
-          <span className="text-accent">{session.index + 1}</span>
+        <span className="shrink-0 text-[10px] font-medium text-[var(--text-primary)]">
+          Terminal {session.index + 1}
         </span>
 
-        <div className="h-3 w-px bg-zinc-700/50 mx-1" />
+        <div className="mx-0.5 h-3 w-px bg-[var(--border-primary)]" />
 
         {effectiveAgent ? (
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 px-2 py-0.5 shrink-0 border transition-all duration-300 bg-zinc-950/90 border-zinc-800 hover:border-zinc-700 group/agent">
+            <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1 px-1.5 py-0 shrink-0 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] transition-colors duration-150 hover:border-[var(--text-secondary)] group/agent">
               {isAgentType(effectiveAgent) ? (
                 effectiveAgent === 'claude' ? (
                   <Icon
@@ -150,18 +155,16 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                   className="w-3 h-3"
                 />
               )}
-              <span className="text-[9px] uppercase font-black tracking-widest truncate max-w-[80px] text-zinc-400">{effectiveAgent}</span>
+                  <span className="max-w-[80px] truncate text-[9px] font-medium text-[var(--text-secondary)]">{effectiveAgent}</span>
             </div>
             <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
               {cliStatusBadge}
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-1.5 px-2 py-0.5 shrink-0 border bg-zinc-950 border-zinc-800">
-            <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">CORE::SHELL</span>
+          <div className="flex items-center gap-1 px-1.5 py-0 shrink-0 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)]">
+            <TerminalWindow size={12} className="text-[var(--text-secondary)]" />
+            <span className="text-[9px] font-medium text-[var(--text-secondary)]">Shell</span>
           </div>
         )}
       </div>
@@ -175,16 +178,24 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             e.stopPropagation();
             onToggleMouseTracking?.();
           }}
-          className={`px-2 py-1 border text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
+          aria-pressed={mouseOn}
+            className={`app-icon-button relative h-5 w-5 rounded-md border transition-all duration-200 cursor-pointer ${
             mouseOn
-              ? 'bg-emerald-950/45 border-emerald-800 text-emerald-400'
-              : 'bg-rose-950/35 border-rose-900 text-rose-400 hover:bg-rose-950/50'
+              ? 'border-emerald-400/70 bg-emerald-500/15 text-emerald-300 shadow-[0_0_0_1px_rgba(52,211,153,0.12),0_0_12px_rgba(52,211,153,0.16)] hover:border-emerald-300 hover:bg-emerald-500/20'
+              : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
           }`}
           title={mouseOn
             ? 'Mouse mode enabled (click to disable)'
             : 'Mouse mode disabled (click to enable manually)'}
         >
-          Mouse {mouseOn ? 'On' : 'Off'}
+          <MouseSimple size={14} weight={mouseOn ? 'fill' : 'regular'} aria-hidden="true" />
+          <span
+            className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full border border-[var(--bg-primary)] transition-colors duration-200 ${
+              mouseOn ? 'bg-emerald-300 shadow-[0_0_5px_rgba(110,231,183,0.9)]' : 'bg-[var(--text-secondary)]/45'
+            }`}
+            aria-hidden="true"
+          />
+          <span className="sr-only">Mouse mode</span>
         </button>
         {isAiAgent && onNewSession && (
           <button
@@ -195,12 +206,10 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
               e.stopPropagation();
               onNewSession();
             }}
-            className="flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer border bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-emerald-400 hover:border-emerald-900 hover:bg-emerald-950/30"
+              className="flex h-5 items-center gap-1 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] px-1.5 text-[9px] font-medium text-[var(--text-secondary)] transition-colors cursor-pointer hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             title="Start a new session"
           >
-            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus size={10} />
             New Session
           </button>
         )}
@@ -214,20 +223,18 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                 e.stopPropagation();
                 setCommandsOpen((open) => !open);
               }}
-              className="flex items-center justify-center w-6 h-6 p-1 border transition-colors cursor-pointer bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-cyan-400 hover:border-cyan-900 hover:bg-cyan-950/30"
+              className="app-icon-button h-5 w-5 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)]"
               title="Agent commands"
             >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 6h14M5 12h14M5 18h14M3 6h.01M3 12h.01M3 18h.01" />
-              </svg>
+              <ListBullets size={12} />
             </button>
             {commandsOpen && agentCommands.length > 0 && (
-              <div className="absolute right-0 top-full mt-1 w-80 bg-zinc-900 border border-zinc-700 rounded-md shadow-xl z-50 overflow-hidden">
-                <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
-                  <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.15em]">
+              <div className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-[var(--shadow-float)]">
+                <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-3 py-2">
+                  <span className="text-[11px] font-medium text-[var(--text-secondary)]">
                     {effectiveAgent} · Commands
                   </span>
-                  <span className="text-[10px] text-zinc-700 font-mono">{agentCommands.length}</span>
+                  <span className="text-[10px] tabular-nums text-[var(--text-secondary)]">{agentCommands.length}</span>
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {agentCommands.map((cmd) => (
@@ -238,16 +245,16 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                         e.stopPropagation();
                         runCommand(cmd.command);
                       }}
-                      className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition-colors duration-100 cursor-pointer flex items-center gap-3 group"
+                      className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-100 hover:bg-[var(--bg-tertiary)] cursor-pointer"
                       title={cmd.description}
                     >
                       <span className="flex items-center justify-center w-4 h-4 shrink-0 text-zinc-500 group-hover:text-cyan-400 transition-colors duration-100">
-                        <Icon icon={getCommandIcon(cmd.command)} className="w-3.5 h-3.5" />
+                        {getCommandIcon(cmd.command)}
                       </span>
-                      <span className="text-xs font-mono text-cyan-400 shrink-0 group-hover:text-cyan-300">
+                      <span className="shrink-0 font-mono text-xs text-[var(--text-primary)] group-hover:text-[var(--text-primary)]">
                         {cmd.command}
                       </span>
-                      <span className="text-[10px] text-zinc-500 group-hover:text-zinc-400 truncate">
+                      <span className="truncate text-[10px] text-[var(--text-secondary)]">
                         {cmd.description}
                       </span>
                     </button>
@@ -258,28 +265,24 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
           </div>
         )}
         <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} />
-        <div className="h-3 w-px bg-zinc-700/50" />
+        <div className="h-3 w-px bg-[var(--border-primary)]" />
         {session.agent && (
           <button
             onClick={onRefreshCli}
             disabled={isRefreshing}
-            className="flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
+            className="app-icon-button h-5 w-5"
             title="Restart CLI"
           >
-            <svg className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
+            <ArrowClockwise size={14} className={isRefreshing ? 'animate-spin' : ''} />
           </button>
         )}
         {onClose && (
           <button
             onClick={onClose}
-            className="flex items-center justify-center w-6 h-6 transition-all duration-200 cursor-pointer text-zinc-600 hover:text-rose-400 hover:bg-rose-950/30"
+            className="app-icon-button h-5 w-5 hover:bg-rose-500/10 hover:text-rose-400"
             title="Terminate process"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={14} />
           </button>
         )}
       </div>

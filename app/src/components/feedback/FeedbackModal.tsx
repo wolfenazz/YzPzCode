@@ -1,4 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ArrowRight,
+  At,
+  CheckCircle,
+  ChatCenteredText,
+  CircleNotch,
+  User,
+  WarningCircle,
+  X,
+} from '@phosphor-icons/react';
 import { invoke } from '@tauri-apps/api/core';
 
 interface FeedbackModalProps {
@@ -8,6 +19,12 @@ interface FeedbackModalProps {
 
 type SubmitState = 'idle' | 'loading' | 'success' | 'error';
 
+const FOCUSABLE_SELECTOR = [
+  'button:not([disabled])',
+  'textarea:not([disabled])',
+  'input:not([disabled])',
+].join(',');
+
 export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose }) => {
   const [message, setMessage] = useState('');
   const [name, setName] = useState('');
@@ -16,40 +33,66 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
   const [errorMessage, setErrorMessage] = useState('');
   const modalRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const successTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+    if (!isOpen) return;
+
+    previousFocusRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    setMessage('');
+    setName('');
+    setContact('');
+    setSubmitState('idle');
+    setErrorMessage('');
+
+    const focusTimer = window.setTimeout(() => inputRef.current?.focus(), 120);
+    return () => {
+      window.clearTimeout(focusTimer);
+      if (successTimerRef.current !== null) {
+        window.clearTimeout(successTimerRef.current);
+        successTimerRef.current = null;
       }
+      previousFocusRef.current?.focus();
     };
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (modalRef.current && !modalRef.current.contains(e.target as Node) && isOpen) {
-        onClose();
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setMessage('');
-      setName('');
-      setContact('');
-      setSubmitState('idle');
-      setErrorMessage('');
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
   }, [isOpen]);
 
-  const handleSubmit = async () => {
-    if (!message.trim()) return;
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab' || !modalRef.current) return;
+
+      const focusableElements = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      );
+      if (focusableElements.length === 0) return;
+
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleDialogKeyDown);
+    return () => document.removeEventListener('keydown', handleDialogKeyDown);
+  }, [isOpen, onClose]);
+
+  const handleSubmit = async (): Promise<void> => {
+    if (!message.trim() || submitState === 'loading') return;
 
     setSubmitState('loading');
     setErrorMessage('');
@@ -61,155 +104,219 @@ export const FeedbackModal: React.FC<FeedbackModalProps> = ({ isOpen, onClose })
         contact: contact.trim() || null,
       });
       setSubmitState('success');
-      setTimeout(() => {
-        onClose();
-      }, 2500);
+      successTimerRef.current = window.setTimeout(onClose, 2200);
     } catch (err) {
       setSubmitState('error');
       setErrorMessage(String(err));
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      handleSubmit();
+  const handleMessageKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      void handleSubmit();
     }
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 font-mono">
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Send feedback"
-        className="w-full max-w-lg mx-4 bg-zinc-950 border border-zinc-800 shadow-2xl"
-      >
-        <div className="flex items-center justify-between px-4 py-2 bg-zinc-900 border-b border-zinc-800">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-zinc-600"></span>
-            <span className="text-xs text-zinc-400 uppercase tracking-widest">Feedback</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1 hover:bg-zinc-800 transition-colors text-zinc-500 hover:text-zinc-300"
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) onClose();
+          }}
+        >
+          <motion.div
+            ref={modalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="feedback-title"
+            aria-describedby="feedback-description"
+            className="app-surface app-surface--raised relative w-full max-w-[560px] overflow-hidden"
+            initial={{ opacity: 0, y: 14, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.99 }}
+            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4">
-          {submitState === 'success' ? (
-            <div className="py-8 text-center">
-              <div className="flex items-center justify-center gap-2 text-emerald-500 mb-2">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="text-sm uppercase tracking-widest">Sent</span>
-              </div>
-              <p className="text-xs text-zinc-500">Thank you for your feedback</p>
-            </div>
-          ) : (
-            <>
-              <div>
-                <label className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-widest mb-2">
-                  <span className="text-zinc-600">$</span>
-                  <span>Message</span>
-                  <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  ref={inputRef}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="// your feedback here..."
-                  rows={5}
-                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600 resize-none leading-relaxed"
-                  disabled={submitState === 'loading'}
-                  spellCheck={false}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-widest mb-2">
-                    <span className="text-zinc-600">$</span>
-                    <span>Name</span>
-                    <span className="text-zinc-700">[opt]</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="anonymous"
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600"
-                    disabled={submitState === 'loading'}
-                    spellCheck={false}
-                  />
+            <header className="flex items-start justify-between gap-4 border-b border-[var(--border-primary)] px-6 py-5">
+              <div className="flex min-w-0 items-start gap-3.5">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)]">
+                  <ChatCenteredText size={20} weight="regular" aria-hidden="true" />
                 </div>
-                <div>
-                  <label className="flex items-center gap-2 text-[10px] text-zinc-500 uppercase tracking-widest mb-2">
-                    <span className="text-zinc-600">$</span>
-                    <span>Contact</span>
-                    <span className="text-zinc-700">[opt]</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="email/discord"
-                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 placeholder:text-zinc-700 focus:outline-none focus:border-zinc-600"
-                    disabled={submitState === 'loading'}
-                    spellCheck={false}
-                  />
+                <div className="min-w-0 pt-0.5">
+                  <h2 id="feedback-title" className="text-[15px] font-semibold tracking-[-0.015em] text-[var(--text-primary)]">
+                    Share feedback
+                  </h2>
+                  <p id="feedback-description" className="mt-1 max-w-[44ch] text-xs leading-5 text-[var(--text-secondary)]">
+                    Tell us what slowed you down or what would make YzPzCode better.
+                  </p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="app-icon-button shrink-0"
+                aria-label="Close feedback"
+                title="Close"
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </header>
 
-              {submitState === 'error' && (
-                <div className="flex items-start gap-2 p-3 bg-rose-950/30 border border-rose-900/50 text-xs text-rose-400">
-                  <span className="text-rose-500">[!]</span>
-                  <span className="leading-relaxed">{errorMessage || 'Transmission failed'}</span>
-                </div>
-              )}
+            <AnimatePresence mode="wait" initial={false}>
+              {submitState === 'success' ? (
+                <motion.section
+                  key="success"
+                  className="flex min-h-[300px] flex-col items-center justify-center px-8 py-12 text-center"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  aria-live="polite"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-emerald-500/25 bg-emerald-500/10 text-emerald-500">
+                    <CheckCircle size={26} weight="regular" aria-hidden="true" />
+                  </div>
+                  <h3 className="mt-4 text-[15px] font-semibold text-[var(--text-primary)]">Feedback sent</h3>
+                  <p className="mt-1.5 max-w-[34ch] text-xs leading-5 text-[var(--text-secondary)]">
+                    Thank you. Your note helps us decide what to improve next.
+                  </p>
+                </motion.section>
+              ) : (
+                <motion.form
+                  key="form"
+                  className="px-6 pb-5 pt-5"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void handleSubmit();
+                  }}
+                >
+                  <div>
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <label htmlFor="feedback-message" className="text-xs font-medium text-[var(--text-primary)]">
+                        Your feedback <span className="text-[var(--accent)]">*</span>
+                      </label>
+                      <span className="text-[10px] tabular-nums text-[var(--text-secondary)]">
+                        {message.length}/4000
+                      </span>
+                    </div>
+                    <textarea
+                      id="feedback-message"
+                      ref={inputRef}
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      onKeyDown={handleMessageKeyDown}
+                      placeholder="What happened? What did you expect instead?"
+                      maxLength={4000}
+                      className="app-input min-h-[148px] resize-none px-3.5 py-3 text-[13px] leading-5 placeholder:text-[var(--text-secondary)]/55"
+                      disabled={submitState === 'loading'}
+                      required
+                    />
+                  </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
-                <span className="text-[10px] text-zinc-600">ctrl+enter to send</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={onClose}
-                    className="px-4 py-1.5 text-xs text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 transition-colors uppercase tracking-widest"
-                    disabled={submitState === 'loading'}
-                  >
-                    [ Cancel ]
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!message.trim() || submitState === 'loading'}
-                    className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 disabled:bg-zinc-900 disabled:text-zinc-600 text-zinc-300 disabled:cursor-not-allowed transition-colors uppercase tracking-widest border border-zinc-700 disabled:border-zinc-800"
-                  >
-                    {submitState === 'loading' ? (
-                      <>
-                        <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        <span>Sending...</span>
-                      </>
-                    ) : (
-                      <span>[ Send ]</span>
+                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <label className="block">
+                      <span className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-primary)]">
+                        <User size={13} className="text-[var(--text-secondary)]" aria-hidden="true" />
+                        Name <span className="font-normal text-[var(--text-secondary)]">· Optional</span>
+                      </span>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        placeholder="How should we address you?"
+                        maxLength={100}
+                        className="app-input text-[13px] placeholder:text-[var(--text-secondary)]/55"
+                        disabled={submitState === 'loading'}
+                        autoComplete="name"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-2 flex items-center gap-1.5 text-xs font-medium text-[var(--text-primary)]">
+                        <At size={13} className="text-[var(--text-secondary)]" aria-hidden="true" />
+                        Contact <span className="font-normal text-[var(--text-secondary)]">· Optional</span>
+                      </span>
+                      <input
+                        type="text"
+                        value={contact}
+                        onChange={(event) => setContact(event.target.value)}
+                        placeholder="Email or Discord"
+                        maxLength={160}
+                        className="app-input text-[13px] placeholder:text-[var(--text-secondary)]/55"
+                        disabled={submitState === 'loading'}
+                      />
+                    </label>
+                  </div>
+
+                  <p className="mt-2.5 text-[10px] leading-4 text-[var(--text-secondary)]">
+                    Add contact details only if you are comfortable with us following up.
+                  </p>
+
+                  <AnimatePresence>
+                    {submitState === 'error' && (
+                      <motion.div
+                        role="alert"
+                        className="mt-4 flex items-start gap-2.5 rounded-[var(--radius-control)] border border-rose-500/25 bg-rose-500/8 px-3 py-2.5 text-xs text-rose-400"
+                        initial={{ opacity: 0, y: -4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -4 }}
+                      >
+                        <WarningCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+                        <span className="leading-5">{errorMessage || 'We could not send your feedback. Please try again.'}</span>
+                      </motion.div>
                     )}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
+                  </AnimatePresence>
+
+                  <footer className="mt-5 flex flex-col-reverse gap-3 border-t border-[var(--border-primary)] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]">
+                      <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5">Ctrl / ⌘</kbd>
+                      <span>+</span>
+                      <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5">Enter</kbd>
+                      <span className="ml-1">to send</span>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={onClose}
+                        className="app-button app-button--quiet"
+                        disabled={submitState === 'loading'}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={!message.trim() || submitState === 'loading'}
+                        className="app-button app-button--primary min-w-[118px] disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {submitState === 'loading' ? (
+                          <>
+                            <CircleNotch size={15} className="animate-spin" aria-hidden="true" />
+                            Sending
+                          </>
+                        ) : (
+                          <>
+                            Send feedback
+                            <ArrowRight size={14} aria-hidden="true" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </footer>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

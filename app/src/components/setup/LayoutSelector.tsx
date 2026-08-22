@@ -122,7 +122,7 @@ export const LayoutSelector: React.FC<LayoutSelectorProps> = ({
         </button>
         <div className="flex flex-col">
           <span className="text-xs font-mono text-zinc-300 font-medium">Open Terminals Externally</span>
-          <span className="text-[10px] text-zinc-600 font-mono mt-0.5">Launch terminals in separate windows</span>
+          <span className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">Launch terminals in separate windows</span>
         </div>
         <div className="ml-auto">
           <HelpTooltip text="Opens terminals as separate system windows outside the app. They will be automatically tiled on your screen in a grid layout matching your selection." />

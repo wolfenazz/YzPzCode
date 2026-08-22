@@ -1,5 +1,18 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Icon } from '@iconify/react';
+import {
+  Code,
+  Eraser,
+  Link,
+  LinkBreak,
+  ListBullets,
+  ListNumbers,
+  Quotes,
+  TextB,
+  TextItalic,
+  TextStrikethrough,
+  TextUnderline,
+  type IconProps,
+} from '@phosphor-icons/react';
 import { htmlToPlainText, sanitizeRichText } from '../../utils/richText';
 
 interface RichPromptEditorProps {
@@ -26,29 +39,23 @@ type ToolbarActionKey = keyof ActiveState | 'link' | 'unlink' | 'clear';
 interface ToolbarAction {
   key: ToolbarActionKey;
   label: string;
-  icon: string;
+  icon: React.ComponentType<IconProps>;
   command: string;
   value?: string;
 }
 
 const TOOLBAR_ACTIONS: ToolbarAction[] = [
-  { key: 'bold', label: 'Bold', icon: 'material-symbols:format-bold-rounded', command: 'bold' },
-  { key: 'italic', label: 'Italic', icon: 'material-symbols:format-italic-rounded', command: 'italic' },
-  { key: 'underline', label: 'Underline', icon: 'material-symbols:format-underlined-rounded', command: 'underline' },
-  { key: 'strike', label: 'Strikethrough', icon: 'material-symbols:format-strikethrough-rounded', command: 'strikeThrough' },
-  {
-    key: 'code',
-    label: 'Inline code',
-    icon: 'material-symbols:code-rounded',
-    command: 'insertHTML',
-    value: '<code class="rich-prompt-code">\u200b</code>',
-  },
-  { key: 'quote', label: 'Quote', icon: 'material-symbols:format-quote-rounded', command: 'formatBlock', value: 'blockquote' },
-  { key: 'bullet', label: 'Bullet list', icon: 'material-symbols:format-list-bulleted-rounded', command: 'insertUnorderedList' },
-  { key: 'ordered', label: 'Numbered list', icon: 'material-symbols:format-list-numbered-rounded', command: 'insertOrderedList' },
-  { key: 'link', label: 'Insert link', icon: 'material-symbols:link-rounded', command: 'createLink' },
-  { key: 'unlink', label: 'Remove link', icon: 'material-symbols:link-off-rounded', command: 'unlink' },
-  { key: 'clear', label: 'Clear formatting', icon: 'material-symbols:format-clear-rounded', command: 'removeFormat' },
+  { key: 'bold', label: 'Bold', icon: TextB, command: 'bold' },
+  { key: 'italic', label: 'Italic', icon: TextItalic, command: 'italic' },
+  { key: 'underline', label: 'Underline', icon: TextUnderline, command: 'underline' },
+  { key: 'strike', label: 'Strikethrough', icon: TextStrikethrough, command: 'strikeThrough' },
+  { key: 'code', label: 'Inline code', icon: Code, command: 'insertHTML', value: '<code class="rich-prompt-code">\u200b</code>' },
+  { key: 'quote', label: 'Quote', icon: Quotes, command: 'formatBlock', value: 'blockquote' },
+  { key: 'bullet', label: 'Bullet list', icon: ListBullets, command: 'insertUnorderedList' },
+  { key: 'ordered', label: 'Numbered list', icon: ListNumbers, command: 'insertOrderedList' },
+  { key: 'link', label: 'Insert link', icon: Link, command: 'createLink' },
+  { key: 'unlink', label: 'Remove link', icon: LinkBreak, command: 'unlink' },
+  { key: 'clear', label: 'Clear formatting', icon: Eraser, command: 'removeFormat' },
 ];
 
 const EMPTY_ACTIVE: ActiveState = {
@@ -216,7 +223,7 @@ export const RichPromptEditor = memo(function RichPromptEditor({
                 : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100'
             }`}
           >
-            <Icon icon={action.icon} className="h-3.5 w-3.5" aria-hidden="true" />
+            <action.icon weight="regular" className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
         );
       }),

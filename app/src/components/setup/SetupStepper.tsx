@@ -190,7 +190,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
             {!isExternalMode && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
+                  <label className="block text-xs font-medium text-[var(--text-secondary)] font-mono uppercase tracking-[0.15em]">
                     Workspace Name
                   </label>
                   <HelpTooltip text="A name to identify this workspace. Used as a tab label when switching between multiple workspaces." />
@@ -200,7 +200,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                   value={workspaceName}
                   onChange={(e) => onWorkspaceNameChange(e.target.value)}
                   placeholder="Enter workspace name..."
-                  className={`w-full px-4 py-3 bg-theme-main border rounded-lg text-theme-main placeholder-zinc-600 focus:outline-none font-mono text-sm transition-colors duration-150 ${
+                  className={`w-full px-4 py-3 bg-theme-main border rounded-lg text-theme-main placeholder:text-[var(--text-secondary)] focus:outline-none font-mono text-sm transition-colors duration-150 ${
                     validationErrors.workspaceName
                       ? 'border-rose-500/40 focus:border-rose-500'
                       : 'border-theme focus:border-zinc-500'
@@ -244,9 +244,9 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                   </svg>
                   <span className="text-xs font-mono text-[var(--accent-text)]">Auto-configured by template</span>
                 </div>
-                <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-400">
+                <div className="flex items-center gap-4 text-[10px] font-mono text-[var(--text-secondary)]">
                   <span>{selectedLayout.sessions} terminal slots</span>
-                  <span className="text-zinc-700">|</span>
+                  <span className="text-[var(--text-secondary)]">|</span>
                   <span>{selectedLayout.openExternally ? 'External mode' : 'Embedded mode'}</span>
                 </div>
               </div>
@@ -270,7 +270,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                   </svg>
                   <span className="text-xs font-mono text-[var(--accent-text)]">Auto-configured by template</span>
                 </div>
-                <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-400">
+                <div className="flex items-center gap-4 text-[10px] font-mono text-[var(--text-secondary)]">
                   <span>{selectedLayout.sessions} total slots allocated</span>
                 </div>
               </div>
@@ -294,28 +294,28 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
   };
 
   return (
-    <div className="w-full bg-theme-card border border-theme rounded-lg overflow-hidden">
+    <div className="setup-config setup-stepper w-full bg-theme-card border border-theme rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="px-8 py-6 border-b border-theme bg-gradient-to-r from-zinc-900/50 via-transparent to-zinc-900/50">
+      <div className="setup-config__header px-8 py-6 border-b border-theme">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded-lg">
+          <div className="setup-config__mark w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded-lg">
             <svg className="w-4 h-4 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-sm font-mono font-bold text-theme-main tracking-tight">
-              $ yzpz --setup
+            <h1 className="setup-config__title text-sm font-mono font-bold text-theme-main tracking-tight">
+              Configure workspace
             </h1>
-            <p className="text-zinc-500 font-mono text-xs mt-0.5 tracking-wide">
-              Guided setup wizard
+            <p className="setup-config__description text-[var(--text-secondary)] font-mono text-xs mt-0.5 tracking-wide">
+              A guided path to your next focused workspace.
             </p>
           </div>
         </div>
       </div>
 
       {/* Step Indicator */}
-      <div className="px-8 py-3 border-b border-theme">
+      <div className="setup-stepper__progress px-8 py-3 border-b border-theme">
         <div className="flex items-center justify-center">
           {STEPS.map((step, idx) => {
             const isActive = step.id === currentStep;
@@ -327,7 +327,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                 {idx > 0 && (
                   <motion.span
                     key={`sep-${step.id}`}
-                    className="text-zinc-700 mx-2 select-none font-mono text-[10px]"
+                    className="text-[var(--text-secondary)] mx-2 select-none font-mono text-[10px]"
                     animate={{ opacity: 1 }}
                   >
                     {'/'}
@@ -335,7 +335,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                 )}
                 <button
                   onClick={() => goToStep(step.id)}
-                  className="relative flex items-center gap-1 px-1 py-0.5 cursor-pointer group"
+                  className={`setup-stepper__step relative flex items-center gap-1 px-1 py-0.5 cursor-pointer group ${isActive ? 'is-active' : ''}`}
                 >
                   <motion.span
                     className="text-[10px] font-mono tracking-wide"
@@ -354,7 +354,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
                     <span className="text-emerald-600 text-[9px] font-mono">ok</span>
                   )}
                   {isSkipped && !isActive && (
-                    <span className="text-zinc-600 text-[9px] font-mono">auto</span>
+                    <span className="text-[var(--text-secondary)] text-[9px] font-mono">auto</span>
                   )}
                   {isActive && (
                     <motion.span
@@ -378,7 +378,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
       </div>
 
       {/* Step Content */}
-      <div className="p-8 min-h-[340px] relative overflow-visible">
+      <div className="setup-config__body p-8 min-h-[340px] relative overflow-visible">
         <AnimatePresence initial={false} custom={direction} mode="wait">
           <motion.div
             key={currentStep}
@@ -407,11 +407,11 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
       )}
 
       {/* Footer Actions */}
-      <div className="px-8 py-5 border-t border-theme bg-zinc-900/30 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[10px] text-zinc-600 font-mono">
+      <div className="setup-config__footer px-8 py-5 border-t border-theme bg-zinc-900/30 flex items-center justify-between">
+        <div className="setup-config__status flex items-center gap-2 text-[10px] text-[var(--text-secondary)] font-mono">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
           <span>{selectedLayout.sessions} slots configured</span>
-          <span className="text-zinc-700 mx-1">|</span>
+          <span className="text-[var(--text-secondary)] mx-1">|</span>
           <span>Step {stepIndex + 1}/{STEPS.length}</span>
         </div>
         <div className="flex items-center gap-3">
@@ -419,7 +419,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-colors duration-150 bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer"
+              className="setup-config__action px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-colors duration-150 bg-transparent text-[var(--text-secondary)] border border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer"
             >
               Cancel
             </button>
@@ -428,7 +428,7 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
             <button
               type="button"
               onClick={goPrev}
-              className="px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-colors duration-150 bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer"
+              className="setup-config__action px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-colors duration-150 bg-transparent text-[var(--text-secondary)] border border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer"
             >
               Back
             </button>
@@ -438,10 +438,10 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
               type="button"
               onClick={goNext}
               disabled={!canAdvance()}
-              className={`px-8 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+              className={`setup-config__action setup-config__action--primary px-8 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-all duration-200 flex items-center gap-2 cursor-pointer ${
                 canAdvance()
                   ? 'bg-white text-zinc-900 hover:bg-zinc-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]'
-                  : 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-primary)] cursor-not-allowed'
               }`}
             >
               Continue
@@ -454,15 +454,15 @@ export const SetupStepper: React.FC<SetupStepperProps> = ({
               type="button"
               onClick={onCreateWorkspace}
               disabled={!isValid || isLaunching}
-              className={`px-8 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+              className={`setup-config__action setup-config__action--primary px-8 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-all duration-200 flex items-center gap-2 cursor-pointer ${
                 isValid && !isLaunching
                   ? 'bg-white text-zinc-900 hover:bg-zinc-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]'
-                  : 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                  : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-primary)] cursor-not-allowed'
               }`}
             >
               {isLaunching ? (
                 <>
-                  <svg className="animate-spin h-3.5 w-3.5 text-zinc-600" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-3.5 w-3.5 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>

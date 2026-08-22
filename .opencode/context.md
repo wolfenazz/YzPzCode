@@ -1,99 +1,28 @@
-# Mission: YZPZ Agent self-updating provider/model catalog
+# Project Context — YzPzCode UI Redesign Continuation (2026-08-22)
 
-## Root cause (VERIFIED with live probes)
-The YZPZ Agent UI reads providers/models from `Llms.getModelsForProvider()` /
-`Llms.getAllProviders()` (@cline/sdk). That catalog is **static, baked into
-@cline/llms at publish time**, and the harness pins `@cline/sdk: 0.0.74` exactly.
-When OpenCode (or any provider) adds models on models.dev, the UI never sees them.
+## Environment
+- Windows 11, pwsh. App root: `app/`. Frontend: React 19 + TS strict + Vite 6 + Tailwind v4.
+- Verify: `cd app && node ./node_modules/typescript/bin/tsc --noEmit` (~24s) and `npm run build`.
+- Baseline tsc exit 0 at mission start. Working tree has uncommitted redesign work — build on it.
 
-Proof (2026-08-21 probes):
-- Static catalog `opencode`: 62 models. Live models.dev `opencode`: 66.
-- Live-only models found: x-preview-f-free, gemini-3.7-flash, muse-spark-1.2,
-  muse-spark-1.2-contributor-free.
-- Static registry total: 187 providers; models.dev live: 179+ (both directions exist).
+## Source of truth
+- `app/UI_REDESIGN_HANDOFF.md` — design law, primitives list, migration status.
+- `app/src/premium-system.css` — tokens + app-* primitives. DO NOT add competing font stacks.
 
-## SDK capabilities verified at runtime (node probe, @cline/llms 0.0.74)
-Exported and working:
-- `fetchModelsDevProviderModels(url)` → Record<providerId, Record<modelId, ModelInfo>>
-  (already normalized: id/name/contextWindow/maxInputTokens/maxTokens/capabilities/
-  reasoningOptions/pricing). Live test vs https://models.dev/api.json: OK (179 providers).
-- `registerModel(providerId, modelId, info)`, `registerProvider(collection)`,
-  `unregisterProvider/Model`, `resetRegistry`, `hasProvider`, `getProviderIds`,
-  `getProviderCollectionSync(id)`.
-NOT exported despite .d.ts claims: normalizeModelsDev*, fetchModelsDevCatalog,
-resolveMaxInputTokens — do NOT rely on them.
+## Mission passes (remaining from handoff)
+1. M1 icons: `components/image/icons.tsx` (Iconify→Phosphor), `workspace/RichPromptEditor.tsx` toolbar.
+2. M2 setup forms → app-*: WorkspaceTemplatePicker(40KB), AgentFleetConfig(22KB), InitializeWorkspace,
+   LayoutSelector, IdesSelector(+IdesTable), DirectorySelector, PrerequisitesPanel.
+3. M3 sidebars/tabbars: explorer/FileExplorer(44KB), editor/EditorTabs+TabContextMenu,
+   workspace/WorkspaceTab, TerminalStatusBar, common/ContextMenu.tsx.
+4. M4 docs/designer: docs/DocsScreen(22KB), designer/DesignerPage.css(32KB) + subpanels.
+5. M5 composer: AgentInput onto ai-elements PromptInput primitives (preserve voice/attach/
+   translation/queue handlers exactly).
+6. Deliberate Iconify exceptions (brand logos only): TerminalHeader/NewTerminalDialog/SettingsAgents
+   simple-icons; InitializeWorkspace codeberg; template/fleet brand marks. Do NOT remove these.
 
-## models.dev api.json provider-level fields (raw fetch)
-{ id?, name, doc, env[], npm ("@ai-sdk/openai-compatible" | "@ai-sdk/groq" | ...),
-  api (baseUrl string when present) }
-npm→client mapping for registering NEW providers:
-- @ai-sdk/openai-compatible → client "openai-compatible", protocol "openai-chat"
-- @ai-sdk/openai            → client "openai", protocol "openai-chat"
-- @ai-sdk/anthropic         → client "anthropic", protocol "anthropic"
-- @ai-sdk/google            → client "gemini", protocol "gemini"
-- other @ai-sdk/*           → client "ai-sdk-community", protocol "openai-chat"
-- missing/unmappable npm or no baseUrl → skip registration (count as skipped)
-
-## Architecture / event flow (existing)
-sidecar AgentServer.broadcast({type:"event",event:{name,payload}})
-→ Rust handle_sidecar_text → forward_event → app.emit("yzpz-agent:<name>")
-→ frontend listen("yzpz-agent:<name>"). New events need ZERO Rust changes to flow.
-
-## Contracts (frozen — all workers implement exactly these)
-1. Sidecar command "refresh-catalogs" args {force?: boolean} → result:
-   { syncedAt: string|null, providersAdded: string[],
-     modelsAdded: Array<{providerId,modelId}>, skippedProviders: number,
-     source: "network"|"cache"|"skipped" }
-2. Sidecar event "catalog-updated" payload:
-   { syncedAt: string, providersAdded: string[],
-     modelsAdded: Array<{providerId,modelId}>, skippedProviders: number,
-     source: "network"|"cache" }
-   (auto-forwarded by Rust; NO Rust event changes needed)
-3. Tauri command refresh_agent_catalogs(manager, force: Option<bool>) forwards to
-   quick_command("refresh-catalogs", {"force": force}); registered in lib.rs.
-4. Frontend hook useAgentHost additions:
-   - refreshCatalogs(force?: boolean): Promise<AgentCatalogSyncResult>
-     → invoke('refresh_agent_catalogs', { force: force ?? null })
-   - onCatalogUpdated(cb): listen<AgentCatalogUpdate>('yzpz-agent:catalog-updated', cb)
-5. types/index.ts new interfaces AgentCatalogSyncResult + AgentCatalogUpdate
-   (camelCase fields matching contract #1/#2).
-6. Merge policy: ADDITIVE ONLY. Never overwrite/remove existing static entries or
-   existing model ids. Only add missing model ids to known providers; register
-   brand-new providers only when client-mappable AND baseUrl present.
-
-## Files
-- NEW app/agent-harness/src/catalog-sync.ts (CatalogSync class)
-- app/agent-harness/src/index.ts (wire startup sync + interval + dispose)
-- app/agent-harness/src/server.ts ("refresh-catalogs" handler + NO_INIT_COMMANDS)
-- app/src-tauri/src/commands/agent_host_commands.rs (+lib.rs registration)
-- app/src/types/index.ts, app/src/hooks/useAgentHost.ts
-- app/src/components/agent/{AgentPane,NewAgentDialog}.tsx
-- app/src/components/settings/sections/SettingsAgent.tsx
-- SYNC-5 fix: app/agent-harness/src/harness.ts usage cost delta (~line 492):
-  prefer per-turn `inner.cost`; only fall back to totalCost when cost is absent
-  AND prev.totalCost is 0 (first sample).
-
-## Verification commands
-- harness: cd app/agent-harness && npm run build && npm run typecheck
-- frontend: cd app && npx tsc --noEmit
-- rust: cd app/src-tauri && cargo check && cargo clippy && cargo test agent_host
-- runtime smoke: node probe against dist sidecar or direct CatalogSync import
-
----
-
-## MISSION RESULT (2026-08-21): Self-updating catalog — COMPLETE
-- Root cause: static catalog baked into pinned @cline/sdk 0.0.74; live models.dev
-  data never reached the registry.
-- Fix: app/agent-harness/src/catalog-sync.ts — CatalogSync fetches
-  https://models.dev/api.json (SDK fetchModelsDevProviderModels + raw metadata),
-  ADDITIVELY merges via Llms.registerModel/registerProvider (npm→client map,
-  baseUrl guard), caches to <dataDir>/catalog-cache.json for offline re-apply,
-  TTL 12h + unref'd interval, emits 'catalog-updated' event.
-- Chain: sidecar event → Rust forward_event → yzpz-agent:catalog-updated →
-  useAgentHost.onCatalogUpdated → AgentPane/NewAgentDialog/SettingsAgent refetch;
-  manual refresh: refresh_agent_catalogs Tauri cmd → refresh-catalogs WS command.
-- Forced-refresh serialization fix: inFlight promise (boot sync no longer swallows
-  manual force).
-- SYNC-5 verified pre-fixed in budget.ts accumulateUsage.
-- Evidence: harness build/typecheck exit 0; tsc --noEmit exit 0; cargo check/
-  clippy(0 new)/test agent_host 12/12; direct smoke +10p/+5072m; E2E WS PASS.
+## Conventions
+- Icons: @phosphor-icons/react regular weight, size 16–18. Filled only for selected state.
+- Colors: tokens only (--bg-*, --text-*, --border-primary, --accent restrained).
+- No gradients/glow/all-caps-nav/wide-tracking/cards-in-cards. Monospace only for code-like content.
+- Workers avoid editing styles.css/premium-system.css; scope any needed CSS to component files.

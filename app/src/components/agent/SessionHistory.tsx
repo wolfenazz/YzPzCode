@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MagnifyingGlass, PencilSimple, Play, Trash, X } from '@phosphor-icons/react';
 import { useAgentHost } from '../../hooks/useAgentHost';
 import type { AgentSessionSummary } from '../../types';
 
@@ -179,9 +180,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
             </p>
           </div>
           <button onClick={onClose} className="premium-btn-icon p-1.5 text-[var(--text-secondary)] cursor-pointer">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={16} />
           </button>
         </div>
 
@@ -202,12 +201,15 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
               </button>
             ))}
           </div>
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search title, model, preview…"
-            className="premium-input flex-1 h-7 px-2.5 text-[10px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
-          />
+          <div className="relative flex-1">
+            <MagnifyingGlass size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]/40" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search title, model, preview…"
+              className="premium-input w-full h-7 pl-7 pr-2.5 text-[10px] text-theme-main placeholder:text-[var(--text-secondary)]/40"
+            />
+          </div>
         </div>
 
         {/* List */}
@@ -274,14 +276,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                           className="shrink-0 p-0.5 rounded text-[var(--text-secondary)]/0 group-hover/title:text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-100 cursor-pointer"
                           title="Rename session"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                            />
-                          </svg>
+                          <PencilSimple size={12} />
                         </button>
                       </span>
                     )}
@@ -325,10 +320,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                     className="premium-btn-ghost flex items-center gap-1.5 h-7 px-2.5 rounded-lg border-[var(--accent-border)]! bg-[var(--accent-light)]/20! text-[var(--accent)]! hover:bg-[var(--accent-light)]/40! font-mono text-[9px] font-bold uppercase tracking-widest cursor-pointer"
                     title={isOther ? 'Open this session in the current grid (runs in its original directory)' : 'Resume this session'}
                   >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <Play size={12} weight="fill" />
                     Resume
                   </button>
                   <button
@@ -343,9 +335,7 @@ export const SessionHistory: React.FC<SessionHistoryProps> = ({
                     {confirmingId === s.sessionId ? (
                       <>Sure?</>
                     ) : (
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                      <Trash size={12} />
                     )}
                   </button>
                 </div>

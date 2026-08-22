@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Check, SpinnerGap, WarningCircle, X } from '@phosphor-icons/react';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
 import { AgentSelect } from './AgentSelect';
@@ -210,28 +211,21 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
             <p className="mt-0.5 text-[10px] text-[var(--text-secondary)]">Start with your saved setup. Change it only when you need to.</p>
           </div>
           <button onClick={onClose} className="premium-btn-icon p-1.5 text-[var(--text-secondary)] cursor-pointer">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={16} />
           </button>
         </div>
 
         <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar premium-scrollbar">
           {loading ? (
             <div className="py-10 flex flex-col items-center gap-2.5 text-[var(--text-secondary)]">
-              <svg className="animate-spin h-5 w-5 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <SpinnerGap size={20} className="animate-spin text-[var(--accent)]" />
               <span className="text-[10px] uppercase tracking-widest">Loading providers…</span>
             </div>
           ) : (
             <>
               <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 ${hasSavedKey ? 'border-emerald-900/50 bg-emerald-950/20' : 'border-amber-900/50 bg-amber-950/20'}`}>
                 <div className="min-w-0 flex items-center gap-2">
-                  <svg className={`h-3.5 w-3.5 shrink-0 ${hasSavedKey ? 'text-emerald-500' : 'text-amber-400'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    {hasSavedKey ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /> : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 3h.01M10.3 3.9l-7.1 12.3A2 2 0 004.9 19h14.2a2 2 0 001.7-2.8l-7.1-12.3a2 2 0 00-3.4 0z" />}
-                  </svg>
+                  {hasSavedKey ? <Check size={14} weight="bold" className="shrink-0 text-emerald-500" /> : <WarningCircle size={14} className="shrink-0 text-amber-400" />}
                   <div className="min-w-0">
                     <p className={`truncate text-[10px] font-medium ${hasSavedKey ? 'text-emerald-500' : 'text-amber-300'}`}>
                       {hasSavedKey ? 'Ready to start' : 'Connection needs an API key'}
@@ -366,10 +360,7 @@ export const NewAgentDialog: React.FC<NewAgentDialogProps> = ({
             >
               {creating ? (
                 <>
-                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
+                  <SpinnerGap size={12} className="animate-spin" />
                   Creating…
                 </>
               ) : (

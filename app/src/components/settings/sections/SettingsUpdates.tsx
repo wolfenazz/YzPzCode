@@ -48,29 +48,29 @@ export const SettingsUpdates: React.FC = () => {
     <div className="space-y-8 font-mono">
       <div>
         <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Updates</h2>
-        <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">Manage application updates</p>
+        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-mono">Manage application updates</p>
       </div>
 
       <div className="space-y-6">
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Current Version</h3>
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-300 font-mono">Version</p>
-              <p className="text-[10px] text-zinc-600 mt-0.5 font-mono">v{appVersion || '---'}</p>
+              <p className="text-xs text-[var(--text-primary)] font-mono">Version</p>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-0.5 font-mono">v{appVersion || '---'}</p>
             </div>
             <button
               onClick={() => checkForUpdates(true)}
               disabled={checking || downloading}
-              className="px-4 py-2 rounded-md bg-[#3e3e38] text-zinc-400 hover:text-zinc-200 hover:bg-[#303030] border border-[#3e3e38] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] border border-[var(--border-primary)] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {checking ? 'Checking...' : 'Check for Updates'}
             </button>
           </div>
 
           {lastChecked > 0 && (
-            <p className="text-[10px] text-zinc-600 font-mono">Last checked: {formatLastChecked(lastChecked)}</p>
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono">Last checked: {formatLastChecked(lastChecked)}</p>
           )}
 
           {upToDate && (
@@ -99,7 +99,7 @@ export const SettingsUpdates: React.FC = () => {
               <span className="text-xs text-rose-400/80 font-mono">{error}</span>
               <button
                 onClick={clearError}
-                className="text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer"
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -109,7 +109,7 @@ export const SettingsUpdates: React.FC = () => {
           )}
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-4">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-4">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Preferences</h3>
 
           <div className="space-y-3">
@@ -129,7 +129,7 @@ export const SettingsUpdates: React.FC = () => {
           </div>
         </div>
 
-        <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Update Channel</h3>
 
           <div className="flex items-center gap-2">
@@ -140,7 +140,7 @@ export const SettingsUpdates: React.FC = () => {
                 className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                   updateChannel === channel
                     ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                    : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-[#3e3e38]'
+                    : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                 }`}
               >
                 {channel}

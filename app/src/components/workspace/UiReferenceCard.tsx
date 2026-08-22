@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon } from '@iconify/react';
+import { Crosshair, LinkSimple, X } from '@phosphor-icons/react';
 import type { CapturedUiElementReference } from '../../types';
 
 interface UiReferenceCardProps {
@@ -51,7 +51,7 @@ export const UiReferenceCard: React.FC<UiReferenceCardProps> = ({
           aria-pressed={isActive}
         >
           <div className="flex items-center gap-1.5">
-            <Icon icon="material-symbols:view-in-ar-rounded" className="h-3.5 w-3.5 text-cyan-300/80" aria-hidden="true" />
+            <Crosshair size={14} className="text-cyan-300/80" aria-hidden="true" />
             <span className="truncate font-mono text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)]">
               {reference.componentLabel}
             </span>
@@ -69,7 +69,7 @@ export const UiReferenceCard: React.FC<UiReferenceCardProps> = ({
           className="inline-flex h-5 w-5 items-center justify-center text-[var(--text-secondary)]/50 transition-colors hover:bg-rose-500/10 hover:text-rose-400 cursor-pointer"
           aria-label="Remove UI reference"
         >
-          <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -91,7 +91,7 @@ export const UiReferenceCard: React.FC<UiReferenceCardProps> = ({
       </p>
 
       <div className="mt-2 flex items-center gap-1 font-mono text-[9px] text-[var(--text-secondary)]/50">
-        <Icon icon="material-symbols:link-rounded" className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+        <LinkSimple size={10} className="shrink-0" aria-hidden="true" />
         <span className="truncate">{reference.sourceUrl.replace(/^https?:\/\//, '')}</span>
       </div>
 

@@ -50,7 +50,7 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
   <motion.svg
-    className="w-3 h-3 shrink-0 text-zinc-500"
+    className="w-3 h-3 shrink-0 text-[var(--text-secondary)]"
     viewBox="0 0 20 20"
     fill="currentColor"
     animate={{ rotate: isOpen ? 90 : 0 }}
@@ -248,12 +248,12 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   const dropHighlight = isDropTarget;
 
   const rowClass = isActive
-    ? 'bg-zinc-800/90 text-zinc-100'
+    ? 'is-active bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
     : isSelected
-      ? 'bg-zinc-800/50 text-zinc-200'
+      ? 'is-selected bg-[var(--bg-primary)] text-[var(--text-primary)]'
       : dropHighlight
-        ? 'bg-blue-500/10 text-blue-200'
-        : 'text-zinc-400 hover:bg-theme-hover/70 hover:text-zinc-200';
+        ? 'is-drop-target bg-blue-500/10 text-blue-700'
+        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]';
 
   return (
     <div
@@ -268,7 +268,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
         ...style,
         paddingLeft: 0,
       }}
-      className={`flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-75 relative ${
+      className={`explorer-tree-row flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-75 relative ${
         isCut ? 'opacity-45' : ''
       } ${rowClass}`}
       onClick={handleClick}
@@ -285,7 +285,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
       )}
       <IndentGuides level={node.level} />
 
-      <div className="flex items-center gap-1.5 py-1 flex-1 min-w-0 pl-1">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pl-1">
         {data.isDir ? (
           <ChevronIcon isOpen={node.isOpen} />
         ) : (
@@ -311,8 +311,8 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
         )}
 
         {isCut && !node.isEditing && (
-          <span className="text-[8px] font-bold uppercase tracking-widest text-zinc-500/70 shrink-0">
-            cut
+          <span className="shrink-0 text-[10px] text-[var(--text-secondary)]">
+            moved
           </span>
         )}
 

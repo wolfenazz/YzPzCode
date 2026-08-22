@@ -1,5 +1,17 @@
 import React, { memo, useState } from 'react';
-import { Icon } from '@iconify/react';
+import {
+  Browser,
+  CaretDown,
+  CaretUp,
+  Code,
+  DeviceMobile,
+  GlobeSimple,
+  PencilSimple,
+  SquaresFour,
+  Tag,
+  User,
+  XSquare,
+} from '@phosphor-icons/react';
 
 /**
  * Structured view of an element-inspector "UI edit request" message.
@@ -98,12 +110,12 @@ export const parseUiEditRequest = (text: string): UiEditRequest | null => {
     userRequest,
   };
 };
-const Chip: React.FC<{ icon?: string; title?: string; children: React.ReactNode }> = ({ icon, title, children }) => (
+const Chip: React.FC<{ icon?: React.ReactNode; title?: string; children: React.ReactNode }> = ({ icon, title, children }) => (
   <span
     title={title}
     className="premium-chip inline-flex max-w-full items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[9px] text-[var(--text-secondary)]"
   >
-    {icon && <Icon icon={icon} className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/60" aria-hidden="true" />}
+    {icon && <span className="flex shrink-0 text-[var(--text-secondary)]/60">{icon}</span>}
     <span className="truncate">{children}</span>
   </span>
 );
@@ -133,7 +145,7 @@ const CollapsibleSection = memo(function CollapsibleSection({
   defaultOpen = false,
   children,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   defaultOpen?: boolean;
   children: React.ReactNode;
@@ -147,15 +159,11 @@ const CollapsibleSection = memo(function CollapsibleSection({
         aria-expanded={open}
         className="flex w-full cursor-pointer items-center gap-1.5 px-2.5 py-1.5 text-left transition-colors duration-100 hover:bg-[var(--bg-tertiary)]/70"
       >
-        <Icon icon={icon} className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/70" aria-hidden="true" />
+        <span className="flex shrink-0 text-[var(--text-secondary)]/70">{icon}</span>
         <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-[var(--text-secondary)]/80">
           {label}
         </span>
-        <Icon
-          icon={open ? 'lucide:chevron-up' : 'lucide:chevron-down'}
-          className="ml-auto h-3 w-3 shrink-0 text-[var(--text-secondary)]/50"
-          aria-hidden="true"
-        />
+        {open ? <CaretUp size={12} className="ml-auto shrink-0 text-[var(--text-secondary)]/50" /> : <CaretDown size={12} className="ml-auto shrink-0 text-[var(--text-secondary)]/50" />}
       </button>
       {open && <div className="border-t border-[var(--border-primary)]/60 px-2.5 py-2">{children}</div>}
     </div>
@@ -187,7 +195,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
           {/* ── Header ─────────────────────────────────────────────────── */}
           <div className="flex items-center gap-2 border-b border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/50 px-3 py-2">
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-[var(--accent-light)] text-[var(--accent)]">
-              <Icon icon="material-symbols:select-window-2-outline-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+              <XSquare size={14} aria-hidden="true" />
             </span>
             <span className="font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--text-primary)]/90">
               UI edit request
@@ -206,7 +214,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
             {/* ── Page + preview context ──────────────────────────────── */}
             <div className="space-y-1.5">
               <div className="flex min-w-0 items-center gap-1.5 text-[10.5px] text-[var(--text-secondary)]">
-                <Icon icon="lucide:globe" className="h-3 w-3 shrink-0 text-[var(--accent)]/80" aria-hidden="true" />
+                <GlobeSimple size={12} className="shrink-0 text-[var(--accent)]/80" aria-hidden="true" />
                 <span className="truncate font-mono" title={request.pageUrl}>
                   {request.pageUrl}
                 </span>
@@ -219,18 +227,18 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
                 {request.previewMode && (
-                  <Chip icon="material-symbols:devices-rounded" title="Preview mode">
+                  <Chip icon={<DeviceMobile size={12} />} title="Preview mode">
                     {request.previewMode}
                   </Chip>
                 )}
                 {request.viewport && (
-                  <Chip icon="material-symbols:aspect-ratio-rounded" title="Viewport size">
+                  <Chip icon={<SquaresFour size={12} />} title="Viewport size">
                     {request.viewport}
                   </Chip>
                 )}
                 {hasIdentity && (
                   <Chip
-                    icon="material-symbols:tag-rounded"
+                    icon={<Tag size={12} />}
                     title={`ID: ${request.id} · Class: ${request.className}`}
                   >
                     {request.id !== 'none' && request.id !== ''
@@ -244,7 +252,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
             {/* ── User's actual request (the part that matters) ───────── */}
             <div className="rounded-lg border border-[var(--accent-border)] bg-[var(--accent-light)]/60 px-3 py-2">
               <div className="flex items-center gap-1.5">
-                <Icon icon="material-symbols:edit-note-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
+                <PencilSimple size={12} className="text-[var(--accent)]" aria-hidden="true" />
                 <span className="font-mono text-[8px] font-bold uppercase tracking-[0.18em] text-[var(--accent-text)]">
                   Request
                 </span>
@@ -259,7 +267,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
 
 
             {/* ── Developer details (collapsed by default) ────────────── */}
-            <CollapsibleSection icon="material-symbols:data-object-rounded" label="Element details">
+            <CollapsibleSection icon={<Browser size={12} />} label="Element details">
               {selectors.length > 0 && (
                 <DetailRow label="Selectors" mono title={selectors.join(' | ')}>
                   {selectors.join(' | ')}
@@ -288,7 +296,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
               )}
             </CollapsibleSection>
 
-            <CollapsibleSection icon="material-symbols:code-rounded" label="HTML snippet">
+            <CollapsibleSection icon={<Code size={12} />} label="HTML snippet">
               {request.htmlSnippet ? (
                 <>
                   <div className="mb-1 flex justify-end">
@@ -312,7 +320,7 @@ export const UiEditRequestCard = memo(function UiEditRequestCard({ request }: { 
         </div>
       </div>
       <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-white shadow-sm">
-        <Icon icon="lucide:user-round" className="h-3.5 w-3.5" aria-hidden="true" />
+        <User size={14} aria-hidden="true" />
       </div>
     </div>
   );

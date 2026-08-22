@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Icon } from '@iconify/react';
+import { Brain, CaretDown, CaretUp, Plus } from '@phosphor-icons/react';
 import { useProjectMemory } from '../../hooks/useProjectMemory';
 
 interface MemoryPanelProps {
   workspacePath: string;
 }
 
-const MAX_HEIGHT = 260;
-const MIN_HEIGHT = 36;
+const MAX_HEIGHT = 220;
+const MIN_HEIGHT = 92;
 
 /**
  * Persistent per-workspace project memory (.yzpzcode/memory.md). The agent
@@ -23,7 +23,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({ workspacePath }) => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [height, setHeight] = useState(150);
+  const [height, setHeight] = useState(132);
   const [isResizing, setIsResizing] = useState(false);
   const startYRef = React.useRef(0);
   const startHeightRef = React.useRef(0);
@@ -94,19 +94,15 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({ workspacePath }) => {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+        className="flex h-8 w-full cursor-pointer items-center gap-2 border-b border-[var(--border-primary)]/60 px-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
         title="Project memory — shared with the agent on every new session"
       >
-        <Icon icon="lucide:brain-circuit" className="h-3 w-3 shrink-0 text-[var(--accent)]" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
+        <Brain size={13} weight="duotone" className="shrink-0 text-[var(--accent)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[var(--text-primary)]">
           Project Memory
         </span>
         {loading && <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent text-[var(--text-secondary)]/50" />}
-        <Icon
-          icon={expanded ? 'lucide:chevron-down' : 'lucide:chevron-up'}
-          className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/50"
-          aria-hidden="true"
-        />
+        {expanded ? <CaretDown size={12} /> : <CaretUp size={12} />}
       </button>
 
       <AnimatePresence initial={false}>
@@ -119,7 +115,7 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({ workspacePath }) => {
             transition={{ duration: 0.18 }}
             className="overflow-hidden"
           >
-            <div className="flex flex-col border-t border-[var(--border-primary)]" style={{ height }}>
+            <div className="flex flex-col bg-[var(--bg-secondary)]/25" style={{ height }}>
               <div className="relative min-h-0 flex-1">
                 <textarea
                   value={content}
@@ -131,15 +127,15 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({ workspacePath }) => {
                     }
                   }}
                   spellCheck={false}
-                  className="h-full w-full resize-none bg-transparent px-2 py-1.5 font-mono text-[9.5px] leading-relaxed text-[var(--text-secondary)] outline-none custom-scrollbar premium-scrollbar"
+                  className="h-full w-full resize-none bg-transparent px-2.5 py-2 font-mono text-[10px] leading-relaxed text-[var(--text-secondary)] outline-none custom-scrollbar premium-scrollbar"
                   placeholder="Notes the agent should always remember about this project…"
                 />
-                <div className="pointer-events-none absolute bottom-1 right-2 font-mono text-[8px] text-[var(--text-secondary)]/35">
+                <div className="pointer-events-none absolute bottom-1.5 right-2.5 font-mono text-[8px] text-[var(--text-secondary)]/35">
                   .yzpzcode/memory.md
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5 border-t border-[var(--border-primary)] px-2 py-1.5">
+              <div className="flex items-center gap-1.5 border-t border-[var(--border-primary)]/70 px-2.5 py-2">
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
@@ -150,15 +146,15 @@ export const MemoryPanel: React.FC<MemoryPanelProps> = ({ workspacePath }) => {
                     }
                   }}
                   placeholder="Add a note the agent should remember…"
-                  className="min-w-0 flex-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1 font-mono text-[9.5px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/40 focus:border-[var(--accent-border)]"
+                  className="min-w-0 flex-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 py-1.5 font-mono text-[10px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]/40 focus:border-[var(--accent-border)]"
                 />
                 <button
                   type="button"
                   onClick={() => void handleAddNote()}
                   disabled={saving || !draft.trim()}
-                  className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-[var(--accent)] transition-colors hover:bg-[var(--accent-light)]/30 disabled:cursor-default disabled:opacity-40"
+                  className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 px-2.5 text-[10px] font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent-light)]/30 disabled:cursor-default disabled:opacity-40"
                 >
-                  <Icon icon="lucide:plus" className="h-3 w-3" aria-hidden="true" />
+                  <Plus size={12} aria-hidden="true" />
                   Add
                 </button>
               </div>

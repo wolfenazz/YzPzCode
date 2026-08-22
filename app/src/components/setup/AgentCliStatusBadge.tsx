@@ -32,7 +32,7 @@ export function AgentCliStatusBadge({ cliInfo, onInstall, installing, compact = 
             </svg>
           ),
           text: cliInfo.version ? `v${cliInfo.version}` : 'Installed',
-          bgClass: 'bg-emerald-950/30 border border-emerald-900/50 text-emerald-400 font-mono text-[10px] uppercase',
+          bgClass: 'cli-status-badge--installed bg-emerald-950/30 border border-emerald-900/50 text-emerald-400 font-mono text-[10px] uppercase',
           canInstall: false,
         };
       case 'NotInstalled':
@@ -85,7 +85,7 @@ export function AgentCliStatusBadge({ cliInfo, onInstall, installing, compact = 
     return (
       <div className="flex items-center gap-2">
         {!compact && cliInfo && cliInfo.status === 'Checking' && (
-          <span className="text-[10px] text-zinc-600 font-mono italic">Still checking...</span>
+          <span className="text-[10px] text-[var(--text-secondary)] font-mono italic">Still checking...</span>
         )}
         <button
           type="button"

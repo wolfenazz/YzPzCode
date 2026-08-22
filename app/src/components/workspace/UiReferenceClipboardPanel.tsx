@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon } from '@iconify/react';
+import { Crosshair } from '@phosphor-icons/react';
 import type { CapturedUiElementReference } from '../../types';
 import { UiReferenceCard } from './UiReferenceCard';
 
@@ -21,11 +21,7 @@ export const UiReferenceClipboardPanel: React.FC<UiReferenceClipboardPanelProps>
   if (references.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
-        <Icon
-          icon="material-symbols:view-in-ar-outline-rounded"
-          className="mb-3 h-8 w-8 text-cyan-300/25"
-          aria-hidden="true"
-        />
+        <Crosshair size={32} className="mb-3 h-8 w-8 text-cyan-300/25" aria-hidden="true" />
         <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]/60 leading-5">
           nothing captured yet
         </p>

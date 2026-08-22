@@ -81,14 +81,14 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
             }}
             className={`w-full flex items-center justify-between px-3 py-1.5 text-[11px] tracking-wide transition-colors cursor-pointer ${
               mi.disabled
-                ? 'text-zinc-600 cursor-default'
+                ? 'text-[var(--text-secondary)]/40 cursor-default'
                 : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'
             }`}
             disabled={mi.disabled}
           >
             <span>{mi.label}</span>
             {mi.shortcut && (
-              <span className="ml-4 text-[10px] text-zinc-600">{mi.shortcut}</span>
+              <span className="ml-4 text-[10px] text-[var(--text-secondary)]">{mi.shortcut}</span>
             )}
           </button>
         );

@@ -3,7 +3,6 @@ import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { BrowserPane } from './BrowserPane';
 import { AgentGrid } from '../agent/AgentGrid';
-import { ImageEditorPane } from '../image/ImageEditorPane';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { FileEditor } from '../editor/FileEditor';
@@ -312,7 +311,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   }
 
   return (
-    <div className="h-screen flex flex-col bg-theme-main font-mono overflow-hidden text-theme-main">
+    <div className="workspace-shell app-shell h-screen flex flex-col bg-theme-main overflow-hidden text-theme-main">
       <WorkspaceHeader
         workspaces={openWorkspaces}
         activeWorkspaceId={activeWorkspaceId}
@@ -332,7 +331,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         activeView={activeView}
       />
 
-      <main className="relative flex-1 overflow-hidden bg-[radial-gradient(1200px_600px_at_18%_-10%,rgba(255,255,255,0.05),transparent),radial-gradient(900px_500px_at_90%_120%,rgba(16,185,129,0.08),transparent),#262626]">
+      <main className="workspace-main relative flex-1 overflow-hidden bg-[var(--bg-primary)]">
         {/* Dev-server preview chip — appears when a terminal prints a local URL. */}
         <AnimatePresence>
           {currentWorkspace && devServerUrl && (
@@ -342,7 +341,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              className="absolute left-1/2 top-2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-emerald-500/30 bg-[#1c2b22]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-md"
+              className="workspace-dev-server absolute left-1/2 top-2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-emerald-500/30 bg-[#1c2b22]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-md"
             >
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
@@ -374,7 +373,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
           )}
         </AnimatePresence>
         {currentWorkspace ? (
-          <div className="h-full flex items-stretch">
+          <div className="workspace-stage h-full flex items-stretch">
             <AnimatePresence initial={false}>
               {explorerOpen && (
                 <motion.div
@@ -383,11 +382,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                   animate={{ width: sidebarWidth, opacity: 1 }}
                   exit={{ width: 0, opacity: 0 }}
                   transition={isResizing ? { duration: 0 } : { duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                  className="flex items-stretch shrink-0 overflow-hidden border-r border-theme"
+                  className="workspace-sidebar flex items-stretch shrink-0 overflow-hidden border-r border-theme"
                 >
                   <div
                     style={{ width: `${sidebarWidth}px`, minWidth: '180px' }}
-                    className="h-full shrink-0 overflow-hidden"
+                    className="workspace-sidebar__content h-full shrink-0 overflow-hidden"
                   >
                     <FileExplorer
                       workspacePath={currentWorkspace.path}
@@ -396,13 +395,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                     />
                   </div>
                   <div
-                    className="w-px hover:w-1 cursor-col-resize hover:bg-zinc-500 active:bg-zinc-400 transition-all duration-150 shrink-0 z-50"
+                    className="workspace-sidebar__resizer w-px hover:w-1 cursor-col-resize hover:bg-zinc-500 active:bg-zinc-400 transition-all duration-150 shrink-0 z-50"
                     onMouseDown={handleSidebarResizeStart}
                   />
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="flex-1 min-w-0 overflow-hidden relative">
+            <div className="workspace-view flex-1 min-w-0 overflow-hidden relative">
               {/*
                 The terminal grid stays MOUNTED across view switches (hidden
                 via CSS instead of unmounted) so xterm instances, scrollback,
@@ -430,17 +429,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               >
                 <div className="h-full w-full overflow-hidden">
                   {currentWorkspace && <AgentGrid workspaceId={currentWorkspace.id} />}
-                </div>
-              </div>
-
-              {/* Image editor stays MOUNTED across view switches (hidden via CSS)
-                  so in-memory documents, undo history and the Konva scene survive. */}
-              <div
-                className={activeView === "image" ? "h-full w-full" : "hidden"}
-                aria-hidden={activeView !== "image"}
-              >
-                <div className="h-full w-full overflow-hidden">
-                  <ImageEditorPane workspaceId={activeWorkspaceId} />
                 </div>
               </div>
 
@@ -473,22 +461,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
             </div>
           </div>
         ) : (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center space-y-6">
+          <div className="workspace-empty h-full flex items-center justify-center">
+            <div className="workspace-empty__content text-center space-y-6">
               <div className="w-10 h-10 mx-auto border border-zinc-800 flex items-center justify-center">
-                <svg className="w-5 h-5 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
               </div>
               <div className="space-y-1">
-                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-zinc-500">No active workspace</div>
-                <p className="text-[10px] text-zinc-700 font-mono">Initialize a new session to begin.</p>
+                <div className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-secondary)]">No active workspace</div>
+                <p className="text-[10px] text-[var(--text-secondary)] font-mono">Initialize a new session to begin.</p>
               </div>
               <button
                 onClick={handleNewWorkspace}
-                className="inline-flex items-center gap-2 px-4 py-2 text-zinc-400 hover:text-theme-main border border-zinc-800 hover:border-zinc-500 transition-all duration-200 text-[11px] font-mono uppercase tracking-[0.1em] cursor-pointer group"
+                className="inline-flex items-center gap-2 px-4 py-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-zinc-800 hover:border-zinc-500 transition-all duration-200 text-[11px] font-mono uppercase tracking-[0.1em] cursor-pointer group"
               >
-                <span className="w-1 h-1 bg-zinc-600 group-hover:bg-zinc-300 transition-colors duration-200"></span>
+                <span className="w-1 h-1 bg-[var(--text-secondary)] group-hover:bg-[var(--text-primary)] transition-colors duration-200"></span>
                 Initialize
               </button>
             </div>

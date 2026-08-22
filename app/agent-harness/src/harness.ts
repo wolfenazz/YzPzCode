@@ -309,13 +309,14 @@ interface PendingQuestion {
 
 /** One user prompt queued behind the running turn (authoritative queue view). */
 interface QueuedPromptEntry {
-  /** Stable client id (survives the SDK's id assignment) — what the UI sees. */
+  /** Stable id used by the renderer to cancel or track this prompt. */
   id: string;
   prompt: string;
-  delivery: "queue" | "steer";
+  delivery: "queue";
   attachmentCount: number;
-  /** Real id assigned by the SDK's native queue (used to cancel natively). */
-  sdkId?: string;
+  mode?: string;
+  userImages: string[];
+  userFiles: string[];
 }
 
 /** Instruction injected into the system prompt so agents maintain a task list. */
@@ -482,15 +483,15 @@ export class AgentHarness {
    * queued as a follow-up steer message.
    */
   private runningSessions = new Set<string>();
+  /** Sessions between queue selection/resume and the synchronous SDK send. */
+  private startingSessions = new Set<string>();
   /**
    * Authoritative per-session queue of user prompts received while a turn is
-   * in flight. Delivery still goes through the SDK's native pending-prompts
-   * controller (`delivery: "steer"`); this mirror is what the UI renders and
-   * what `listPendingPrompts` returns, because the SDK's own list can keep an
-   * already-started prompt visible until its turn completes. Entries are
-   * popped FIFO when a turn finishes (the SDK then starts the next prompt).
+   * in flight. This queue intentionally does not use the SDK's `steer` channel:
+   * steering injects text into the active task, while the composer promises
+   * that queued prompts start only after that task has completed.
    */
-  private steeringBySession = new Map<string, QueuedPromptEntry[]>();
+  private queuedPromptsBySession = new Map<string, QueuedPromptEntry[]>();
   /** Workspace root per session — used to resolve relative file paths correctly. */
   private sessionCwd = new Map<string, string>();
   /**
@@ -795,12 +796,10 @@ export class AgentHarness {
   private attachSubscriptions(): void {
     if (!this.cline) return;
     this.cline.subscribe((event: CoreSessionEvent) => {
-      // Queue events are handled authoritatively by this harness: the SDK's
-      // pending-prompts list can keep an already-started prompt visible until
-      // its turn completes, which made the UI show running prompts as queued.
-      // Suppress the raw events and re-emit from our own mirror instead.
+      // Queue events are handled authoritatively by this harness. Native SDK
+      // pending prompts are steering messages, which have deliberately
+      // different semantics from the composer's run-after-completion queue.
       if (event.type === "pending_prompt_submitted") {
-        this.adoptSubmittedPromptId(event.payload.sessionId, event.payload.id);
         return;
       }
       if (event.type === "pending_prompts") {
@@ -863,7 +862,7 @@ export class AgentHarness {
         // transparently rehydrate it from disk.
         this.activeSessions.delete(event.payload.sessionId);
         this.runningSessions.delete(event.payload.sessionId);
-        this.steeringBySession.delete(event.payload.sessionId);
+        this.startingSessions.delete(event.payload.sessionId);
         this.teamStateBySession.delete(event.payload.sessionId);
         this.sink("session-ended", event.payload);
         // `agent_event:error` arrives before the SDK has finished tearing down
@@ -880,15 +879,16 @@ export class AgentHarness {
         this.sink("team-progress", event.payload);
       } else if (event.type === "agent_event" && event.payload?.event?.type === "done") {
         this.runningSessions.delete(event.payload.sessionId);
-        // The finished turn was the queue's head slot: the SDK now starts the
-        // next queued prompt, so pop it from the authoritative mirror and
-        // re-emit the queue (the UI must stop showing it as queued).
-        this.popStartedPrompt(event.payload.sessionId);
         // PI-style completion guard: if the model stopped while the visible
         // task list still has unfinished items, steer a follow-up so it keeps
         // working instead of stopping prematurely. Native `delivery:"steer"`
         // drains after the current turn and starts the next one automatically.
-        this.maybeAutoContinue(event.payload.sessionId);
+        const continuingCurrentTask = this.maybeAutoContinue(event.payload.sessionId);
+        if (!continuingCurrentTask) {
+          // Let the SDK finish publishing the current `done` event before a
+          // separate queued turn enters the runtime.
+          setTimeout(() => void this.startNextQueuedPrompt(event.payload.sessionId), 0);
+        }
       } else if (event.type === "agent_event" && event.payload?.event?.type === "error") {
         // Automatic error recovery: never leave the user at a dead end after a
         // failed turn. Retry transient provider errors, or steer a recovery
@@ -949,17 +949,34 @@ export class AgentHarness {
     }
     if (this.recoveryTimers.has(sessionId)) return;
 
-    const retryWhenSettled = (): void => {
-      this.recoveryTimers.delete(sessionId);
-      if (this.runningSessions.has(sessionId) || this.activeSessions.has(sessionId)) {
-        const timer = setTimeout(retryWhenSettled, 250);
-        this.recoveryTimers.set(sessionId, timer);
-        return;
-      }
+    const settleDeadline = Date.now() + 5_000;
+    const recoverPending = (): void => {
       const pending = this.pendingRecoveryErrors.get(sessionId);
       if (!pending) return;
       this.pendingRecoveryErrors.delete(sessionId);
       this.maybeRecoverAfterError(sessionId, pending);
+    };
+    const retryWhenSettled = (): void => {
+      this.recoveryTimers.delete(sessionId);
+      const runtimeStillSettling = this.runningSessions.has(sessionId) || this.activeSessions.has(sessionId);
+      if (runtimeStillSettling && Date.now() < settleDeadline) {
+        const timer = setTimeout(retryWhenSettled, 250);
+        this.recoveryTimers.set(sessionId, timer);
+        return;
+      }
+
+      if (runtimeStillSettling) {
+        // A runtime that never publishes `ended` used to leave a 250 ms timer
+        // alive forever. Abort the stale turn once, then recover from a clean
+        // boundary rather than starting a competing request.
+        this.runningSessions.delete(sessionId);
+        void this.requireCline()
+          .abort(sessionId)
+          .catch(() => undefined)
+          .finally(recoverPending);
+        return;
+      }
+      recoverPending();
     };
 
     this.recoveryTimers.set(sessionId, setTimeout(retryWhenSettled, 500));
@@ -1025,23 +1042,23 @@ export class AgentHarness {
    * going — PI's shouldStopAfterTurn inverse, implemented at the session
    * level so it works regardless of which runtime backend the SDK selects.
    */
-  private maybeAutoContinue(sessionId: string): void {
+  private maybeAutoContinue(sessionId: string): boolean {
     // A token-budget stop is final for this run: never steer follow-ups (each
     // would burn another model call just to hit the same limit again).
-    if (this.budgetStoppedSessions.has(sessionId)) return;
+    if (this.budgetStoppedSessions.has(sessionId)) return false;
     // The user explicitly stopped this session — don't restart it behind
     // their back.
-    if (this.suppressRecovery.has(sessionId)) return;
+    if (this.suppressRecovery.has(sessionId)) return false;
     // Orchestration: the SDK's own team completion guard already steers the
     // lead while teammates have active runs or unfinished tasks. Nudging the
     // same todos from here would double-steer with competing instructions.
-    if (this.teamWorkPending(sessionId)) return;
+    if (this.teamWorkPending(sessionId)) return false;
     const todos = this.todosBySession.get(sessionId);
-    if (!todos || todos.length === 0) return;
+    if (!todos || todos.length === 0) return false;
     const unfinished = todos.filter((t) => t.status === "pending" || t.status === "in_progress");
-    if (unfinished.length === 0) return;
+    if (unfinished.length === 0) return false;
     const nudges = this.completionNudges.get(sessionId) ?? 0;
-    if (nudges >= AgentHarness.MAX_COMPLETION_NUDGES) return;
+    if (nudges >= AgentHarness.MAX_COMPLETION_NUDGES) return false;
     this.completionNudges.set(sessionId, nudges + 1);
     this.sink("notice", {
       sessionId,
@@ -1056,6 +1073,7 @@ export class AgentHarness {
     // its delegation directive instead of silently dropping to act.
     const mode = this.sessionModes.get(sessionId) ?? "act";
     void this.sendMessage(sessionId, followUp, mode, [], [], true).catch(() => undefined);
+    return true;
   }
 
   /** Capture active teammate runs/tasks from a `team_progress` payload. */
@@ -1196,38 +1214,22 @@ export class AgentHarness {
   }
 
   /**
-   * List prompts queued behind the running turn. Returns the harness's
-   * authoritative mirror rather than the SDK's native queue: the SDK can keep
-   * an already-started prompt in its list until the turn completes, which made
-   * the UI show running prompts as queued. Entries leave the mirror FIFO when
-   * a turn finishes (see popStartedPrompt).
+   * List prompts queued behind the running turn. Internal delivery details are
+   * omitted so image data and local paths never leak back through the renderer.
    */
   async listPendingPrompts(sessionId: string): Promise<unknown[]> {
-    return this.steeringBySession.get(sessionId) ?? [];
+    return this.pendingPromptViews(sessionId);
   }
 
   /** Remove a single queued prompt so it never runs. */
   async removePendingPrompt(sessionId: string, promptId: string): Promise<boolean> {
-    // Authoritative: drop it from the display mirror immediately so a cancelled
-    // prompt never stays in the queue strip or re-appears on the next refresh.
-    const queue = this.steeringBySession.get(sessionId);
-    if (queue) {
-      const remaining = queue.filter((p) => p.id !== promptId);
-      if (remaining.length > 0) this.steeringBySession.set(sessionId, remaining);
-      else this.steeringBySession.delete(sessionId);
-      this.emitPendingPrompts(sessionId);
-    }
-    // Best-effort: also remove it from the SDK's native queue so it never runs.
-    // Delete by the real SDK id when known (the UI-facing id is our own).
-    const entry = queue?.find((p) => p.id === promptId);
-    const nativeId = entry?.sdkId ?? promptId;
-    try {
-      await this.requireCline().pendingPrompts.delete({ sessionId, promptId: nativeId });
-      return true;
-    } catch (err) {
-      console.warn(`[yzpz-agent] failed to remove pending prompt ${promptId}: ${err}`);
-      return false;
-    }
+    const queue = this.queuedPromptsBySession.get(sessionId);
+    if (!queue?.some((entry) => entry.id === promptId)) return false;
+    const remaining = queue.filter((entry) => entry.id !== promptId);
+    if (remaining.length > 0) this.queuedPromptsBySession.set(sessionId, remaining);
+    else this.queuedPromptsBySession.delete(sessionId);
+    this.emitPendingPrompts(sessionId);
+    return true;
   }
 
   private requireCline(): ClineCore {
@@ -1392,11 +1394,6 @@ export class AgentHarness {
           completionPolicy: {
             completionGuard: () => this.completionGuard(sessionId),
           },
-          // PI-style steering: the SDK's local runtime wires its own
-          // consumePendingUserMessage to its pendingPromptsController (native
-          // `delivery:"steer"` support); this config value is a fallback for
-          // non-local runtimes and rehydrate paths.
-          consumePendingUserMessage: () => this.consumePendingUserMessage(sessionId),
           // PI-style transformContext: bound tool-result sizes per request. The
           // local runtime substitutes its own compaction-based prepareTurn; this
           // config value is a fallback for non-local runtimes. The always-on
@@ -1435,8 +1432,10 @@ export class AgentHarness {
       // SDK returning a different session id than the one we requested.
       this.runningSessions.delete(result.sessionId);
       this.runningSessions.delete(sessionId);
-      this.steeringBySession.delete(result.sessionId);
-      this.steeringBySession.delete(sessionId);
+      this.startingSessions.delete(result.sessionId);
+      this.startingSessions.delete(sessionId);
+      this.queuedPromptsBySession.delete(result.sessionId);
+      this.queuedPromptsBySession.delete(sessionId);
       this.emitPendingPrompts(result.sessionId);
       this.sink("session-created", {
         sessionId: result.sessionId,
@@ -1619,12 +1618,37 @@ export class AgentHarness {
     // Internal: set by the completion-guard's auto-continue so it does not
     // reset the nudge budget it just incremented (see maybeAutoContinue).
     autoContinue = false,
+    // Internal queue drain: start this prompt as a distinct turn even though
+    // the session is reserved in `startingSessions`.
+    bypassQueue = false,
   ): Promise<unknown> {
+    if (
+      !bypassQueue &&
+      !autoContinue &&
+      (this.runningSessions.has(sessionId) ||
+        this.startingSessions.has(sessionId) ||
+        this.queuedPromptsBySession.has(sessionId))
+    ) {
+      const queued = this.enqueuePrompt(sessionId, prompt, mode, userImages, userFiles);
+      return { accepted: true, queued: true, promptId: queued.id };
+    }
+
+    // Reserve the session before the first await. Without this, two rapid sends
+    // can both observe an idle runtime and start competing turns.
+    this.startingSessions.add(sessionId);
     const cline = this.requireCline();
     // The public UI stores local paths because that keeps IPC payloads small.
     // Resolve them only inside the Node sidecar, immediately before the SDK
     // call, where the files are available and can become valid image data URLs.
-    const resolvedUserImages = resolveUserImages(userImages);
+    let resolvedUserImages: string[];
+    try {
+      resolvedUserImages = resolveUserImages(userImages);
+    } catch (err) {
+      this.startingSessions.delete(sessionId);
+      const message = errorMessageFromUnknown(err) || "The selected attachments could not be prepared.";
+      this.sink("session-error", { sessionId, error: message });
+      return { accepted: false, error: message };
+    }
 
     // A fresh user request (not an auto-continue) resets the completion-guard
     // nudge budget and re-enables automatic recovery, so long tasks keep
@@ -1647,6 +1671,7 @@ export class AgentHarness {
     if (!this.activeSessions.has(sessionId)) {
       const result = await this.resumeSession(sessionId);
       if (result.error) {
+        this.startingSessions.delete(sessionId);
         this.sink("session-error", { sessionId, error: result.error });
         return { accepted: false, error: result.error };
       }
@@ -1696,56 +1721,39 @@ export class AgentHarness {
     }
     this.previousFastModes.set(sessionId, fastMode);
 
-    // PI-style steering: only an in-flight turn receives a follow-up through
-    // the SDK's "steer" channel. `activeSessions` only tells us the session
-    // exists in memory; treating it as "running" left a new chat's first
-    // message queued forever with no turn to drain it.
-    const isRunning = this.runningSessions.has(sessionId);
-    if (isRunning) {
-      this.steerSession(sessionId, finalPrompt);
-    } else {
-      // Mark this before the asynchronous send begins so a quick second
-      // message is correctly queued as a follow-up rather than starting a
-      // competing turn.
-      this.runningSessions.add(sessionId);
-    }
+    // Mark this before the asynchronous send begins so a quick second message
+    // is held in our FIFO rather than starting a competing turn.
+    this.runningSessions.add(sessionId);
 
-    // Fire-and-forget: the turn runs in the background and streams events via
-    // the subscription. Never block the caller on turn completion. When the
-    // session is already running, `delivery: "steer"` queues the message and
-    // our consumePendingUserMessage hook feeds it in at the next iteration.
-    try {
-      void cline
-        .send({
+    // Acknowledge admission before starting the SDK on the next event-loop
+    // tick. This keeps the user's transcript entry ahead of synchronous status
+    // or content events and still never blocks IPC on turn completion.
+    setTimeout(() => {
+      try {
+        void cline.send({
           sessionId,
           prompt: finalPrompt,
           mode: sdkMode as never,
           userImages: resolvedUserImages,
           userFiles,
-          delivery: isRunning ? ("steer" as never) : undefined,
         })
-        .catch((err: unknown) => {
-          this.runningSessions.delete(sessionId);
-          const message = errorMessageFromUnknown(err) || "The task stopped unexpectedly.";
-          this.sink("session-error", {
-            sessionId,
-            error: message,
-          });
-          // The run loop also emits an error agent_event in most cases. Defer
-          // recovery until the failed runtime is no longer active.
-          this.deferRecoveryAfterError(sessionId, message);
-        });
-    } catch (err) {
-      // A synchronous throw from cline.send (or argument validation) must not
-      // leave the session stuck in `runningSessions` — otherwise every later
-      // message would be queued as a steer with no turn to drain it.
-      this.runningSessions.delete(sessionId);
-      const message = errorMessageFromUnknown(err) || "The task stopped unexpectedly.";
-      this.sink("session-error", { sessionId, error: message });
-      this.deferRecoveryAfterError(sessionId, message);
-      return { accepted: false, error: message };
-    }
-    return { accepted: true };
+          .catch((err: unknown) => this.handleSendFailure(sessionId, err));
+      } catch (err) {
+        this.handleSendFailure(sessionId, err);
+      }
+    }, 0);
+    this.startingSessions.delete(sessionId);
+    return { accepted: true, queued: false };
+  }
+
+  private handleSendFailure(sessionId: string, error: unknown): void {
+    this.startingSessions.delete(sessionId);
+    this.runningSessions.delete(sessionId);
+    const message = errorMessageFromUnknown(error) || "The task stopped unexpectedly.";
+    this.sink("session-error", { sessionId, error: message });
+    // The run loop also emits an error agent_event in most cases. Defer
+    // recovery until the failed runtime is no longer active.
+    this.deferRecoveryAfterError(sessionId, message);
   }
 
   /**
@@ -1966,70 +1974,92 @@ export class AgentHarness {
     return undefined;
   }
 
-  /**
-   * consumePendingUserMessage: PI-style steering. The SDK polls this at the top
-   * of each loop iteration (after the first); we return one queued user message
-   * at a time so a message typed mid-run is injected after the current turn.
-   */
-  private consumePendingUserMessage(sessionId: string): string | undefined {
-    const queue = this.steeringBySession.get(sessionId);
-    if (!queue || queue.length === 0) return undefined;
-    const next = queue.shift();
-    if (queue.length === 0) this.steeringBySession.delete(sessionId);
-    this.emitPendingPrompts(sessionId);
-    return next?.prompt;
-  }
-
-  /** Queue a user message for delivery after the current turn (steering). */
-  private steerSession(sessionId: string, prompt: string): void {
-    const queue = this.steeringBySession.get(sessionId) ?? [];
+  /** Hold a user message until the active task has genuinely completed. */
+  private enqueuePrompt(
+    sessionId: string,
+    prompt: string,
+    mode: string | undefined,
+    userImages: string[],
+    userFiles: string[],
+  ): QueuedPromptEntry {
+    const queue = this.queuedPromptsBySession.get(sessionId) ?? [];
     const entry: QueuedPromptEntry = {
-      // Stable client id: the SDK assigns its own real queue id on accept (see
-      // adoptSubmittedPromptId); keeping this id stable lets the UI track the
-      // entry across queue events without mistaking an id swap for a start.
-      id: `steer-${sessionId}-${queue.length}-${Date.now()}`,
+      id: `queue-${randomUUID()}`,
       prompt,
-      delivery: "steer",
-      attachmentCount: 0,
+      delivery: "queue",
+      attachmentCount: userImages.length + userFiles.length,
+      mode,
+      userImages: [...userImages],
+      userFiles: [...userFiles],
     };
     queue.push(entry);
-    this.steeringBySession.set(sessionId, queue);
+    this.queuedPromptsBySession.set(sessionId, queue);
     this.emitPendingPrompts(sessionId);
+    return entry;
   }
 
-  /** Emit the authoritative queue state so the UI strip stays truthful. */
+  private pendingPromptViews(sessionId: string): Array<Pick<QueuedPromptEntry, "id" | "prompt" | "delivery" | "attachmentCount">> {
+    return (this.queuedPromptsBySession.get(sessionId) ?? []).map(({ id, prompt, delivery, attachmentCount }) => ({
+      id,
+      prompt,
+      delivery,
+      attachmentCount,
+    }));
+  }
+
+  /** Emit the authoritative queue state so the UI stays truthful. */
   private emitPendingPrompts(sessionId: string): void {
     this.sink("session-event", {
       type: "pending_prompts",
-      payload: { sessionId, prompts: this.steeringBySession.get(sessionId) ?? [] },
+      payload: { sessionId, prompts: this.pendingPromptViews(sessionId) },
     });
   }
 
-  /** The SDK accepted a steered prompt — remember its real queue id (used when
-   *  the user cancels so the native queue entry is actually removed). */
-  private adoptSubmittedPromptId(sessionId: string, sdkId: string): void {
-    const queue = this.steeringBySession.get(sessionId);
-    const entry = queue?.find((p) => p.id.startsWith("steer-"));
-    if (entry) entry.sdkId = sdkId;
-  }
-
-  /**
-   * A turn just completed, so the SDK starts the next queued prompt. Pop the
-   * head of the authoritative mirror (FIFO) and re-emit — the UI stops showing
-   * that prompt as queued the moment it begins processing.
-   */
-  private popStartedPrompt(sessionId: string): void {
-    const queue = this.steeringBySession.get(sessionId);
+  /** Start exactly one queued prompt as a fresh SDK turn. */
+  private async startNextQueuedPrompt(sessionId: string): Promise<void> {
+    if (this.runningSessions.has(sessionId) || this.startingSessions.has(sessionId)) return;
+    const queue = this.queuedPromptsBySession.get(sessionId);
     if (!queue || queue.length === 0) return;
+
+    const next = queue[0];
+    this.startingSessions.add(sessionId);
+    const result = (await this.sendMessage(
+      sessionId,
+      next.prompt,
+      next.mode,
+      next.userImages,
+      next.userFiles,
+      false,
+      true,
+    )) as { accepted?: boolean; error?: string };
+
+    if (!result.accepted) {
+      this.startingSessions.delete(sessionId);
+      this.sink("notice", {
+        sessionId,
+        message: `The next queued task could not start${result.error ? `: ${result.error}` : "."}`,
+      });
+      return;
+    }
+
+    // Remove only after the SDK accepted the new turn. The explicit event lets
+    // the renderer append the correct prompt even when another queue item was
+    // cancelled earlier.
     queue.shift();
-    // The popped prompt is now the running turn. Mark the session in-flight
-    // even when no further prompts remain queued; the SDK starts it right
-    // after the current turn and a user message sent in that gap must be
-    // queued, not started as a competing direct turn.
-    this.runningSessions.add(sessionId);
-    this.sink("session-status", { sessionId, status: "running" });
-    if (queue.length === 0) this.steeringBySession.delete(sessionId);
+    if (queue.length === 0) this.queuedPromptsBySession.delete(sessionId);
     this.emitPendingPrompts(sessionId);
+    this.sink("session-event", {
+      type: "queued_prompt_started",
+      payload: {
+        sessionId,
+        prompt: {
+          id: next.id,
+          prompt: next.prompt,
+          delivery: next.delivery,
+          attachmentCount: next.attachmentCount,
+        },
+      },
+    });
   }
 
   /**
@@ -2150,6 +2180,9 @@ export class AgentHarness {
     this.clearRecoveryTimer(sessionId);
     await this.requireCline().abort(sessionId);
     this.runningSessions.delete(sessionId);
+    this.startingSessions.delete(sessionId);
+    this.queuedPromptsBySession.delete(sessionId);
+    this.emitPendingPrompts(sessionId);
     this.emitTeammatesStillWorking(sessionId);
   }
 
@@ -2447,8 +2480,9 @@ export class AgentHarness {
     this.clearRecoveryTimer(sessionId);
     await this.requireCline().abort(sessionId);
     this.sessionModes.delete(sessionId);
-    this.steeringBySession.delete(sessionId);
+    this.queuedPromptsBySession.delete(sessionId);
     this.runningSessions.delete(sessionId);
+    this.startingSessions.delete(sessionId);
     this.completionNudges.delete(sessionId);
     this.emitTeammatesStillWorking(sessionId);
     this.emitPendingPrompts(sessionId);
@@ -2466,8 +2500,9 @@ export class AgentHarness {
     }
     this.activeSessions.delete(sessionId);
     this.runningSessions.delete(sessionId);
+    this.startingSessions.delete(sessionId);
     this.sessionModes.delete(sessionId);
-    this.steeringBySession.delete(sessionId);
+    this.queuedPromptsBySession.delete(sessionId);
     this.completionNudges.delete(sessionId);
     this.recoveryAttempts.delete(sessionId);
     this.recoveryWindow.delete(sessionId);
@@ -2808,10 +2843,11 @@ export class AgentHarness {
     this.sessionModes.clear();
     this.activeSessions.clear();
     this.runningSessions.clear();
+    this.startingSessions.clear();
     for (const timer of this.recoveryTimers.values()) clearTimeout(timer);
     this.recoveryTimers.clear();
     this.pendingRecoveryErrors.clear();
-    this.steeringBySession.clear();
+    this.queuedPromptsBySession.clear();
     this.completionNudges.clear();
     this.todosBySession.clear();
     this.usageBySession.clear();

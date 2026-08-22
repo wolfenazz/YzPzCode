@@ -312,7 +312,7 @@ const TemplateCard: React.FC<{
             >
               {template.name}
             </span>
-            <span className="block text-[10px] font-mono text-zinc-600 truncate">
+            <span className="block text-[10px] font-mono text-[var(--text-secondary)] truncate">
               {template.layout.sessions} terminal{template.layout.sessions !== 1 ? 's' : ''}
             </span>
           </div>
@@ -325,7 +325,7 @@ const TemplateCard: React.FC<{
               <AgentPill key={agent} agent={agent} count={count} />
             ))}
           {Object.values(template.allocation).every((c) => c === 0) && (
-            <span className="text-[9px] font-mono text-zinc-700 italic">configure manually</span>
+            <span className="text-[9px] font-mono text-[var(--text-secondary)] italic">configure manually</span>
           )}
         </div>
       </button>
@@ -483,21 +483,21 @@ const TemplateEditorModal: React.FC<{
               >
                 <span className="text-sm font-mono">+</span>
               </button>
-              <span className="text-[10px] text-zinc-600 font-mono ml-1">max 12</span>
+              <span className="text-[10px] text-[var(--text-secondary)] font-mono ml-1">max 12</span>
             </div>
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+              <label className="block text-[10px] font-mono text-[var(--text-secondary)] uppercase tracking-wider">
                 Agent Allocation
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono text-zinc-500">
+                <span className="text-[10px] font-mono text-[var(--text-secondary)]">
                   {allocated}/{sessions} used
                 </span>
                 {remaining > 0 && (
-                  <span className="text-[9px] font-mono text-zinc-600">
+                  <span className="text-[9px] font-mono text-[var(--text-secondary)]">
                     ({remaining} shell{remaining !== 1 ? 's' : ''})
                   </span>
                 )}
@@ -598,7 +598,7 @@ const TemplateEditorModal: React.FC<{
             <button
               type="button"
               onClick={() => setShowDeleteConfirm(true)}
-              className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-600 hover:text-rose-400 transition-colors duration-150 cursor-pointer"
+              className="flex items-center gap-1.5 text-[10px] font-mono text-[var(--text-secondary)] hover:text-rose-400 transition-colors duration-150 cursor-pointer"
             >
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -610,7 +610,7 @@ const TemplateEditorModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 transition-colors duration-150 cursor-pointer"
+              className="px-4 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-primary)] hover:border-zinc-500 transition-colors duration-150 cursor-pointer"
             >
               Cancel
             </button>
@@ -711,11 +711,11 @@ export const WorkspaceTemplatePicker: React.FC<WorkspaceTemplatePickerProps> = (
     <div>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-zinc-600 text-xs font-mono">$</span>
-          <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
+          <span className="text-[var(--text-secondary)] text-xs font-mono">$</span>
+          <label className="block text-xs font-medium text-[var(--text-secondary)] font-mono uppercase tracking-[0.15em]">
             Template
           </label>
-          <span className="px-2 py-0.5 rounded-full border border-zinc-800 text-[9px] text-zinc-500 bg-zinc-900/50">
+          <span className="px-2 py-0.5 rounded-full border border-zinc-800 text-[9px] text-[var(--text-secondary)] bg-zinc-900/50">
             {templates.length}
           </span>
         </div>
@@ -770,11 +770,11 @@ export const WorkspaceTemplatePicker: React.FC<WorkspaceTemplatePickerProps> = (
       </div>
 
       {templates.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 border border-dashed border-zinc-800 rounded-xl">
-          <svg className="w-8 h-8 text-zinc-700 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="flex flex-col items-center justify-center py-8 border border-dashed border-[var(--border-primary)] rounded-xl">
+          <svg className="w-8 h-8 text-[var(--text-secondary)] mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
           </svg>
-          <span className="text-[10px] font-mono text-zinc-600 mb-3">No templates</span>
+          <span className="text-[10px] font-mono text-[var(--text-secondary)] mb-3">No templates</span>
           <button
             type="button"
             onClick={() => onRestoreDefaults?.()}
@@ -853,7 +853,7 @@ export const WorkspaceTemplatePicker: React.FC<WorkspaceTemplatePickerProps> = (
                   setShowSaveModal(false);
                   setSaveName('');
                 }}
-                className="px-4 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider text-zinc-400 hover:text-zinc-200 border border-zinc-700 hover:border-zinc-500 transition-colors duration-150 cursor-pointer"
+                className="px-4 py-1.5 rounded font-mono text-[10px] uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-primary)] hover:border-zinc-500 transition-colors duration-150 cursor-pointer"
               >
                 Cancel
               </button>

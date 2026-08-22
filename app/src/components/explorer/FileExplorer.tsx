@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowsIn, ArrowClockwise, FilePlus, FolderPlus, FolderSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
 import { Tree, type NodeApi } from 'react-arborist';
 import { FileEntry } from '../../types';
 import { useFileTree, type TreeNodeData } from '../../hooks/useFileTree';
@@ -37,10 +38,10 @@ const HeaderIconButton: React.FC<{
     onClick={onClick}
     title={title}
     aria-label={title}
-    className={`p-1 rounded-sm transition-colors duration-75 cursor-pointer ${
+    className={`explorer-header-action app-icon-button h-6 w-6 rounded transition-colors duration-75 cursor-pointer ${
       active
-        ? 'text-zinc-200 hover:bg-zinc-700/40'
-        : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/40'
+        ? 'text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
     }`}
   >
     {children}
@@ -867,97 +868,43 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   return (
     <div
-      className="h-full flex flex-col bg-theme-main border-r border-theme select-none overflow-hidden"
+      className="explorer-pane h-full flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] select-none overflow-hidden"
       onContextMenu={handleContainerContextMenu}
     >
-      <div className="group/explorer flex items-center justify-between pr-2 pl-3 h-9 shrink-0 border-b border-theme">
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            title={workspaceName}
-            className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.18em] truncate"
-          >
-            Explorer
-          </span>
+      <div className="explorer-pane__header flex h-10 shrink-0 items-center justify-between border-b border-[var(--border-primary)] px-3">
+        <div className="explorer-pane__heading flex min-w-0 items-center gap-2">
+          <FolderSimple size={15} className="explorer-pane__heading-icon shrink-0" aria-hidden="true" />
+          <div className="min-w-0">
+            <span className="explorer-pane__eyebrow block">Explorer</span>
+            <span title={workspaceName} className="explorer-pane__workspace block truncate">{workspaceName}</span>
+          </div>
         </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover/explorer:opacity-100 transition-opacity duration-150">
+        <div className="explorer-pane__actions flex items-center gap-0.5">
           <HeaderIconButton title="New File..." onClick={() => handleNewFile(null)}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
+            <FilePlus size={15} aria-hidden="true" />
           </HeaderIconButton>
           <HeaderIconButton title="New Folder..." onClick={() => handleNewFolder(null)}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-              />
-            </svg>
+            <FolderPlus size={15} aria-hidden="true" />
           </HeaderIconButton>
           <HeaderIconButton
             title="Reveal Active File in Explorer"
             onClick={handleRevealActiveFile}
             active={!!activeFilePath}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-              />
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 11v4m0 0l-2-2m2 2l2-2"
-              />
-            </svg>
+            <FolderSimple size={15} aria-hidden="true" />
           </HeaderIconButton>
           <HeaderIconButton title="Refresh Explorer" onClick={refreshRoot}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
+            <ArrowClockwise size={15} aria-hidden="true" />
           </HeaderIconButton>
           <HeaderIconButton title="Collapse All" onClick={handleCollapseAll}>
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M4 9l8 8 8-8"
-              />
-            </svg>
+            <ArrowsIn size={15} aria-hidden="true" />
           </HeaderIconButton>
         </div>
       </div>
 
-      <div className="px-2 py-1.5 border-b border-theme">
-        <div className="flex items-center gap-2 px-2 h-7 bg-theme-card/60 border border-theme rounded-sm focus-within:border-zinc-600 transition-colors shadow-inner">
-          <svg
-            className="w-3 h-3 text-zinc-600 shrink-0"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
+      <div className="explorer-pane__search-wrap border-b border-[var(--border-primary)] px-2 py-2">
+        <div className="explorer-pane__search flex h-8 items-center gap-2 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 transition-colors focus-within:border-[var(--text-secondary)]">
+          <MagnifyingGlass size={14} className="shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
           <input
             ref={searchInputRef}
             type="text"
@@ -965,36 +912,29 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search patterns..."
-            className="flex-1 bg-transparent text-[11px] font-mono text-zinc-300 placeholder:text-zinc-700 outline-none"
+            className="flex-1 bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none"
           />
           {searchQuery ? (
             <button
               onClick={() => setSearchQuery('')}
-              className="p-0.5 hover:bg-theme-hover rounded-sm cursor-pointer text-zinc-500 hover:text-zinc-200"
+              className="app-icon-button h-5 w-5 rounded-sm"
               title="Clear Search"
             >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X size={13} aria-hidden="true" />
             </button>
           ) : (
-            <span className="text-[9px] font-mono text-zinc-700 pointer-events-none">/</span>
+            <span className="text-[10px] text-[var(--text-secondary)] pointer-events-none">/</span>
           )}
         </div>
       </div>
 
       {openFiles.length > 0 && (
-        <div className="shrink-0 border-b border-theme select-none">
-          <div className="flex items-center gap-1.5 px-3 h-7">
-            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.18em] flex-1">
-              Open Editors
+        <div className="explorer-pane__open-editors shrink-0 border-b border-[var(--border-primary)] select-none">
+          <div className="flex h-8 items-center gap-1.5 px-3">
+            <span className="explorer-pane__section-label flex-1 text-[11px] font-medium text-[var(--text-secondary)]">
+              Open editors
             </span>
-            <span className="text-[9px] font-mono text-zinc-700">{openFiles.length}</span>
+            <span className="text-[10px] tabular-nums text-[var(--text-secondary)]">{openFiles.length}</span>
           </div>
           <div className="pb-1 max-h-40 overflow-y-auto custom-scrollbar">
             {openFiles.map((file) => {
@@ -1003,8 +943,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 <div
                   key={file.path}
                   onClick={() => onFileClick({ name: file.name, path: file.path, isDir: false, size: 0, modifiedAt: 0, extension: file.language } as FileEntry)}
-                  className={`group/openfile flex items-center gap-2 pl-3 pr-1.5 py-1 cursor-pointer transition-colors duration-75 ${
-                    isActiveOpen ? 'bg-zinc-800/60 text-zinc-100' : 'text-zinc-400 hover:bg-theme-hover/70 hover:text-zinc-200'
+                  className={`explorer-open-file group/openfile flex items-center gap-2 pl-3 pr-1.5 py-1 cursor-pointer transition-colors duration-75 ${
+                    isActiveOpen ? 'is-active bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]'
                   }`}
                   title={file.path}
                 >
@@ -1016,7 +956,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                       e.stopPropagation();
                       closeFileTab(file.path);
                     }}
-                    className="p-0.5 rounded-sm text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/40 cursor-pointer opacity-0 group-hover/openfile:opacity-100 transition-opacity"
+                    className="app-icon-button h-5 w-5 rounded-sm text-[var(--text-secondary)] opacity-0 group-hover/openfile:opacity-100"
                     title="Close File"
                   >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1031,7 +971,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       )}
 
       <div
-        className="flex-1 min-h-0 relative"
+        className="explorer-pane__tree flex-1 min-h-0 relative"
         ref={containerRef}
         onKeyDownCapture={handleKeyDownCapture}
         onKeyDown={handleKeyDown}
@@ -1042,7 +982,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         {isLoading && treeData.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <svg
-              className="w-5 h-5 animate-spin text-zinc-700"
+              className="w-5 h-5 animate-spin text-[var(--text-secondary)]"
               fill="none"
               viewBox="0 0 24 24"
             >
@@ -1063,7 +1003,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           </div>
         ) : treeData.length === 0 ? (
           <div className="flex flex-col items-center gap-3 py-10 px-4 text-center">
-            <svg className="w-8 h-8 text-zinc-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-8 h-8 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1071,10 +1011,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 d="M2 6a2 2 0 012-2h5l2 2h9a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
               />
             </svg>
-            <span className="text-[11px] text-zinc-600">No items in this folder</span>
+            <span className="text-[11px] text-[var(--text-secondary)]">No items in this folder</span>
             <button
               onClick={() => handleNewFile(null)}
-              className="text-[10px] px-2.5 py-1 rounded-sm bg-theme-card border border-theme text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors cursor-pointer"
+              className="text-[10px] px-2.5 py-1 rounded-sm bg-theme-card border border-theme text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-zinc-600 transition-colors cursor-pointer"
             >
               New File
             </button>

@@ -1,6 +1,41 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Icon } from '@iconify/react';
+import {
+  AppWindow,
+  ArrowClockwise,
+  ArrowRight,
+  ArrowUpRight,
+  Browsers,
+  CaretLeft,
+  CaretRight,
+  CheckCircle,
+  CircleNotch,
+  Copy,
+  CursorClick,
+  DeviceMobile,
+  ClockCounterClockwise,
+  DeviceRotate,
+  Devices,
+  Export,
+  EyedropperSample,
+  GlobeSimple,
+  Hand,
+  IconContext,
+  LinkSimple,
+  MagnifyingGlass,
+  Minus,
+  Palette,
+  Plus,
+  SelectionAll,
+  Sparkle,
+  Speedometer,
+  SquaresFour,
+  StackSimple,
+  Swatches,
+  Target,
+  WarningCircle,
+  X,
+} from '@phosphor-icons/react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import type {
@@ -9,7 +44,6 @@ import type {
   BrowserElementSelectedEventPayload,
   BrowserInspectModePayload,
   BrowserPopoutStatePayload,
-  BrowserPreviewChrome,
   BrowserUiIntegrationMode,
   CapturedUiElementReference,
   BrowserPageLoadPayload,
@@ -33,6 +67,7 @@ import { ApplyModeToolbar } from './ApplyModeToolbar';
 import { RichPromptEditor } from './RichPromptEditor';
 import { ElementInspectorPanel } from './ElementInspectorPanel';
 import { AgentTargetSelect, type AgentTargetOption } from './AgentTargetSelect';
+import { Shimmer } from '../ai-elements/shimmer';
 
 interface BrowserPaneProps {
   workspaceId: string;
@@ -53,6 +88,8 @@ const BROWSER_DEVICE_OPTIONS: BrowserDevicePreset[] = [
   BROWSER_DEVICES[1],
   BROWSER_DEVICES[2],
 ];
+
+const BROWSER_ICON_CONTEXT = { weight: 'light' as const };
 
 const normalizeBrowserUrl = (value: string): string => {
   const trimmed = value.trim();
@@ -98,70 +135,14 @@ const buildExportStamp = (): string => {
   return `${parts[0]}${parts[1]}${parts[2]}-${parts[3]}${parts[4]}${parts[5]}`;
 };
 
-interface DeviceFrameDefinition {
-  outerWidth: number;
-  outerHeight: number;
-  screenX: number;
-  screenY: number;
-  screenWidth: number;
-  screenHeight: number;
-  screenRadius: number;
-  contentInsetTop: number;
-  contentInsetRight: number;
-  contentInsetBottom: number;
-  contentInsetLeft: number;
-  kind: 'iphone' | 'ipad';
-  baseOrientation: BrowserDeviceOrientation;
-}
-
 interface DeviceFrameMetrics {
   stageWidth: number;
   stageHeight: number;
   viewportWidth: number;
   viewportHeight: number;
-  viewportLeft: number;
-  viewportTop: number;
-  viewBoxWidth: number;
-  viewBoxHeight: number;
-  shellPadding: number;
-  shellHeader: number;
   kind: 'responsive' | 'iphone' | 'ipad';
-  screenRadius: number;
   orientation: BrowserDeviceOrientation;
 }
-
-const DEVICE_FRAME_DEFINITIONS: Record<'iphone-14-pro' | 'ipad', DeviceFrameDefinition> = {
-  'iphone-14-pro': {
-    outerWidth: 200,
-    outerHeight: 400,
-    screenX: 14.08,
-    screenY: 12.81,
-    screenWidth: 171.98,
-    screenHeight: 374.37,
-    screenRadius: 24,
-    contentInsetTop: 1,
-    contentInsetRight: 1,
-    contentInsetBottom: 2,
-    contentInsetLeft: 1,
-    kind: 'iphone',
-    baseOrientation: 'portrait',
-  },
-  ipad: {
-    outerWidth: 520,
-    outerHeight: 400,
-    screenX: 31.37,
-    screenY: 28.47,
-    screenWidth: 457.25,
-    screenHeight: 342.87,
-    screenRadius: 14,
-    contentInsetTop: 1,
-    contentInsetRight: 1,
-    contentInsetBottom: 1,
-    contentInsetLeft: 1,
-    kind: 'ipad',
-    baseOrientation: 'landscape',
-  },
-};
 
 const getNextZoom = (current: number, direction: -1 | 1): number => {
   const currentIndex = ZOOM_STEPS.findIndex((value) => value >= current - 0.001 && value <= current + 0.001);
@@ -174,132 +155,6 @@ const getNextZoom = (current: number, direction: -1 | 1): number => {
     : [...ZOOM_STEPS].reverse().find((value) => value < current);
   return fallback ?? current;
 };
-
-const IPhoneMockupFrame: React.FC<{
-  metrics: DeviceFrameMetrics;
-  children: React.ReactNode;
-}> = ({ metrics, children }) => (
-  <div
-    className="relative"
-    style={{
-      width: metrics.stageWidth,
-      height: metrics.stageHeight,
-    }}
-  >
-    <div
-      className="absolute overflow-hidden bg-zinc-900/30 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
-      style={{
-        left: metrics.viewportLeft,
-        top: metrics.viewportTop,
-        width: metrics.viewportWidth,
-        height: metrics.viewportHeight,
-        borderRadius: metrics.screenRadius,
-      }}
-    >
-      {children}
-    </div>
-    <svg
-      className="absolute inset-0 h-full w-full pointer-events-none"
-      viewBox={`0 0 ${metrics.viewBoxWidth} ${metrics.viewBoxHeight}`}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      preserveAspectRatio="none"
-    >
-      {metrics.orientation === 'portrait' ? (
-        <>
-          <path
-            fill="#303333"
-            d="M196.11,128.09c0-.25-.2-.45-.45-.45-.11.04-.37.03-.69,0V36.69c0-17.84-14.46-32.31-32.31-32.31H37.48C19.63,4.39,5.17,18.85,5.17,36.69v48.99c-.3.02-.55.03-.66-.02-.25,0-.45.2-.45.45,0,0,0,17.29,0,17.29-.03.41.5.49,1.11.48v13.63c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v7.95c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v178.86c0,17.84,14.46,32.31,32.31,32.31h125.2c17.84,0,32.31-14.46,32.31-32.31v-188.87c.32-.02.58-.03.69.04,1.26.1.03-45.94.45-46.38ZM186.07,362.63c0,13.56-10.99,24.56-24.56,24.56H38.64c-13.56,0-24.56-10.99-24.56-24.56V37.37c0-13.56,10.99-24.56,24.56-24.56h122.87c13.56,0,24.56,10.99,24.56,24.56v325.26Z"
-          />
-          <path
-            fill="#000000"
-            d="M161.38,7.29H38.78c-16.54,0-29.95,13.41-29.95,29.95v325.52c0,16.54,13.41,29.95,29.95,29.95h122.6c16.54,0,29.95-13.41,29.95-29.95V37.24c0-16.54-13.41-29.95-29.95-29.95ZM186.07,362.57c0,13.6-11.02,24.62-24.62,24.62H38.7c-13.6,0-24.62-11.02-24.62-24.62V37.43c0-13.6,11.02-24.62,24.62-24.62h122.75c13.6,0,24.62,11.02,24.62,24.62v325.14Z"
-          />
-          <rect x="14.08" y="12.81" width="171.98" height="374.37" rx="24.62" ry="24.62" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.75" />
-          <path
-            fill="#000000"
-            d="M119.61,33.86h-38.93c-10.48-.18-10.5-15.78,0-15.96,0,0,38.93,0,38.93,0,4.41,0,7.98,3.57,7.98,7.98,0,4.41-3.57,7.98-7.98,7.98Z"
-          />
-          <path fill="#080d4c" d="M118.78,29.21c-4.32.06-4.32-6.73,0-6.66,4.32-.06,4.32,6.73,0,6.66Z" />
-        </>
-      ) : (
-        <g transform="translate(400 0) rotate(90)">
-          <path
-            fill="#303333"
-            d="M196.11,128.09c0-.25-.2-.45-.45-.45-.11.04-.37.03-.69,0V36.69c0-17.84-14.46-32.31-32.31-32.31H37.48C19.63,4.39,5.17,18.85,5.17,36.69v48.99c-.3.02-.55.03-.66-.02-.25,0-.45.2-.45.45,0,0,0,17.29,0,17.29-.03.41.5.49,1.11.48v13.63c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v7.95c-.61,0-1.14.08-1.11.48,0,0,0,28.54,0,28.54-.03.42.5.49,1.11.48v178.86c0,17.84,14.46,32.31,32.31,32.31h125.2c17.84,0,32.31-14.46,32.31-32.31v-188.87c.32-.02.58-.03.69.04,1.26.1.03-45.94.45-46.38ZM186.07,362.63c0,13.56-10.99,24.56-24.56,24.56H38.64c-13.56,0-24.56-10.99-24.56-24.56V37.37c0-13.56,10.99-24.56,24.56-24.56h122.87c13.56,0,24.56,10.99,24.56,24.56v325.26Z"
-          />
-          <path
-            fill="#000000"
-            d="M161.38,7.29H38.78c-16.54,0-29.95,13.41-29.95,29.95v325.52c0,16.54,13.41,29.95,29.95,29.95h122.6c16.54,0,29.95-13.41,29.95-29.95V37.24c0-16.54-13.41-29.95-29.95-29.95ZM186.07,362.57c0,13.6-11.02,24.62-24.62,24.62H38.7c-13.6,0-24.62-11.02-24.62-24.62V37.43c0-13.6,11.02-24.62,24.62-24.62h122.75c13.6,0,24.62,11.02,24.62,24.62v325.14Z"
-          />
-          <rect x="14.08" y="12.81" width="171.98" height="374.37" rx="24.62" ry="24.62" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.75" />
-          <path
-            fill="#000000"
-            d="M119.61,33.86h-38.93c-10.48-.18-10.5-15.78,0-15.96,0,0,38.93,0,38.93,0,4.41,0,7.98,3.57,7.98,7.98,0,4.41-3.57,7.98-7.98,7.98Z"
-          />
-          <path fill="#080d4c" d="M118.78,29.21c-4.32.06-4.32-6.73,0-6.66,4.32-.06,4.32,6.73,0,6.66Z" />
-        </g>
-      )}
-    </svg>
-  </div>
-);
-
-const IPadMockupFrame: React.FC<{
-  metrics: DeviceFrameMetrics;
-  children: React.ReactNode;
-}> = ({ metrics, children }) => (
-  <div
-    className="relative"
-    style={{
-      width: metrics.stageWidth,
-      height: metrics.stageHeight,
-    }}
-  >
-    <div
-      className="absolute overflow-hidden bg-zinc-900/30 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]"
-      style={{
-        left: metrics.viewportLeft,
-        top: metrics.viewportTop,
-        width: metrics.viewportWidth,
-        height: metrics.viewportHeight,
-        borderRadius: metrics.screenRadius,
-      }}
-    >
-      {children}
-    </div>
-    <svg
-      className="absolute inset-0 h-full w-full pointer-events-none"
-      viewBox={`0 0 ${metrics.viewBoxWidth} ${metrics.viewBoxHeight}`}
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      preserveAspectRatio="none"
-    >
-      {metrics.orientation === 'landscape' ? (
-        <>
-          <path
-            fill="#aaabac"
-            d="M479.04,14.14H88.14v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-3.46v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-9.13c-13.4,0-24.27,10.78-24.45,24.14h-.48c-.16,0-.3.13-.3.3v20.07c0,.16.13.3.3.3h.47v303.38c0,13.51,10.95,24.45,24.45,24.45h438.08c13.51,0,24.45-10.95,24.45-24.45V38.6c0-13.51-10.95-24.45-24.45-24.45Z"
-          />
-          <rect x="18.58" y="15.94" width="482.84" height="368.91" rx="23.29" ry="23.29" fill="#000" />
-          <rect x="31.37" y="28.47" width="457.25" height="342.87" rx="9.61" ry="9.61" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-          <circle fill="#0a1054" cx="245.1" cy="22.23" r="2.44" />
-          <circle fill="#333" cx="274.98" cy="22.23" r=".88" />
-        </>
-      ) : (
-        <g transform="translate(400 0) rotate(90)">
-          <path
-            fill="#aaabac"
-            d="M479.04,14.14H88.14v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-3.46v-.59c0-.16-.13-.3-.3-.3h-16.7c-.16,0-.3.13-.3.3v.59h-9.13c-13.4,0-24.27,10.78-24.45,24.14h-.48c-.16,0-.3.13-.3.3v20.07c0,.16.13.3.3.3h.47v303.38c0,13.51,10.95,24.45,24.45,24.45h438.08c13.51,0,24.45-10.95,24.45-24.45V38.6c0-13.51-10.95-24.45-24.45-24.45Z"
-          />
-          <rect x="18.58" y="15.94" width="482.84" height="368.91" rx="23.29" ry="23.29" fill="#000" />
-          <rect x="31.37" y="28.47" width="457.25" height="342.87" rx="9.61" ry="9.61" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="0.8" />
-          <circle fill="#0a1054" cx="245.1" cy="22.23" r="2.44" />
-          <circle fill="#333" cx="274.98" cy="22.23" r=".88" />
-        </g>
-      )}
-    </svg>
-  </div>
-);
 
 const formatElementPrompt = (
   element: BrowserSelectedElement,
@@ -414,7 +269,22 @@ const sessionDisplayName = (session: TerminalSession): string => {
   return `TTY ${session.index + 1} · shell`;
 };
 
-const buildBracketedPasteInput = (value: string): string => `\x1b[200~${value}\x1b[201~\r`;
+const TERMINAL_SUBMIT_DELAY_MS = 32;
+
+const submitBracketedPaste = async (
+  sessionId: string,
+  prompt: string,
+  writeToTerminal: (targetSessionId: string, input: string) => Promise<void>,
+): Promise<void> => {
+  // Keep the submit key in a separate PTY write. Several full-screen CLIs
+  // finish their bracketed-paste callback after the read loop returns and
+  // otherwise consume an adjacent CR without submitting the prompt.
+  await writeToTerminal(sessionId, '\x1b[200~');
+  await writeToTerminal(sessionId, prompt);
+  await writeToTerminal(sessionId, '\x1b[201~');
+  await new Promise<void>((resolve) => window.setTimeout(resolve, TERMINAL_SUBMIT_DELAY_MS));
+  await writeToTerminal(sessionId, '\r');
+};
 
 const getViewportMetrics = (
   hostWidth: number,
@@ -428,77 +298,25 @@ const getViewportMetrics = (
       stageHeight: Math.max(hostHeight, 320),
       viewportWidth: Math.max(hostWidth, 280),
       viewportHeight: Math.max(hostHeight, 320),
-      viewportLeft: 0,
-      viewportTop: 0,
-      viewBoxWidth: Math.max(hostWidth, 280),
-      viewBoxHeight: Math.max(hostHeight, 320),
-      shellPadding: 0,
-      shellHeader: 0,
       kind: 'responsive',
-      screenRadius: 0,
       orientation,
     };
   }
 
-  const definition = DEVICE_FRAME_DEFINITIONS[device.id as keyof typeof DEVICE_FRAME_DEFINITIONS];
-  const rotated = orientation !== definition.baseOrientation;
   const requestedWidth = orientation === 'landscape' && device.width && device.height ? device.height : device.width ?? 0;
   const requestedHeight = orientation === 'landscape' && device.width && device.height ? device.width : device.height ?? 0;
-  const frameOuterWidth = rotated ? definition.outerHeight : definition.outerWidth;
-  const frameOuterHeight = rotated ? definition.outerWidth : definition.outerHeight;
-  const frameScreenWidth = rotated ? definition.screenHeight : definition.screenWidth;
-  const frameScreenHeight = rotated ? definition.screenWidth : definition.screenHeight;
-  const frameScreenX = rotated
-    ? definition.outerHeight - definition.screenY - definition.screenHeight
-    : definition.screenX;
-  const frameScreenY = rotated ? definition.screenX : definition.screenY;
-  const insets = rotated
-    ? {
-        top: definition.contentInsetLeft,
-        right: definition.contentInsetTop,
-        bottom: definition.contentInsetRight,
-        left: definition.contentInsetBottom,
-      }
-    : {
-        top: definition.contentInsetTop,
-        right: definition.contentInsetRight,
-        bottom: definition.contentInsetBottom,
-        left: definition.contentInsetLeft,
-      };
-  const clippedScreenX = frameScreenX + insets.left;
-  const clippedScreenY = frameScreenY + insets.top;
-  const clippedScreenWidth = frameScreenWidth - insets.left - insets.right;
-  const clippedScreenHeight = frameScreenHeight - insets.top - insets.bottom;
-
-  const availableWidth = Math.max(hostWidth - 56, 240);
-  const availableHeight = Math.max(hostHeight - 56, 280);
-  const screenScale = Math.min(requestedWidth / clippedScreenWidth, requestedHeight / clippedScreenHeight);
-  const desiredStageWidth = frameOuterWidth * screenScale;
-  const desiredStageHeight = frameOuterHeight * screenScale;
-  const scale = Math.min(1, availableWidth / desiredStageWidth, availableHeight / desiredStageHeight);
-  const stageWidth = Math.max(220, Math.round(desiredStageWidth * scale));
-  const stageHeight = Math.max(260, Math.round(desiredStageHeight * scale));
-  const finalFrameScale = stageWidth / frameOuterWidth;
-  const viewportWidth = Math.round(clippedScreenWidth * finalFrameScale);
-  const viewportHeight = Math.round(clippedScreenHeight * finalFrameScale);
-  const viewportLeft = Math.round(clippedScreenX * finalFrameScale);
-  const viewportTop = Math.round(clippedScreenY * finalFrameScale);
-  const maxInset = Math.max(insets.top, insets.right, insets.bottom, insets.left);
-  const screenRadius = Math.max(8, Math.round((definition.screenRadius - maxInset) * finalFrameScale));
+  const availableWidth = Math.max(hostWidth - 48, 80);
+  const availableHeight = Math.max(hostHeight - 48, 80);
+  const scale = Math.min(1, availableWidth / requestedWidth, availableHeight / requestedHeight);
+  const viewportWidth = Math.max(80, Math.round(requestedWidth * scale));
+  const viewportHeight = Math.max(80, Math.round(requestedHeight * scale));
 
   return {
-    stageWidth,
-    stageHeight,
+    stageWidth: viewportWidth,
+    stageHeight: viewportHeight,
     viewportWidth,
     viewportHeight,
-    viewportLeft,
-    viewportTop,
-    viewBoxWidth: frameOuterWidth,
-    viewBoxHeight: frameOuterHeight,
-    shellPadding: 0,
-    shellHeader: 0,
-    kind: definition.kind,
-    screenRadius,
+    kind: device.category === 'mobile' ? 'iphone' : 'ipad',
     orientation,
   };
 };
@@ -523,7 +341,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const setBrowserDeviceId = useAppStore((state) => state.setBrowserDeviceId);
   const setBrowserDeviceOrientation = useAppStore((state) => state.setBrowserDeviceOrientation);
   const setBrowserSelectedElement = useAppStore((state) => state.setBrowserSelectedElement);
-  const setBrowserPrompt = useAppStore((state) => state.setBrowserPrompt);
+  const setBrowserInstructionSlots = useAppStore((state) => state.setBrowserInstructionSlots);
+  const setActiveBrowserInstructionSlot = useAppStore((state) => state.setActiveBrowserInstructionSlot);
   const setBrowserTargetSession = useAppStore((state) => state.setBrowserTargetSession);
   const clearBrowserSelection = useAppStore((state) => state.clearBrowserSelection);
   const addBrowserTab = useAppStore((state) => state.addBrowserTab);
@@ -594,6 +413,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     deviceOrientation: 'portrait' as const,
     selectedElement: null,
     prompt: '',
+    instructionSlots: [''],
+    activeInstructionSlot: 0,
     uiReferencePrompt: '',
     uiReferenceMode: 'insert' as const,
     targetSessionId: null,
@@ -660,7 +481,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
         await sendMessage(targetSessionId, prompt);
         return;
       }
-      await writeToTerminal(targetSessionId, buildBracketedPasteInput(prompt));
+      await submitBracketedPaste(targetSessionId, prompt, writeToTerminal);
     },
     [agentSessionIds, ensureHost, resumeSession, sendMessage, writeToTerminal],
   );
@@ -1007,32 +828,16 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   useEffect(() => {
     if (!nativeBrowserReady || isPoppedOut) return;
 
-    const chrome: BrowserPreviewChrome | null = viewportMetrics.kind === 'responsive'
-      ? null
-      : viewportMetrics.kind === 'iphone'
-        ? {
-            radius: Math.max(10, viewportMetrics.screenRadius),
-            mode: 'iphone',
-            topInset: Math.max(18, Math.round(viewportMetrics.viewportHeight * 0.06)),
-            orientation: effectiveState.deviceOrientation,
-          }
-        : {
-            radius: Math.max(10, viewportMetrics.screenRadius),
-            mode: 'ipad',
-            topInset: 0,
-            orientation: effectiveState.deviceOrientation,
-          };
-
-    void setBrowserPreviewChrome(workspaceId, chrome).catch((err) => {
+    // Native child webviews are rectangular OS surfaces and cannot be reliably
+    // clipped by the React layer. Clear any previously injected device chrome so
+    // mobile/tablet presets remain faithful rectangular viewports.
+    void setBrowserPreviewChrome(workspaceId, null).catch((err) => {
       setError(err instanceof Error ? err.message : String(err));
     });
   }, [
     nativeBrowserReady,
     isPoppedOut,
     setBrowserPreviewChrome,
-    effectiveState.deviceOrientation,
-    viewportMetrics.kind,
-    viewportMetrics.screenRadius,
     workspaceId,
   ]);
 
@@ -1144,7 +949,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     }
   }, [goForwardBrowserView, workspaceId]);
 
-  const handleInspectorSend = useCallback(async (promptText: string) => {
+  const handleInspectorSend = useCallback(async (promptText?: string) => {
     if (!effectiveState.selectedElement) return;
 
     const targetSessionId = effectiveState.targetSessionId ?? defaultSessionId;
@@ -1153,14 +958,24 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       throw new Error('No terminal session is available for prompt handoff.');
     }
 
-    if (!promptText.trim()) {
+    // A single slot can be sent by itself (Enter in the editor); otherwise
+    // combine every non-empty slot into one batched request.
+    const slotTexts = (promptText
+      ? [promptText]
+      : effectiveState.instructionSlots.map((slot) => htmlToPlainText(slot).trim()).filter((text) => text.length > 0)
+    );
+    if (slotTexts.length === 0) {
       setError('Enter a prompt before sending it to a terminal agent.');
       throw new Error('Enter a prompt before sending it to a terminal agent.');
     }
 
+    const instructions = slotTexts
+      .map((text, i) => (slotTexts.length > 1 ? `${i + 1}. ${text}` : text))
+      .join('\n\n');
+
     const formattedPrompt = formatElementPrompt(
       effectiveState.selectedElement,
-      promptText,
+      instructions,
       activeDevice.label,
       effectiveState.zoomFactor,
     );
@@ -1168,7 +983,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     setIsSubmitting(true);
     try {
       await sendPromptToTarget(targetSessionId, formattedPrompt);
-      setBrowserPrompt(workspaceId, '');
+      setBrowserInstructionSlots(workspaceId, ['']);
+      setActiveBrowserInstructionSlot(workspaceId, 0);
       setError(null);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -1182,9 +998,11 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     defaultSessionId,
     effectiveState.selectedElement,
     effectiveState.targetSessionId,
+    effectiveState.instructionSlots,
     effectiveState.zoomFactor,
     sendPromptToTarget,
-    setBrowserPrompt,
+    setBrowserInstructionSlots,
+    setActiveBrowserInstructionSlot,
     workspaceId,
   ]);
 
@@ -1192,9 +1010,45 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     setBrowserTargetSession(workspaceId, sessionId);
   }, [setBrowserTargetSession, workspaceId]);
 
-  const handleInspectorDraftChange = useCallback((html: string) => {
-    setBrowserPrompt(workspaceId, html);
-  }, [setBrowserPrompt, workspaceId]);
+  const handleInspectorDraftChange = useCallback(
+    (html: string) => {
+      const index = effectiveState.activeInstructionSlot;
+      const slots = effectiveState.instructionSlots.map((slot, i) => (i === index ? html : slot));
+      setBrowserInstructionSlots(workspaceId, slots);
+    },
+    [effectiveState.activeInstructionSlot, effectiveState.instructionSlots, setBrowserInstructionSlots, workspaceId],
+  );
+
+  const handleSelectInstructionSlot = useCallback(
+    (index: number) => {
+      setActiveBrowserInstructionSlot(workspaceId, index);
+    },
+    [setActiveBrowserInstructionSlot, workspaceId],
+  );
+
+  const handleAddInstructionSlot = useCallback(() => {
+    const slots = [...effectiveState.instructionSlots, ''];
+    if (slots.length > 4) return;
+    setBrowserInstructionSlots(workspaceId, slots);
+    setActiveBrowserInstructionSlot(workspaceId, slots.length - 1);
+  }, [effectiveState.instructionSlots, setActiveBrowserInstructionSlot, setBrowserInstructionSlots, workspaceId]);
+
+  const handleRemoveInstructionSlot = useCallback(
+    (index: number) => {
+      if (effectiveState.instructionSlots.length <= 1) return;
+      const slots = effectiveState.instructionSlots.filter((_, i) => i !== index);
+      const activeIndex = Math.min(effectiveState.activeInstructionSlot, slots.length - 1);
+      setBrowserInstructionSlots(workspaceId, slots);
+      setActiveBrowserInstructionSlot(workspaceId, activeIndex);
+    },
+    [
+      effectiveState.activeInstructionSlot,
+      effectiveState.instructionSlots,
+      setActiveBrowserInstructionSlot,
+      setBrowserInstructionSlots,
+      workspaceId,
+    ],
+  );
 
   const handleInspectorClear = useCallback(() => {
     clearBrowserSelection(workspaceId);
@@ -1441,38 +1295,22 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     : `${viewportMetrics.viewportWidth}×${viewportMetrics.viewportHeight}`;
 
   return (
-    <div className="h-full w-full">
-      <div className="h-full w-full border border-[var(--border-primary)] bg-[var(--bg-primary)] overflow-hidden flex flex-col rounded-lg">
+    <IconContext.Provider value={BROWSER_ICON_CONTEXT}>
+    <div className="browser-workbench h-full w-full">
+      <div className="browser-frame flex h-full w-full flex-col overflow-hidden border border-[var(--border-primary)] bg-[var(--bg-primary)]">
         {/* ── Header Bar ──────────────────────────────────────────────── */}
-        <header className="shrink-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 backdrop-blur-sm">
+        <header className="browser-chrome shrink-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]">
           {/* Title Row */}
-          <div className="flex items-center gap-3 px-3 py-2.5">
-            {/* Traffic Lights */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-300/80" />
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+          <div className="browser-commandbar flex items-center gap-2 px-3 py-2">
+            <div className="browser-identity flex shrink-0 items-center gap-2 pr-2">
+              <span className={`browser-identity__signal ${effectiveState.isLoading ? 'is-loading' : ''}`} aria-hidden="true" />
+              <GlobeSimple size={15} className="text-[var(--text-secondary)]" aria-hidden="true" />
+              <span className="select-none text-[12px] font-medium text-[var(--text-primary)]">Browser</span>
             </div>
 
-            {/* Identity Badge */}
-            <div className="flex items-center gap-2 shrink-0 pr-3 mr-1 border-r border-[var(--border-primary)]">
-              <Icon icon="material-symbols:language-rounded" className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--text-primary)] select-none">
-                browser
-              </span>
-              <div className="flex items-center gap-2">
-                <span className="h-1 w-1 rounded-full bg-[var(--accent)]/40" />
-                <span className="text-[9px] font-medium uppercase tracking-[0.2em] text-[var(--accent)] select-none">
-                  v{effectiveState.zoomFactor.toFixed(2)}x
-                </span>
-              </div>
-            </div>
-
-            {/* URL Input — terminal prompt style */}
-            <div className="flex-1 flex items-center gap-2 min-w-0 bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-lg px-3 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--accent)] select-none shrink-0">
-                $
-              </span>
+            {/* URL Input */}
+            <div className="browser-address flex min-w-0 flex-1 items-center gap-2 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 py-1.5">
+              <LinkSimple size={13} className="shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
               <input
                 value={resolvedDraftUrl}
                 onChange={(event) => setBrowserDraftUrl(workspaceId, event.target.value)}
@@ -1481,7 +1319,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                     void handleNavigate();
                   }
                 }}
-                className="flex-1 bg-transparent text-[11px] font-medium text-[var(--text-primary)] outline-none placeholder:text-zinc-600"
+                className="browser-address__input flex-1 bg-transparent text-[12px] font-normal text-[var(--text-primary)] outline-none placeholder:text-[var(--text-secondary)]"
                 placeholder={FALLBACK_URL}
               />
               <motion.button
@@ -1490,10 +1328,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 aria-label="Navigate to URL"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded-md bg-[var(--accent-light)] text-[var(--accent)] hover:bg-[var(--accent)]/25 transition-colors cursor-pointer"
+                className="browser-address__submit app-icon-button h-6 w-6 shrink-0 rounded-md"
               >
                 <span className="sr-only">Navigate</span>
-                <Icon icon="material-symbols:arrow-forward-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight size={14} aria-hidden="true" />
               </motion.button>
             </div>
 
@@ -1504,165 +1342,122 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               aria-label="Open localhost:3000 in new tab"
               whileHover={{ scale: 1.03 }}
               whileTap={{ scale: 0.97 }}
-              className="shrink-0 inline-flex items-center gap-1.5 rounded-md border border-emerald-500/15 bg-emerald-500/6 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-300/80 hover:border-emerald-500/30 hover:bg-emerald-500/12 hover:text-emerald-200 transition-all cursor-pointer"
+              className="browser-localhost app-button app-button--quiet h-7 shrink-0 px-2 text-[11px]"
             >
-              <Icon icon="material-symbols:open-in-new-rounded" className="h-3 w-3" aria-hidden="true" />
-              localhost
+              <ArrowUpRight size={13} aria-hidden="true" />
+              Localhost
             </motion.button>
 
             {/* Primary Actions */}
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="browser-actions flex shrink-0 items-center gap-1">
               {/* Inspect */}
               <motion.button
                 onClick={() => void handleToggleInspect()}
                 title={effectiveState.inspectMode ? 'Exit inspect mode' : 'Inspect elements'}
                 aria-label={effectiveState.inspectMode ? 'Exit inspect mode' : 'Inspect elements'}
                 aria-pressed={effectiveState.inspectMode}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className={`inspect-button-gemini inline-flex h-7 w-7 items-center justify-center rounded-[7px] p-[1px] transition-transform duration-200 cursor-pointer ${
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                transition={{ type: 'spring', stiffness: 480, damping: 28 }}
+                className={`browser-action browser-action--inspect browser-inspect inline-flex h-7 w-7 items-center justify-center rounded-[7px] p-[1px] cursor-pointer ${
                   effectiveState.inspectMode
                     ? 'is-active'
                     : ''
                 }`}
               >
-                <span
-                  className={`flex h-full w-full items-center justify-center rounded-[6px] border backdrop-blur-sm transition-colors duration-200 ${
-                    effectiveState.inspectMode
-                      ? 'border-emerald-400/40 bg-[var(--bg-secondary)]/90 text-emerald-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]'
-                      : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/80 text-[var(--text-primary)] shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]'
-                  }`}
-                >
-                  <span className="sr-only">Inspect</span>
-                  <svg
-                    className={`h-4 w-4 shrink-0 ${effectiveState.inspectMode ? 'drop-shadow-[0_0_6px_rgba(74,222,128,0.45)]' : 'drop-shadow-[0_0_4px_rgba(255,255,255,0.15)]'}`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.85"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M8 4l8 8-3 1 2 6-2 1-2-6-3 3V4Z" />
-                    <path d="M14.5 14.5 20 20" />
-                    <path d="M5 5h3" />
-                    <path d="M5 9h2" />
-                    <path d="M5 13h2" />
-                  </svg>
+                <span className="browser-inspect__surface">
+                  <CursorClick className="browser-inspect__icon h-4 w-4 shrink-0" aria-hidden="true" />
                 </span>
               </motion.button>
 
-              <span className="h-5 w-px bg-[var(--border-primary)] mx-0.5" aria-hidden="true" />
+              <span className="browser-tool-separator mx-0.5 h-5 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
               {/* Navigation */}
+              <div className="browser-button-group" role="group" aria-label="Page navigation">
               <button
                 onClick={() => void handleGoBack()}
                 disabled={historyLength <= 1}
                 title="Back"
                 aria-label="Go back"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600 disabled:cursor-not-allowed disabled:opacity-30 transition-colors cursor-pointer"
+                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)] disabled:cursor-not-allowed disabled:opacity-30"
               >
-                <Icon icon="material-symbols:arrow-back-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                <CaretLeft size={15} aria-hidden="true" />
               </button>
               <button
                 onClick={() => void handleGoForward()}
                 title="Forward"
                 aria-label="Go forward"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
               >
-                <Icon icon="material-symbols:arrow-forward-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                <CaretRight size={15} aria-hidden="true" />
               </button>
               <button
                 onClick={() => void handleReload()}
                 title="Reload"
                 aria-label="Reload page"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
               >
-                <Icon icon="material-symbols:refresh-rounded" className={`h-3.5 w-3.5 ${effectiveState.isLoading ? 'animate-spin-slow' : ''}`} aria-hidden="true" />
+                <ArrowClockwise size={14} className={effectiveState.isLoading ? 'animate-spin' : ''} aria-hidden="true" />
               </button>
               <button
                 onClick={() => void handleCopyUrl()}
                 title="Copy URL"
                 aria-label="Copy URL to clipboard"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
               >
-                <Icon icon="material-symbols:content-copy-outline-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                <Copy size={14} aria-hidden="true" />
               </button>
               <button
                 onClick={() => void handleOpenExternal()}
                 title="Open in browser"
                 aria-label="Open in external browser"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
               >
-                <Icon icon="material-symbols:open-in-new-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowUpRight size={15} aria-hidden="true" />
               </button>
               <button
                 onClick={() => void handleTogglePopout()}
                 title={isPoppedOut ? 'Dock browser here' : 'Open in app window'}
                 aria-label={isPoppedOut ? 'Dock browser here' : 'Open browser in app window'}
                 aria-pressed={isPoppedOut}
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
+                className={`browser-action inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                   isPoppedOut
-                    ? 'border-violet-400/35 bg-violet-500/10 text-violet-300 shadow-[0_0_12px_rgba(167,139,250,0.15)]'
-                    : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600'
+                   ? 'border-[var(--text-secondary)] bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                   : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]'
                 }`}
               >
-                <svg
-                  className="h-3.5 w-3.5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <rect x="4.5" y="6.5" width="10" height="10" rx="1.8" />
-                  <path d="M10.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5V13" />
-                  <path d="M13.5 10.5 19.5 4.5" />
-                </svg>
+                <Browsers size={15} aria-hidden="true" />
               </button>
               <button
                 onClick={() => void handleExportSnapshot()}
                 title="Export snapshot"
                 aria-label="Export page snapshot"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
               >
-                <Icon icon="material-symbols:download-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                <Export size={15} aria-hidden="true" />
               </button>
+              </div>
 
-              <span className="h-5 w-px bg-[var(--border-primary)] mx-0.5" aria-hidden="true" />
+              <span className="browser-tool-separator h-5 w-px bg-[var(--border-primary)] mx-0.5" aria-hidden="true" />
 
               {/* Style Tools */}
+              <div className="browser-button-group" role="group" aria-label="Design inspection tools">
               <button
                 onClick={() => void handleTogglePickStyle()}
                 title={effectiveState.pickStyleMode ? 'Stop picking styles' : 'Pick UI style'}
                 aria-label={effectiveState.pickStyleMode ? 'Stop picking styles' : 'Pick UI style'}
                 aria-pressed={effectiveState.pickStyleMode}
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
+                className={`browser-action inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                   effectiveState.pickStyleMode
-                    ? 'border-amber-500/30 bg-amber-500/10 text-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.15)]'
-                  : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600'
+                     ? 'border-amber-700/60 bg-amber-950/20 text-amber-300'
+                   : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]'
                 }`}
               >
-                <svg
-                  className={`h-4 w-4 shrink-0 ${effectiveState.pickStyleMode ? 'drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]' : 'drop-shadow-[0_0_4px_rgba(255,255,255,0.1)]'}`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <EyedropperSample
+                  size={16}
+                  className={effectiveState.pickStyleMode ? 'drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]' : undefined}
                   aria-hidden="true"
-                >
-                  <path d="M4 20h4l8.5-8.5a2 2 0 0 0 0-2.8l-1.2-1.2a2 2 0 0 0-2.8 0L4 16v4Z" />
-                  <path d="M12.5 7.5 16 11" />
-                  <path d="M14.5 5.5l4-4" />
-                  <path d="M18.5 1.5 21 4" />
-                  <path d="M6 20c0-1.2.9-2 2.1-2H10" />
-                  <path d="M18.5 18.5c0 1.4-1.1 2.5-2.5 2.5" />
-                </svg>
+                />
               </button>
               <button
                 onClick={() => void handleTogglePickUiElement()}
@@ -1677,30 +1472,31 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                     : 'Copy a UI element to rebuild in local project'
                 }
                 aria-pressed={effectiveState.pickUiElementMode}
-                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2 transition-colors cursor-pointer ${
+                className={`browser-copy-ui inline-flex h-7 items-center gap-1.5 rounded-md border px-2 transition-colors cursor-pointer ${
                   effectiveState.pickUiElementMode
-                    ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.15)]'
-                    : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600'
+                     ? 'border-[var(--text-secondary)] bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                     : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]'
                 }`}
               >
-                <Icon icon="material-symbols:view-in-ar-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
-                <span className="text-[9px] font-bold uppercase tracking-[0.15em]">copy UI</span>
+                <SelectionAll size={15} aria-hidden="true" />
+                 <span className="text-[11px] font-medium">Copy UI</span>
               </button>
               <div className="relative">
                 <button
                   onClick={() => setActiveSidebar((prev) => prev === 'styles' ? null : 'styles')}
                   title="Style clipboard"
                   aria-label="Style clipboard"
-                  className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
+                  aria-pressed={activeSidebar === 'styles'}
+                  className={`browser-action inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                     activeSidebar === 'styles'
                       ? 'border-sky-500/30 bg-sky-500/10 text-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.15)]'
                       : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600'
                   }`}
                 >
-                  <Icon icon="material-symbols:content-paste-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                  <Swatches size={15} aria-hidden="true" />
                 </button>
                 {effectiveState.styleClipboard.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sky-500 text-[7px] font-bold text-white shadow-[0_0_6px_rgba(56,189,248,0.5)]">
+                  <span className="browser-count absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-sky-500 text-[7px] font-bold text-white shadow-[0_0_6px_rgba(56,189,248,0.5)]">
                     {effectiveState.styleClipboard.length}
                   </span>
                 )}
@@ -1710,19 +1506,21 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   onClick={() => setActiveSidebar((prev) => prev === 'ui-references' ? null : 'ui-references')}
                   title="UI references"
                   aria-label="UI references"
-                  className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
+                  aria-pressed={activeSidebar === 'ui-references'}
+                  className={`browser-action inline-flex h-7 w-7 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                     activeSidebar === 'ui-references'
                       ? 'border-cyan-500/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.15)]'
                       : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60 text-[var(--accent)] hover:border-zinc-600'
                   }`}
                 >
-                  <Icon icon="material-symbols:view-in-ar-outline-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                  <StackSimple size={15} aria-hidden="true" />
                 </button>
                 {effectiveState.uiReferenceClipboard.length > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-cyan-500 text-[7px] font-bold text-white shadow-[0_0_6px_rgba(34,211,238,0.5)]">
+                  <span className="browser-count absolute -top-0.5 -right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-cyan-500 text-[7px] font-bold text-white shadow-[0_0_6px_rgba(34,211,238,0.5)]">
                     {effectiveState.uiReferenceClipboard.length}
                   </span>
                 )}
+              </div>
               </div>
             </div>
           </div>
@@ -1737,14 +1535,14 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
           />
 
           {/* Device & Zoom Controls */}
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-[var(--bg-primary)]/40 border-t border-[var(--border-primary)]">
+          <div className="browser-workbench-bar flex items-center gap-2 border-t border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5">
             {/* Device Selector */}
-            <div className="flex items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)]/80 px-2 py-1">
-              <Icon icon="material-symbols:devices-outline-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
+            <div className="browser-control flex items-center gap-1.5 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1">
+              <Devices size={13} className="text-[var(--accent)]" aria-hidden="true" />
               <select
                 value={effectiveState.deviceId}
                 onChange={(event) => handleDeviceChange(event.target.value as BrowserDevicePreset['id'])}
-                className="bg-transparent text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--text-primary)] outline-none appearance-none pr-1 cursor-pointer"
+                className="bg-transparent text-[11px] font-medium text-[var(--text-primary)] outline-none appearance-none pr-1 cursor-pointer"
               >
                 {BROWSER_DEVICE_OPTIONS.map((device) => (
                   <option key={device.id} value={device.id} className="bg-[var(--bg-primary)] text-[var(--text-primary)]">
@@ -1760,21 +1558,21 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               disabled={activeDevice.id === 'responsive'}
               title="Rotate orientation"
               aria-label="Rotate orientation"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)]/80 text-[var(--accent)] hover:border-zinc-600 disabled:cursor-not-allowed disabled:opacity-30 transition-colors cursor-pointer"
+              className="browser-action browser-action--compact app-icon-button h-6 w-6 rounded-md border border-[var(--border-primary)] disabled:cursor-not-allowed disabled:opacity-30"
             >
-              <Icon icon="material-symbols:screen-rotation-rounded" className="h-3 w-3" aria-hidden="true" />
+              <DeviceRotate size={12} aria-hidden="true" />
             </button>
 
-            <span className="h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
+            <span className="browser-tool-separator h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
             {/* Zoom Controls */}
             <button
               onClick={() => handleZoomChange(getNextZoom(effectiveState.zoomFactor, -1))}
               title="Zoom out"
               aria-label="Zoom out"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)]/80 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+              className="browser-action browser-action--compact app-icon-button h-6 w-6 rounded-md border border-[var(--border-primary)]"
             >
-              <Icon icon="material-symbols:remove-rounded" className="h-3 w-3" aria-hidden="true" />
+              <Minus size={12} aria-hidden="true" />
             </button>
             <motion.button
               onClick={() => handleZoomChange(1)}
@@ -1782,51 +1580,51 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               aria-label="Reset zoom to 100%"
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
-              className="inline-flex items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)]/80 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] hover:border-zinc-600 cursor-pointer"
+              className="browser-zoom app-button app-button--quiet h-6 px-2 text-[11px]"
             >
-              <Icon icon="material-symbols:search-rounded" className="h-3 w-3 text-[var(--accent)]" aria-hidden="true" />
+              <MagnifyingGlass size={12} className="text-[var(--accent)]" aria-hidden="true" />
               {Math.round(effectiveState.zoomFactor * 100)}%
             </motion.button>
             <button
               onClick={() => handleZoomChange(getNextZoom(effectiveState.zoomFactor, 1))}
               title="Zoom in"
               aria-label="Zoom in"
-              className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)]/80 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
+              className="browser-action browser-action--compact app-icon-button h-6 w-6 rounded-md border border-[var(--border-primary)]"
             >
-              <Icon icon="material-symbols:add-rounded" className="h-3 w-3" aria-hidden="true" />
+              <Plus size={12} aria-hidden="true" />
             </button>
 
-            <span className="h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
+            <span className="browser-tool-separator h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
             {/* Status Indicators — iconified */}
-            <div className="flex items-center gap-2 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]/70">
-              <Icon icon="material-symbols:aspect-ratio-outline-rounded" className="h-3 w-3" aria-hidden="true" />
+            <div className="browser-metric flex items-center gap-2 text-[10px] text-[var(--text-secondary)]">
+              <SquaresFour size={12} aria-hidden="true" />
               <span>{previewLabel}</span>
             </div>
 
-            <span className="h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
+            <span className="browser-tool-separator h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
-            <div className="flex items-center gap-2 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]/70">
-              <Icon icon="material-symbols:pace-rounded" className="h-3 w-3" aria-hidden="true" />
+            <div className="browser-metric flex items-center gap-2 text-[10px] text-[var(--text-secondary)]">
+              <Speedometer size={12} aria-hidden="true" />
               <span>{lastLoadDurationMs !== null ? `${lastLoadDurationMs}ms` : '--'}</span>
             </div>
 
-            <span className="h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
+            <span className="browser-tool-separator h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
-            <div className="flex items-center gap-2 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]/70">
-              <Icon icon="material-symbols:history-rounded" className="h-3 w-3" aria-hidden="true" />
+            <div className="browser-metric flex items-center gap-2 text-[10px] text-[var(--text-secondary)]">
+              <ClockCounterClockwise size={12} aria-hidden="true" />
               <span>{historyLength}</span>
             </div>
 
-            <span className="h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
+            <span className="browser-tool-separator h-4 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
-            <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]/70 ml-auto">
-              <span className={`inline-flex h-1.5 w-1.5 rounded-full ${effectiveState.isLoading ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`} />
+            <div className="browser-page-status ml-auto flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]">
+              <span className={`browser-page-status__indicator inline-flex h-1.5 w-1.5 rounded-full ${effectiveState.isLoading ? 'is-loading bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]' : 'bg-zinc-600'}`} />
               <span>{pageTitle ? pageTitle.slice(0, 40) + (pageTitle.length > 40 ? '…' : '') : 'untitled'}</span>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[9px] font-medium uppercase tracking-[0.14em] text-[var(--accent)]/50 ml-2">
-              <Icon icon="material-symbols:link-rounded" className="h-3 w-3" aria-hidden="true" />
+            <div className="browser-current-url ml-2 flex items-center gap-1.5 text-[10px] text-[var(--text-secondary)]/70">
+              <LinkSimple size={12} aria-hidden="true" />
               <span className="max-w-[160px] truncate">{displayUrl}</span>
             </div>
           </div>
@@ -1838,10 +1636,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="border-t border-rose-900/40 bg-rose-950/20 px-3 py-1.5"
+                className="browser-notice browser-notice--error border-t border-rose-900/40 bg-rose-950/20 px-3 py-1.5"
               >
                 <div className="flex items-center gap-2 text-[10px] text-rose-300/90">
-                  <Icon icon="material-symbols:error-outline-rounded" className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <WarningCircle size={12} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{error}</span>
                 </div>
               </motion.div>
@@ -1851,10 +1649,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="border-t border-emerald-900/40 bg-emerald-950/20 px-3 py-1.5"
+                className="browser-notice browser-notice--success border-t border-emerald-900/40 bg-emerald-950/20 px-3 py-1.5"
               >
                 <div className="flex items-center gap-2 text-[10px] text-emerald-300/90">
-                  <Icon icon="material-symbols:check-circle-outline-rounded" className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  <CheckCircle size={12} className="shrink-0" aria-hidden="true" />
                   <span className="truncate">{exportMessage}</span>
                 </div>
               </motion.div>
@@ -1867,15 +1665,13 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
           <div className={`relative min-w-0 flex-1 ${effectiveState.selectedElement ? 'border-r border-[var(--border-primary)]' : ''}`}>
             <div
               ref={previewShellRef}
-              className="absolute inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.06),transparent_35%),radial-gradient(ellipse_at_bottom_right,rgba(59,130,246,0.06),transparent_30%),var(--bg-primary)]"
+              className="browser-preview-shell absolute inset-0 overflow-hidden bg-[var(--bg-primary)]"
             >
-              <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:24px_24px]" />
-
               {isPoppedOut ? (
                 <div className="absolute inset-0 flex items-center justify-center p-6">
                   <div className="flex max-w-[320px] flex-col items-center gap-3 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 px-5 py-4 text-center shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-sm">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-violet-400/25 bg-violet-500/10 text-violet-300">
-                      <Icon icon="material-symbols:select-window-2-outline-rounded" className="h-5 w-5" aria-hidden="true" />
+                      <AppWindow size={20} aria-hidden="true" />
                     </div>
                     <div>
                       <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-primary)]">
@@ -1889,20 +1685,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       onClick={() => void handleTogglePopout()}
                       className="inline-flex h-7 items-center gap-1.5 rounded-md border border-violet-400/25 bg-violet-500/10 px-3 text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200 hover:border-violet-300/45 hover:bg-violet-500/15 transition-colors cursor-pointer"
                     >
-                      <svg
-                        className="h-3.5 w-3.5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <rect x="4.5" y="6.5" width="10" height="10" rx="1.8" />
-                        <path d="M10.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5V13" />
-                        <path d="M13.5 10.5 19.5 4.5" />
-                      </svg>
+                      <AppWindow size={14} aria-hidden="true" />
                       Dock
                     </button>
                   </div>
@@ -1918,15 +1701,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 />
               ) : (
                 <div className="relative flex h-full items-center justify-center p-4">
-                  {viewportMetrics.kind === 'iphone' ? (
-                    <IPhoneMockupFrame metrics={viewportMetrics}>
-                      <div ref={previewViewportRef} className="h-full w-full" />
-                    </IPhoneMockupFrame>
-                  ) : (
-                    <IPadMockupFrame metrics={viewportMetrics}>
-                      <div ref={previewViewportRef} className="h-full w-full" />
-                    </IPadMockupFrame>
-                  )}
+                  <div
+                    className="relative border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-[0_18px_55px_rgba(0,0,0,0.24)]"
+                    style={{
+                      width: viewportMetrics.stageWidth + 2,
+                      height: viewportMetrics.stageHeight + 2,
+                    }}
+                  >
+                    <div ref={previewViewportRef} className="absolute inset-px" />
+                  </div>
                 </div>
               )}
             </div>
@@ -1940,16 +1723,16 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   exit={{ opacity: 0 }}
                   className="absolute inset-0 flex items-center justify-center pointer-events-none"
                 >
-                  <div className="rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 backdrop-blur-sm px-5 py-3.5 text-center shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+                  <div className="browser-boot-card rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 backdrop-blur-sm px-5 py-3.5 text-center shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
                     <div className="flex items-center gap-2">
-                      <Icon
-                        icon="material-symbols:progress-activity-rounded"
-                        className="h-4 w-4 text-[var(--accent)] animate-spin-slow"
+                      <CircleNotch
+                        size={16}
+                        className="text-[var(--accent)] animate-spin"
                         aria-hidden="true"
                       />
-                      <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--text-primary)]">
-                        booting preview
-                      </span>
+                      <Shimmer as="span" className="browser-boot-card__label text-[10px] font-bold tracking-[0.18em] text-[var(--text-primary)]" duration={2.8}>
+                        Preparing preview
+                      </Shimmer>
                     </div>
                     <p className="mt-1.5 text-[10px] text-[var(--accent)]/60">
                       initializing embedded browser surface
@@ -1990,7 +1773,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               >
                 <div className="flex items-center justify-between border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/90 px-3 py-2.5 backdrop-blur-sm">
                   <div className="flex items-center gap-2">
-                    <Icon icon="material-symbols:palette-outline-rounded" className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
+                    <Palette size={14} className="text-[var(--accent)]" aria-hidden="true" />
                     <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-[var(--text-primary)]">
                       style clipboard
                     </span>
@@ -2005,7 +1788,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                     className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/40 text-[var(--accent)] hover:border-zinc-600 cursor-pointer"
                     aria-label="Close clipboard"
                   >
-                    <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                    <X size={14} aria-hidden="true" />
                   </button>
                 </div>
                 <StyleClipboardPanel
@@ -2056,7 +1839,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                           : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--text-primary)]'
                       }`}
                     >
-                      <Icon icon="material-symbols:developer-mode-rounded" className="h-3 w-3" aria-hidden="true" />
+                      <DeviceMobile size={12} aria-hidden="true" />
                       dev
                     </button>
                     <button
@@ -2066,7 +1849,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       aria-label="Close UI references"
                       className="flex h-6 w-6 items-center justify-center text-[var(--text-secondary)] transition-colors hover:text-rose-400 cursor-pointer"
                     >
-                      <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                      <X size={14} aria-hidden="true" />
                     </button>
                   </div>
                 </div>
@@ -2177,7 +1960,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                             onClick={handleCopyUiReferenceHtml}
                             className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60 transition-colors hover:text-[var(--text-primary)] cursor-pointer"
                           >
-                            <Icon icon="material-symbols:content-copy-rounded" className="h-3 w-3" aria-hidden="true" />
+                            <Copy size={12} aria-hidden="true" />
                             copy
                           </button>
                         </div>
@@ -2259,7 +2042,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       {effectiveState.uiReferenceMode === 'replace' && (
                         <section className="border border-amber-900/50 bg-[var(--bg-primary)]/80">
                           <div className="flex items-center gap-1.5 border-b border-amber-900/40 px-3 py-2">
-                            <Icon icon="material-symbols:target-rounded" className="h-3 w-3 text-amber-300" aria-hidden="true" />
+                            <Target size={12} className="text-amber-300" aria-hidden="true" />
                             <span className="text-[9px] font-black uppercase tracking-widest text-amber-200/80">
                               localhost target
                             </span>
@@ -2277,7 +2060,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                                   : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--text-primary)]'
                               }`}
                             >
-                              <Icon icon="material-symbols:touch-app-rounded" className="h-3 w-3" aria-hidden="true" />
+                              <Hand size={12} aria-hidden="true" />
                               {effectiveState.inspectMode ? 'inspecting — click the local element now' : 'activate inspect mode'}
                             </button>
                             <div className="border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/50 px-2 py-1.5 font-mono text-[10px] text-[var(--text-secondary)]">
@@ -2343,7 +2126,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                         disabled={isSubmitting || targetableSessions.length === 0}
                         className="flex w-full items-center justify-center gap-2 border border-cyan-800/70 bg-cyan-950/40 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300 transition-colors hover:border-cyan-700 hover:bg-cyan-900/40 hover:text-cyan-200 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                       >
-                        <Icon icon="material-symbols:auto-awesome-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+                        <Sparkle size={14} aria-hidden="true" />
                         <span>{isSubmitting ? 'sending…' : 'rebuild in local project'}</span>
                       </button>
                     </>
@@ -2361,7 +2144,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               targetSessionId={effectiveState.targetSessionId}
               sessionOptions={sessionOptions}
               isSubmitting={isSubmitting}
-              initialHtml={effectiveState.prompt}
+              initialHtml={effectiveState.instructionSlots[effectiveState.activeInstructionSlot] ?? ''}
+              instructionSlots={effectiveState.instructionSlots}
+              activeInstructionSlot={effectiveState.activeInstructionSlot}
+              onSelectSlot={handleSelectInstructionSlot}
+              onAddSlot={handleAddInstructionSlot}
+              onRemoveSlot={handleRemoveInstructionSlot}
               onSend={handleInspectorSend}
               onTargetSessionChange={handleInspectorTargetSessionChange}
               onDraftChange={handleInspectorDraftChange}
@@ -2371,5 +2159,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
         </div>
       </div>
     </div>
+    </IconContext.Provider>
   );
 };

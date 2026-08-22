@@ -1,5 +1,5 @@
 import React from 'react';
-import { Icon } from '@iconify/react';
+import { Check, Code, Copy, LinkSimple, X } from '@phosphor-icons/react';
 import type { CapturedStyle } from '../../types';
 
 interface StylePreviewCardProps {
@@ -37,7 +37,7 @@ export const StylePreviewCard: React.FC<StylePreviewCardProps> = ({
     }`}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-1.5">
-          <Icon icon="material-symbols:code-rounded" className="h-3 w-3 text-[var(--accent)]/60" aria-hidden="true" />
+          <Code size={12} className="text-[var(--accent)]/60" aria-hidden="true" />
           <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
             {style.tagName}{style.selector ? ` ${style.selector.slice(0, 20)}${style.selector.length > 20 ? '…' : ''}` : ''}
           </span>
@@ -47,7 +47,7 @@ export const StylePreviewCard: React.FC<StylePreviewCardProps> = ({
           className="inline-flex items-center justify-center w-5 h-5 rounded-sm text-[var(--accent)]/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
           aria-label="Remove style"
         >
-          <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
+          <X size={14} aria-hidden="true" />
         </button>
       </div>
 
@@ -60,7 +60,7 @@ export const StylePreviewCard: React.FC<StylePreviewCardProps> = ({
       </div>
 
       <div className="flex items-center gap-1 text-[9px] text-[var(--accent)]/50 truncate mb-2.5">
-        <Icon icon="material-symbols:link-rounded" className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+        <LinkSimple size={10} className="shrink-0" aria-hidden="true" />
         <span className="truncate">{style.sourceUrl.replace(/^https?:\/\//, '')}</span>
       </div>
 
@@ -69,14 +69,14 @@ export const StylePreviewCard: React.FC<StylePreviewCardProps> = ({
           onClick={onApply}
           className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] hover:border-emerald-500/30 hover:bg-emerald-500/8 hover:text-emerald-300 transition-all cursor-pointer"
         >
-          <Icon icon="material-symbols:check-rounded" className="h-3 w-3" aria-hidden="true" />
+          <Check size={12} aria-hidden="true" />
           apply
         </button>
         <button
           onClick={onCopyCss}
           className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] hover:border-sky-500/30 hover:bg-sky-500/8 hover:text-sky-300 transition-all cursor-pointer"
         >
-          <Icon icon="material-symbols:content-copy-outline-rounded" className="h-3 w-3" aria-hidden="true" />
+          <Copy size={12} aria-hidden="true" />
           copy css
         </button>
       </div>

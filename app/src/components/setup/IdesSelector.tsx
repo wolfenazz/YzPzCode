@@ -36,16 +36,16 @@ export const IdesSelector: React.FC<IdesSelectorProps> = () => {
     <div>
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
+          <label className="block text-xs font-medium text-[var(--text-secondary)] font-mono uppercase tracking-[0.15em]">
             IDEs
-            <span className="ml-2 text-[10px] text-zinc-600 normal-case">[{installedCount}/{ideList.length} installed]</span>
+            <span className="ml-2 text-[10px] text-[var(--text-secondary)] normal-case">[{installedCount}/{ideList.length} installed]</span>
           </label>
           <HelpTooltip text="Select which code editors to launch alongside your workspace. Only installed IDEs can be selected." />
         </div>
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-6 text-zinc-500 font-mono text-xs">
+        <div className="flex items-center justify-center py-6 text-[var(--text-secondary)] font-mono text-xs">
           <span className="animate-pulse">Detecting IDEs...</span>
         </div>
       ) : (
@@ -67,7 +67,7 @@ export const IdesSelector: React.FC<IdesSelectorProps> = () => {
                     ? isSelected
                       ? 'border-zinc-400/70 bg-zinc-800/70 text-zinc-200 shadow-[0_0_12px_rgba(161,161,170,0.04)]'
                       : 'border-zinc-800 bg-zinc-950/60 text-zinc-500 hover:border-zinc-600 hover:bg-zinc-900/50 hover:text-zinc-300'
-                    : 'border-zinc-800/40 bg-zinc-950/30 text-zinc-700 cursor-not-allowed opacity-40'
+                    : 'border-zinc-800/40 bg-zinc-950/30 text-[var(--text-secondary)]/50 cursor-not-allowed opacity-40'
                   }
                 `}
                 title={isInstalled ? ide.path || ide.name : 'Not installed'}

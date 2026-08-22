@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CaretDown, Check, MagnifyingGlass, X } from '@phosphor-icons/react';
 import { createPortal } from 'react-dom';
 
 export interface AgentSelectOption {
@@ -230,16 +231,10 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
         >
           {selected ? selected.label : placeholder}
         </span>
-        <svg
-          className={`w-3 h-3 flex-shrink-0 text-[var(--text-secondary)] transition-transform duration-150 ${
-            open ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <CaretDown
+          size={12}
+          className={`flex-shrink-0 text-[var(--text-secondary)] transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {open &&
@@ -259,9 +254,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
             className="font-mono premium-menu overflow-hidden"
           >
             <div className="flex items-center gap-2 px-2.5 h-8 border-b border-[var(--border-primary)] bg-[var(--bg-main)]">
-              <svg className="w-3 h-3 flex-shrink-0 text-[var(--text-secondary)]/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M17 10.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" />
-              </svg>
+              <MagnifyingGlass size={12} className="flex-shrink-0 text-[var(--text-secondary)]/60" />
               <input
                 ref={inputRef}
                 value={query}
@@ -277,9 +270,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
                   onClick={() => setQuery('')}
                   className="flex items-center justify-center w-4 h-4 rounded-sm text-[var(--text-secondary)]/60 hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] cursor-pointer"
                 >
-                  <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  <X size={10} />
                 </button>
               )}
               {query && (
@@ -319,14 +310,7 @@ export const AgentSelect: React.FC<AgentSelectProps> = ({
                       {renderLabel(opt.label)}
                     </span>
                     {isSelected && (
-                      <svg
-                        className="w-3 h-3 flex-shrink-0 text-[var(--accent)]"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
+                      <Check size={12} weight="bold" className="flex-shrink-0 text-[var(--accent)]" />
                     )}
                   </button>
                 );

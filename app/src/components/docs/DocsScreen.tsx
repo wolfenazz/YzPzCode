@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
+import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
 import { userGuideContent } from '../../assets/docs/userguide';
 
 interface TocItem {
@@ -62,6 +63,7 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const titlebarRef = useTitlebarDrag<HTMLElement>();
 
   const content = userGuideContent;
 
@@ -255,10 +257,10 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
   return (
     <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
       <header
-        data-tauri-drag-region
-        className={`relative z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors flex-shrink-0 ${isWindows ? 'titlebar-drag active:cursor-grabbing' : ''}`}
+        ref={titlebarRef}
+        className="relative z-50 flex items-center h-10 bg-theme-card/50 backdrop-blur-md border-b border-theme select-none transition-colors flex-shrink-0"
       >
-        <div className="flex items-center h-full titlebar-nodrag">
+        <div className="flex items-center h-full">
           <button
             onClick={onBack}
             className="flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover transition-colors text-theme-secondary hover:text-theme-main"
@@ -276,7 +278,7 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
         </div>
 
         <div className="flex-1 h-full flex items-center justify-center px-4">
-          <div className="relative w-full max-w-md titlebar-nodrag">
+          <div className="relative w-full max-w-md">
             <div className={`flex items-center h-7 px-3 rounded-sm border transition-all duration-200 ${
               searchFocused 
                 ? 'border-blue-500 bg-theme-card shadow-lg shadow-blue-500/10' 
@@ -353,32 +355,32 @@ export const DocsScreen: React.FC<DocsScreenProps> = ({
 
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover transition-colors text-theme-secondary hover:text-theme-main md:hidden titlebar-nodrag"
+          className="flex items-center justify-center w-10 h-full border-l border-theme hover:bg-theme-hover transition-colors text-theme-secondary hover:text-theme-main md:hidden"
           title="Toggle Sidebar"
         >
           {sidebarOpen ? <CloseIcon /> : <MenuIcon />}
         </button>
 
-        <div className="flex items-center h-full gap-0 titlebar-nodrag">
+        <div className="flex items-center h-full gap-0">
           {isWindows && (
             <div className="flex h-full border-l border-theme">
               <button
                 onClick={minimizeWindow}
-                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors"
+                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-[var(--text-secondary)] hover:text-theme-main transition-colors"
                 title="Minimize"
               >
                 <svg className="w-3 h-3" viewBox="0 0 12 12"><rect fill="currentColor" width="10" height="1" x="1" y="6" /></svg>
               </button>
               <button
                 onClick={maximizeWindow}
-                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-zinc-500 hover:text-theme-main transition-colors"
+                className="w-10 h-full flex items-center justify-center hover:bg-theme-hover text-[var(--text-secondary)] hover:text-theme-main transition-colors"
                 title="Maximize"
               >
                 <svg className="w-3 h-3" viewBox="0 0 12 12"><rect fill="none" stroke="currentColor" width="9" height="9" x="1.5" y="1.5" strokeWidth="1" /></svg>
               </button>
               <button
                 onClick={closeWindow}
-                className="w-12 h-full flex items-center justify-center hover:bg-rose-600 text-zinc-500 hover:text-white transition-colors"
+                className="w-12 h-full flex items-center justify-center hover:bg-rose-600 text-[var(--text-secondary)] hover:text-white transition-colors"
                 title="Close"
               >
                 <svg className="w-3.5 h-3.5" viewBox="0 0 12 12">

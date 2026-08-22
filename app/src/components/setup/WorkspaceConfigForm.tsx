@@ -77,30 +77,30 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
   templateAllocation,
 }) => {
   return (
-    <div className="w-full bg-theme-card border border-theme rounded-lg overflow-hidden">
+    <div className="setup-config w-full bg-theme-card border border-theme rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="px-8 py-6 border-b border-theme bg-gradient-to-r from-zinc-900/50 via-transparent to-zinc-900/50">
+      <div className="setup-config__header px-8 py-6 border-b border-theme">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded-lg">
+          <div className="setup-config__mark w-8 h-8 flex items-center justify-center bg-zinc-800 border border-zinc-700 rounded-lg">
             <svg className="w-4 h-4 text-zinc-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-sm font-mono font-bold text-theme-main tracking-tight">
-              $ yzpz --setup
+            <h1 className="setup-config__title text-sm font-mono font-bold text-theme-main tracking-tight">
+              Configure workspace
             </h1>
-            <p className="text-zinc-500 font-mono text-xs mt-0.5 tracking-wide">
-              Initialize your multi-terminal AI development environment
+            <p className="setup-config__description text-[var(--text-secondary)] font-mono text-xs mt-0.5 tracking-wide">
+              Choose where you will work and how the workspace should open.
             </p>
           </div>
         </div>
       </div>
 
       {/* Form Body */}
-      <div className="p-8 space-y-8">
+      <div className="setup-config__body p-8 space-y-8">
         {/* Section: Template */}
-        <div className="space-y-4">
+        <div className="setup-config__section space-y-4">
           <WorkspaceTemplatePicker
             selectedTemplateId={selectedTemplateId}
             templates={templates}
@@ -113,19 +113,18 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
           />
         </div>
 
-        <div className="border-t border-zinc-800/60" />
+        <div className="setup-config__divider border-t border-zinc-800/60" />
 
         {/* Section: Workspace Details */}
-        <div className="space-y-5">
+        <div className="setup-config__section space-y-5">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-zinc-600 text-[10px] font-mono">//</span>
-            <h2 className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-[0.2em]">Workspace Details</h2>
+            <h2 className="text-[10px] font-mono font-semibold text-[var(--text-secondary)] uppercase tracking-[0.2em]">Workspace details</h2>
           </div>
 
           {!isExternalMode && (
             <div>
               <div className="flex items-center gap-2 mb-2.5">
-                <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
+                <label className="block text-xs font-medium text-[var(--text-secondary)] font-mono uppercase tracking-[0.15em]">
                   Workspace Name
                 </label>
                 <HelpTooltip text="A name to identify this workspace. Used as a tab label when switching between multiple workspaces." />
@@ -135,7 +134,7 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
                 value={workspaceName}
                 onChange={(e) => onWorkspaceNameChange(e.target.value)}
                 placeholder="Enter workspace name..."
-                className={`w-full px-4 py-3 bg-theme-main border rounded-lg text-theme-main placeholder-zinc-600 focus:outline-none font-mono text-sm transition-colors duration-150 ${
+                className={`w-full px-4 py-3 bg-theme-main border rounded-lg text-theme-main placeholder:text-[var(--text-secondary)] focus:outline-none font-mono text-sm transition-colors duration-150 ${
                   validationErrors.workspaceName
                     ? 'border-rose-500/40 focus:border-rose-500'
                     : 'border-theme focus:border-zinc-500'
@@ -153,24 +152,22 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
           />
         </div>
 
-        <div className="border-t border-zinc-800/60" />
+        <div className="setup-config__divider border-t border-zinc-800/60" />
 
         {/* Section: Project Init */}
-        <div className="space-y-4">
+        <div className="setup-config__section space-y-4">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-zinc-600 text-[10px] font-mono">//</span>
-            <h2 className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-[0.2em]">Project Initialization</h2>
+            <h2 className="text-[10px] font-mono font-semibold text-[var(--text-secondary)] uppercase tracking-[0.2em]">Project initialization</h2>
           </div>
           <InitializeWorkspace selectedPath={selectedPath} />
         </div>
 
-        <div className="border-t border-zinc-800/60" />
+        <div className="setup-config__divider border-t border-zinc-800/60" />
 
         {/* Section: Layout & Environment */}
-        <div className="space-y-5">
+        <div className="setup-config__section space-y-5">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-zinc-600 text-[10px] font-mono">//</span>
-            <h2 className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-[0.2em]">Layout & Environment</h2>
+            <h2 className="text-[10px] font-mono font-semibold text-[var(--text-secondary)] uppercase tracking-[0.2em]">Layout and environment</h2>
           </div>
 
           <LayoutSelector
@@ -181,13 +178,12 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
           <IdesSelector selectedPath={selectedPath} />
         </div>
 
-        <div className="border-t border-zinc-800/60" />
+        <div className="setup-config__divider border-t border-zinc-800/60" />
 
         {/* Section: Agent Fleet */}
-        <div className="space-y-4">
+        <div className="setup-config__section space-y-4">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-zinc-600 text-[10px] font-mono">//</span>
-            <h2 className="text-[10px] font-mono font-semibold text-zinc-500 uppercase tracking-[0.2em]">Agent Fleet</h2>
+            <h2 className="text-[10px] font-mono font-semibold text-[var(--text-secondary)] uppercase tracking-[0.2em]">Agent fleet</h2>
           </div>
 
           <AgentFleetConfig
@@ -208,8 +204,8 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
       </div>
 
       {/* Footer Actions */}
-      <div className="px-8 py-5 border-t border-theme bg-zinc-900/30 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-[10px] text-zinc-600 font-mono">
+      <div className="setup-config__footer px-8 py-5 border-t border-theme bg-zinc-900/30 flex items-center justify-between">
+        <div className="setup-config__status flex items-center gap-2 text-[10px] text-[var(--text-secondary)] font-mono">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500/60" />
           <span>{selectedLayout.sessions} slots configured</span>
         </div>
@@ -218,7 +214,7 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
             <button
               type="button"
               onClick={onCancel}
-              className="px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-colors duration-150 bg-transparent text-zinc-400 border border-zinc-700 hover:bg-zinc-800 hover:text-zinc-200 cursor-pointer"
+              className="setup-config__action px-6 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-colors duration-150 bg-transparent text-[var(--text-secondary)] border border-[var(--border-primary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer"
             >
               Cancel
             </button>
@@ -227,15 +223,15 @@ export const WorkspaceConfigForm: React.FC<WorkspaceConfigFormProps> = ({
             type="button"
             onClick={onCreateWorkspace}
             disabled={!isValid || isLoading}
-            className={`px-8 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-all duration-200 flex items-center gap-2 cursor-pointer ${
+            className={`setup-config__action setup-config__action--primary px-8 py-2.5 rounded-lg font-mono text-xs uppercase tracking-[0.1em] transition-all duration-200 flex items-center gap-2 cursor-pointer ${
               isValid && !isLoading
                 ? 'bg-white text-zinc-900 hover:bg-zinc-200 hover:shadow-[0_0_20px_rgba(255,255,255,0.08)]'
-                : 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed'
+                : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] border border-[var(--border-primary)] cursor-not-allowed'
             }`}
           >
             {isLoading ? (
               <>
-                <svg className="animate-spin h-3.5 w-3.5 text-zinc-600" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin h-3.5 w-3.5 text-[var(--text-secondary)]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>

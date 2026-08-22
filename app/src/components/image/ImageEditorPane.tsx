@@ -194,11 +194,11 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
     useAppStore.getState().setActiveView('editor');
   }, [workspaceId, isDirty]);
 
-  // Global keyboard shortcuts (active only while the Image view is shown).
+  // Global keyboard shortcuts (active only while the image editor is the active surface).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const view = useAppStore.getState().activeView;
-      if (view !== 'image' || !workspaceId) return;
+      if (view !== 'editor' || !workspaceId) return;
       const target = e.target as HTMLElement;
       const typing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT');
       const st = useImageEditorStore.getState();

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
@@ -28,6 +28,8 @@ const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
   deviceOrientation: 'portrait',
   selectedElement: null,
   prompt: '',
+  instructionSlots: [''],
+  activeInstructionSlot: 0,
   uiReferencePrompt: '',
   uiReferenceMode: 'insert',
   targetSessionId: null,
@@ -133,7 +135,7 @@ interface AppState {
   authInfos: Record<CliType, AuthInfo | null>;
   toolCliStatuses: Record<ToolCliType, ToolCliInfo | null>;
   toolAuthInfos: Record<ToolCliType, ToolAuthInfo | null>;
-  theme: "dark";
+  themeMode: ThemeMode;
   selectedIdes: IdeType[];
   ideStatuses: Record<IdeType, IdeInfo | null>;
   autoSave: boolean;
@@ -143,9 +145,6 @@ interface AppState {
   accentColor: string;
   uiDensity: "compact" | "comfortable" | "spacious";
   animationsEnabled: boolean;
-  customBackgroundEnabled: boolean;
-  customBackgroundColor: string;
-  lightThemeEnabled: boolean;
   /** Accessibility preferences for the built-in YZPZ Agent workspace. */
   agentSessionFontSize: number;
   agentInterfaceScale: number;
@@ -208,9 +207,7 @@ interface AppState {
   setAccentColor: (color: string) => void;
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
   setAnimationsEnabled: (enabled: boolean) => void;
-  setCustomBackgroundEnabled: (enabled: boolean) => void;
-  setCustomBackgroundColor: (color: string) => void;
-  setLightThemeEnabled: (enabled: boolean) => void;
+  setThemeMode: (mode: ThemeMode) => void;
   setAgentSessionFontSize: (size: number) => void;
   setAgentInterfaceScale: (scale: number) => void;
   setAgentConversationWidth: (width: number) => void;
@@ -326,6 +323,8 @@ interface AppState {
   setBrowserDeviceOrientation: (workspaceId: string, orientation: BrowserDeviceOrientation) => void;
   setBrowserSelectedElement: (workspaceId: string, element: BrowserSelectedElement | null) => void;
   setBrowserPrompt: (workspaceId: string, prompt: string) => void;
+  setBrowserInstructionSlots: (workspaceId: string, slots: string[]) => void;
+  setActiveBrowserInstructionSlot: (workspaceId: string, index: number) => void;
   setBrowserTargetSession: (workspaceId: string, sessionId: string | null) => void;
   clearBrowserSelection: (workspaceId: string) => void;
   addBrowserTab: (workspaceId: string, tab: BrowserTab) => void;
@@ -410,7 +409,7 @@ export const useAppStore = create<AppState>()(
       authInfos: {} as Record<CliType, AuthInfo | null>,
       toolCliStatuses: {} as Record<ToolCliType, ToolCliInfo | null>,
       toolAuthInfos: {} as Record<ToolCliType, ToolAuthInfo | null>,
-      theme: "dark",
+      themeMode: "dark",
       selectedIdes: [],
       autoSave: true,
       autoSaveDelay: 1000,
@@ -419,9 +418,6 @@ export const useAppStore = create<AppState>()(
       accentColor: "default",
       uiDensity: "comfortable",
       animationsEnabled: true,
-      customBackgroundEnabled: false,
-      customBackgroundColor: "#16161a",
-      lightThemeEnabled: false,
       agentSessionFontSize: 14,
       agentInterfaceScale: 100,
       agentConversationWidth: 860,
@@ -436,7 +432,7 @@ export const useAppStore = create<AppState>()(
       terminalOpacity: 100,
       terminalWordWrap: false,
       independentGridResize: true,
-      editorFontFamily: "JetBrains Mono",
+      editorFontFamily: "Cascadia Mono",
       editorFontSize: 14,
       editorTabSize: 2,
       editorWordWrap: false,
@@ -630,9 +626,7 @@ export const useAppStore = create<AppState>()(
       setAccentColor: (color) => set({ accentColor: color }),
       setUiDensity: (density) => set({ uiDensity: density }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
-      setCustomBackgroundEnabled: (enabled) => set({ customBackgroundEnabled: enabled }),
-      setCustomBackgroundColor: (color) => set({ customBackgroundColor: color }),
-      setLightThemeEnabled: (enabled) => set({ lightThemeEnabled: enabled }),
+      setThemeMode: (mode) => set({ themeMode: mode }),
       setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
       setAgentInterfaceScale: (scale) => set({ agentInterfaceScale: scale }),
       setAgentConversationWidth: (width) => set({ agentConversationWidth: width }),
@@ -947,10 +941,10 @@ export const useAppStore = create<AppState>()(
               ...state.imageEditorByWorkspace,
               [wsId]: { path },
             },
-            activeView: 'image' as const,
+            activeView: 'editor' as const,
             activeViewByWorkspace: {
               ...state.activeViewByWorkspace,
-              [wsId]: 'image' as const,
+              [wsId]: 'editor' as const,
             },
           };
         }),
@@ -1168,6 +1162,28 @@ export const useAppStore = create<AppState>()(
             [workspaceId]: {
               ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
               prompt,
+            },
+          },
+        })),
+
+      setBrowserInstructionSlots: (workspaceId, slots) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              instructionSlots: slots,
+            },
+          },
+        })),
+
+      setActiveBrowserInstructionSlot: (workspaceId, index) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              activeInstructionSlot: index,
             },
           },
         })),
@@ -1636,9 +1652,9 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
-      version: 4,
+      version: 5,
       migrate: (persistedState: unknown, version: number) => {
-        const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean };
+        const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean; lightThemeEnabled?: boolean; themeMode?: ThemeMode };
         if (version < 2) {
           const ua = navigator.userAgent.toLowerCase();
           if (state.terminalFontFamily === 'Cascadia Mono' && !ua.includes('windows')) {
@@ -1651,6 +1667,10 @@ export const useAppStore = create<AppState>()(
           // old hidden-by-default state. Users can still hide them with the
           // pane header toggle.
           state.showAgentReasoning = true;
+        }
+        if (version < 5 && state.themeMode === undefined) {
+          // v5: the single "light theme" boolean became a three-way theme mode.
+          state.themeMode = state.lightThemeEnabled ? 'light' : 'dark';
         }
         return state;
       },
@@ -1665,9 +1685,7 @@ export const useAppStore = create<AppState>()(
           accentColor: state.accentColor,
           uiDensity: state.uiDensity,
           animationsEnabled: state.animationsEnabled,
-          customBackgroundEnabled: state.customBackgroundEnabled,
-          customBackgroundColor: state.customBackgroundColor,
-          lightThemeEnabled: state.lightThemeEnabled,
+          themeMode: state.themeMode,
           agentSessionFontSize: state.agentSessionFontSize,
           agentInterfaceScale: state.agentInterfaceScale,
           agentConversationWidth: state.agentConversationWidth,

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Check, ChatCircle } from '@phosphor-icons/react';
 import type { AgentQuestion } from '../../types';
 
 interface QuestionCardProps {
@@ -30,9 +31,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, onAnswer }
     <div className="premium-surface rounded-2xl border-[var(--accent-border)] bg-[var(--accent-light)]/10 overflow-hidden animate-scale-in">
       <div className="flex items-center gap-2 px-3 py-2 border-b border-[var(--accent-border)]/40 bg-[var(--accent-light)]/15">
         <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[var(--accent)] text-white">
-          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 4v-4z" />
-          </svg>
+          <ChatCircle size={10} weight="fill" />
         </span>
         <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--accent)]">
           Question from the agent
@@ -61,9 +60,7 @@ export const QuestionCard: React.FC<QuestionCardProps> = ({ question, onAnswer }
                   }`}
                 >
                   {active && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
+                    <Check size={10} weight="bold" className="text-white" />
                   )}
                 </span>
                 <span className="text-[11px] leading-snug">{opt}</span>

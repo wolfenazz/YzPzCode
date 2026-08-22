@@ -43,9 +43,9 @@ export const UtilizationBar: React.FC<UtilizationBarProps> = ({
       </div>
 
       {showLabel && (
-        <span className="text-[10px] text-zinc-500 min-w-max uppercase tracking-[0.2em] tabular-nums">
+        <span className="text-[10px] text-[var(--text-secondary)] min-w-max uppercase tracking-[0.2em] tabular-nums">
           {used}/{total}
-          <span className="mx-1.5 text-zinc-700">|</span>
+          <span className="mx-1.5 text-[var(--text-secondary)]">|</span>
           <span className={`lowercase ${isFull ? 'text-rose-500' : isWarning ? 'text-amber-500' : 'text-emerald-500'}`}>
             {isFull ? 'full' : isWarning ? 'high' : used === 0 ? 'empty' : 'ok'}
           </span>

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Sun, Moon, Desktop } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
 import { SettingsToggle } from '../../common/SettingsToggle';
+import type { ThemeMode } from '../../../types';
 
 const ACCENT_COLORS = [
   { name: 'Claude', value: 'default', color: '#d87757' },
@@ -20,6 +22,12 @@ const UI_DENSITIES = [
   { value: 'spacious' as const, label: 'Spacious' },
 ];
 
+const THEME_OPTIONS: Array<{ value: ThemeMode; label: string; description: string; icon: React.ElementType }> = [
+  { value: 'light', label: 'Light', description: 'Bright interface', icon: Sun },
+  { value: 'dark', label: 'Dark', description: 'Dark interface', icon: Moon },
+  { value: 'system', label: 'System', description: 'Follows your OS theme', icon: Desktop },
+];
+
 const Divider = () => (
   <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
 );
@@ -34,12 +42,8 @@ export const SettingsAppearance: React.FC = () => {
     setUiDensity,
     animationsEnabled,
     setAnimationsEnabled,
-    customBackgroundEnabled,
-    setCustomBackgroundEnabled,
-    customBackgroundColor,
-    setCustomBackgroundColor,
-    lightThemeEnabled,
-    setLightThemeEnabled,
+    themeMode,
+    setThemeMode,
     setupViewMode,
     setSetupViewMode,
     discordRichPresence,
@@ -47,19 +51,6 @@ export const SettingsAppearance: React.FC = () => {
   } = useAppStore();
 
   const [discordError, setDiscordError] = useState<string | null>(null);
-  const [backgroundDraft, setBackgroundDraft] = useState(customBackgroundColor);
-
-  useEffect(() => {
-    setBackgroundDraft(customBackgroundColor);
-  }, [customBackgroundColor]);
-
-  const commitBackgroundColor = (value: string) => {
-    setBackgroundDraft(value);
-    if (/^#?[0-9a-f]{6}$/i.test(value.trim())) {
-      const normalized = value.trim().startsWith('#') ? value.trim() : `#${value.trim()}`;
-      setCustomBackgroundColor(normalized.toLowerCase());
-    }
-  };
 
   useEffect(() => {
     if (discordRichPresence) {
@@ -78,14 +69,14 @@ export const SettingsAppearance: React.FC = () => {
         <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
           Appearance
         </h2>
-        <p className="text-[10px] text-zinc-600 font-mono">Customize the look and feel of YzPzCode</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Customize the look and feel of YzPzCode</p>
       </div>
 
-      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Accent Color
         </h3>
-        <p className="text-[10px] text-zinc-600 font-mono">Select a primary accent for UI highlights</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Select a primary accent for UI highlights</p>
 
         <div className="flex items-center gap-3 flex-wrap">
           {ACCENT_COLORS.map((color) => (
@@ -94,7 +85,7 @@ export const SettingsAppearance: React.FC = () => {
               onClick={() => setAccentColor(color.value)}
               className={`group relative w-8 h-8 rounded-full transition-all duration-200 cursor-pointer ${
                 accentColor === color.value
-                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[#262626] scale-110'
+                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--bg-secondary)] scale-110'
                   : 'hover:scale-105'
               }`}
               title={color.name}
@@ -115,83 +106,36 @@ export const SettingsAppearance: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-          Background
+          Theme
         </h3>
-        <p className="text-[10px] text-zinc-600 font-mono">Replace the app's base background with any color you like — independent from the accent color</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Choose between a light, dark, or system-following interface</p>
 
-        <SettingsToggle
-          enabled={customBackgroundEnabled}
-          onToggle={() => setCustomBackgroundEnabled(!customBackgroundEnabled)}
-          label="Custom Background"
-          description="Use a custom color for the application background"
-        />
-
-        <SettingsToggle
-          enabled={lightThemeEnabled}
-          onToggle={() => setLightThemeEnabled(!lightThemeEnabled)}
-          label="Dark Text (Bright Background)"
-          description="Switch all UI text to dark for bright/whitish backgrounds"
-        />
-
-        {customBackgroundEnabled && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <input
-                type="color"
-                value={/^#[0-9a-f]{6}$/i.test(customBackgroundColor) ? customBackgroundColor : '#16161a'}
-                onChange={(e) => {
-                  setCustomBackgroundColor(e.target.value);
-                  setBackgroundDraft(e.target.value);
-                }}
-                className="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-[#3e3e38] bg-[#1f1f1f] p-1"
-                aria-label="Custom background color picker"
-              />
-              <input
-                type="text"
-                value={backgroundDraft}
-                onChange={(e) => commitBackgroundColor(e.target.value)}
-                placeholder="#16161a"
-                spellCheck={false}
-                className="h-9 flex-1 rounded-md border border-[#3e3e38] bg-[#1f1f1f]/60 px-3 font-mono text-[11px] uppercase tracking-widest text-[var(--text-primary)] outline-none transition-colors duration-150 focus:border-[var(--accent-border)]"
-                aria-label="Custom background color hex value"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setCustomBackgroundColor('#16161a');
-                  setBackgroundDraft('#16161a');
-                }}
-                className="h-9 shrink-0 rounded-md border border-[#3e3e38] bg-[#1f1f1f]/60 px-3 font-mono text-[10px] uppercase tracking-wider text-zinc-400 transition-colors duration-150 hover:text-zinc-200 hover:border-zinc-600 cursor-pointer"
-              >
-                Reset
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              {['#16161a', '#0f172a', '#1a1c12', '#241a1a', '#0c1f1c'].map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => {
-                    setCustomBackgroundColor(preset);
-                    setBackgroundDraft(preset);
-                  }}
-                  className={`h-7 w-7 rounded-full border border-white/10 transition-transform duration-150 cursor-pointer hover:scale-110 ${customBackgroundColor.toLowerCase() === preset ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[#262626]' : ''}`}
-                  style={{ backgroundColor: preset }}
-                  aria-label={`Use background ${preset}`}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          {THEME_OPTIONS.map(({ value, label, description, icon: IconComponent }) => (
+            <button
+              key={value}
+              onClick={() => setThemeMode(value)}
+              className={`flex flex-1 flex-col items-center gap-1.5 rounded-md px-3 py-2.5 text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
+                themeMode === value
+                  ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
+                  : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
+              }`}
+              title={description}
+            >
+              <IconComponent size={16} weight="duotone" aria-hidden="true" />
+              <span>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           UI Density
         </h3>
-        <p className="text-[10px] text-zinc-600 font-mono">Adjust spacing and sizing across the interface</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Adjust spacing and sizing across the interface</p>
 
         <div className="flex items-center gap-2">
           {UI_DENSITIES.map((density) => (
@@ -201,7 +145,7 @@ export const SettingsAppearance: React.FC = () => {
               className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                 uiDensity === density.value
                   ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                  : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-[#3e3e38]/60'
+                  : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
               }`}
             >
               {density.label}
@@ -210,7 +154,7 @@ export const SettingsAppearance: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-[#262626]/60 border border-[#3e3e38]/50 backdrop-blur-sm rounded-lg p-5 space-y-5">
+      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Preferences
         </h3>
@@ -235,7 +179,7 @@ export const SettingsAppearance: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setDiscordError(null)}
-                className="ml-auto text-zinc-500 hover:text-zinc-300 transition-colors cursor-pointer shrink-0"
+                className="ml-auto text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -248,8 +192,8 @@ export const SettingsAppearance: React.FC = () => {
 
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-zinc-300 font-mono">Setup View Mode</p>
-              <p className="text-[10px] text-zinc-600 font-mono mt-0.5">Choose between page layout or guided stepper</p>
+              <p className="text-xs text-[var(--text-primary)] font-mono">Setup View Mode</p>
+              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">Choose between page layout or guided stepper</p>
             </div>
             <div className="flex items-center gap-2">
               {(['page', 'stepper'] as const).map((mode) => (
@@ -259,7 +203,7 @@ export const SettingsAppearance: React.FC = () => {
                   className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                     setupViewMode === mode
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[#1f1f1f]/40 text-zinc-500 border border-[#3e3e38]/30 hover:text-zinc-300 hover:border-[#3e3e38]/60'
+                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
                   }`}
                 >
                   {mode === 'page' ? 'Page' : 'Stepper'}

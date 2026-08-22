@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Icon } from '@iconify/react';
+import { CaretDown, CaretUp, CircleNotch, Database, Play } from '@phosphor-icons/react';
 
 export interface SqlQueryResult {
   columns: string[];
@@ -93,19 +93,15 @@ export const DbPanel: React.FC<DbPanelProps> = ({ workspacePath }) => {
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+        className="flex h-8 w-full cursor-pointer items-center gap-2 border-b border-[var(--border-primary)]/60 px-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
         title="SQLite databases — browse tables and run read-only queries"
       >
-        <Icon icon="lucide:database" className="h-3 w-3 shrink-0 text-violet-400" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
+        <Database size={13} weight="duotone" className="shrink-0 text-violet-400" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[var(--text-primary)]">
           Databases
         </span>
         {dbFiles.length > 0 && <span className="font-mono text-[8px] tabular-nums text-violet-400/80">{dbFiles.length}</span>}
-        <Icon
-          icon={expanded ? 'lucide:chevron-down' : 'lucide:chevron-up'}
-          className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/50"
-          aria-hidden="true"
-        />
+        {expanded ? <CaretDown size={12} /> : <CaretUp size={12} />}
       </button>
 
       <AnimatePresence initial={false}>
@@ -118,7 +114,7 @@ export const DbPanel: React.FC<DbPanelProps> = ({ workspacePath }) => {
             transition={{ duration: 0.18 }}
             className="overflow-hidden border-t border-[var(--border-primary)]"
           >
-            <div className="px-2 py-1.5">
+            <div className="bg-[var(--bg-secondary)]/25 px-2.5 py-2">
               {/* File picker */}
               {dbFiles.length === 0 && (
                 <p className="font-mono text-[8.5px] text-[var(--text-secondary)]/50">
@@ -137,7 +133,7 @@ export const DbPanel: React.FC<DbPanelProps> = ({ workspacePath }) => {
                         : 'border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
                     }`}
                   >
-                    <Icon icon="lucide:file-database" className="h-3 w-3 shrink-0" aria-hidden="true" />
+                    <Database size={12} className="shrink-0" aria-hidden="true" />
                     {name}
                   </button>
                 ))}
@@ -184,7 +180,7 @@ export const DbPanel: React.FC<DbPanelProps> = ({ workspacePath }) => {
                       disabled={busy}
                       className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-violet-500/40 bg-violet-500/10 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-violet-300 transition-colors hover:bg-violet-500/20 disabled:opacity-40"
                     >
-                      <Icon icon={busy ? 'svg-spinners:3-dots-scale' : 'lucide:play'} className="h-3 w-3" aria-hidden="true" />
+                      {busy ? <CircleNotch size={12} className="animate-spin" /> : <Play size={12} />}
                       Run
                     </button>
                   </div>

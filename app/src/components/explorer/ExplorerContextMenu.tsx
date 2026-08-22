@@ -50,7 +50,7 @@ const MenuItem: React.FC<{
     disabled={disabled}
     className={`w-full flex items-center justify-between px-3 py-[5px] text-[11px] cursor-pointer transition-colors duration-75 ${
       disabled
-        ? 'text-zinc-700 cursor-default'
+        ? 'text-[var(--text-secondary)]/40 cursor-default'
         : danger
           ? 'text-rose-400 hover:bg-rose-500/10'
           : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'
@@ -59,7 +59,7 @@ const MenuItem: React.FC<{
   >
     <span>{label}</span>
     {shortcut && (
-      <span className={`text-[9px] ml-6 ${disabled ? 'text-zinc-800' : 'text-zinc-600'}`}>
+      <span className={`text-[9px] ml-6 ${disabled ? 'text-[var(--text-secondary)]/40' : 'text-[var(--text-secondary)]'}`}>
         {shortcut}
       </span>
     )}

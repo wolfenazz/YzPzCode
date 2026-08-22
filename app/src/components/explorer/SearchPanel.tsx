@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Icon } from '@iconify/react';
+import { CaretDown, CaretUp, FileText, MagnifyingGlass } from '@phosphor-icons/react';
 import { useAppStore } from '../../stores/appStore';
 import { useFileEditor } from '../../hooks/useFileEditor';
 import type { FileEntry, SearchResult } from '../../types';
@@ -113,11 +113,11 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ workspacePath, externa
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+        className="flex h-8 w-full cursor-pointer items-center gap-2 border-b border-[var(--border-primary)]/60 px-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
         title="Search files (Ctrl+Shift+F)"
       >
-        <Icon icon="lucide:search" className="h-3 w-3 shrink-0 text-sky-400" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
+        <MagnifyingGlass size={13} weight="duotone" className="shrink-0 text-sky-400" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[var(--text-primary)]">
           Find in Files
         </span>
         {searching && <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent text-[var(--text-secondary)]/50" />}
@@ -126,11 +126,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ workspacePath, externa
             {results.length}
           </span>
         )}
-        <Icon
-          icon={expanded ? 'lucide:chevron-down' : 'lucide:chevron-up'}
-          className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/50"
-          aria-hidden="true"
-        />
+        {expanded ? <CaretDown size={12} /> : <CaretUp size={12} />}
       </button>
       <span className="sr-only">
         <kbd>Ctrl+Shift+F</kbd>
@@ -146,9 +142,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ workspacePath, externa
             transition={{ duration: 0.18 }}
             className="overflow-hidden border-t border-[var(--border-primary)]"
           >
-            <div className="flex items-center gap-1.5 px-2 py-1.5">
+            <div className="flex items-center gap-1.5 bg-[var(--bg-secondary)]/25 px-2.5 py-2">
               <div className="relative min-w-0 flex-1">
-                <Icon icon="lucide:search" className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-secondary)]/40" aria-hidden="true" />
+                <MagnifyingGlass size={12} className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-secondary)]/40" aria-hidden="true" />
                 <input
                   ref={inputRef}
                   value={query}
@@ -196,7 +192,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({ workspacePath, externa
                 <React.Fragment key={`${result.path}:${result.line}`}>
                   {idx === 0 || groupLabel(results[idx - 1].path) !== groupLabel(result.path) ? (
                     <div className="flex items-center gap-1.5 px-3 pt-1.5 font-mono text-[8px] font-bold uppercase tracking-widest text-sky-400/70">
-                      <Icon icon="lucide:file" className="h-2.5 w-2.5" aria-hidden="true" />
+                      <FileText size={10} aria-hidden="true" />
                       {groupLabel(result.path)}
                     </div>
                   ) : null}

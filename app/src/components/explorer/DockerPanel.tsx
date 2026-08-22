@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Icon } from '@iconify/react';
+import { ArrowClockwise, CaretDown, CaretUp, Cube, Play, TerminalWindow } from '@phosphor-icons/react';
 import { useTerminal } from '../../hooks/useTerminal';
 
 export interface DockerContainer {
@@ -100,22 +100,18 @@ export const DockerPanel: React.FC<DockerPanelProps> = ({ workspaceId, workspace
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex h-7 w-full cursor-pointer items-center gap-2 px-2 text-left transition-colors hover:bg-[var(--bg-hover)]"
+        className="flex h-8 w-full cursor-pointer items-center gap-2 border-b border-[var(--border-primary)]/60 px-2.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
         title="Docker — running containers, logs, compose"
       >
-        <Icon icon="lucide:container" className="h-3 w-3 shrink-0 text-cyan-400" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate font-mono text-[9px] font-bold uppercase tracking-widest text-[var(--text-primary)]">
+        <Cube size={13} weight="duotone" className="shrink-0 text-cyan-400" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-[var(--text-primary)]">
           Docker
         </span>
         {containers.length > 0 && (
           <span className="font-mono text-[8px] tabular-nums text-cyan-400/80">{containers.length}</span>
         )}
         {loading && <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent text-[var(--text-secondary)]/50" />}
-        <Icon
-          icon={expanded ? 'lucide:chevron-down' : 'lucide:chevron-up'}
-          className="h-3 w-3 shrink-0 text-[var(--text-secondary)]/50"
-          aria-hidden="true"
-        />
+        {expanded ? <CaretDown size={12} /> : <CaretUp size={12} />}
       </button>
 
       <AnimatePresence initial={false}>
@@ -128,7 +124,7 @@ export const DockerPanel: React.FC<DockerPanelProps> = ({ workspaceId, workspace
             transition={{ duration: 0.18 }}
             className="overflow-hidden border-t border-[var(--border-primary)]"
           >
-            <div className="max-h-44 overflow-y-auto custom-scrollbar premium-scrollbar px-2 py-1.5">
+            <div className="max-h-44 overflow-y-auto custom-scrollbar premium-scrollbar bg-[var(--bg-secondary)]/25 px-2.5 py-2">
               {error && !containers.length && (
                 <p className="px-1 py-1 font-mono text-[8.5px] text-rose-400">{error}</p>
               )}
@@ -155,7 +151,7 @@ export const DockerPanel: React.FC<DockerPanelProps> = ({ workspaceId, workspace
                       title="Tail logs in a new terminal"
                       className="inline-flex h-5 cursor-pointer items-center gap-1 rounded border border-[var(--border-primary)] px-1.5 font-mono text-[8px] font-bold uppercase tracking-widest text-[var(--text-secondary)] transition-colors hover:border-cyan-500/40 hover:text-cyan-400"
                     >
-                      <Icon icon="lucide:terminal" className="h-2.5 w-2.5" aria-hidden="true" />
+                      <TerminalWindow size={10} aria-hidden="true" />
                       Logs
                     </button>
                     <button
@@ -174,13 +170,13 @@ export const DockerPanel: React.FC<DockerPanelProps> = ({ workspaceId, workspace
                 </div>
               ))}
             </div>
-            <div className="flex items-center gap-1.5 border-t border-[var(--border-primary)] px-2 py-1.5">
+            <div className="flex items-center gap-1.5 border-t border-[var(--border-primary)]/70 px-2.5 py-2">
               <button
                 type="button"
                 onClick={() => void refresh()}
                 className="inline-flex h-6 cursor-pointer items-center gap-1 rounded border border-[var(--border-primary)] px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-[var(--text-secondary)] transition-colors hover:border-cyan-500/40 hover:text-cyan-400"
               >
-                <Icon icon="lucide:refresh-cw" className="h-3 w-3" aria-hidden="true" />
+                <ArrowClockwise size={12} aria-hidden="true" />
                 Refresh
               </button>
               <button
@@ -188,7 +184,7 @@ export const DockerPanel: React.FC<DockerPanelProps> = ({ workspaceId, workspace
                 onClick={() => void runCompose()}
                 className="inline-flex h-6 cursor-pointer items-center gap-1 rounded border border-[var(--accent-border)] bg-[var(--accent-light)]/10 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-[var(--accent)] transition-colors hover:bg-[var(--accent-light)]/25"
               >
-                <Icon icon="lucide:play" className="h-3 w-3" aria-hidden="true" />
+                <Play size={12} aria-hidden="true" />
                 Compose Up
               </button>
               {error && containers.length > 0 && (
