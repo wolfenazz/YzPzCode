@@ -254,6 +254,16 @@ const hasArabicText = (text: string): boolean => /[\u0600-\u06FF\u0750-\u077F\u0
 const richTextDirection = (text: string): { dir: 'rtl' | 'auto'; lang?: string } =>
   hasArabicText(text) ? { dir: 'rtl', lang: 'ar' } : { dir: 'auto' };
 
+const invokeErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
+
 const TRANSLATION_LANGUAGES = [
   { code: 'ar', label: 'Arabic' },
   { code: 'en', label: 'English' },
@@ -300,7 +310,7 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
     try {
       setTranslation(await invoke<string>('translate_text', { text, targetLanguage }));
     } catch (error) {
-      setTranslationError(error instanceof Error ? error.message : 'Could not translate this response.');
+      setTranslationError(invokeErrorMessage(error, 'Could not translate this response.'));
     } finally {
       setIsTranslating(false);
     }

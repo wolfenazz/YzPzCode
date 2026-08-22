@@ -23,6 +23,16 @@ import { useAgentMention } from '../../hooks/useAgentMention';
 import type { MentionItem } from '../../hooks/useAgentMention';
 import { AgentMentionMenu } from './AgentMentionMenu';
 
+const invokeErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+};
+
 interface AgentInputProps {
   disabled?: boolean;
   isRunning: boolean;
@@ -407,13 +417,13 @@ export const AgentInput: React.FC<AgentInputProps> = ({
     try {
       const translated = await invoke<string>('translate_prompt_to_english', { text: prompt });
       // Do not overwrite a prompt the user has changed while the translation was in flight.
-      if (valueRef.current === prompt) {
+      if (valueRef.current.trim() === prompt) {
         setValue(translated);
         setAttachmentNotice('Translated to English — review the prompt, then send it when ready.');
         requestAnimationFrame(() => textareaRef.current?.focus());
       }
     } catch (error) {
-      setAttachmentNotice(error instanceof Error ? error.message : 'Could not translate this prompt.');
+      setAttachmentNotice(invokeErrorMessage(error, 'Could not translate this prompt.'));
     } finally {
       setIsTranslating(false);
     }

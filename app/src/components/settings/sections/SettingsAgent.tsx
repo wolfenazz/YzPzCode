@@ -49,6 +49,7 @@ const PROVIDER_DISPLAY: Record<string, string> = {
   cerebras: 'Cerebras',
   openai_compatible: 'OpenAI-Compatible',
   'openai-codex': 'ChatGPT',
+  'opencode-go': 'OpenCode Zen (Go)',
 };
 
 const INSTRUCTION_TYPES = [
@@ -346,22 +347,24 @@ export const SettingsAgent: React.FC = () => {
   const selectedInfo = providers.find((p) => p.id === selectedProvider);
   const isCustomBaseUrl = !selectedInfo?.baseUrl;
 
-  // Initialize the draft for the selected provider (from saved config or provider defaults).
+  // Initialize drafts only from persisted configurations. Creating a transient
+  // draft for every catalog provider made an unlinked provider look as though
+  // it had been restored immediately after removal.
   useEffect(() => {
     setDraft((prev) => {
       if (prev[selectedProvider]) return prev;
       const cfg = configs.find((c) => c.providerId === selectedProvider);
-      const info = providers.find((p) => p.id === selectedProvider);
+      if (!cfg) return prev;
       return {
         ...prev,
         [selectedProvider]: {
           apiKey: '',
           baseUrl: cfg?.baseUrl ?? '',
-          modelId: cfg?.modelId ?? info?.defaultModelId ?? '',
+          modelId: cfg.modelId ?? '',
         },
       };
     });
-  }, [selectedProvider, configs, providers]);
+  }, [selectedProvider, configs]);
 
   // Load the model list for the selected provider; auto-pick a default model.
   useEffect(() => {
@@ -375,7 +378,9 @@ export const SettingsAgent: React.FC = () => {
         setDraft((prev) => {
           const cur = prev[selectedProvider];
           if (!cur) return prev;
-          if (cur.modelId && m.some((x) => x.id === cur.modelId)) return prev;
+          // A saved model can be a provider alias, preview, or private model
+          // that has not reached the catalog yet. Never overwrite that choice.
+          if (cur.modelId) return prev;
           const info = providers.find((p) => p.id === selectedProvider);
           const next =
             (info?.defaultModelId && m.some((x) => x.id === info.defaultModelId) ? info.defaultModelId : m[0]?.id) ??
@@ -391,7 +396,18 @@ export const SettingsAgent: React.FC = () => {
     };
   }, [selectedProvider, getModels, providers]);
 
-  const selectedDraft = draft[selectedProvider] ?? { apiKey: '', baseUrl: '', modelId: '' };
+  const selectedDraft = draft[selectedProvider] ?? {
+    apiKey: '',
+    baseUrl: '',
+    modelId: selectedInfo?.defaultModelId ?? '',
+  };
+  const modelOptions = models.map((model) => ({
+    value: model.id,
+    label: model.contextWindow ? `${model.name} (${Math.round(model.contextWindow / 1000)}k ctx)` : model.name,
+  }));
+  if (selectedDraft.modelId && !modelOptions.some((model) => model.value === selectedDraft.modelId)) {
+    modelOptions.unshift({ value: selectedDraft.modelId, label: `${selectedDraft.modelId} (saved custom model)` });
+  }
   const editorIsOAuth = authMethods[selectedProvider] === 'oauth';
   const oauthEmail = selectedCfg?.oauthEmail;
   const oauthLinked = editorIsOAuth && selectedCfg ? hasSavedProviderAuth(selectedCfg) : false;
@@ -1389,10 +1405,7 @@ export const SettingsAgent: React.FC = () => {
                   disabled={models.length === 0}
                   placeholder={models.length === 0 ? 'No models loaded' : 'Select a model…'}
                   searchPlaceholder="Search models…"
-                  options={models.map((m) => ({
-                    value: m.id,
-                    label: m.contextWindow ? `${m.name} (${Math.round(m.contextWindow / 1000)}k ctx)` : m.name,
-                  }))}
+                  options={modelOptions}
                 />
               </label>
               <button

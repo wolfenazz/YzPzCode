@@ -2206,6 +2206,10 @@ export class AgentHarness {
   removeProviderConfig(providerId: string): { removed: boolean } {
     this.getProviderStore().clear(providerId);
     this.clearProviderOAuthCredentials(providerId);
+    if (this.prefs.defaultProviderId === providerId) {
+      delete this.prefs.defaultProviderId;
+      this.savePrefs();
+    }
     return { removed: true };
   }
 

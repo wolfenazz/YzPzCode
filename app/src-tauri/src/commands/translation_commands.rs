@@ -1,12 +1,48 @@
-use std::{sync::OnceLock, time::Duration};
+use std::{
+    sync::{Mutex, OnceLock},
+    time::{Duration, Instant},
+};
 
 use regex::Regex;
+use reqwest::StatusCode;
 use serde_json::Value;
 
 const TRANSLATION_ENDPOINT: &str = "https://translate.googleapis.com/translate_a/single";
 const MAX_PROMPT_LENGTH: usize = 10_000;
+const RATE_LIMIT_COOLDOWN: Duration = Duration::from_secs(30);
 const SUPPORTED_TARGET_LANGUAGES: &[&str] =
     &["ar", "de", "en", "es", "fr", "hi", "ja", "pt", "tr", "ur"];
+
+fn rate_limit_until() -> &'static Mutex<Option<Instant>> {
+    static COOLDOWN: OnceLock<Mutex<Option<Instant>>> = OnceLock::new();
+    COOLDOWN.get_or_init(|| Mutex::new(None))
+}
+
+fn check_rate_limit_cooldown() -> Result<(), String> {
+    let mut cooldown = rate_limit_until().lock().map_err(|_| {
+        "Translation is temporarily unavailable. Please try again shortly.".to_string()
+    })?;
+    if let Some(until) = *cooldown {
+        if let Some(remaining) = until.checked_duration_since(Instant::now()) {
+            return Err(format!(
+                "Translation is temporarily rate-limited. Please try again in {} seconds.",
+                remaining.as_secs().max(1)
+            ));
+        }
+        *cooldown = None;
+    }
+    Ok(())
+}
+
+fn set_rate_limit_cooldown(retry_after: Option<&str>) {
+    let seconds = retry_after
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .map(|value| value.clamp(1, 300))
+        .unwrap_or(RATE_LIMIT_COOLDOWN.as_secs());
+    if let Ok(mut cooldown) = rate_limit_until().lock() {
+        *cooldown = Some(Instant::now() + Duration::from_secs(seconds));
+    }
+}
 
 fn protected_span_pattern() -> &'static Regex {
     static PATTERN: OnceLock<Regex> = OnceLock::new();
@@ -70,6 +106,7 @@ async fn translate_to_language(text: String, target_language: &str) -> Result<St
             "Prompts must be {MAX_PROMPT_LENGTH} characters or fewer to translate."
         ));
     }
+    check_rate_limit_cooldown()?;
 
     let source_language = if target_language != "ar" && contains_arabic_script(&text) {
         "ar"
@@ -78,7 +115,10 @@ async fn translate_to_language(text: String, target_language: &str) -> Result<St
     };
     let (prepared_text, protected_spans) = protect_prompt_spans(&text);
 
-    let response = reqwest::Client::new()
+    let response = reqwest::Client::builder()
+        .user_agent("YZPZCode/5.5 translation")
+        .build()
+        .map_err(|error| format!("Could not initialize the translation service: {error}"))?
         .get(TRANSLATION_ENDPOINT)
         .query(&[
             ("client", "gtx"),
@@ -90,7 +130,26 @@ async fn translate_to_language(text: String, target_language: &str) -> Result<St
         .timeout(Duration::from_secs(15))
         .send()
         .await
-        .map_err(|error| format!("Could not reach the translation service: {error}"))?
+        .map_err(|error| format!("Could not reach the translation service: {error}"))?;
+    if response.status() == StatusCode::TOO_MANY_REQUESTS {
+        set_rate_limit_cooldown(
+            response
+                .headers()
+                .get("retry-after")
+                .and_then(|value| value.to_str().ok()),
+        );
+        let retry_seconds = response
+            .headers()
+            .get("retry-after")
+            .and_then(|value| value.to_str().ok())
+            .and_then(|value| value.trim().parse::<u64>().ok())
+            .map(|value| value.clamp(1, 300))
+            .unwrap_or(RATE_LIMIT_COOLDOWN.as_secs());
+        return Err(format!(
+            "Translation is temporarily rate-limited by the provider. Please try again in about {retry_seconds} seconds."
+        ));
+    }
+    let response = response
         .error_for_status()
         .map_err(|error| format!("The translation service returned an error: {error}"))?;
 

@@ -15,6 +15,16 @@ export interface ProviderConfigEntry {
   oauth?: OAuthCredentials | null;
 }
 
+/**
+ * A blank field from a partial settings save means "leave the saved value
+ * alone", not "erase the credential". Credentials are deliberately removed
+ * through `clear`, which makes this distinction unambiguous at every caller.
+ */
+const nonBlank = (value: string | undefined): string | undefined => {
+  const normalized = value?.trim();
+  return normalized || undefined;
+};
+
 // Simple, self-owned persistence for provider credentials. Kept in the YZPZ
 // Agent data dir (not OS keychain) for the MVP. Never logged.
 export class ProviderConfigStore {
@@ -50,11 +60,14 @@ export class ProviderConfigStore {
 
   set(entry: ProviderConfigEntry): void {
     const existing = this.configs[entry.providerId] || {};
+    const apiKey = nonBlank(entry.apiKey);
+    const baseUrl = nonBlank(entry.baseUrl);
+    const modelId = nonBlank(entry.modelId);
     this.configs[entry.providerId] = {
       providerId: entry.providerId,
-      apiKey: entry.apiKey ?? existing.apiKey,
-      baseUrl: entry.baseUrl ?? existing.baseUrl,
-      modelId: entry.modelId ?? existing.modelId,
+      apiKey: apiKey ?? existing.apiKey,
+      baseUrl: baseUrl ?? existing.baseUrl,
+      modelId: modelId ?? existing.modelId,
       oauth: entry.oauth !== undefined ? entry.oauth : existing.oauth,
     };
     this.save();
