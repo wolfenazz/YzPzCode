@@ -25,7 +25,8 @@ export const isClipboardPath = (
 
 interface ExplorerContextValue {
   onFileClick: (entry: FileEntry) => void;
-  gitStatuses: { path: string; change: 'added' | 'modified' | 'deleted' | 'untracked' }[];
+  /** O(1) lookup: repo path → change kind, built once per git refresh. */
+  gitStatusMap: Map<string, 'added' | 'modified' | 'deleted' | 'untracked'>;
   activeFilePath: string | null;
   onContextMenu: (e: React.MouseEvent, nodeData: TreeNodeData) => void;
   externalDropTarget: string | null;
@@ -37,7 +38,7 @@ interface ExplorerContextValue {
 
 export const ExplorerContext = React.createContext<ExplorerContextValue>({
   onFileClick: () => {},
-  gitStatuses: [],
+  gitStatusMap: new Map(),
   activeFilePath: null,
   onContextMenu: () => {},
   externalDropTarget: null,
@@ -159,7 +160,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   const ctx = useContext(ExplorerContext);
   const {
     onFileClick,
-    gitStatuses,
+    gitStatusMap,
     activeFilePath,
     onContextMenu,
     externalDropTarget,
@@ -171,7 +172,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   const data = node.data;
   const isActive = activeFilePath === data.id;
   const isCut = isClipboardPath(clipboard, data.id);
-  const gitChange = gitStatuses.find((g) => g.path === data.id)?.change;
+  const gitChange = gitStatusMap.get(data.id);
   const willReceiveDrop = node.willReceiveDrop;
   const isExternalTarget = externalDropTarget === data.id && data.isDir;
   const isNativeTarget =

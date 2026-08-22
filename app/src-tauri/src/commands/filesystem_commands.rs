@@ -1,5 +1,9 @@
 use crate::filesystem;
-use crate::types::{FileContent, FileEntry, GitDiffStat, GitFileStatus};
+use crate::filesystem::history::FileBackupInfo;
+use crate::filesystem::search::SearchResult;
+use crate::types::{
+    FileContent, FileEntry, GitBranchInfo, GitCommitInfo, GitDiffStat, GitFileDiff, GitFileStatus,
+};
 
 #[tauri::command]
 pub async fn path_exists(path: String) -> Result<bool, String> {
@@ -122,6 +126,82 @@ pub async fn git_stage_file(workspace_path: String, file_path: String) -> Result
 #[tauri::command]
 pub async fn git_unstage_file(workspace_path: String, file_path: String) -> Result<(), String> {
     filesystem::git_status::git_unstage_file(&workspace_path, &file_path)
+}
+
+#[tauri::command]
+pub async fn git_file_diff(
+    workspace_path: String,
+    file_path: String,
+) -> Result<GitFileDiff, String> {
+    filesystem::git_ops::git_file_diff(&workspace_path, &file_path)
+}
+
+#[tauri::command]
+pub async fn git_commit(workspace_path: String, message: String) -> Result<(), String> {
+    filesystem::git_ops::git_commit(&workspace_path, &message)
+}
+
+#[tauri::command]
+pub async fn git_discard_file(workspace_path: String, file_path: String) -> Result<(), String> {
+    filesystem::git_ops::git_discard_file(&workspace_path, &file_path)
+}
+
+#[tauri::command]
+pub async fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommitInfo>, String> {
+    filesystem::git_ops::git_log(&workspace_path, limit)
+}
+
+#[tauri::command]
+pub async fn git_branches(workspace_path: String) -> Result<GitBranchInfo, String> {
+    filesystem::git_ops::git_branches(&workspace_path)
+}
+
+#[tauri::command]
+pub async fn create_file_backup(
+    workspace_path: String,
+    file_path: String,
+) -> Result<String, String> {
+    filesystem::history::create_file_backup(&workspace_path, &file_path)
+}
+
+#[tauri::command]
+pub async fn list_file_backups(
+    workspace_path: String,
+    file_path: String,
+) -> Result<Vec<FileBackupInfo>, String> {
+    filesystem::history::list_file_backups(&workspace_path, &file_path)
+}
+
+#[tauri::command]
+pub async fn restore_file_backup(
+    workspace_path: String,
+    file_path: String,
+    backup_name: Option<String>,
+) -> Result<String, String> {
+    filesystem::history::restore_file_backup(&workspace_path, &file_path, backup_name)
+}
+
+#[tauri::command]
+pub async fn restore_from_trash(
+    workspace_path: String,
+    original_path: String,
+) -> Result<(), String> {
+    filesystem::history::restore_from_trash(&workspace_path, &original_path)
+}
+
+#[tauri::command]
+pub async fn search_files(
+    dir_path: String,
+    query: String,
+    case_sensitive: bool,
+    max_results: usize,
+) -> Result<Vec<SearchResult>, String> {
+    filesystem::search::search_files(&dir_path, &query, case_sensitive, max_results)
+}
+
+#[tauri::command]
+pub async fn git_checkout(workspace_path: String, branch: String) -> Result<(), String> {
+    filesystem::git_ops::git_checkout(&workspace_path, &branch)
 }
 
 #[tauri::command]

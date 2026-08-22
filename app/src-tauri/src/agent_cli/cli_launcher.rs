@@ -59,6 +59,11 @@ impl CliLauncher {
         }
 
         let binary_name = crate::agent_cli::CliLauncher::get_binary_name(agent);
+        let launch_command = if agent == AgentType::CommandCode {
+            format!("{} --yolo", binary_name)
+        } else {
+            binary_name.to_string()
+        };
 
         // The PTY session is spawned with a fully-populated PATH (see
         // terminal::session::PtySession::create), so the agent binary resolves
@@ -82,16 +87,19 @@ impl CliLauncher {
             std::thread::sleep(std::time::Duration::from_millis(2000));
             println!(
                 "[CLI] Attempting to launch '{}' in session {}",
-                binary_name, sid
+                launch_command, sid
             );
-            match tm.write_to_session(&sid, binary_name) {
+            match tm.write_to_session(&sid, &launch_command) {
                 Ok(()) => {
                     // Send Enter in a separate PTY write. Interactive TUIs
                     // such as OpenCode and Kilo can ignore an initial submit
                     // when it arrives in the same byte frame as the command.
                     std::thread::sleep(std::time::Duration::from_millis(120));
                     if let Err(e) = tm.write_to_session(&sid, "\r") {
-                        eprintln!("[CLI] Failed to submit launch command in session {}: {}", sid, e);
+                        eprintln!(
+                            "[CLI] Failed to submit launch command in session {}: {}",
+                            sid, e
+                        );
                         state_clone.status = CliLaunchStatus::Error;
                         state_clone.error = Some(e.to_string());
                         {

@@ -180,6 +180,36 @@ pub struct GitDiffStat {
     pub lines_deleted: u32,
 }
 
+/// Unified diff for one file (working tree vs HEAD, or a git show of a path).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitFileDiff {
+    pub path: String,
+    pub diff: String,
+    /// Original (HEAD / staged) content for display in a side-by-side view.
+    pub original: String,
+    /// Current working-tree content.
+    pub current: String,
+}
+
+/// One entry of `git log`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitInfo {
+    pub hash: String,
+    pub short_hash: String,
+    pub message: String,
+    pub author: String,
+    pub date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitBranchInfo {
+    pub current: String,
+    pub branches: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileContent {

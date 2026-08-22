@@ -48,6 +48,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     restoredFilePathsByWorkspace,
     clearRestoredFilePaths,
   } = useAppStore();
+  const devServerUrl = useAppStore((s) => (currentWorkspace ? s.devServerUrlByWorkspace[currentWorkspace.id] : undefined));
+  const autoOpenPreview = useAppStore((s) => s.autoOpenPreview);
+  const addBrowserTab = useAppStore((s) => s.addBrowserTab);
+  const setDevServerUrl = useAppStore((s) => s.setDevServerUrl);
   const { createSessions, killAllSessions, killWorkspaceSessions, isLoading, error } = useTerminal();
   const { detectAllClis } = useAgentCli();
   const { checkAllAuth } = useCliLauncher();
@@ -93,6 +97,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       markWorkspaceOpened(currentWorkspace.id);
     }
   }, [currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, setSessionsForWorkspace, markWorkspaceOpened]);
+
+  // ── Dev-server preview ─────────────────────────────────────────────
+  const openedPreviewRef = useRef<string | null>(null);
+
+  const openPreview = useCallback(() => {
+    if (!currentWorkspace || !devServerUrl) return;
+    setActiveView('browser');
+    const id = `tab-${Date.now()}`;
+    addBrowserTab(currentWorkspace.id, { id, url: devServerUrl, title: 'Preview' });
+  }, [currentWorkspace, devServerUrl, setActiveView, addBrowserTab]);
+
+  // Auto-open the embedded browser the first time a dev-server URL appears
+  // (per URL — switching back to the terminal doesn't re-trigger it).
+  useEffect(() => {
+    if (!autoOpenPreview || !devServerUrl || !currentWorkspace) return;
+    if (openedPreviewRef.current === devServerUrl) return;
+    openedPreviewRef.current = devServerUrl;
+    setActiveView('browser');
+    const id = `tab-${Date.now()}`;
+    addBrowserTab(currentWorkspace.id, { id, url: devServerUrl, title: 'Preview' });
+  }, [autoOpenPreview, devServerUrl, currentWorkspace, setActiveView, addBrowserTab]);
 
   const restoredFilesRef = useRef<Record<string, boolean>>({});
 
@@ -307,7 +332,47 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         activeView={activeView}
       />
 
-      <main className="flex-1 overflow-hidden bg-[radial-gradient(1200px_600px_at_18%_-10%,rgba(255,255,255,0.05),transparent),radial-gradient(900px_500px_at_90%_120%,rgba(16,185,129,0.08),transparent),#262626]">
+      <main className="relative flex-1 overflow-hidden bg-[radial-gradient(1200px_600px_at_18%_-10%,rgba(255,255,255,0.05),transparent),radial-gradient(900px_500px_at_90%_120%,rgba(16,185,129,0.08),transparent),#262626]">
+        {/* Dev-server preview chip — appears when a terminal prints a local URL. */}
+        <AnimatePresence>
+          {currentWorkspace && devServerUrl && (
+            <motion.div
+              key="dev-server-chip"
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+              className="absolute left-1/2 top-2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-emerald-500/30 bg-[#1c2b22]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-md"
+            >
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              </span>
+              <span className="font-mono text-[9px] font-bold text-emerald-300/90">
+                App running at {devServerUrl.replace(/^https?:\/\//, '')}
+              </span>
+              <button
+                type="button"
+                onClick={openPreview}
+                className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-500/20 cursor-pointer"
+                title="Open in embedded browser"
+              >
+                Open
+              </button>
+              <button
+                type="button"
+                onClick={() => currentWorkspace && setDevServerUrl(currentWorkspace.id, null)}
+                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-emerald-300/40 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200"
+                title="Dismiss"
+                aria-label="Dismiss dev-server chip"
+              >
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {currentWorkspace ? (
           <div className="h-full flex items-stretch">
             <AnimatePresence initial={false}>

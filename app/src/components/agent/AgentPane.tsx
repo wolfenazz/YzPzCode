@@ -185,6 +185,8 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     send,
     abort,
     resendLastPrompt,
+    turnIdle,
+    clearIdleTurn,
     approve,
     answerQuestion,
     updateConnection,
@@ -197,7 +199,19 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
     fastMode: session.fastMode,
   });
 
-  const { getProviders, getModels, listProviderConfigs, listMcpServers, updateTitle, setToolPolicy, onCatalogUpdated } = useAgentHost();
+  const { getProviders, getModels, listProviderConfigs, listMcpServers, updateTitle, setToolPolicy, onCatalogUpdated, onHostStatus } = useAgentHost();
+  // Sidecar transport health pushed from Rust (connect/drop/reconnect). When
+  // it flips to false the status line shows a subtle "reconnecting…" chip
+  // instead of leaving the user to wonder why the agent went quiet.
+  const [hostConnected, setHostConnected] = useState(true);
+  useEffect(() => {
+    const unlistenPromise = onHostStatus((event) => {
+      setHostConnected(event.payload.connected === true);
+    });
+    return () => {
+      void unlistenPromise.then((unlisten) => unlisten());
+    };
+  }, [onHostStatus]);
   const [providers, setProviders] = useState<AgentProviderInfo[]>([]);
   const [models, setModels] = useState<AgentModelInfo[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
@@ -783,6 +797,15 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               {statusMeta.label}
             </span>
           )}
+          {!hostConnected && (
+            <span
+              className="flex items-center gap-1.5 font-mono text-[9px] font-bold uppercase tracking-widest text-amber-400 shrink-0"
+              title="Agent connection dropped. Reconnecting automatically — if it takes too long, hit Stop and start again."
+            >
+              <span className="h-2.5 w-2.5 rounded-full border-[1.5px] border-current border-t-transparent animate-spin" aria-hidden="true" />
+              {!isVeryNarrow && <span>reconnecting</span>}
+            </span>
+          )}
           {fastMode && (
             <span
               className="electric-chip font-mono text-[9px] font-bold uppercase tracking-widest rounded-md border px-1.5 py-0.5 shrink-0"
@@ -943,6 +966,9 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 onAnswerQuestion={handleAnswerQuestion}
                 error={error}
                 onContinue={() => void resendLastPrompt()}
+                turnIdle={turnIdle}
+                onClearIdleTurn={clearIdleTurn}
+                onStopTurn={() => void abort()}
                 onSuggestion={(prompt) => void send(prompt)}
                 completed={status === 'done' && messages.length > 0}
                 elapsedSec={elapsed}

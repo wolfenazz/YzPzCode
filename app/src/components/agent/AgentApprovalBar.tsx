@@ -68,6 +68,26 @@ export const AgentApprovalBar: React.FC<AgentApprovalBarProps> = ({ approvals, o
         </div>
       )}
 
+      {approval.affectedPaths && approval.affectedPaths.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="font-mono text-[8.5px] font-bold uppercase tracking-widest text-[var(--text-secondary)]/60">
+            Files affected
+          </span>
+          {approval.affectedPaths.map((path) => (
+            <span
+              key={path}
+              className="inline-flex items-center gap-1 rounded border border-amber-900/40 bg-[var(--bg-main)] px-1.5 py-0.5 font-mono text-[9px] text-amber-200/80 max-w-[180px] truncate"
+              title={path}
+            >
+              <svg className="h-2.5 w-2.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {path.split(/[/\\]/).pop()}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center gap-2">
         <button
           onClick={() => onApprove(approval.requestId, true)}

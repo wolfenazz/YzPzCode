@@ -279,6 +279,14 @@ interface AppState {
   activeFilePath: string | null;
   gitStatuses: GitFileStatus[];
   gitDiffStats: GitDiffStat[];
+  /** When set, the editor area shows a working-tree diff instead of a tab. */
+  gitDiffFile: { path: string; name: string } | null;
+  /** Latest dev-server URL detected in terminal output, per workspace. */
+  devServerUrlByWorkspace: Record<string, string>;
+  /** Auto-open the embedded browser when a dev-server URL is detected. */
+  autoOpenPreview: boolean;
+  /** One-shot editor "reveal this line" request (from search results). */
+  editorRevealLine: { path: string; line: number } | null;
   filesByWorkspace: Record<string, FileTab[]>;
   activeFileByWorkspace: Record<string, string | null>;
   activeViewByWorkspace: Record<string, WorkspaceView>;
@@ -343,6 +351,10 @@ interface AppState {
   markFileSaved: (path: string) => void;
   setGitStatuses: (statuses: GitFileStatus[]) => void;
   setGitDiffStats: (stats: GitDiffStat[]) => void;
+  setGitDiffFile: (file: { path: string; name: string } | null) => void;
+  setDevServerUrl: (workspaceId: string, url: string | null) => void;
+  setAutoOpenPreview: (enabled: boolean) => void;
+  setEditorRevealLine: (req: { path: string; line: number } | null) => void;
   closeAllFiles: () => void;
   closeOtherFiles: (exceptPath: string) => void;
   closeFilesToRight: (path: string) => void;
@@ -879,6 +891,10 @@ export const useAppStore = create<AppState>()(
       activeFilePath: null,
       gitStatuses: [],
       gitDiffStats: [],
+      gitDiffFile: null,
+      devServerUrlByWorkspace: {},
+      autoOpenPreview: true,
+      editorRevealLine: null,
       filesByWorkspace: {} as Record<string, FileTab[]>,
       activeFileByWorkspace: {} as Record<string, string | null>,
       activeViewByWorkspace: {} as Record<string, WorkspaceView>,
@@ -1495,6 +1511,15 @@ export const useAppStore = create<AppState>()(
 
       setGitStatuses: (statuses) => set({ gitStatuses: statuses }),
       setGitDiffStats: (stats: GitDiffStat[]) => set({ gitDiffStats: stats }),
+      setGitDiffFile: (file) => set({ gitDiffFile: file }),
+      setDevServerUrl: (workspaceId, url) =>
+        set((state) => ({
+          devServerUrlByWorkspace: url
+            ? { ...state.devServerUrlByWorkspace, [workspaceId]: url }
+            : { ...state.devServerUrlByWorkspace, [workspaceId]: undefined as unknown as string },
+        })),
+      setAutoOpenPreview: (enabled) => set({ autoOpenPreview: enabled }),
+      setEditorRevealLine: (req) => set({ editorRevealLine: req }),
 
       closeAllFiles: () =>
         set((state) => {
@@ -1681,6 +1706,7 @@ export const useAppStore = create<AppState>()(
           inspectorQuickPrompts: state.inspectorQuickPrompts,
           agentPaneUIModes: state.agentPaneUIModes,
           showAgentReasoning: state.showAgentReasoning,
+          autoOpenPreview: state.autoOpenPreview,
         };
 
         if (state.saveWorkspaceState) {

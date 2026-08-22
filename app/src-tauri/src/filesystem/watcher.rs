@@ -175,7 +175,10 @@ mod tests {
     fn detects_direct_children() {
         let root = Path::new("workspace");
         assert!(is_top_level_child(Path::new("workspace/src"), root));
-        assert!(is_top_level_child(Path::new("workspace/package.json"), root));
+        assert!(is_top_level_child(
+            Path::new("workspace/package.json"),
+            root
+        ));
 
         #[cfg(windows)]
         {

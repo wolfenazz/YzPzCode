@@ -129,17 +129,29 @@ fn collect_untracked_line_counts(
             continue;
         }
 
-        let line_count = count_file_lines(&full_path);
+        let line_count = count_file_lines_capped(&full_path, 512 * 1024);
         stats_map.insert(full_path_str, (line_count, 0));
     }
 
     Ok(())
 }
 
-fn count_file_lines(path: &Path) -> u32 {
-    std::fs::read_to_string(path)
-        .map(|content| content.lines().count() as u32)
-        .unwrap_or(0)
+/// Count lines without loading the whole file: files above `cap_bytes` are
+/// skipped entirely (reported as 0) and anything else is read with a BufReader
+/// so a burst of untracked files stays cheap on the watcher hot path.
+fn count_file_lines_capped(path: &Path, cap_bytes: u64) -> u32 {
+    use std::io::{BufRead, BufReader};
+
+    let Ok(file) = std::fs::File::open(path) else {
+        return 0;
+    };
+    let Ok(metadata) = file.metadata() else {
+        return 0;
+    };
+    if metadata.len() > cap_bytes {
+        return 0;
+    }
+    BufReader::new(file).lines().map_while(Result::ok).count() as u32
 }
 
 pub fn get_git_file_content(workspace_path: &str, file_path: &str) -> Result<String, String> {

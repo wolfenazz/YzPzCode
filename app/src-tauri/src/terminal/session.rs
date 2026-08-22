@@ -418,9 +418,14 @@ mod tests {
     #[test]
     fn pty_executes_a_command_when_text_and_enter_are_written_separately() {
         let cwd = env!("CARGO_MANIFEST_DIR").to_string();
-        let (mut session, output_rx) =
-            PtySession::create("pty-input-test".to_string(), 0, cwd, None, Some("/bin/zsh".to_string()))
-                .expect("create zsh PTY session");
+        let (mut session, output_rx) = PtySession::create(
+            "pty-input-test".to_string(),
+            0,
+            cwd,
+            None,
+            Some("/bin/zsh".to_string()),
+        )
+        .expect("create zsh PTY session");
 
         std::thread::sleep(Duration::from_millis(250));
         session

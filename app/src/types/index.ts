@@ -451,6 +451,41 @@ export interface GitDiffStat {
   linesDeleted: number;
 }
 
+/** Unified diff + both sides of a single file (working tree vs HEAD). */
+export interface GitFileDiff {
+  path: string;
+  diff: string;
+  original: string;
+  current: string;
+}
+
+export interface GitCommitInfo {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  date: string;
+}
+
+export interface GitBranchInfo {
+  current: string;
+  branches: string[];
+}
+
+export interface FileBackupInfo {
+  name: string;
+  fileName: string;
+  timestampMs: number;
+  size: number;
+}
+
+export interface SearchResult {
+  path: string;
+  line: number;
+  text: string;
+  column: number;
+}
+
 export interface FileContent {
   content: string;
   language: string;
@@ -500,9 +535,12 @@ export interface AgentApprovalRequest {
   agentId: string;
   toolCallId: string;
   toolName: string;
+  /** Tool arguments as received from the harness. */
   input: unknown;
   policy: string;
   pendingCount: number;
+  /** Files the tool call will touch (parsed from input) — shown on the approval bar. */
+  affectedPaths?: string[];
 }
 
 export interface AgentProviderInfo {

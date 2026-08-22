@@ -76,6 +76,10 @@ fn normalize_windows_process_path(path: &std::path::Path) -> std::path::PathBuf 
 const EVENT_PREFIX: &str = "yzpz-agent";
 const CONNECT_ATTEMPTS: u32 = 8;
 const CONNECT_RETRY_DELAY_MS: u64 = 400;
+/// How aggressively to heal a transient WS drop (sidecar keeps running).
+/// Capped back-off: 500ms, 1.5s, 4s. Exhausting this falls back to a full
+/// sidecar restart on the next command.
+const RECONNECT_ATTEMPTS: u32 = 3;
 const QUICK_COMMAND_TIMEOUT: Duration = Duration::from_secs(30);
 const NODE_MIN_MAJOR: u32 = 22;
 const MANAGED_NODE_DIST_URL: &str = "https://nodejs.org/dist/latest-v22.x";
@@ -329,31 +333,79 @@ impl AgentHostManager {
             let (mut sink, mut reader) = stream.split();
             inner.state.lock().unwrap().connected = true;
             emit_log(&inner, "sidecar transport connected");
+            emit_host_status(&inner);
             let _ = conn_tx.send(Ok(()));
 
-            // Writer task.
-            let writer = tokio::spawn(async move {
-                while let Some(msg) = rx.recv().await {
-                    if sink.send(msg).await.is_err() {
-                        break;
+            // Transient WS recovery: after a drop we reconnect to the same port
+            // with capped back-off (the Node sidecar usually survives blips, and
+            // resuming the socket keeps every live session intact — no process
+            // restart, no state loss). Only after exhausting the attempts do we
+            // give up; the next `command()` -> `ensure_running()` then performs
+            // a full sidecar restart.
+            let mut reconnect_attempt = 0u32;
+            'connection: loop {
+                // Pump outbound commands and inbound events on the current
+                // socket. Kept inline (no per-connection writer task) so the
+                // `rx` receiver survives socket replacement on reconnect.
+                tokio::select! {
+                    outbound = rx.recv() => {
+                        match outbound {
+                            Some(msg) => {
+                                if sink.send(msg).await.is_err() {
+                                    break 'connection;
+                                }
+                            }
+                            None => break 'connection,
+                        }
+                    }
+                    inbound = reader.next() => {
+                        match inbound {
+                            Some(Ok(Message::Text(text))) => handle_sidecar_text(&inner, &text),
+                            Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break 'connection,
+                            Some(Ok(_)) => {}
+                        }
                     }
                 }
-            });
 
-            // Reader loop.
-            while let Some(Ok(msg)) = reader.next().await {
-                match msg {
-                    Message::Text(text) => {
-                        handle_sidecar_text(&inner, &text);
+                // Reached only when the select loop above exits (break):
+                // reconnect to the same port with capped back-off. A successful
+                // reconnect restarts the select loop; giving up exits the outer
+                // loop with connected=false.
+                if !inner.state.lock().unwrap().connected {
+                    emit_log(&inner, "sidecar transport lost; reconnecting");
+                    while reconnect_attempt < RECONNECT_ATTEMPTS {
+                        let delay_ms = match reconnect_attempt {
+                            0 => 500,
+                            1 => 1_500,
+                            _ => 4_000,
+                        };
+                        tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+                        match tokio_tungstenite::connect_async(&url).await {
+                            Ok((stream, _)) => {
+                                let (s, r) = stream.split();
+                                sink = s;
+                                reader = r;
+                                inner.state.lock().unwrap().connected = true;
+                                emit_log(&inner, "sidecar transport reconnected");
+                                emit_host_status(&inner);
+                                reconnect_attempt = 0;
+                                continue 'connection;
+                            }
+                            Err(_) => {
+                                reconnect_attempt += 1;
+                            }
+                        }
                     }
-                    Message::Close(_) => break,
-                    _ => {}
+                    inner.state.lock().unwrap().connected = false;
+                    emit_log(
+                        &inner,
+                        "sidecar reconnect exhausted; next command will restart the sidecar",
+                    );
+                    break 'connection;
                 }
             }
 
-            inner.state.lock().unwrap().connected = false;
-            emit_log(&inner, "sidecar transport disconnected");
-            writer.abort();
+            emit_host_status(&inner);
         });
 
         match tokio::time::timeout(Duration::from_secs(10), conn_rx).await {
@@ -546,6 +598,26 @@ fn emit_log(inner: &HostInner, message: &str) {
             &format!("{EVENT_PREFIX}:log"),
             &json!({ "message": message }),
         );
+    }
+}
+
+fn emit_host_status(inner: &HostInner) {
+    let running = inner.state.lock().unwrap().connected;
+    let payload = json!({
+        "running": running,
+        "connected": running,
+        "port": inner.state.lock().unwrap().port,
+        "sessions": inner
+            .workspace_sessions
+            .lock()
+            .unwrap()
+            .values()
+            .map(|v| v.len())
+            .sum::<usize>(),
+    });
+    let app = inner.app_handle.lock().unwrap();
+    if let Some(app) = app.as_ref() {
+        let _ = app.emit(&format!("{EVENT_PREFIX}:host-status"), &payload);
     }
 }
 

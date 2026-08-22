@@ -6,6 +6,10 @@ import { useFileTree, type TreeNodeData } from '../../hooks/useFileTree';
 import { TreeNode, ExplorerContext, type ExplorerClipboardEntry } from './TreeNode';
 import { FileIcon } from './FileIcon';
 import { GitChangesPanel } from './GitChangesPanel';
+import { MemoryPanel } from './MemoryPanel';
+import { SearchPanel } from './SearchPanel';
+import { DockerPanel } from './DockerPanel';
+import { DbPanel } from './DbPanel';
 import { ExplorerContextMenu } from './ExplorerContextMenu';
 import { useAppStore } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
@@ -57,8 +61,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const addSession = useAppStore((s) => s.addSession);
   const setGitStatuses = useAppStore((s) => s.setGitStatuses);
   const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
+  const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
   const openFiles = useAppStore((s) => s.openFiles);
   const closeFileTab = useAppStore((s) => s.closeFileTab);
+  const [searchSignal, setSearchSignal] = useState(0);
 
   const {
     treeData,
@@ -492,6 +498,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleOpenToSide = useCallback(
     (node: TreeNodeData) => {
       if (node.isDir) return;
+      setGitDiffFile(null);
       onFileClick({
         name: node.name,
         path: node.path,
@@ -501,7 +508,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         extension: node.extension,
       });
     },
-    [onFileClick]
+    [onFileClick, setGitDiffFile]
   );
 
   const handleFindInFolder = useCallback((node: TreeNodeData) => {
@@ -634,6 +641,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       if (!data.isDir) {
         e.preventDefault();
         e.stopPropagation();
+        setGitDiffFile(null);
         onFileClick({
           name: data.name,
           path: data.path,
@@ -707,6 +715,10 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           e.preventDefault();
           undoExplorerOp();
         }
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+        // Find in Files (VS Code parity).
+        e.preventDefault();
+        setSearchSignal((s) => s + 1);
       }
     },
     [handlePaste, workspacePath, copySelectionToClipboard, undoExplorerOp, explorerClipboard]
@@ -831,7 +843,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const explorerContextValue = useMemo(
     () => ({
       onFileClick,
-      gitStatuses,
+      gitStatusMap: new Map(gitStatuses.map((g) => [g.path, g.change])),
       activeFilePath,
       onContextMenu: handleContextMenu,
       externalDropTarget,
@@ -1141,6 +1153,14 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-zinc-500/40 rounded-md z-40 bg-zinc-500/5" />
         )}
       </div>
+
+      <MemoryPanel workspacePath={workspacePath} />
+
+      <SearchPanel workspacePath={workspacePath} externalOpenSignal={searchSignal} />
+
+      <DockerPanel workspaceId={currentWorkspace?.id ?? ''} workspacePath={workspacePath} />
+
+      <DbPanel workspacePath={workspacePath} />
 
       <GitChangesPanel
         gitStatuses={gitStatuses}

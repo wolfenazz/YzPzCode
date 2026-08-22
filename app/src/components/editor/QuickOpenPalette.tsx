@@ -3,6 +3,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { FileEntry } from '../../types';
 import { FileIcon } from '../explorer/FileIcon';
 
+/** Reuse the last whole-workspace file list per path for a short window, so
+ * opening the palette repeatedly doesn't re-walk the repo over IPC. */
+const QUICK_OPEN_CACHE_TTL_MS = 30_000;
+const quickOpenCache = new Map<string, { files: FileEntry[]; at: number }>();
+
 interface QuickOpenPaletteProps {
   workspacePath: string;
   onSelect: (entry: FileEntry) => void;
@@ -63,11 +68,20 @@ export const QuickOpenPalette: React.FC<QuickOpenPaletteProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // Per-workspace file index with a short TTL: opening the palette repeatedly
+  // (the common flow) avoids a full recursive walk over IPC every time.
   useEffect(() => {
     let cancelled = false;
+    const cached = quickOpenCache.get(workspacePath);
+    if (cached && Date.now() - cached.at < QUICK_OPEN_CACHE_TTL_MS) {
+      setFiles(cached.files);
+      setLoading(false);
+      return;
+    }
     invoke<FileEntry[]>('list_all_files', { path: workspacePath })
       .then((result) => {
         if (!cancelled) {
+          quickOpenCache.set(workspacePath, { files: result, at: Date.now() });
           setFiles(result);
           setLoading(false);
         }

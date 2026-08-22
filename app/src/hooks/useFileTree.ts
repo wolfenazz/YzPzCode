@@ -625,10 +625,22 @@ export function useFileTree(workspacePath: string | null) {
           break;
         }
         case 'delete': {
+          // Workspace deletes now move to .yzpzcode/trash — restore the
+          // original content instead of re-creating an empty shell.
           if (op.isDir) {
-            await invoke('create_directory', { path: op.path });
+            try {
+              await invoke('restore_from_trash', { workspacePath, originalPath: op.path });
+              break;
+            } catch {
+              await invoke('create_directory', { path: op.path });
+            }
           } else {
-            await invoke('create_file', { path: op.path });
+            try {
+              await invoke('restore_from_trash', { workspacePath, originalPath: op.path });
+              break;
+            } catch {
+              await invoke('create_file', { path: op.path });
+            }
           }
           break;
         }

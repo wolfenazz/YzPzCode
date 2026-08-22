@@ -12,6 +12,7 @@ import type { editor as MonacoEditorNamespace } from 'monaco-editor';
 import { useAppStore } from '../../stores/appStore';
 import { FileIcon } from '../explorer/FileIcon';
 import { EditorTabs } from './EditorTabs';
+import { DiffViewer } from './DiffViewer';
 import { MarkdownPreview } from './MarkdownPreview';
 import { ImagePreview, isImageFile } from './ImagePreview';
 import { PdfPreview } from './PdfPreview';
@@ -106,6 +107,11 @@ export const FileEditor: React.FC = () => {
 
   const openFiles = useAppStore((s) => s.openFiles);
   const activeFilePath = useAppStore((s) => s.activeFilePath);
+  const gitDiffFile = useAppStore((s) => s.gitDiffFile);
+  const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
+  const workspacePath = useAppStore((s) => s.currentWorkspace?.path);
+  const editorRevealLine = useAppStore((s) => s.editorRevealLine);
+  const setEditorRevealLine = useAppStore((s) => s.setEditorRevealLine);
   const updateFileContent = useAppStore((s) => s.updateFileContent);
   const setActiveFile = useAppStore((s) => s.setActiveFile);
   const closeFileTab = useAppStore((s) => s.closeFileTab);
@@ -254,6 +260,14 @@ export const FileEditor: React.FC = () => {
     editor.onDidChangeModelContent(() => updateMonacoStatus(editor));
     editor.onDidChangeModel(() => updateMonacoStatus(editor));
 
+    // Pending search-result reveal (set before the tab mounted).
+    const pendingReveal = useAppStore.getState().editorRevealLine;
+    if (pendingReveal && pendingReveal.path === currentFileRef.current) {
+      editor.revealLineInCenter(pendingReveal.line);
+      editor.setPosition({ lineNumber: pendingReveal.line, column: 1 });
+      useAppStore.getState().setEditorRevealLine(null);
+    }
+
     updateMonacoStatus(editor);
   }, [updateMonacoStatus]);
 
@@ -330,6 +344,17 @@ export const FileEditor: React.FC = () => {
       updateMonacoStatus(editor);
     }
   }, [activeFile?.content, activeFile?.path, updateMonacoStatus]);
+
+  // Reveal a specific line (search results / quick navigation).
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor || !activeFile || !editorRevealLine) return;
+    if (editorRevealLine.path !== activeFile.path) return;
+    editor.revealLineInCenter(editorRevealLine.line);
+    editor.setPosition({ lineNumber: editorRevealLine.line, column: 1 });
+    editor.focus();
+    setEditorRevealLine(null);
+  }, [editorRevealLine, activeFile?.path, setEditorRevealLine]);
 
   const handleTabClick = useCallback((path: string) => {
     setActiveFile(path);
@@ -531,6 +556,15 @@ export const FileEditor: React.FC = () => {
           )}
 
           <div className={`relative flex-1 min-h-0 overflow-hidden ${contentShellClass}`}>
+            {gitDiffFile && workspacePath ? (
+              <DiffViewer
+                workspacePath={workspacePath}
+                filePath={gitDiffFile.path}
+                fileName={gitDiffFile.name}
+                onClose={() => setGitDiffFile(null)}
+              />
+            ) : (
+              <>
             {activeFile && !isPreviewable && (
               <div
                 className="absolute inset-0"
@@ -621,6 +655,8 @@ export const FileEditor: React.FC = () => {
                   </div>
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
 

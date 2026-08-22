@@ -22,6 +22,7 @@ import type {
 } from '../../types';
 import { useAppStore } from '../../stores/appStore';
 import { useBrowser } from '../../hooks/useBrowser';
+import { useBrowserAutoReload } from '../../hooks/useBrowserAutoReload';
 import { useTerminal } from '../../hooks/useTerminal';
 import { useAgentHost } from '../../hooks/useAgentHost';
 import { htmlToPlainText } from '../../utils/richText';
@@ -576,6 +577,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   } = useBrowser();
   const { writeToTerminal } = useTerminal();
   const { ensureHost, resumeSession, sendMessage } = useAgentHost();
+  // Hot-reload the webview when workspace files change while a dev-server tab
+  // is open (skipped automatically during inspect/pick/apply modes).
+  useBrowserAutoReload(workspaceId, true);
 
   const effectiveState = browserState ?? {
     currentUrl: FALLBACK_URL,
@@ -2019,18 +2023,18 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 14 }}
                 transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                className={`shrink-0 overflow-y-auto border-l border-zinc-800 bg-[var(--bg-secondary)] transition-[width] duration-200 ${
+                className={`shrink-0 overflow-y-auto border-l border-[var(--border-primary)] bg-[var(--bg-secondary)] transition-[width] duration-200 ${
                   showFullUiReferenceInfo ? 'w-[460px]' : 'w-[380px]'
                 }`}
               >
                 {/* Header */}
-                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-3 py-2.5">
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-3 py-2.5">
                   <div className="flex items-center gap-2.5">
                     <span className="relative flex h-2 w-2 shrink-0">
                       <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-40" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
                     </span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-secondary)]">
                       ui references
                     </span>
                     {effectiveState.uiReferenceClipboard.length > 0 && (
@@ -2049,7 +2053,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       className={`flex items-center gap-1.5 border px-2 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
                         showFullUiReferenceInfo
                           ? 'border-cyan-800 bg-cyan-950/40 text-cyan-300'
-                          : 'border-zinc-800 bg-zinc-950 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'
+                          : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--text-primary)]'
                       }`}
                     >
                       <Icon icon="material-symbols:developer-mode-rounded" className="h-3 w-3" aria-hidden="true" />
@@ -2060,7 +2064,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       onClick={() => setActiveSidebar(null)}
                       title="Close UI references"
                       aria-label="Close UI references"
-                      className="flex h-6 w-6 items-center justify-center text-zinc-500 transition-colors hover:text-rose-400 cursor-pointer"
+                      className="flex h-6 w-6 items-center justify-center text-[var(--text-secondary)] transition-colors hover:text-rose-400 cursor-pointer"
                     >
                       <Icon icon="material-symbols:close-rounded" className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -2071,113 +2075,113 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   {/* ── Developer details (opt-in) ─────────────────────── */}
                   {showFullUiReferenceInfo && activeUiReference && (
                     <>
-                      <section className="border border-zinc-800 bg-zinc-950/80">
-                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                      <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                        <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">
                             capture details
                           </span>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/40">
                             {activeUiReference.structure.captureStats?.capturedNodeCount ?? activeUiReference.structure.childCount} nodes
                           </span>
                         </div>
                         <div className="space-y-2.5 p-3">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
+                            <span className="border border-cyan-900/60 bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-[10px] font-bold text-cyan-300">
                               {activeUiReference.tagName}
                             </span>
-                            <span className="border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-[10px] text-zinc-400">
+                            <span className="border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-secondary)]">
                               {activeUiReference.selector}
                             </span>
                           </div>
                           <div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-zinc-600">design intent</div>
-                            <div className="mt-0.5 text-[10px] leading-4 text-zinc-300">
+                            <div className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">design intent</div>
+                            <div className="mt-0.5 text-[10px] leading-4 text-[var(--text-primary)]">
                               {activeUiReference.designIntent || '—'}
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
-                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
-                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">source</div>
-                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300" title={activeUiReference.sourceUrl}>
+                            <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">source</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-[var(--text-primary)]" title={activeUiReference.sourceUrl}>
                                 {activeUiReference.sourceUrl.replace(/^https?:\/\//, '')}
                               </div>
                             </div>
-                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
-                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">page</div>
-                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300" title={activeUiReference.pageTitle}>
+                            <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">page</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-[var(--text-primary)]" title={activeUiReference.pageTitle}>
                                 {activeUiReference.pageTitle || 'Untitled'}
                               </div>
                             </div>
-                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
-                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">viewport</div>
-                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300">
+                            <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">viewport</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-[var(--text-primary)]">
                                 {activeUiReference.viewport.width}×{activeUiReference.viewport.height}
                               </div>
                             </div>
-                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
-                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">size</div>
-                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300">
+                            <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">size</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-[var(--text-primary)]">
                                 {activeUiReference.layout.width}×{activeUiReference.layout.height}
                               </div>
                             </div>
-                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
-                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">assets</div>
-                              <div className="mt-0.5 truncate text-[10px] font-medium text-zinc-300">
+                            <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">assets</div>
+                              <div className="mt-0.5 truncate text-[10px] font-medium text-[var(--text-primary)]">
                                 {activeUiReference.assets.length}
                               </div>
                             </div>
-                            <div className="border border-zinc-800/70 bg-zinc-900/40 px-2 py-1.5">
-                              <div className="text-[8px] font-black uppercase tracking-widest text-zinc-600">status</div>
+                            <div className="border border-[var(--border-primary)]/70 bg-[var(--bg-tertiary)]/40 px-2 py-1.5">
+                              <div className="text-[8px] font-black uppercase tracking-widest text-[var(--text-secondary)]/50">status</div>
                               <div className="mt-0.5 truncate text-[10px] font-medium text-emerald-400">ready</div>
                             </div>
                           </div>
                         </div>
                       </section>
 
-                      <section className="border border-zinc-800 bg-zinc-950/80">
-                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">captured styles</span>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                      <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                        <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">captured styles</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/40">
                             {activeUiReference.interactivity.hoverSelectors.length} hovers
                           </span>
                         </div>
-                        <div className="space-y-1.5 p-3 font-mono text-[10px] leading-4 text-zinc-400">
+                        <div className="space-y-1.5 p-3 font-mono text-[10px] leading-4 text-[var(--text-secondary)]">
                           <div>
-                            <span className="text-zinc-600">display </span>
+                            <span className="text-[var(--text-secondary)]/50">display </span>
                             {activeUiReference.layout.display} / {activeUiReference.layout.position}
                           </div>
                           <div>
-                            <span className="text-zinc-600">spacing </span>
+                            <span className="text-[var(--text-secondary)]/50">spacing </span>
                             {activeUiReference.spacing.padding} · radius {activeUiReference.spacing.borderRadius}
                           </div>
                           <div>
-                            <span className="text-zinc-600">font </span>
+                            <span className="text-[var(--text-secondary)]/50">font </span>
                             {activeUiReference.typography.fontSize} {activeUiReference.typography.fontWeight} · {activeUiReference.typography.fontFamily}
                           </div>
                           <div>
-                            <span className="text-zinc-600">visual </span>
+                            <span className="text-[var(--text-secondary)]/50">visual </span>
                             {activeUiReference.visuals.background || 'transparent'} · {activeUiReference.visuals.color}
                           </div>
                           <div>
-                            <span className="text-zinc-600">hover </span>
+                            <span className="text-[var(--text-secondary)]/50">hover </span>
                             {activeUiReference.interactivity.hoverSelectors.slice(0, 2).join(' | ') || 'none detected'}
                           </div>
                         </div>
                       </section>
 
-                      <section className="border border-zinc-800 bg-zinc-950/80">
-                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">html snippet</span>
+                      <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                        <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">html snippet</span>
                           <button
                             type="button"
                             onClick={handleCopyUiReferenceHtml}
-                            className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-zinc-500 transition-colors hover:text-zinc-200 cursor-pointer"
+                            className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60 transition-colors hover:text-[var(--text-primary)] cursor-pointer"
                           >
                             <Icon icon="material-symbols:content-copy-rounded" className="h-3 w-3" aria-hidden="true" />
                             copy
                           </button>
                         </div>
-                        <pre className="max-h-40 overflow-auto border-t border-zinc-800/60 bg-zinc-900/60 p-2.5 font-mono text-[10px] leading-4 text-zinc-400 whitespace-pre-wrap break-all">
+                        <pre className="max-h-40 overflow-auto border-t border-[var(--border-primary)]/60 bg-[var(--bg-tertiary)]/60 p-2.5 font-mono text-[10px] leading-4 text-[var(--text-secondary)] whitespace-pre-wrap break-all">
                           {activeUiReference.htmlSnippet}
                         </pre>
                       </section>
@@ -2185,12 +2189,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   )}
 
                   {/* ── Captured references ────────────────────────────── */}
-                  <section className="border border-zinc-800 bg-zinc-950/80">
-                    <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                  <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                    <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">
                         captured references
                       </span>
-                      <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/40">
                         {effectiveState.uiReferenceClipboard.length}
                       </span>
                     </div>
@@ -2206,12 +2210,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   {activeUiReference && (
                     <>
                       {/* ── Apply mode ──────────────────────────────────── */}
-                      <section className="border border-zinc-800 bg-zinc-950/80">
-                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                      <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                        <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">
                             apply to local page
                           </span>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/40">
                             {effectiveState.uiReferenceMode === 'insert' ? 'add' : 'swap'}
                           </span>
                         </div>
@@ -2222,13 +2226,13 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                             className={`border px-3 py-2 text-left transition-colors cursor-pointer ${
                               effectiveState.uiReferenceMode === 'insert'
                                 ? 'border-emerald-800 bg-emerald-950/40'
-                                : 'border-zinc-800 bg-zinc-900/60 hover:border-emerald-800/60'
+                                : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)]/60 hover:border-emerald-800/60'
                             }`}
                           >
-                            <div className={`text-[10px] font-black uppercase tracking-widest ${effectiveState.uiReferenceMode === 'insert' ? 'text-emerald-300' : 'text-zinc-400'}`}>
+                            <div className={`text-[10px] font-black uppercase tracking-widest ${effectiveState.uiReferenceMode === 'insert' ? 'text-emerald-300' : 'text-[var(--text-secondary)]'}`}>
                               add new
                             </div>
-                            <div className="mt-0.5 text-[9px] leading-4 text-zinc-600">
+                            <div className="mt-0.5 text-[9px] leading-4 text-[var(--text-secondary)]/50">
                               insert this component somewhere new in localhost.
                             </div>
                           </button>
@@ -2238,13 +2242,13 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                             className={`border px-3 py-2 text-left transition-colors cursor-pointer ${
                               effectiveState.uiReferenceMode === 'replace'
                                 ? 'border-amber-800 bg-amber-950/40'
-                                : 'border-zinc-800 bg-zinc-900/60 hover:border-amber-800/60'
+                                : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)]/60 hover:border-amber-800/60'
                             }`}
                           >
-                            <div className={`text-[10px] font-black uppercase tracking-widest ${effectiveState.uiReferenceMode === 'replace' ? 'text-amber-300' : 'text-zinc-400'}`}>
+                            <div className={`text-[10px] font-black uppercase tracking-widest ${effectiveState.uiReferenceMode === 'replace' ? 'text-amber-300' : 'text-[var(--text-secondary)]'}`}>
                               swap existing
                             </div>
-                            <div className="mt-0.5 text-[9px] leading-4 text-zinc-600">
+                            <div className="mt-0.5 text-[9px] leading-4 text-[var(--text-secondary)]/50">
                               replace an element already on localhost.
                             </div>
                           </button>
@@ -2253,7 +2257,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
                       {/* ── Replace target ─────────────────────────────── */}
                       {effectiveState.uiReferenceMode === 'replace' && (
-                        <section className="border border-amber-900/50 bg-zinc-950/80">
+                        <section className="border border-amber-900/50 bg-[var(--bg-primary)]/80">
                           <div className="flex items-center gap-1.5 border-b border-amber-900/40 px-3 py-2">
                             <Icon icon="material-symbols:target-rounded" className="h-3 w-3 text-amber-300" aria-hidden="true" />
                             <span className="text-[9px] font-black uppercase tracking-widest text-amber-200/80">
@@ -2261,7 +2265,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                             </span>
                           </div>
                           <div className="space-y-2 p-3">
-                            <p className="text-[9px] leading-4 text-zinc-500">
+                            <p className="text-[9px] leading-4 text-[var(--text-secondary)]/50">
                               pick the element on your local page this reference should replace
                             </p>
                             <button
@@ -2270,13 +2274,13 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                               className={`inline-flex w-full items-center justify-center gap-1.5 border px-2 py-1.5 text-[9px] font-black uppercase tracking-widest transition-colors cursor-pointer ${
                                 effectiveState.inspectMode
                                   ? 'border-emerald-800 bg-emerald-950/40 text-emerald-300'
-                                  : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                                  : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--text-primary)]'
                               }`}
                             >
                               <Icon icon="material-symbols:touch-app-rounded" className="h-3 w-3" aria-hidden="true" />
                               {effectiveState.inspectMode ? 'inspecting — click the local element now' : 'activate inspect mode'}
                             </button>
-                            <div className="border border-zinc-800 bg-zinc-900/50 px-2 py-1.5 font-mono text-[10px] text-zinc-400">
+                            <div className="border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/50 px-2 py-1.5 font-mono text-[10px] text-[var(--text-secondary)]">
                               {selectedElement
                                 ? selectedElement.selectors[0] || selectedElement.tagName
                                 : 'no target selected yet'}
@@ -2286,10 +2290,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       )}
 
                       {/* ── Target agent ───────────────────────────────── */}
-                      <section className="border border-zinc-800 bg-zinc-950/80">
-                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">target agent</span>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">
+                      <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                        <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">target agent</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/40">
                             {sessionOptions.length} avail
                           </span>
                         </div>
@@ -2299,7 +2303,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                             options={sessionOptions}
                             onChange={(sessionId) => setBrowserTargetSession(workspaceId, sessionId)}
                           />
-                          <p className="mt-1.5 text-[9px] leading-4 text-zinc-600">
+                          <p className="mt-1.5 text-[9px] leading-4 text-[var(--text-secondary)]/50">
                             {targetableSessions.length === 0 && yzpzSessions.length === 0
                               ? 'open an agent terminal tab (claude, codex, gemini…) or a YZPZ Agent to enable rebuild'
                               : 'handoff goes directly into the chosen agent context'}
@@ -2308,12 +2312,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                       </section>
 
                       {/* ── Integration brief ──────────────────────────── */}
-                      <section className="border border-zinc-800 bg-zinc-950/80">
-                        <div className="flex items-center justify-between border-b border-zinc-800/70 px-3 py-2">
-                          <span className="text-[9px] font-black uppercase tracking-widest text-zinc-500">
+                      <section className="border border-[var(--border-primary)] bg-[var(--bg-primary)]/80">
+                        <div className="flex items-center justify-between border-b border-[var(--border-primary)]/70 px-3 py-2">
+                          <span className="text-[9px] font-black uppercase tracking-widest text-[var(--text-secondary)]/60">
                             integration brief
                           </span>
-                          <span className="font-mono text-[9px] uppercase tracking-widest text-zinc-600">
+                          <span className="font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]/40">
                             {uiReferenceCharCount} ch
                           </span>
                         </div>
@@ -2325,7 +2329,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                             onSubmit={() => void handleSendUiReferenceToAgent()}
                             submitting={isSubmitting}
                           />
-                          <div className="mt-1.5 flex items-center justify-between text-[9px] font-medium uppercase tracking-widest text-zinc-600">
+                          <div className="mt-1.5 flex items-center justify-between text-[9px] font-medium uppercase tracking-widest text-[var(--text-secondary)]/40">
                             <span>enter ↵ send</span>
                             <span>shift+enter newline</span>
                           </div>

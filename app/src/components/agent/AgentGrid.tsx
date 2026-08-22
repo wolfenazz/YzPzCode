@@ -4,6 +4,7 @@ import { AgentCommandDrawer } from './AgentCommandDrawer';
 import { NewAgentDialog } from './NewAgentDialog';
 import { SessionHistory } from './SessionHistory';
 import { useAgentHost, CreateAgentSessionParams } from '../../hooks/useAgentHost';
+import { useProjectMemory } from '../../hooks/useProjectMemory';
 import { useAppStore } from '../../stores/appStore';
 import SoftAurora from '../effects/SoftAurora';
 import logo from '../../assets/YzPzCodeLogo.png';
@@ -43,6 +44,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
     getSettings,
   } = useAgentHost();
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
+  const { buildProjectBrief, ensureMemoryFile } = useProjectMemory();
   const animationsEnabled = useAppStore((s) => s.animationsEnabled);
   const independentGridResize = useAppStore((s) => s.independentGridResize);
   const agentSessionsByWorkspace = useAppStore((s) => s.agentSessionsByWorkspace);
@@ -163,7 +165,15 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
       setCreating(true);
       setHostError(null);
       try {
-        const result = await createSession(params);
+        // Ensure the memory file exists once per workspace and inject the
+        // project brief (memory + changed files) into the system prompt so
+        // the agent starts with context instead of a blank slate.
+        await ensureMemoryFile();
+        const brief = await buildProjectBrief();
+        const result = await createSession({
+          ...params,
+          systemPrompt: brief ? [params.systemPrompt, brief].filter(Boolean).join('\n\n') : params.systemPrompt,
+        });
         const now = Date.now();
         const summary: AgentSessionSummary = {
           sessionId: result.sessionId,
@@ -187,7 +197,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
         setCreating(false);
       }
     },
-    [createSession, addAgentSessionForWorkspace]
+    [createSession, addAgentSessionForWorkspace, ensureMemoryFile, buildProjectBrief]
   );
 
   const handleNewAgent = useCallback(async () => {
@@ -286,6 +296,8 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
       removeAgentSessionForWorkspace(workspaceId, sessionId);
       if (!existing?.providerId || !existing?.modelId) return;
       try {
+        await ensureMemoryFile();
+        const brief = await buildProjectBrief();
         const result = await createSession({
           workspaceId,
           cwd: currentWorkspace?.path ?? '',
@@ -293,6 +305,7 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
           modelId: existing.modelId,
           title: existing.title ?? undefined,
           maxTotalTokens: existing.maxTotalTokens ?? undefined,
+          systemPrompt: brief || undefined,
         });
         const now = Date.now();
         addAgentSessionForWorkspace(workspaceId, {
@@ -321,6 +334,8 @@ export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {
       addAgentSessionForWorkspace,
       workspaceId,
       currentWorkspace?.path,
+      ensureMemoryFile,
+      buildProjectBrief,
     ]
   );
 

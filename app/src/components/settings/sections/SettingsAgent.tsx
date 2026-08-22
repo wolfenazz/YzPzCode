@@ -4,6 +4,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 import { AgentSelect } from '../../agent/AgentSelect';
 import { useAgentHost } from '../../../hooks/useAgentHost';
 import { useAppStore } from '../../../stores/appStore';
+import { SettingsSlider } from '../../common/SettingsSlider';
 import type {
   AgentHostStatus,
   AgentMcpServer,
@@ -151,6 +152,10 @@ export const SettingsAgent: React.FC = () => {
     setAgentInterfaceScale,
     setAgentConversationWidth,
     resetAgentDisplayPreferences,
+    autoOpenPreview,
+    setAutoOpenPreview,
+    agentTimeout,
+    setAgentTimeout,
   } = useAppStore();
   const {
     getStatus,
@@ -810,6 +815,24 @@ export const SettingsAgent: React.FC = () => {
               checked={g?.telemetryOptOut ?? false}
               onChange={(v) => void applyGlobal({ telemetryOptOut: v })}
             />
+            <Toggle
+              label="Auto-open live preview"
+              hint="When a dev-server URL appears in terminal output, open it in the embedded browser automatically"
+              checked={autoOpenPreview}
+              onChange={(v) => setAutoOpenPreview(v)}
+            />
+            <div className="pt-1">
+              <SettingsSlider
+                label="No-activity watchdog"
+                description="Warn when a running agent turn stays silent this long (0 disables)"
+                value={agentTimeout}
+                min={0}
+                max={1800}
+                step={60}
+                displayValue={agentTimeout === 0 ? 'off' : `${agentTimeout}s`}
+                onChange={setAgentTimeout}
+              />
+            </div>
           </div>
         </div>
       )}

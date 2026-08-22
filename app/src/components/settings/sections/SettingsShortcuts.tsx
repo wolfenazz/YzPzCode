@@ -10,8 +10,14 @@ const SHORTCUTS = [
     { keys: ['Shift', 'Enter'], action: 'Find previous match' },
     { keys: ['Esc'], action: 'Close search' },
   ]},
+  { category: 'Editor & Files', items: [
+    { keys: ['Ctrl', 'P'], action: 'Quick open file' },
+    { keys: ['Ctrl', 'Shift', 'F'], action: 'Find in files' },
+    { keys: ['Ctrl', 'S'], action: 'Save file' },
+    { keys: ['Ctrl', 'G'], action: 'Go to line' },
+    { keys: ['Ctrl', 'Z'], action: 'Undo last explorer action' },
+  ]},
   { category: 'Navigation', items: [
-    { keys: ['Ctrl', 'P'], action: 'Command palette' },
     { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' },
     { keys: ['Ctrl', 'B'], action: 'Toggle Sidebar' },
     { keys: ['Ctrl', 'E'], action: 'Toggle View' },

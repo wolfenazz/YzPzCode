@@ -88,12 +88,37 @@ pub fn delete_entry(path: &str) -> Result<()> {
     if !p.exists() {
         return Err(anyhow::anyhow!("Path does not exist: {}", path));
     }
+
+    // Soft-delete: move into the workspace `.yzpzcode/trash` when the entry
+    // lives under an app workspace so the explorer undo can restore it WITH
+    // its content. Falls back to a permanent delete outside workspaces.
+    if let Some(workspace) = find_workspace_root(p) {
+        let ws = workspace.to_string_lossy().to_string();
+        let target = p.to_string_lossy().to_string();
+        if super::history::trash_entry(&ws, &target).is_ok() {
+            return Ok(());
+        }
+    }
+
     if p.is_dir() {
         fs::remove_dir_all(p)?;
     } else {
         fs::remove_file(p)?;
     }
     Ok(())
+}
+
+/// Walk up from `path` to the nearest directory that carries a `.yzpzcode`
+/// marker (the app's per-workspace container).
+fn find_workspace_root(path: &Path) -> Option<std::path::PathBuf> {
+    let mut current = path.parent();
+    while let Some(dir) = current {
+        if dir.join(".yzpzcode").is_dir() {
+            return Some(dir.to_path_buf());
+        }
+        current = dir.parent();
+    }
+    None
 }
 
 pub fn reveal_in_file_manager(path: &str) -> Result<()> {

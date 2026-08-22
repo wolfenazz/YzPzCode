@@ -14,6 +14,7 @@ import type { AgentCompactionStatus } from '../../hooks/useAgentSession';
 import { DiffView, isEditTool } from './DiffView';
 import { QuestionCard } from './QuestionCard';
 import { parseUiEditRequest, UiEditRequestCard } from './UiEditRequestCard';
+import { useProjectMemory } from '../../hooks/useProjectMemory';
 import BlurText from '../effects/BlurText';
 import { useAppStore } from '../../stores/appStore';
 import logo from '../../assets/YzPzCodeLogo.png';
@@ -34,6 +35,12 @@ interface AgentChatProps {
   error?: string | null;
   /** One-click recovery: re-send the last user prompt. */
   onContinue?: () => void;
+  /** Set when a running turn has been silent for longer than agentTimeout. */
+  turnIdle?: { minutes: number } | null;
+  /** Dismiss the idle warning and keep waiting. */
+  onClearIdleTurn?: () => void;
+  /** Stop the currently running (silent) turn. */
+  onStopTurn?: () => void;
   /** Clickable example prompts shown when the conversation is empty. */
   onSuggestion?: (prompt: string) => void;
   /** True when the last run finished successfully (drives the done banner). */
@@ -68,6 +75,37 @@ const toolLabel = (name: string): string => {
     ask_question: 'Needs your input',
   };
   return map[name] || name;
+};
+
+/**
+ * Map raw harness/sidecar error strings to a plain-language explanation. The
+ * original technical text stays visible in the card, but the headline/reason
+ * the user reads should say what happened and reassure that work is safe.
+ */
+const humanizeAgentError = (raw: string): string => {
+  const low = raw.toLowerCase();
+  if (low.includes('rate') || low.includes('429') || low.includes('too many requests')) {
+    return 'The model provider is temporarily rate-limiting requests. Wait a moment, then continue — your work and conversation are safe.';
+  }
+  if (low.includes('unauthorized') || low.includes('401') || low.includes('invalid api key') || low.includes('authentication')) {
+    return 'The model provider rejected the connection — likely an expired or invalid API key. Check your provider settings, then continue.';
+  }
+  if (low.includes('econnrefused') || low.includes('econnreset') || low.includes('network') || low.includes('fetch failed') || low.includes('socket')) {
+    return 'The connection to the model provider dropped. Your work and conversation are safe — continue to resume.';
+  }
+  if (low.includes('timeout') || low.includes('timed out')) {
+    return 'The model provider didn\u2019t respond in time. Your work and conversation are safe — continue to resume.';
+  }
+  if (low.includes('sidecar') || low.includes('disconnected') || low.includes('ws ') || low.includes('websocket')) {
+    return 'The agent engine connection dropped. It reconnects automatically — if it doesn\u2019t, press Continue below.';
+  }
+  if (low.includes('balance') || low.includes('insufficient') || low.includes('quota')) {
+    return 'The model provider reported insufficient balance or quota. Top up or switch providers, then continue.';
+  }
+  if (low.includes('context length') || low.includes('context window') || low.includes('max tokens') || low.includes('tokens')) {
+    return 'The conversation outgrew the model\u2019s context window. The agent will try to compact it — continue when ready.';
+  }
+  return 'The agent hit a hiccup while working. Your work and conversation are safe — continue to resume.';
 };
 
 const toolIcon: Record<string, string> = {
@@ -227,6 +265,19 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
   const [translationError, setTranslationError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState<string | null>(null);
+  const [remembered, setRemembered] = useState(false);
+  const { writeMemoryNote } = useProjectMemory();
+
+  const remember = async (): Promise<void> => {
+    if (remembered) return;
+    const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 400);
+    if (!snippet) return;
+    const ok = await writeMemoryNote(snippet);
+    if (ok) {
+      setRemembered(true);
+      window.setTimeout(() => setRemembered(false), 1800);
+    }
+  };
 
   const selectedLanguage = TRANSLATION_LANGUAGES.find((language) => language.code === targetLanguage);
 
@@ -295,6 +346,15 @@ const TranslatableAgentText: React.FC<{ text: string }> = ({ text }) => {
         >
           <Icon icon={copied ? 'material-symbols:check-rounded' : 'material-symbols:content-copy-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
           {copied ? 'Copied' : 'Copy'}
+        </button>
+        <button
+          type="button"
+          onClick={() => void remember()}
+          className="inline-flex h-6 items-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 font-mono text-[9px] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)]/15 hover:text-[var(--accent)]"
+          title={remembered ? 'Saved to project memory' : 'Save this response to project memory (.yzpzcode/memory.md)'}
+        >
+          <Icon icon={remembered ? 'material-symbols:check-rounded' : 'material-symbols:memory-export-rounded'} className="h-3.5 w-3.5" aria-hidden="true" />
+          {remembered ? 'Remembered' : 'Remember'}
         </button>
       </div>
 
@@ -1235,19 +1295,23 @@ const StreamingCursor: React.FC = () => (
  * starts (the harness clears the error state on resume).
  */
 const ErrorCard = React.memo(function ErrorCard({ message, onContinue }: { message: string; onContinue?: () => void }) {
+  const reason = humanizeAgentError(message);
   return (
     <div className="rounded-lg border border-rose-500/25 bg-rose-950/10 px-3 py-2.5 animate-fade-in-up" role="alert">
       <div className="flex items-center gap-2">
         <Icon icon="lucide:triangle-alert" className="h-3.5 w-3.5 shrink-0 text-rose-400" aria-hidden="true" />
         <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-rose-400">
-          The agent hit an error
+          The agent needs attention
         </span>
       </div>
-      <p className="mt-1.5 text-[10.5px] leading-relaxed text-[var(--text-secondary)] break-words whitespace-pre-wrap max-h-32 overflow-y-auto">
+      <p className="mt-1.5 text-[10.5px] leading-relaxed text-[var(--text-primary)] break-words">
+        {reason}
+      </p>
+      <p className="mt-1 font-mono text-[9px] leading-relaxed text-[var(--text-secondary)]/50 break-words whitespace-pre-wrap max-h-24 overflow-y-auto">
         {message}
       </p>
       <p className="mt-1.5 text-[10px] leading-relaxed text-[var(--text-secondary)]/60">
-        Automatic recovery was already attempted. You can continue the task below, or the agent will pick up again on the next message.
+        The agent tried to recover automatically and will also pick up again on your next message.
       </p>
       <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {onContinue && (
@@ -1263,6 +1327,59 @@ const ErrorCard = React.memo(function ErrorCard({ message, onContinue }: { messa
         <span className="font-mono text-[9px] text-[var(--text-secondary)]/50">
           You can also just type a new message.
         </span>
+      </div>
+    </div>
+  );
+});
+
+/**
+ * Idle-turn warning. The watchdog only sets this after a running turn has been
+ * completely silent for `agentTimeout` — while any stream/tool/approval is
+ * live the clock keeps resetting. The harness turn is left untouched; the user
+ * picks "Keep waiting" (dismiss) or "Stop turn".
+ */
+const IdleTurnCard = React.memo(function IdleTurnCard({
+  minutes,
+  onKeepWaiting,
+  onStopTurn,
+}: {
+  minutes: number;
+  onKeepWaiting?: () => void;
+  onStopTurn?: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-amber-500/25 bg-amber-950/10 px-3 py-2.5 animate-fade-in-up" role="alert">
+      <div className="flex items-center gap-2">
+        <Icon icon="lucide:timer-off" className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
+        <span className="font-mono text-[9px] font-bold uppercase tracking-widest text-amber-400">
+          No activity for {minutes} min
+        </span>
+      </div>
+      <p className="mt-1.5 text-[10.5px] leading-relaxed text-[var(--text-secondary)] break-words">
+        The agent hasn't produced any output for a while. It may still be working — wait longer, or stop the turn
+        and rephrase your request.
+      </p>
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        {onKeepWaiting && (
+          <button
+            type="button"
+            onClick={() => onKeepWaiting()}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)]/15 text-[var(--accent)] hover:bg-[var(--accent-light)]/30 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+          >
+            <Icon icon="lucide:clock-4" className="h-3 w-3" aria-hidden="true" />
+            Keep waiting
+          </button>
+        )}
+        {onStopTurn && (
+          <button
+            type="button"
+            onClick={() => onStopTurn()}
+            className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md border border-rose-500/30 bg-rose-500/5 text-rose-400 hover:bg-rose-500/15 font-mono text-[9px] font-bold uppercase tracking-widest transition-colors duration-100 cursor-pointer"
+          >
+            <Icon icon="lucide:square" className="h-3 w-3" aria-hidden="true" />
+            Stop turn
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1378,6 +1495,9 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   onAnswerQuestion,
   error,
   onContinue,
+  turnIdle = null,
+  onClearIdleTurn,
+  onStopTurn,
   onSuggestion,
   completed,
   elapsedSec,
@@ -1533,6 +1653,13 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           </div>
         )}
         {error && <ErrorCard message={error} onContinue={onContinue} />}
+        {turnIdle && !error && (
+          <IdleTurnCard
+            minutes={turnIdle.minutes}
+            onKeepWaiting={onClearIdleTurn}
+            onStopTurn={onStopTurn}
+          />
+        )}
         {compaction && <CompactionStatusCard status={compaction} />}
         {showLiveReasoning && <ReasoningBlock key="live-reasoning" text={streamingThinking} active />}
         {unplacedToolLog.map((t) => (

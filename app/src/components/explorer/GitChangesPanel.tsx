@@ -1,8 +1,11 @@
-import React, { useMemo, useCallback, useRef, useState } from 'react';
+import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GitFileStatus, GitDiffStat, FileEntry } from '../../types';
+import { invoke } from '@tauri-apps/api/core';
+import { Icon } from '@iconify/react';
+import { GitFileStatus, GitDiffStat, FileEntry, GitBranchInfo, GitCommitInfo } from '../../types';
 import { GitStatusBadge } from './GitStatusBadge';
 import { FileIcon } from './FileIcon';
+import { useAppStore } from '../../stores/appStore';
 
 interface GitChangesPanelProps {
   gitStatuses: GitFileStatus[];
@@ -22,8 +25,8 @@ interface ChangedFile {
 }
 
 const MIN_HEIGHT = 36;
-const MAX_HEIGHT = 320;
-const DEFAULT_HEIGHT = 140;
+const MAX_HEIGHT = 380;
+const DEFAULT_HEIGHT = 170;
 
 export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
   gitStatuses,
@@ -38,6 +41,15 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
   const [isResizing, setIsResizing] = useState(false);
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
+  const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
+
+  const [commitMessage, setCommitMessage] = useState('');
+  const [committing, setCommitting] = useState(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
+  const [commitNotice, setCommitNotice] = useState<string | null>(null);
+  const [branches, setBranches] = useState<GitBranchInfo | null>(null);
+  const [commits, setCommits] = useState<GitCommitInfo[]>([]);
+  const [showCommitLog, setShowCommitLog] = useState(false);
 
   const changedFiles = useMemo(() => {
     const statsMap = new Map<string, GitDiffStat>();
@@ -94,6 +106,27 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
     return max || 1;
   }, [changedFiles]);
 
+  // Load branch info + recent commits once when the panel mounts or the
+  // workspace changes, so the header shows the current branch.
+  useEffect(() => {
+    let cancelled = false;
+    void invoke<GitBranchInfo>('git_branches', { workspacePath })
+      .then((b) => { if (!cancelled) setBranches(b); })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [workspacePath]);
+
+  const refreshCommitLog = useCallback(async () => {
+    try {
+      const log = await invoke<GitCommitInfo[]>('git_log', { workspacePath, limit: 15 });
+      setCommits(Array.isArray(log) ? log : []);
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : String(err));
+    }
+  }, [workspacePath]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setIsResizing(true);
@@ -112,7 +145,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
     setIsResizing(false);
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isResizing) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
@@ -124,6 +157,8 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
   }, [isResizing, handleMouseMove, handleMouseUp]);
 
   const handleFileClick = useCallback((file: ChangedFile) => {
+    // Opening a regular file leaves diff mode.
+    setGitDiffFile(null);
     const entry: FileEntry = {
       name: file.name,
       path: file.path,
@@ -133,7 +168,53 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
       extension: file.name.includes('.') ? file.name.split('.').pop() || null : null,
     };
     onFileClick(entry, file.change);
-  }, [onFileClick]);
+  }, [onFileClick, setGitDiffFile]);
+
+  const openDiff = useCallback((file: ChangedFile) => {
+    setGitDiffFile({ path: file.path, name: file.name });
+  }, [setGitDiffFile]);
+
+  const handleDiscard = useCallback(async (file: ChangedFile) => {
+    const confirmed = window.confirm(
+      `Discard all changes to ${file.name}?\n\nThis restores the file to its last committed version (or deletes it if untracked). This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      await invoke('git_discard_file', { workspacePath, filePath: file.path });
+      setGitDiffFile(null);
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : String(err));
+    }
+  }, [workspacePath, setGitDiffFile]);
+
+  const handleCommit = useCallback(async () => {
+    const message = commitMessage.trim();
+    if (!message || committing) return;
+    setCommitting(true);
+    setCommitError(null);
+    setCommitNotice(null);
+    try {
+      await invoke('git_commit', { workspacePath, message });
+      setCommitMessage('');
+      setCommitNotice(`Committed: ${message.slice(0, 60)}`);
+      void refreshCommitLog();
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCommitting(false);
+    }
+  }, [commitMessage, committing, workspacePath, refreshCommitLog]);
+
+  const handleCheckout = useCallback(async (branch: string) => {
+    if (!branch) return;
+    try {
+      await invoke('git_checkout', { workspacePath, branch });
+      const b = await invoke<GitBranchInfo>('git_branches', { workspacePath });
+      setBranches(b);
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : String(err));
+    }
+  }, [workspacePath]);
 
   const getRelativePath = useCallback((fullPath: string) => {
     if (fullPath.startsWith(workspacePath)) {
@@ -179,11 +260,79 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
               Source_Control
             </span>
             <span className="text-[7px] text-zinc-600 font-black tracking-widest uppercase opacity-70">
-              {changedFiles.length} DIFFS_DETECTED
+              {changedFiles.length} DIFFS_DETECTED{branches ? ` · ${branches.current}` : ''}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-3">
+          {branches && branches.branches.length > 1 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowCommitLog((v) => !v);
+                  if (!showCommitLog) void refreshCommitLog();
+                }}
+                title="Recent commits & branches"
+                className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-violet-400 hover:bg-violet-500/10 border border-transparent hover:border-violet-500/30 transition-colors cursor-pointer"
+              >
+                <Icon icon="lucide:git-branch" className="h-3 w-3" aria-hidden="true" />
+                <span className="max-w-[70px] truncate">{branches.current}</span>
+                <Icon icon="lucide:chevron-down" className="h-2.5 w-2.5 opacity-60" aria-hidden="true" />
+              </button>
+              <AnimatePresence>
+                {showCommitLog && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute bottom-6 right-0 z-50 w-64 rounded-lg border border-zinc-700/50 bg-zinc-900 shadow-2xl backdrop-blur-md"
+                  >
+                    <div className="border-b border-zinc-800 px-2 py-1.5">
+                      <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-zinc-400">Branches</span>
+                    </div>
+                    <div className="max-h-24 overflow-y-auto custom-scrollbar py-1">
+                      {branches.branches.map((branch) => (
+                        <button
+                          key={branch}
+                          type="button"
+                          onClick={() => void handleCheckout(branch)}
+                          className={`flex w-full items-center gap-1.5 px-2 py-1 text-left font-mono text-[9px] transition-colors hover:bg-zinc-800/60 cursor-pointer ${
+                            branch === branches.current ? 'text-violet-400' : 'text-zinc-300'
+                          }`}
+                          title={branch === branches.current ? 'Current branch' : `Switch to ${branch}`}
+                        >
+                          <Icon icon={branch === branches.current ? 'lucide:git-branch' : 'lucide:git-branch-outline'} className="h-3 w-3 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{branch}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <div className="border-t border-zinc-800 px-2 py-1.5">
+                      <span className="font-mono text-[8px] font-bold uppercase tracking-widest text-zinc-400">Recent commits</span>
+                    </div>
+                    <div className="max-h-32 overflow-y-auto custom-scrollbar pb-1">
+                      {commits.length === 0 && (
+                        <p className="px-2 py-1 font-mono text-[8.5px] text-zinc-600">No commits yet</p>
+                      )}
+                      {commits.map((commit) => (
+                        <div key={commit.hash} className="flex items-start gap-1.5 px-2 py-1">
+                          <Icon icon="lucide:git-commit-horizontal" className="mt-0.5 h-3 w-3 shrink-0 text-zinc-600" aria-hidden="true" />
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-[8.5px] text-zinc-300">{commit.message}</p>
+                            <p className="font-mono text-[7.5px] text-zinc-600">
+                              {commit.shortHash} · {commit.author}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
           <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-950 border border-zinc-800/50 shadow-inner group-hover/git-header:border-blue-500/30 transition-all duration-500">
             {hasAnyDiffLines ? (
               <>
@@ -270,7 +419,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                          <div className="flex items-center gap-1 font-mono text-[9px] tabular-nums">
                             {file.linesAdded > 0 && (
                               <span className="text-emerald-500 font-black">+{file.linesAdded}</span>
@@ -290,6 +439,22 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                          </div>
 
                          <div className="flex items-center gap-0.5 opacity-0 group-hover/file:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => { e.stopPropagation(); openDiff(file); }}
+                              className="p-0.5 rounded hover:bg-sky-500/20 text-zinc-500 hover:text-sky-400 cursor-pointer transition-colors"
+                              title="Compare with HEAD"
+                            >
+                              <Icon icon="lucide:git-compare" className="w-3.5 h-3.5" aria-hidden="true" />
+                            </button>
+                            {file.change !== 'deleted' && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); void handleDiscard(file); }}
+                                className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer transition-colors"
+                                title="Discard changes"
+                              >
+                                <Icon icon="lucide:undo-2" className="w-3.5 h-3.5" aria-hidden="true" />
+                              </button>
+                            )}
                             {(file.change === 'untracked' || file.change === 'modified') && (
                               <button
                                 onClick={(e) => { e.stopPropagation(); onStageFile(file.path); }}
@@ -343,6 +508,39 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                   );
                 })}
               </div>
+            </div>
+
+            {/* Commit bar */}
+            <div className="shrink-0 border-t border-zinc-800/40 bg-zinc-950/60 px-2 py-1.5">
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={commitMessage}
+                  onChange={(e) => setCommitMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void handleCommit();
+                    }
+                  }}
+                  placeholder="Commit message (stages all changes)…"
+                  className="min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-[9.5px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/50"
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleCommit()}
+                  disabled={committing || !commitMessage.trim()}
+                  title="Stage all changes and commit"
+                  className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-blue-400 transition-colors hover:bg-blue-500/20 disabled:cursor-default disabled:opacity-40"
+                >
+                  <Icon icon={committing ? 'svg-spinners:3-dots-scale' : 'lucide:git-commit-horizontal'} className="h-3 w-3" aria-hidden="true" />
+                  Commit
+                </button>
+              </div>
+              {(commitError || commitNotice) && (
+                <p className={`mt-1 font-mono text-[8.5px] ${commitError ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {commitError ?? commitNotice}
+                </p>
+              )}
             </div>
           </motion.div>
         )}

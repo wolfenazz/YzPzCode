@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { useAgentHost } from './useAgentHost';
 import { useAppStore } from '../stores/appStore';
 import type {
@@ -96,6 +97,53 @@ const pick = (obj: Record<string, unknown>, keys: string[]): unknown => {
 };
 
 const toNumber = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/**
+ * Extract the (possibly relative) file paths a tool call will touch from its
+ * input payload. Used both to show "files this will change" on the approval
+ * bar and to snapshot files before an approved mutation lands.
+ */
+export const extractAffectedFilePaths = (toolName: string, input: unknown): string[] => {
+  if (!input || typeof input !== 'object') return [];
+  const obj = input as Record<string, unknown>;
+  const paths: string[] = [];
+  const push = (v: unknown) => {
+    if (typeof v === 'string' && v.trim()) paths.push(v.trim());
+  };
+
+  const pushDiffPaths = (diff: string) => {
+    // Unified diff headers: `+++ b/path` or `*** Update File: path`.
+    for (const m of diff.matchAll(/^\+\+\+\s+(?:b\/)?([^\s\t]+)/gm)) push(m[1]);
+    for (const m of diff.matchAll(/UPDATE FILE:\s*([^\s\t]+)/gi)) push(m[1]);
+  };
+
+  switch (toolName) {
+    case 'write_file':
+    case 'create_file':
+    case 'create_directory':
+    case 'mkdir':
+    case 'delete_file':
+    case 'rename_file':
+      push(obj.path ?? obj.filePath ?? obj.file_path ?? obj.directory ?? obj.oldPath ?? obj.newPath);
+      break;
+    case 'apply_patch':
+    case 'editor':
+      push(obj.filePath ?? obj.file_path);
+      if (typeof obj.diff === 'string') pushDiffPaths(obj.diff);
+      if (typeof obj.patch === 'string') pushDiffPaths(obj.patch);
+      break;
+    default:
+      push(obj.filePath ?? obj.file_path ?? obj.path);
+      break;
+  }
+  return Array.from(new Set(paths));
+};
+
+/** Resolve a possibly-relative tool path against the workspace root. */
+const resolveToolPath = (workspacePath: string, maybeRelative: string): string => {
+  if (maybeRelative.startsWith('/') || /^[A-Za-z]:[\\/]/.test(maybeRelative)) return maybeRelative;
+  return `${workspacePath.replace(/[\\/]+$/, '')}/${maybeRelative.replace(/^[\\/]+/, '')}`;
+};
 
 /** Runtime adapters may send either a delta or the accumulated text on each event. */
 const mergeStreamChunk = (previous: string, chunk: string, accumulated = ''): string => {
@@ -318,6 +366,10 @@ export const useAgentSession = (
     removePendingPrompt,
   } = useAgentHost();
   const removeAgentSessionForWorkspace = useAppStore((s) => s.removeAgentSessionForWorkspace);
+  // Idle watchdog threshold (seconds, 0 = disabled). Reuses the store's
+  // agentTimeout field so the "Agent Response Timeout" control governs the
+  // Agent Host turn as well as the legacy CLI path.
+  const agentTimeout = useAppStore((s) => s.agentTimeout);
 
   const [messages, setMessages] = useState<ClineMessage[]>([]);
   const [streamingText, setStreamingText] = useState('');
@@ -381,6 +433,32 @@ export const useAgentSession = (
   const lastPromptRef = useRef('');
   const statusRef = useRef<AgentPaneStatus>('idle');
   statusRef.current = status;
+
+  // ── Idle watchdog ───────────────────────────────────────────────────
+  // Any meaningful agent event (streaming, tool, notice, approval, question)
+  // resets the clock. When a running turn stays completely silent for longer
+  // than agentTimeout the UI surfaces a time-out card instead of leaving the
+  // user staring at a dead chat. The harness turn keeps running untouched —
+  // the user decides whether to keep waiting or stop.
+  const lastActivityRef = useRef(Date.now());
+  const [turnIdle, setTurnIdle] = useState<{ minutes: number } | null>(null);
+
+  const markActivity = useCallback(() => {
+    lastActivityRef.current = Date.now();
+    setTurnIdle(null);
+  }, []);
+
+  const clearIdleTurn = useCallback(() => {
+    setTurnIdle(null);
+    lastActivityRef.current = Date.now();
+  }, []);
+
+  // Keep blocking states readable from the watchdog interval without
+  // recreating it every render.
+  const approvalsRef = useRef(approvals);
+  approvalsRef.current = approvals;
+  const questionRef = useRef(pendingQuestion);
+  questionRef.current = pendingQuestion;
 
   // ── Prompt queue bookkeeping ─────────────────────────────────────────
   const queuedPromptsRef = useRef<AgentQueuedPrompt[]>([]);
@@ -535,6 +613,7 @@ export const useAgentSession = (
   // ── Event dispatch ─────────────────────────────────────────────────
   const handleAgentEvent = useCallback(
     (event: Record<string, unknown>) => {
+      markActivity();
       const type = extractString(event, ['type']);
       const noticeMetadata = (pick(event, ['metadata']) ?? {}) as Record<string, unknown>;
       const noticeMessage = extractString(event, ['message', 'notice']);
@@ -722,7 +801,7 @@ export const useAgentSession = (
           break;
       }
     },
-    [appendAssistantReasoning, appendAssistantText, appendAssistantTool, clearStreamFlush, finalizeStream, finalizeThinking, resetLiveStream, refreshMessages, refreshPendingPrompts, refreshUsage, scheduleStreamFlush, updateAssistantTool]
+    [appendAssistantReasoning, appendAssistantText, appendAssistantTool, clearStreamFlush, finalizeStream, finalizeThinking, markActivity, resetLiveStream, refreshMessages, refreshPendingPrompts, refreshUsage, scheduleStreamFlush, updateAssistantTool]
   );
 
   const modeRef = useRef(mode);
@@ -818,13 +897,19 @@ export const useAgentSession = (
       onApprovalRequest((event) => {
         if (disposed) return;
         if (event.payload.sessionId !== sessionIdRef.current) return;
-        setApprovals((prev) => [...prev.filter((a) => a.requestId !== event.payload.requestId), event.payload]);
+        markActivity();
+        const withPaths: AgentApprovalRequest = {
+          ...event.payload,
+          affectedPaths: extractAffectedFilePaths(event.payload.toolName, event.payload.input),
+        };
+        setApprovals((prev) => [...prev.filter((a) => a.requestId !== event.payload.requestId), withPaths]);
         setStatus('running');
       })
     );
     unlisteners.push(
       onSessionStatus((event) => {
         if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
+        markActivity();
         if (
           event.payload.status === 'running' ||
           event.payload.status === 'working' ||
@@ -856,6 +941,7 @@ export const useAgentSession = (
     unlisteners.push(
       onNotice((event) => {
         if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
+        markActivity();
         const message = event.payload.message;
         if (message) setNotice(message);
       })
@@ -889,6 +975,7 @@ export const useAgentSession = (
       onQuestionRequest((event) => {
         if (disposed) return;
         if (event.payload.sessionId !== sessionIdRef.current) return;
+        markActivity();
         setPendingQuestion(event.payload);
         setStatus('running');
       })
@@ -927,6 +1014,23 @@ export const useAgentSession = (
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // ── Idle watchdog loop ──────────────────────────────────────────────
+  // Polls every 5s while a turn is running. The harness keeps working through
+  // a silent turn — the card this sets is informational, with Keep waiting /
+  // Stop choices. Approval and question waits intentionally pause the clock.
+  useEffect(() => {
+    if (agentTimeout <= 0) return;
+    const timer = window.setInterval(() => {
+      if (statusRef.current !== 'running' && statusRef.current !== 'starting') return;
+      if (approvalsRef.current.length > 0 || questionRef.current) return;
+      const idleMs = Date.now() - lastActivityRef.current;
+      if (idleMs >= agentTimeout * 1000) {
+        setTurnIdle({ minutes: Math.max(1, Math.round(idleMs / 60000)) });
+      }
+    }, 5_000);
+    return () => window.clearInterval(timer);
+  }, [agentTimeout]);
 
   // Sync the harness's in-memory fast-mode flag when a pane restores a
   // persisted fast-mode session (the map is lost on sidecar restart, so the
@@ -971,6 +1075,7 @@ export const useAgentSession = (
         setToolLog([]);
         activeToolIdRef.current = null;
         setStatus('running');
+        markActivity();
         lastPromptRef.current = prompt;
         appendUserMessage(prompt, attachments);
       } else {
@@ -985,7 +1090,7 @@ export const useAgentSession = (
         setStatus('error');
       }
     },
-    [appendUserMessage, clearStreamFlush, sendMessage]
+    [appendUserMessage, clearStreamFlush, markActivity, sendMessage]
   );
 
   const abort = useCallback(async () => {
@@ -1004,6 +1109,7 @@ export const useAgentSession = (
     setToolLog([]);
     setStreamingThinking('');
     setError(null);
+    setTurnIdle(null);
     // Aborting also drops the harness's native queue (SDK discardQueue).
     setQueuedPrompts([]);
     queuedPromptsRef.current = [];
@@ -1024,6 +1130,19 @@ export const useAgentSession = (
 
   const approve = useCallback(
     async (requestId: string, approved: boolean, reason?: string) => {
+      const request = approvals.find((a) => a.requestId === requestId);
+      // Before the agent mutates files, snapshot their current contents so
+      // they can be restored from .yzpzcode/history later (best-effort).
+      if (approved && request) {
+        const workspacePath = useAppStore.getState().currentWorkspace?.path;
+        const paths = extractAffectedFilePaths(request.toolName, request.input);
+        if (workspacePath && paths.length > 0) {
+          for (const rel of paths) {
+            const full = resolveToolPath(workspacePath, rel);
+            void invoke('create_file_backup', { workspacePath, filePath: full }).catch(() => undefined);
+          }
+        }
+      }
       setApprovals((prev) => prev.filter((a) => a.requestId !== requestId));
       try {
         await approveTool(requestId, approved, reason);
@@ -1031,7 +1150,7 @@ export const useAgentSession = (
         console.error('[agent] approve failed:', err);
       }
     },
-    [approveTool]
+    [approvals, approveTool]
   );
 
   const answerQuestion = useCallback(
@@ -1175,5 +1294,7 @@ export const useAgentSession = (
     clearQueue,
     refreshMessages,
     refreshUsage,
+    turnIdle,
+    clearIdleTurn,
   };
 };

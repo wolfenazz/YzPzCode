@@ -14,6 +14,8 @@
 - Wants minimal UI copy — titles only, no filler/instructional sentences. Confidence: 0.6
 - Wants an in-app guided tour/explanation mode (highlighted steps with a next/back stepper) for first-time users. Confidence: 0.6
 - Wants the browser to keep its page state when the user switches to other screens and back (no refresh on navigation). Confidence: 0.6
+- Wants component surface colors (e.g., terminal/editor backgrounds) derived from the app's theme background variable as a slightly darker variant, so they update reactively when the background/light theme changes rather than being hardcoded colors that stay fixed across theme switches. Confidence: 0.7
 - Wants generated designs saved under a "Design" folder with one subfolder per page. Confidence: 0.5
 - Wants the chat to support sending images/files to the AI model when it accepts them. Confidence: 0.5
 - Wants all background/automatic operations (e.g., fetching new models from providers) to be completely invisible to the user — no CMD/console windows or technical processes popping up; things should just happen automatically and hidden ("User does not need to see anything"). Confidence: 0.9
+- Wants agent failures and silent turns surfaced with plain-language explanations plus a clear one-click recovery action (e.g., "Continue"), with the raw technical error still visible in smaller text rather than an opaque dead-end. Confidence: 0.55

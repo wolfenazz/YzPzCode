@@ -250,10 +250,7 @@ pub async fn list_pending_prompts(
     session_id: String,
 ) -> Result<Value, String> {
     manager
-        .quick_command(
-            "pending-prompts",
-            Some(json!({ "sessionId": session_id })),
-        )
+        .quick_command("pending-prompts", Some(json!({ "sessionId": session_id })))
         .await
         .map_err(|e| e.to_string())
 }
@@ -314,7 +311,10 @@ pub async fn refresh_agent_catalogs(
     force: Option<bool>,
 ) -> Result<Value, String> {
     manager
-        .quick_command("refresh-catalogs", Some(json!({ "force": force.unwrap_or(false) })))
+        .quick_command(
+            "refresh-catalogs",
+            Some(json!({ "force": force.unwrap_or(false) })),
+        )
         .await
         .map_err(|e| e.to_string())
 }
@@ -371,7 +371,10 @@ pub async fn get_agent_provider_config_fields(
     provider_id: String,
 ) -> Result<Value, String> {
     manager
-        .quick_command("get-provider-fields", Some(json!({ "providerId": provider_id })))
+        .quick_command(
+            "get-provider-fields",
+            Some(json!({ "providerId": provider_id })),
+        )
         .await
         .map_err(|e| e.to_string())
 }

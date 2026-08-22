@@ -33,6 +33,10 @@ fn is_noise_dir(name: &str) -> bool {
     name == ".git" || NOISE_DIRS.contains(&name)
 }
 
+pub(crate) fn is_noise_dir_pub(name: &str) -> bool {
+    is_noise_dir(name)
+}
+
 pub fn list_directory_entries(dir_path: &str) -> Result<Vec<FileEntry>, String> {
     crate::filesystem::validation::validate_no_path_traversal(dir_path)
         .map_err(|e| e.to_string())?;
@@ -128,11 +132,11 @@ pub fn list_all_files_recursive(dir_path: &str) -> Result<Vec<FileEntry>, String
         .git_global(false)
         .git_exclude(false)
         .filter_entry(|e| {
+            // Quick Open must never enumerate `node_modules` / build output —
+            // it is the hot path that used to scan tens of thousands of
+            // dependency files on every palette open.
             let name = e.file_name().to_string_lossy().to_string();
-            if name == ".git" {
-                return false;
-            }
-            true
+            !is_noise_dir(&name)
         });
 
     for result in builder.build().flatten() {

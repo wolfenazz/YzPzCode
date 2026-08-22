@@ -412,6 +412,12 @@ export const useAgentHost = () => {
       listen<AgentCatalogUpdate>('yzpz-agent:catalog-updated', cb),
     []
   );
+  // Host-level transport status (connected / dropped / reconnecting / restart).
+  const onHostStatus = useCallback(
+    (cb: (event: { payload: AgentHostStatus }) => void): Promise<UnlistenFn> =>
+      listen<AgentHostStatus>('yzpz-agent:host-status', cb),
+    []
+  );
 
   const onOauthAuthUrl = useCallback(
     (cb: (event: { payload: { providerId: string; url: string; instructions?: string } }) => void): Promise<UnlistenFn> =>
@@ -488,5 +494,6 @@ export const useAgentHost = () => {
     onCatalogUpdated,
     onOauthAuthUrl,
     onOauthPrompt,
+    onHostStatus,
   };
 };
