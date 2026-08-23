@@ -210,6 +210,12 @@ YzPzCode also manages and auth-checks these 10 tool CLIs:
 
 </div>
 
+<div align="center">
+<br>
+<img src="docs/capture/banner1%20(5).png" width="100%" style="border-radius:8px" alt="Start fast. Stay in flow"/>
+<br>
+</div>
+
 ---
 
 ## - In-App Browser & Visual Design Tools
@@ -229,6 +235,14 @@ Built directly into the workspace — no more switching windows for web developm
 - **Apply Mode**: Apply captured styles to target elements with undo support and CSS class generation
 - **Quick Prompts**: One-click preset prompt chips (Enhance / Adjust groups) that pre-fill the instruction editor — fully customizable and resettable from Settings → Quick Prompts
 
+<div align="center">
+<br>
+<img src="docs/capture/Capture5new.jpg" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Capture6new.jpg" width="48%" style="border-radius:8px"/>
+<br><br>
+<i>The browser and the inspector — living right inside your workspace.</i>
+</div>
+
 ---
 
 ## - AI Designer
@@ -245,11 +259,23 @@ Generate complete UI designs from natural language prompts:
 - **Design History**: Browse and restore previous design iterations
 - **Skills Management**: Manage prompt engineering skills for better results
 
+<div align="center">
+<br>
+<img src="docs/capture/banner1%20(3).png" width="100%" style="border-radius:8px" alt="Meet YZPZ Agent"/>
+<br>
+</div>
+
 ---
 
 ## - YZPZ Agent (Built-In AI Agent)
 
 YzPzCode now ships with its own AI coding agent — no external CLI required:
+
+<div align="center">
+<img src="docs/capture/Capture3new.PNG.jpg" width="80%" style="border-radius:8px"/>
+<br><br>
+<i>Chat-driven coding with full project context.</i>
+</div>
 
 - **Agent View**: A dedicated workspace view for chat-driven coding sessions, alongside the terminal, editor, and browser views
 - **Local agent harness**: A Node.js sidecar harness (bundled with the app, started and supervised automatically by the Rust host) runs the agent engine
@@ -521,6 +547,12 @@ app/
 ├── agent-harness/                  # Node.js sidecar running the bundled agent harness
 └── docs/                           # Documentation
 ```
+
+<div align="center">
+<br>
+<img src="docs/capture/banner1%20(2).png" width="100%" style="border-radius:8px" alt="One app. Many workflows"/>
+<br>
+</div>
 
 ---
 
