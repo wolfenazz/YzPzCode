@@ -51,17 +51,20 @@
 
 </div>
 
+<div align="center">
+<br>
+<img src="docs/capture/banner1%20(1).png" width="100%" style="border-radius:8px" alt="YzPzCode — Your AI Coding Squad, One Window Away"/>
+<br>
+</div>
+
 ---
 
 ## - See It In Action
 
 <div align="center">
 
-<img src="docs/capture/Capture1.PNG" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/Capture2.PNG" width="48%" style="border-radius:8px"/>
-<br><br>
-<img src="docs/capture/Capture3.PNG" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/Capture4.PNG" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Caoture1New.png" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Capture4new.jpg" width="48%" style="border-radius:8px"/>
 
 <br><br>
 <i>Clean. Fast. Powerful.</i>
@@ -70,6 +73,9 @@
 
 <br>
 
+[![Video Demo](docs/capture/Capture2New.PNG)](docs/capture/MomentsDesktopclipfromApr132026.mp4)
+
+<p align="center"><i>Watch YzPzCode in action - Video demo</i></p>
 
 </div>
 
@@ -121,6 +127,12 @@
 <td><b>Image View</b><br><sub>Open PNG, JPG, WebP, SVG, GIF, BMP, AVIF & TIFF files right in the workspace.</sub></td>
 </tr>
 </table>
+
+<div align="center">
+<br>
+<img src="docs/capture/banner1%20(4).png" width="100%" style="border-radius:8px" alt="Run your favorite AI coding tools side by side"/>
+<br>
+</div>
 
 ---
 
