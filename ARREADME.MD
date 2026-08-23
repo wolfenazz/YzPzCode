@@ -32,10 +32,10 @@
 
 <div align="center">
 
-<img src="docs/capture/Capture1.PNG" width="45%"/>
-<img src="docs/capture/Capture2.PNG" width="45%"/>
-<img src="docs/capture/Capture3.PNG" width="45%"/>
-<img src="docs/capture/Capture4.PNG" width="45%"/>
+<img src="docs/capture/Caoture1New.png" width="45%"/>
+<img src="docs/capture/Capture2New.PNG" width="45%"/>
+<img src="docs/capture/Capture3new.PNG.jpg" width="45%"/>
+<img src="docs/capture/Capture4new.jpg" width="45%"/>
 
 *نعم، بهذه النظافة.*
 
