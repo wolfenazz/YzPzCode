@@ -1,6 +1,6 @@
 # Taste
 - Wants issues fixed completely from the root cause, not patched superficially; explicitly asks agents not to overthink or complicate ("fix this issue from its roots completely. Don't overthink or complicate the issue."). Confidence: 0.8
-- Communicates in short, direct, action-oriented messages ("do it", "continue", "go ahead", "start the implementation now") and expects immediate execution without lengthy ceremony. Confidence: 0.85
+- Communicates in short, direct, action-oriented messages ("do it", "continue", "go ahead", "start the implementation now") and expects immediate execution without lengthy ceremony. Confidence: 0.9
 - Expects agents to consult and apply the user's installed skills when a task matches (e.g., design-taste-frontend, framer-motion-animator, "UIUX Max Pro") rather than improvising from scratch. Confidence: 0.6
 - Prefers features to be optional/toggleable when they are not wanted in every workflow (e.g., a pick-UI-element mode that can be enabled/disabled; an option to run dev/build in an external cmd). Confidence: 0.6
 - Wants the app version number bumped as part of each release of work ("update the version of the app"; "Make sure to update the application to a new version."). Confidence: 0.8

@@ -1,11 +1,13 @@
 mod agentmail;
 mod claude;
+mod cline;
 mod codex;
 mod commandcode;
 mod cursor;
 mod elevenlabs;
 mod gemini;
 mod gh;
+mod grok;
 mod gws;
 mod hermes;
 mod kilo;
@@ -20,12 +22,14 @@ mod vercel;
 
 pub use agentmail::AgentmailCliProvider;
 pub use claude::ClaudeCliProvider;
+pub use cline::ClineCliProvider;
 pub use codex::CodexCliProvider;
 pub use commandcode::CommandCodeCliProvider;
 pub use cursor::CursorCliProvider;
 pub use elevenlabs::ElevenlabsCliProvider;
 pub use gemini::GeminiCliProvider;
 pub use gh::GhCliProvider;
+pub use grok::GrokCliProvider;
 pub use gws::GwsCliProvider;
 pub use hermes::HermesCliProvider;
 pub use kilo::KiloCliProvider;

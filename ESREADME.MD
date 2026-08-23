@@ -62,6 +62,18 @@
 <br><br>
 <img src="docs/capture/Capture3new.PNG.jpg" width="48%" style="border-radius:8px"/>
 <img src="docs/capture/Capture4new.jpg" width="48%" style="border-radius:8px"/>
+<br><br>
+<img src="docs/capture/Capture5new.jpg" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Capture6new.jpg" width="48%" style="border-radius:8px"/>
+
+<br><br>
+<img src="docs/capture/banner1%20(1).png" width="100%" style="border-radius:8px"/>
+<br><br>
+<img src="docs/capture/banner1%20(2).png" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/banner1%20(3).png" width="48%" style="border-radius:8px"/>
+<br><br>
+<img src="docs/capture/banner1%20(4).png" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/banner1%20(5).png" width="100%" style="border-radius:8px"/>
 
 <br><br>
 <i>Limpio. Rápido. Potente.</i>

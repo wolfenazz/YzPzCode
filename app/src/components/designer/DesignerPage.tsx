@@ -123,6 +123,8 @@ const AGENT_OPTIONS: Array<{ id: AgentType; label: string }> = [
   { id: 'hermes', label: 'Hermes' },
   { id: 'pi', label: 'Pi' },
   { id: 'commandcode', label: 'Command Code' },
+  { id: 'cline', label: 'Cline' },
+  { id: 'grok', label: 'Grok' },
 ];
 
 const PAGE_TYPE_BY_CATEGORY: Record<string, DesignerPageType> = {

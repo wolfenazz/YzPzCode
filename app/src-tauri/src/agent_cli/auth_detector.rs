@@ -37,6 +37,8 @@ impl AuthDetector {
             AgentType::Hermes => Self::check_hermes_auth(),
             AgentType::Pi => Self::check_pi_auth(),
             AgentType::CommandCode => Self::check_commandcode_auth(),
+            AgentType::Cline => Self::check_cline_auth(),
+            AgentType::Grok => Self::check_grok_auth(),
             AgentType::Gh => Self::check_gh_auth(),
             AgentType::Stripe => Self::check_stripe_auth(),
             AgentType::Supabase => Self::check_supabase_auth(),
@@ -61,6 +63,8 @@ impl AuthDetector {
             AgentType::Hermes,
             AgentType::Pi,
             AgentType::CommandCode,
+            AgentType::Cline,
+            AgentType::Grok,
         ]
         .iter()
         .map(|agent| Self::check_auth(*agent))
@@ -700,6 +704,51 @@ impl AuthDetector {
         }
     }
 
+    fn check_grok_auth() -> AuthInfo {
+        // `grok login` stores credentials under ~/.grok (config.toml, auth state).
+        if let Some(home) = Self::get_home_dir() {
+            let config_path = home.join(".grok");
+            if config_path.exists() {
+                let auth_file = config_path.join("auth.json");
+                if auth_file.exists() {
+                    return AuthInfo {
+                        agent: AgentType::Grok,
+                        status: AuthStatus::Authenticated,
+                        error: None,
+                        config_path: Some(config_path.to_string_lossy().to_string()),
+                    };
+                }
+            }
+        }
+        AuthInfo {
+            agent: AgentType::Grok,
+            status: AuthStatus::NotAuthenticated,
+            error: None,
+            config_path: None,
+        }
+    }
+
+    fn check_cline_auth() -> AuthInfo {
+        // Cline persists credentials under ~/.cline (settings.json / auth state).
+        if let Some(home) = Self::get_home_dir() {
+            let config_path = home.join(".cline");
+            if config_path.exists() {
+                return AuthInfo {
+                    agent: AgentType::Cline,
+                    status: AuthStatus::Authenticated,
+                    error: None,
+                    config_path: Some(config_path.to_string_lossy().to_string()),
+                };
+            }
+        }
+        AuthInfo {
+            agent: AgentType::Cline,
+            status: AuthStatus::NotAuthenticated,
+            error: None,
+            config_path: None,
+        }
+    }
+
     fn get_home_dir() -> Option<PathBuf> {
         #[cfg(target_os = "windows")]
         {
@@ -757,6 +806,17 @@ impl AuthDetector {
                 "Or create an API key in the Command Code Studio and paste it into the login prompt"
                     .to_string(),
                 "Credentials are stored in ~/.commandcode/auth.json".to_string(),
+            ],
+            AgentType::Grok => vec![
+                "Run 'grok login' in a terminal".to_string(),
+                "Or set XAI_API_KEY environment variable".to_string(),
+                "Credentials are stored in ~/.grok".to_string(),
+            ],
+            AgentType::Cline => vec![
+                "Run 'cline' and sign in to configure your provider".to_string(),
+                "Or set your provider's API key (e.g. ANTHROPIC_API_KEY, OPENAI_API_KEY)"
+                    .to_string(),
+                "Credentials are stored in ~/.cline".to_string(),
             ],
             AgentType::Gh => vec![
                 "Run 'gh auth login' in a terminal".to_string(),

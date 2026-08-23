@@ -11,6 +11,8 @@ import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
+import clineLogo from '../../assets/cline.webp';
+import grokLogo from '../../assets/Grok.png';
 
 interface AgentOption {
   type: AgentType;
@@ -30,6 +32,8 @@ const AGENT_OPTIONS: AgentOption[] = [
   { type: 'hermes', label: 'Hermes Agent', description: 'NousResearch Autonomous Agent', logo: hermesLogo, color: '#F59E0B' },
   { type: 'pi', label: 'Pi Agent', description: 'Minimal Terminal Coding Harness', logo: piLogo, color: '#FFFFFF' },
   { type: 'commandcode', label: 'Command Code', description: 'Taste-Aware Coding Agent', logo: commandCodeLogo, color: '#FFFFFF' },
+  { type: 'cline', label: 'Cline CLI', description: 'Agentic TUI with headless automation', logo: clineLogo, color: '#0EA5E9' },
+  { type: 'grok', label: 'Grok CLI', description: 'xAI Agentic Coding Assistant', logo: grokLogo, color: '#A1A1AA' },
 ];
 
 const AGENT_CAPABILITIES: Record<AgentType, string> = {
@@ -42,6 +46,8 @@ const AGENT_CAPABILITIES: Record<AgentType, string> = {
   hermes: 'NousResearch autonomous AI agent with tool use, messaging integration, and browser automation.',
   pi: 'Minimal terminal coding harness with TypeScript extensions, skills, prompt templates, and pi packages. Supports Claude, OpenAI, Gemini, and 20+ providers.',
   commandcode: 'Agentic coding CLI that learns your preferences (package managers, libraries, structure) into a taste profile applied across all sessions.',
+  cline: 'Agentic coding CLI with an interactive TUI and headless automation. Supports multiple model providers.',
+  grok: 'xAI\'s agentic coding assistant. Interactive shell, headless single-prompt mode, streaming JSON output, and ACP for IDE/tool integration.',
 };
 
 const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; icon: string; color: string }[] = [

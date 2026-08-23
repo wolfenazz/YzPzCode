@@ -36,6 +36,14 @@ Bunu hayal edin: Kod yazıyorsunuz. Claude'dan eski bir kodu açıklamasını, G
 <img src="docs/capture/Capture2New.PNG" width="45%"/>
 <img src="docs/capture/Capture3new.PNG.jpg" width="45%"/>
 <img src="docs/capture/Capture4new.jpg" width="45%"/>
+<img src="docs/capture/Capture5new.jpg" width="45%"/>
+<img src="docs/capture/Capture6new.jpg" width="45%"/>
+<br><br>
+<img src="docs/capture/banner1%20(1).png" width="100%"/>
+<img src="docs/capture/banner1%20(2).png" width="45%"/>
+<img src="docs/capture/banner1%20(3).png" width="45%"/>
+<img src="docs/capture/banner1%20(4).png" width="45%"/>
+<img src="docs/capture/banner1%20(5).png" width="100%"/>
 
 *Evet, bu kadar temiz.*
 

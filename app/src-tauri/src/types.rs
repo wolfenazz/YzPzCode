@@ -12,6 +12,8 @@ pub enum AgentType {
     Hermes,
     Pi,
     CommandCode,
+    Cline,
+    Grok,
     Gh,
     Stripe,
     Supabase,

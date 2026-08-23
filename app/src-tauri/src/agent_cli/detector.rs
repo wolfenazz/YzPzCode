@@ -105,6 +105,8 @@ impl AgentCliDetector {
             AgentType::Hermes,
             AgentType::Pi,
             AgentType::CommandCode,
+            AgentType::Cline,
+            AgentType::Grok,
         ];
         agents
             .iter()

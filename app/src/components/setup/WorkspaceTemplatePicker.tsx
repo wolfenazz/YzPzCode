@@ -53,6 +53,8 @@ const AGENT_LABELS: Record<AgentType, string> = {
   hermes: 'Hermes',
   pi: 'Pi',
   commandcode: 'Command Code',
+  cline: 'Cline',
+  grok: 'Grok',
 };
 
 const AGENT_COLORS: Record<AgentType, string> = {
@@ -65,10 +67,12 @@ const AGENT_COLORS: Record<AgentType, string> = {
   hermes: '#F59E0B',
   pi: '#E5E7EB',
   commandcode: '#D4D4D8',
+  cline: '#0EA5E9',
+  grok: '#A1A1AA',
 };
 
 const EMPTY_ALLOCATION: Record<CliType, number> = {
-  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, commandcode: 0,
+  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, commandcode: 0, cline: 0, grok: 0,
   gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0,
 };
 
