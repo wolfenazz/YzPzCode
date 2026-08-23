@@ -69,6 +69,7 @@ impl PrerequisitesChecker {
                         "Kilo CLI".to_string(),
                         "Pi Agent".to_string(),
                         "Command Code".to_string(),
+                        "Cline CLI".to_string(),
                     ],
                 }
             }
@@ -105,6 +106,7 @@ impl PrerequisitesChecker {
                         "Kilo CLI".to_string(),
                         "Pi Agent".to_string(),
                         "Command Code".to_string(),
+                        "Cline CLI".to_string(),
                     ],
                 }
             }
@@ -139,6 +141,7 @@ impl PrerequisitesChecker {
                         "Hermes Agent".to_string(),
                         "Pi Agent".to_string(),
                         "Command Code".to_string(),
+                        "Cline CLI".to_string(),
                     ],
                 }
             }
