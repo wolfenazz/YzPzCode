@@ -9,6 +9,7 @@ import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
+import grokLogo from '../../assets/Grok.png';
 import yzpzLogo from '../../assets/YzPzCodeLogo.png';
 
 export interface AgentTargetOption {
@@ -28,6 +29,7 @@ const AGENT_LOGO: Record<string, string> = {
   kilo: kiloLogo,
   hermes: hermesLogo,
   pi: piLogo,
+  grok: grokLogo,
 };
 
 const optionLogo = (option: AgentTargetOption): string | null => {

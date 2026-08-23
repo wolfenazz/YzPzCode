@@ -220,4 +220,17 @@ export const AGENT_COMMANDS: Record<AgentType, AgentCommand[]> = {
     { command: '/hotkeys', description: 'Show keyboard shortcuts' },
     { command: '/help', description: 'Show help' },
   ],
+  cline: [
+    { command: '/new', description: 'Start a new session' },
+    { command: '/clear', description: 'Clear the conversation' },
+    { command: '/model', description: 'Switch model' },
+    { command: '/help', description: 'Show help' },
+  ],
+  grok: [
+    { command: '/new', description: 'Start a new session' },
+    { command: '/clear', description: 'Clear the conversation' },
+    { command: '/model', description: 'Switch model' },
+    { command: '/sessions', description: 'List and resume sessions' },
+    { command: '/help', description: 'Show help' },
+  ],
 };

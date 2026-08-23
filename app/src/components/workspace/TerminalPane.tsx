@@ -93,6 +93,7 @@ const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
   hermes: '/new',
   pi: '/new',
   claude: '/clear',
+  grok: '/new',
 };
 
 const buildMouseModeSequence = (modes: Iterable<number>, operation: 'h' | 'l'): string =>
@@ -129,6 +130,8 @@ const AGENT_BINARY_NAMES: Record<string, AgentType> = {
   // session as Command Code.
   cmdc: 'commandcode',
   'command-code': 'commandcode',
+  cline: 'cline',
+  grok: 'grok',
 };
 
 const LAUNCHER_TOKENS = new Set(['npx', 'npx.cmd', 'npx.exe', 'bunx', 'bunx.cmd', 'bunx.exe', 'sudo', 'yarn', 'npm', 'pnpm']);
@@ -1206,7 +1209,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleRetryInstall = async () => {
     if (!session.agent) return;
-    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode'];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok'];
     if (!agentTypes.includes(session.agent as AgentType)) return;
     setInstalling(true);
     await installCli(session.agent as AgentType);

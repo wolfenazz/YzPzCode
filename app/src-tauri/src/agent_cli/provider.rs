@@ -50,8 +50,8 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AgentmailCliProvider, ClaudeCliProvider, ClineCliProvider, CodexCliProvider,
         CommandCodeCliProvider, CursorCliProvider, ElevenlabsCliProvider, GeminiCliProvider,
         GhCliProvider, GrokCliProvider, GwsCliProvider, HermesCliProvider, KiloCliProvider,
-        OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider,
-        StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
+        OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider, StripeCliProvider,
+        SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
     match agent {
         AgentType::Claude => Box::new(ClaudeCliProvider),

@@ -15,6 +15,8 @@ import kiloLogo from '../../../assets/kiloCode.gif';
 import hermesLogo from '../../../assets/Hermes-logo.png';
 import piLogo from '../../../assets/pi.svg';
 import commandCodeLogo from '../../../assets/commandcode-logo.svg';
+import clineLogo from '../../../assets/cline.webp';
+import grokLogo from '../../../assets/Grok.png';
 
 const AGENT_ICONS: Record<string, string> = {
   claude: claudeLogo,
@@ -26,6 +28,8 @@ const AGENT_ICONS: Record<string, string> = {
   hermes: hermesLogo,
   pi: piLogo,
   commandcode: commandCodeLogo,
+  cline: clineLogo,
+  grok: grokLogo,
 };
 
 const TOOL_ICONS: Record<ToolCliType, string> = {

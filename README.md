@@ -57,23 +57,11 @@
 
 <div align="center">
 
-<img src="docs/capture/Caoture1New.png" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/Capture2New.PNG" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Capture1.PNG" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Capture2.PNG" width="48%" style="border-radius:8px"/>
 <br><br>
-<img src="docs/capture/Capture3new.PNG.jpg" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/Capture4new.jpg" width="48%" style="border-radius:8px"/>
-<br><br>
-<img src="docs/capture/Capture5new.jpg" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/Capture6new.jpg" width="48%" style="border-radius:8px"/>
-
-<br><br>
-<img src="docs/capture/banner1%20(1).png" width="100%" style="border-radius:8px"/>
-<br><br>
-<img src="docs/capture/banner1%20(2).png" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/banner1%20(3).png" width="48%" style="border-radius:8px"/>
-<br><br>
-<img src="docs/capture/banner1%20(4).png" width="48%" style="border-radius:8px"/>
-<img src="docs/capture/banner1%20(5).png" width="100%" style="border-radius:8px"/>
+<img src="docs/capture/Capture3.PNG" width="48%" style="border-radius:8px"/>
+<img src="docs/capture/Capture4.PNG" width="48%" style="border-radius:8px"/>
 
 <br><br>
 <i>Clean. Fast. Powerful.</i>
@@ -82,9 +70,6 @@
 
 <br>
 
-[![Video Demo](docs/capture/Caoture1New.png)](docs/capture/MomentsDesktopclipfromApr132026.mp4)
-
-<p align="center"><i>Watch YzPzCode in action - Video demo</i></p>
 
 </div>
 
