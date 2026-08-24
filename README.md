@@ -1,4 +1,4 @@
-<div align="center">
+
 <img src="app/src/assets/YzPzCodeLogo.png" alt="YzPzCode Logo" width="120" />
 
 YzPzCode
