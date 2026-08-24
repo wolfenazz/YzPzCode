@@ -4,7 +4,7 @@
 
 <h1>YzPzCode</h1>
 
-<p><strong>Your AI Coding Squad, One Window Away.</strong></p>
+<p><strong>Run Claude, Gemini, Codex, OpenCode, Cursor and more - together in one native developer workspace..</strong></p>
 
 <p><i>Stop juggling 5 different terminals.<br>YzPzCode brings Claude, Gemini, Codex, Opencode, Cursor, Kilo, Hermes, Pi, and Command Code together in one clean interface —<br>plus 10 SaaS tool CLIs, an in-app browser with visual design inspector, an AI-powered designer,<br>and a Photoshop-style built-in image editor — plus a built-in AI coding agent (YZPZ Agent), running on a local agent harness.</i></p>
 
