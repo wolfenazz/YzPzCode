@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession, AgentFleet, CliType } from '../types';
 import { useAppStore } from '../stores/appStore';
+import { activeAgentAllocation, humanizeAgentVariantMismatch } from '../utils/agentAllocation';
 
 interface CreateSessionsParams {
   workspaceId: string;
@@ -31,7 +32,7 @@ export const useTerminal = () => {
           count: params.count,
           agentFleet: {
             totalSlots: params.agentFleet.totalSlots,
-            allocation: params.agentFleet.allocation,
+            allocation: activeAgentAllocation(params.agentFleet.allocation),
           },
         },
       });
@@ -39,10 +40,11 @@ export const useTerminal = () => {
       setSessions(newSessions);
       return newSessions;
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      const variantMismatch = humanizeAgentVariantMismatch(err);
+      const errorMsg = variantMismatch?.message ?? (err instanceof Error ? err.message : String(err));
       console.error('Failed to create terminal sessions:', err);
       setTerminalError(errorMsg);
-      throw err;
+      throw variantMismatch ?? err;
     } finally {
       setIsLoading(false);
     }

@@ -680,6 +680,20 @@ impl AuthDetector {
     }
 
     fn check_commandcode_auth() -> AuthInfo {
+        for env_name in ["COMMAND_CODE_API_KEY", "COMMANDCODE_API_KEY", "CMD_API_KEY"] {
+            if std::env::var(env_name)
+                .ok()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                return AuthInfo {
+                    agent: AgentType::CommandCode,
+                    status: AuthStatus::Authenticated,
+                    error: None,
+                    config_path: Some(format!("environment variable {env_name}")),
+                };
+            }
+        }
+
         // `cmd login` / `cmdc login` stores the API key in
         // ~/.commandcode/auth.json (see the Command Code quickstart).
         if let Some(home) = Self::get_home_dir() {
@@ -705,7 +719,19 @@ impl AuthDetector {
     }
 
     fn check_grok_auth() -> AuthInfo {
-        // `grok login` stores credentials under ~/.grok (config.toml, auth state).
+        if env::var("XAI_API_KEY")
+            .ok()
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            return AuthInfo {
+                agent: AgentType::Grok,
+                status: AuthStatus::Authenticated,
+                error: None,
+                config_path: Some("environment variable XAI_API_KEY".to_string()),
+            };
+        }
+
+        // `grok login` stores credentials under ~/.grok/auth.json.
         if let Some(home) = Self::get_home_dir() {
             let config_path = home.join(".grok");
             if config_path.exists() {

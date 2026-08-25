@@ -18,7 +18,6 @@ import {
   Devices,
   Export,
   EyedropperSample,
-  GlobeSimple,
   Hand,
   IconContext,
   LinkSimple,
@@ -60,6 +59,7 @@ import { useBrowserAutoReload } from '../../hooks/useBrowserAutoReload';
 import { useTerminal } from '../../hooks/useTerminal';
 import { useAgentHost } from '../../hooks/useAgentHost';
 import { htmlToPlainText } from '../../utils/richText';
+import { formatElementPrompt } from '../../utils/inspectorPrompt';
 import { BrowserTabBar } from './BrowserTabBar';
 import { StyleClipboardPanel } from './StyleClipboardPanel';
 import { UiReferenceClipboardPanel } from './UiReferenceClipboardPanel';
@@ -154,40 +154,6 @@ const getNextZoom = (current: number, direction: -1 | 1): number => {
     ? ZOOM_STEPS.find((value) => value > current)
     : [...ZOOM_STEPS].reverse().find((value) => value < current);
   return fallback ?? current;
-};
-
-const formatElementPrompt = (
-  element: BrowserSelectedElement,
-  prompt: string,
-  deviceLabel: string,
-  zoomFactor: number,
-): string => {
-  const attributeEntries = Object.entries(element.attributes)
-    .slice(0, 12)
-    .map(([key, value]) => `${key}="${value}"`);
-
-  return [
-    `UI edit request for the running local app.`,
-    '',
-    `Selected element context:`,
-    `- Page URL: ${element.pageUrl}`,
-    `- Page title: ${element.pageTitle || 'Untitled page'}`,
-    `- Preview mode: ${deviceLabel} @ ${Math.round(zoomFactor * 100)}% zoom`,
-    `- Viewport: ${element.viewport.width} x ${element.viewport.height}`,
-    `- Tag: <${element.tagName}>`,
-    `- ID: ${element.id || 'none'}`,
-    `- Class: ${element.className || 'none'}`,
-    `- Selectors: ${element.selectors.join(' | ')}`,
-    `- Bounds: x=${element.rect.x}, y=${element.rect.y}, width=${element.rect.width}, height=${element.rect.height}`,
-    `- Text content: ${element.textContent || 'none'}`,
-    `- Attributes: ${attributeEntries.length > 0 ? attributeEntries.join(', ') : 'none'}`,
-    `- HTML snippet: ${element.htmlSnippet}`,
-    '',
-    `User request:`,
-    prompt.trim(),
-    '',
-    `Please inspect this workspace, identify the component or markup responsible for this exact UI element, apply the requested change, and then explain the edit you made.`,
-  ].join('\n');
 };
 
 const formatUiReferencePrompt = (
@@ -1302,10 +1268,25 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
         <header className="browser-chrome shrink-0 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]">
           {/* Title Row */}
           <div className="browser-commandbar flex items-center gap-2 px-3 py-2">
-            <div className="browser-identity flex shrink-0 items-center gap-2 pr-2">
-              <span className={`browser-identity__signal ${effectiveState.isLoading ? 'is-loading' : ''}`} aria-hidden="true" />
-              <GlobeSimple size={15} className="text-[var(--text-secondary)]" aria-hidden="true" />
-              <span className="select-none text-[12px] font-medium text-[var(--text-primary)]">Browser</span>
+            {/* Navigation */}
+            <div className="browser-button-group" role="group" aria-label="Page navigation">
+              <button
+                onClick={() => void handleGoBack()}
+                disabled={historyLength <= 1}
+                title="Back"
+                aria-label="Go back"
+                className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)] disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <CaretLeft size={15} aria-hidden="true" />
+              </button>
+              <button
+                onClick={() => void handleGoForward()}
+                title="Forward"
+                aria-label="Go forward"
+                className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
+              >
+                <CaretRight size={15} aria-hidden="true" />
+              </button>
             </div>
 
             {/* URL Input */}
@@ -1372,25 +1353,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
               <span className="browser-tool-separator mx-0.5 h-5 w-px bg-[var(--border-primary)]" aria-hidden="true" />
 
-              {/* Navigation */}
-              <div className="browser-button-group" role="group" aria-label="Page navigation">
-              <button
-                onClick={() => void handleGoBack()}
-                disabled={historyLength <= 1}
-                title="Back"
-                aria-label="Go back"
-                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)] disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <CaretLeft size={15} aria-hidden="true" />
-              </button>
-              <button
-                onClick={() => void handleGoForward()}
-                title="Forward"
-                aria-label="Go forward"
-                 className="browser-action app-icon-button h-7 w-7 rounded-md border border-[var(--border-primary)]"
-              >
-                <CaretRight size={15} aria-hidden="true" />
-              </button>
               <button
                 onClick={() => void handleReload()}
                 title="Reload"
@@ -1436,7 +1398,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               >
                 <Export size={15} aria-hidden="true" />
               </button>
-              </div>
 
               <span className="browser-tool-separator h-5 w-px bg-[var(--border-primary)] mx-0.5" aria-hidden="true" />
 
@@ -2144,6 +2105,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               targetSessionId={effectiveState.targetSessionId}
               sessionOptions={sessionOptions}
               isSubmitting={isSubmitting}
+              deviceLabel={activeDevice.label}
+              zoomFactor={effectiveState.zoomFactor}
               initialHtml={effectiveState.instructionSlots[effectiveState.activeInstructionSlot] ?? ''}
               instructionSlots={effectiveState.instructionSlots}
               activeInstructionSlot={effectiveState.activeInstructionSlot}

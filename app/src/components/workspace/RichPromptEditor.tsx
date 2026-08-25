@@ -217,10 +217,10 @@ export const RichPromptEditor = memo(function RichPromptEditor({
             aria-pressed={isActive}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => handleAction(action)}
-            className={`flex h-6 w-6 items-center justify-center rounded-[2px] transition-colors cursor-pointer ${
+            className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors cursor-pointer ${
               isActive
-                ? 'bg-zinc-800 text-emerald-300'
-                : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-100'
+                ? 'bg-[var(--accent-light)] text-[var(--accent-text)]'
+                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]'
             }`}
           >
             <action.icon weight="regular" className="h-3.5 w-3.5" aria-hidden="true" />
@@ -232,7 +232,7 @@ export const RichPromptEditor = memo(function RichPromptEditor({
 
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap items-center gap-px border border-b-0 border-zinc-800 bg-zinc-900 px-1.5 py-1 select-none">
+      <div className="flex flex-wrap items-center gap-px rounded-t-lg border border-b-0 border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-1.5 py-1 select-none">
         {toolbarButtons}
       </div>
       <div
@@ -248,7 +248,7 @@ export const RichPromptEditor = memo(function RichPromptEditor({
         onPaste={handlePaste}
         onKeyUp={refreshState}
         onMouseUp={refreshState}
-        className="rich-prompt-editor min-h-[96px] max-h-[240px] w-full resize-y overflow-auto border border-zinc-800 bg-zinc-900/70 px-3 py-2.5 font-mono text-[11px] leading-5 text-zinc-200 outline-none whitespace-pre-wrap break-words transition-colors focus:border-zinc-600"
+        className="rich-prompt-editor min-h-[96px] max-h-[240px] w-full resize-y overflow-auto rounded-b-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/60 px-3 py-2.5 font-mono text-[11px] leading-5 text-[var(--text-primary)] outline-none whitespace-pre-wrap break-words transition-colors focus:border-[var(--accent-border)]"
       />
     </div>
   );

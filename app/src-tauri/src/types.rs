@@ -237,3 +237,31 @@ pub fn get_default_shell() -> String {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{AgentType, CreateSessionsRequest};
+
+    #[test]
+    fn create_sessions_request_accepts_current_agent_variants() {
+        let request: CreateSessionsRequest = serde_json::from_value(serde_json::json!({
+            "workspaceId": "workspace-test",
+            "workspacePath": "C:/workspace",
+            "count": 3,
+            "agentFleet": {
+                "totalSlots": 3,
+                "allocation": {
+                    "commandcode": 1,
+                    "cline": 1,
+                    "grok": 1
+                }
+            },
+            "shell": null
+        }))
+        .expect("current frontend agent variants must deserialize");
+
+        assert_eq!(request.agent_fleet.allocation[&AgentType::CommandCode], 1);
+        assert_eq!(request.agent_fleet.allocation[&AgentType::Cline], 1);
+        assert_eq!(request.agent_fleet.allocation[&AgentType::Grok], 1);
+    }
+}

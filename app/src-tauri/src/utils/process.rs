@@ -249,6 +249,7 @@ impl ProcessRunner {
 
         if let Ok(home) = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")) {
             paths.push(format!(r"{}\.claude\bin", home));
+            paths.push(format!(r"{}\.grok\bin", home));
             paths.push(format!(r"{}\.local\bin", home));
             paths.push(format!(r"{}\bin", home));
             paths.push(format!(r"{}\.npm-global\bin", home));
@@ -295,6 +296,7 @@ impl ProcessRunner {
 
         if let Ok(home) = std::env::var("HOME") {
             paths.push(format!("{}/.claude/bin", home));
+            paths.push(format!("{}/.grok/bin", home));
             paths.push(format!("{}/.local/bin", home));
             paths.push(format!("{}/bin", home));
             paths.push(format!("{}/.npm-global/bin", home));
@@ -330,6 +332,7 @@ impl ProcessRunner {
 
         if let Ok(home) = std::env::var("HOME") {
             paths.push(format!("{}/.claude/bin", home));
+            paths.push(format!("{}/.grok/bin", home));
             paths.push(format!("{}/.local/bin", home));
             paths.push(format!("{}/bin", home));
             paths.push(format!("{}/.npm-global/bin", home));

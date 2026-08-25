@@ -3,19 +3,38 @@ import type { ClientMessage, ServerMessage } from "./protocol.js";
 import { AgentHarness } from "./harness.js";
 import type { ProviderConfigStore } from "./store.js";
 import type { CatalogSync } from "./catalog-sync.js";
+import {
+  COMMAND_CODE_ANTHROPIC_PROVIDER_ID,
+  COMMAND_CODE_PROVIDER_ID,
+  hasCommandCodeApiKey,
+  refreshCommandCodeModels,
+} from "./command-code-provider.js";
 
 type CommandHandler = (args: Record<string, unknown>) => Promise<unknown>;
 
 /** Credentials stay in the harness process. The renderer only needs to know
  * whether a provider has a saved key/oauth session in order to present
  * connection controls — never the secret values themselves. */
-const toSafeProviderConfigs = (configs: ReturnType<ProviderConfigStore["list"]>) =>
-  configs.map(({ apiKey, oauth, ...config }) => ({
+const toSafeProviderConfigs = (configs: ReturnType<ProviderConfigStore["list"]>) => {
+  const safe = configs.map(({ apiKey, oauth, ...config }) => ({
     ...config,
     hasApiKey: Boolean(apiKey),
     hasOAuth: Boolean(oauth),
     oauthEmail: oauth?.email ?? null,
   }));
+  const commandCodeIds = [COMMAND_CODE_PROVIDER_ID, COMMAND_CODE_ANTHROPIC_PROVIDER_ID];
+  const sharedKeyAvailable =
+    hasCommandCodeApiKey() ||
+    safe.some((config) => commandCodeIds.includes(config.providerId) && config.hasApiKey);
+  if (sharedKeyAvailable) {
+    for (const providerId of commandCodeIds) {
+      const existing = safe.find((config) => config.providerId === providerId);
+      if (existing) existing.hasApiKey = true;
+      else safe.push({ providerId, hasApiKey: true, hasOAuth: false, oauthEmail: null });
+    }
+  }
+  return safe;
+};
 
 export class AgentServer {
   private wss: WebSocketServer;
@@ -238,7 +257,12 @@ export class AgentServer {
       },
       "refresh-catalogs": async (args) => {
         if (!this.catalogSync) throw new Error("catalog sync unavailable");
-        return this.catalogSync.sync({ force: args.force === true });
+        const force = args.force === true;
+        const [result] = await Promise.all([
+          this.catalogSync.sync({ force }),
+          refreshCommandCodeModels(force),
+        ]);
+        return result;
       },
       "set-provider-config": async (args) => {
         if (!args.providerId) throw new Error("providerId is required");

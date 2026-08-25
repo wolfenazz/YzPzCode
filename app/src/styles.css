@@ -1090,23 +1090,23 @@ html.has-custom-cursor *::after {
 .rich-prompt-editor:empty::before {
   content: attr(data-placeholder);
   position: absolute;
-  color: #6e6a60;
+  color: color-mix(in srgb, var(--text-secondary) 55%, transparent);
   pointer-events: none;
 }
 
 .rich-prompt-editor code {
-  background: rgba(216, 119, 87, 0.12);
-  border: 1px solid #51504a;
-  border-radius: 2px;
+  background: var(--accent-light);
+  border: 1px solid var(--accent-border);
+  border-radius: 4px;
   padding: 0 0.25em;
   font-size: 0.9em;
 }
 
 .rich-prompt-editor blockquote {
-  border-left: 2px solid #6e6a60;
+  border-left: 2px solid var(--border-primary);
   padding-left: 0.75em;
   margin: 0.25em 0;
-  color: #b7b5a6;
+  color: var(--text-secondary);
 }
 
 .rich-prompt-editor ul,
@@ -1120,7 +1120,7 @@ html.has-custom-cursor *::after {
 }
 
 .rich-prompt-editor a {
-  color: #1b7ede;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }

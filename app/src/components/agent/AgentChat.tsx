@@ -118,8 +118,20 @@ const toolLabel = (name: string): string => {
  */
 const humanizeAgentError = (raw: string): string => {
   const low = raw.toLowerCase();
+  if (low.includes('upgrade_required') || (low.includes('command code') && low.includes('403'))) {
+    return 'Command Code API access is not enabled for this account. Use a GOAT, Pro, Max, Team, or Provider plan, then continue.';
+  }
+  if (low.includes('cmd_zdr_no_providers') || (low.includes('command code') && low.includes('422'))) {
+    return 'This Command Code model is unavailable with zero-data retention. Switch models or disable CMD_ZDR, then continue.';
+  }
+  if (low.includes('unsupported_model') || low.includes('wrong endpoint')) {
+    return 'This model does not match the selected provider endpoint. Refresh models, then use Command Code for non-Claude models or Command Code · Claude for Claude models.';
+  }
+  if (low.includes('unknown or disabled provider')) {
+    return 'The selected provider is visible in the catalog but is not loaded by the running agent engine. Restart YzPzCode to reload the provider runtime, then continue.';
+  }
   if (low.includes('rate') || low.includes('429') || low.includes('too many requests')) {
-    return 'The model provider is temporarily rate-limiting requests. Wait a moment, then continue — your work and conversation are safe.';
+    return 'The model provider is rate-limiting requests or a usage window has been reached. Wait for the window to reset, add credits, or switch models; your work is safe.';
   }
   if (low.includes('unauthorized') || low.includes('401') || low.includes('invalid api key') || low.includes('authentication')) {
     return 'The model provider rejected the connection — likely an expired or invalid API key. Check your provider settings, then continue.';

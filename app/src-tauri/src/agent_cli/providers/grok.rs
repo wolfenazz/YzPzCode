@@ -25,13 +25,20 @@ impl AgentCliProvider for GrokCliProvider {
         "xAI"
     }
 
-    fn get_install_command(&self, _platform: Platform) -> Vec<String> {
-        vec![
-            "npm".to_string(),
-            "install".to_string(),
-            "-g".to_string(),
-            "xai-grok-shell".to_string(),
-        ]
+    fn get_install_command(&self, platform: Platform) -> Vec<String> {
+        match platform {
+            Platform::Windows => vec![
+                "powershell".to_string(),
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                "irm https://x.ai/cli/install.ps1 | iex".to_string(),
+            ],
+            Platform::Macos | Platform::Linux => vec![
+                "bash".to_string(),
+                "-c".to_string(),
+                "curl -fsSL https://x.ai/cli/install.sh | bash".to_string(),
+            ],
+        }
     }
 
     fn get_version_command(&self) -> Vec<String> {
@@ -39,11 +46,13 @@ impl AgentCliProvider for GrokCliProvider {
     }
 
     fn get_docs_url(&self) -> &'static str {
-        "https://docs.x.ai/docs/grok-shell"
+        "https://docs.x.ai/build/overview"
     }
 
     fn get_prerequisites(&self) -> Vec<PrerequisiteType> {
-        vec![PrerequisiteType::NodeJs, PrerequisiteType::Git]
+        // The official installer downloads a native binary; it does not require
+        // Node.js, npm, or Git.
+        vec![]
     }
 
     fn get_icon_path(&self) -> &'static str {
@@ -51,6 +60,40 @@ impl AgentCliProvider for GrokCliProvider {
     }
 
     fn get_npm_package_name(&self) -> Option<&'static str> {
-        Some("xai-grok-shell")
+        Some("@xai-official/grok")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn grok_uses_the_official_windows_installer() {
+        let provider = GrokCliProvider;
+
+        assert_eq!(
+            provider.get_install_command(Platform::Windows),
+            vec![
+                "powershell".to_string(),
+                "-NoProfile".to_string(),
+                "-Command".to_string(),
+                "irm https://x.ai/cli/install.ps1 | iex".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn grok_uses_the_official_unix_installer() {
+        let provider = GrokCliProvider;
+
+        let expected = vec![
+            "bash".to_string(),
+            "-c".to_string(),
+            "curl -fsSL https://x.ai/cli/install.sh | bash".to_string(),
+        ];
+
+        assert_eq!(provider.get_install_command(Platform::Macos), expected);
+        assert_eq!(provider.get_install_command(Platform::Linux), expected);
     }
 }

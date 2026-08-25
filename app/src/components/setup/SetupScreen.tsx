@@ -6,6 +6,7 @@ import { SetupStepper } from './SetupStepper';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
+import { activeAgentAllocation, humanizeAgentVariantMismatch } from '../../utils/agentAllocation';
 import { WorkspaceTab } from '../workspace/WorkspaceTab';
 import { AppFooter } from '../common/AppFooter';
 import { AppChrome } from '../common/AppChrome';
@@ -98,7 +99,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
           request: {
             workspacePath: selectedPath,
             count: selectedLayout.sessions,
-            agentAllocation: agentFleet?.allocation || {},
+            agentAllocation: agentFleet ? activeAgentAllocation(agentFleet.allocation) : {},
           },
         });
         
@@ -126,7 +127,11 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
       }
     } catch (error) {
       console.error('Failed to create workspace:', error);
-      setCreateError(error instanceof Error ? error.message : 'Failed to create workspace. Please try again.');
+      const variantMismatch = humanizeAgentVariantMismatch(error);
+      setCreateError(
+        variantMismatch?.message ??
+          (error instanceof Error ? error.message : 'Failed to create workspace. Please try again.')
+      );
     } finally {
       setIsLaunching(false);
     }

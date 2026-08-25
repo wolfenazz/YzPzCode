@@ -5,6 +5,10 @@ import { ProviderConfigStore } from "./store.js";
 import { AgentHarness } from "./harness.js";
 import { AgentServer } from "./server.js";
 import { CatalogSync } from "./catalog-sync.js";
+import {
+  refreshCommandCodeModels,
+  registerCommandCodeProviders,
+} from "./command-code-provider.js";
 
 // YZPZ Agent sidecar entry point.
 //   node dist/index.js [--port <n>] [--data-dir <path>]
@@ -25,6 +29,15 @@ async function main(): Promise<void> {
     process.env.PATH = shellPath;
   }
   process.env.CLION_YZPZ = "1";
+
+  // Command Code is an explicit first-party YZPZagent integration rather than
+  // a best-effort models.dev discovery. Register the offline catalog before the
+  // WebSocket starts accepting commands, then refresh its public model limits
+  // in the background so new models appear without delaying startup.
+  registerCommandCodeProviders();
+  void refreshCommandCodeModels().catch((err) => {
+    console.warn(`[yzpz-agent] Command Code catalog refresh failed; using bundled limits (${err})`);
+  });
 
   const store = new ProviderConfigStore(dataDir);
   const harness = new AgentHarness(dataDir);

@@ -72,7 +72,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex w-full items-center gap-2 border border-zinc-800 bg-zinc-900 px-2.5 py-2 text-left font-mono text-[11px] text-zinc-200 outline-none transition-colors hover:border-zinc-600 cursor-pointer"
+        className="flex w-full items-center gap-2 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2.5 py-2 text-left text-[11px] text-[var(--text-primary)] outline-none transition-colors hover:border-[var(--accent-border)] cursor-pointer"
       >
         <span className="flex h-5 w-5 shrink-0 items-center justify-center">
           {selectedLogo ? (
@@ -82,7 +82,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
               className="h-4 w-4 object-contain"
             />
           ) : (
-            <TerminalWindow size={16} className="text-zinc-500" aria-hidden="true" />
+            <TerminalWindow size={16} className="text-[var(--text-secondary)]/60" aria-hidden="true" />
           )}
         </span>
         <span className="min-w-0 flex-1 truncate">
@@ -90,15 +90,15 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
         </span>
         <CaretDown
           size={16}
-          className={`shrink-0 text-zinc-500 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`shrink-0 text-[var(--text-secondary)]/60 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
           aria-hidden="true"
         />
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-1 max-h-56 w-full overflow-y-auto border border-zinc-700 bg-zinc-900 shadow-lg shadow-black/40">
+        <div className="absolute left-0 top-full z-20 mt-1.5 max-h-56 w-full overflow-y-auto rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] py-1 shadow-lg shadow-black/25 backdrop-blur-md">
           {options.length === 0 && (
-            <div className="px-2.5 py-2 font-mono text-[10px] text-zinc-600">no agent sessions available</div>
+            <div className="px-2.5 py-2 text-[10px] text-[var(--text-secondary)]/50">no agent sessions available</div>
           )}
           {options.map((option) => {
             const logo = optionLogo(option);
@@ -111,8 +111,10 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
                   onChange(option.id);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center gap-2 px-2.5 py-2 text-left font-mono text-[11px] transition-colors cursor-pointer ${
-                  isSelected ? 'bg-zinc-800/80 text-zinc-100' : 'text-zinc-300 hover:bg-zinc-800/50'
+                className={`flex w-full items-center gap-2 px-2.5 py-2 text-left text-[11px] transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-[var(--accent-light)] text-[var(--text-primary)]'
+                    : 'text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center">
@@ -123,12 +125,12 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
                       className="h-4 w-4 object-contain"
                     />
                   ) : (
-                    <TerminalWindow size={16} className="text-zinc-500" aria-hidden="true" />
+                    <TerminalWindow size={16} className="text-[var(--text-secondary)]/60" aria-hidden="true" />
                   )}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{option.label}</span>
                 {isSelected && (
-                  <Check size={14} weight="bold" className="shrink-0 text-emerald-400" aria-hidden="true" />
+                  <Check size={14} weight="bold" className="shrink-0 text-[var(--accent)]" aria-hidden="true" />
                 )}
               </button>
             );

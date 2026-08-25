@@ -49,7 +49,16 @@ import { homedir } from "node:os";
 import { basename, extname, isAbsolute, join } from "node:path";
 import { buildSystemPrompt } from "./branding.js";
 import { accumulateUsage, enforceBudget, usageTotal, zeroUsage, type UsageTotals } from "./budget.js";
-import { ProviderConfigStore } from "./store.js";
+import { ProviderConfigStore, type ProviderConfigEntry } from "./store.js";
+import {
+  assertCommandCodeModelProtocol,
+  commandCodeRequestHeaders,
+  commandCodeRuntimeProviderConfig,
+  commandCodeSiblingProvider,
+  isCommandCodeProvider,
+  refreshCommandCodeModels,
+  resolveCommandCodeApiKey,
+} from "./command-code-provider.js";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -84,7 +93,7 @@ const DEFAULT_MAX_ITERATIONS = 40;
 // Recent context preserved verbatim after compaction. Scaled to today's larger
 // context windows: 12k was proportionally tiny and made long tasks lose track
 // of what they had just done after a compaction.
-const COMPACTION_PRESERVE_RECENT_TOKENS = 24_000;
+const COMPACTION_PRESERVE_RECENT_TOKENS = 30_000;
 
 // @cline/llms validates image content before building the provider request.
 // `userImages` must be a data URL or base64 string; a local Windows path is
@@ -584,6 +593,16 @@ export class AgentHarness {
     return created;
   }
 
+  /** Command Code's OpenAI and Anthropic lanes share one account/API key. */
+  private getStoredProviderConfig(providerId: string): ProviderConfigEntry | undefined {
+    const direct = this.getProviderStore().get(providerId);
+    const siblingId = commandCodeSiblingProvider(providerId);
+    if (!siblingId) return direct;
+    const sibling = this.getProviderStore().get(siblingId);
+    if (!direct && !sibling) return undefined;
+    return { ...sibling, ...direct, providerId };
+  }
+
   getToolPolicyStore(): ToolPolicyStore {
     if (!this.toolPolicyStore) {
       this.toolPolicyStore = new ToolPolicyStore(this.dataDir);
@@ -918,7 +937,7 @@ export class AgentHarness {
   private static RECOVERY_DEDUP_MS = 3000;
   /** Transient provider failures worth an automatic retry even with no unfinished todos. */
   private static RETRYABLE_ERROR_RE =
-    /(429|5\d\d|rate.?limit|quota|timeout|timed out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network|temporarily|overloaded|unavailable|too many requests|try again|busy)/i;
+    /(429|5\d\d|rate.?limit|quota|timeout|timed out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network|temporarily|overloaded|unavailable|too many requests|try again|busy|prompt too long|context (?:length|window)|maximum context|too many tokens)/i;
 
   private isRetryableError(message: string): boolean {
     return AgentHarness.RETRYABLE_ERROR_RE.test(message);
@@ -1246,14 +1265,22 @@ export class AgentHarness {
     providerId: string,
     modelId: string,
   ): Promise<Record<string, { id: string; contextWindow?: number; maxInputTokens?: number }>> {
+    if (isCommandCodeProvider(providerId)) {
+      await refreshCommandCodeModels().catch(() => undefined);
+    }
     try {
       const catalog = (await Llms.getModelsForProvider(providerId)) as Record<
         string,
-        { id?: string; contextWindow?: number | null }
+        { id?: string; contextWindow?: number | null; maxInputTokens?: number | null }
       >;
-      const contextWindow = catalog?.[modelId]?.contextWindow;
+      const model = catalog?.[modelId];
+      const contextWindow = model?.contextWindow;
       if (typeof contextWindow === "number" && contextWindow > 0) {
-        return { [modelId]: { id: modelId, contextWindow, maxInputTokens: contextWindow } };
+        const maxInputTokens =
+          typeof model.maxInputTokens === "number" && model.maxInputTokens > 0
+            ? Math.min(model.maxInputTokens, contextWindow)
+            : contextWindow;
+        return { [modelId]: { id: modelId, contextWindow, maxInputTokens } };
       }
     } catch {
       // Fall through and let the SDK resolve its provider default.
@@ -1278,8 +1305,16 @@ export class AgentHarness {
     providerId: string,
     apiKey?: string,
     baseUrl?: string,
+    modelId?: string,
   ): Promise<void> {
-    const saved = this.getProviderStore().get(providerId);
+    if (modelId) assertCommandCodeModelProtocol(providerId, modelId);
+    const saved = this.getStoredProviderConfig(providerId);
+    if (isCommandCodeProvider(providerId)) {
+      if (resolveCommandCodeApiKey(apiKey ?? saved?.apiKey)) return;
+      throw new Error(
+        'Command Code is not authenticated. Run "cmd login" (macOS/Linux) or "cmdc login" (Windows), set COMMAND_CODE_API_KEY, or add your Studio API key in Settings → Agent.',
+      );
+    }
     if (saved?.apiKey || saved?.baseUrl) return;
     if (apiKey || baseUrl) return;
     if (isOAuthProvider(providerId)) {
@@ -1314,18 +1349,32 @@ export class AgentHarness {
     args: CreateSessionArgs,
     opts: { initialMessages?: unknown[] } = {},
   ): Promise<{ sessionId: string; manifestPath: string; messagesPath: string }> {
-    await this.validateConnection(args.providerId, args.apiKey, args.baseUrl);
+    await this.validateConnection(args.providerId, args.apiKey, args.baseUrl, args.modelId);
     const cline = this.requireCline();
-    const store = this.getProviderStore();
-    const stored = store.get(args.providerId);
+    const stored = this.getStoredProviderConfig(args.providerId);
 
     // Resolve an auth credential for the session. API-key/baseUrl providers use
     // the passed-in or stored key directly; OAuth providers (e.g. openai-codex)
     // get a freshly-validated access token formatted as the SDK's apiKey.
     let apiKey = args.apiKey ?? stored?.apiKey;
+    if (isCommandCodeProvider(args.providerId)) {
+      apiKey = resolveCommandCodeApiKey(apiKey);
+    }
     if (!apiKey && isOAuthProvider(args.providerId)) {
       apiKey = await this.resolveOAuthApiKey(args.providerId);
     }
+
+    const knownModels = await this.resolveModelInfo(args.providerId, args.modelId);
+    const activeModel = knownModels[args.modelId];
+    const requestHeaders = commandCodeRequestHeaders(args.providerId);
+    const runtimeProviderConfig = commandCodeRuntimeProviderConfig({
+      providerId: args.providerId,
+      modelId: args.modelId,
+      apiKey,
+      baseUrl: args.baseUrl ?? stored?.baseUrl,
+      headers: requestHeaders,
+      knownModels,
+    });
 
     // Always own the session id so the read-only (ask-mode) guard can key on it.
     const sessionId = args.sessionId?.trim() || `yzpz-${randomUUID()}`;
@@ -1358,6 +1407,8 @@ export class AgentHarness {
           modelId: args.modelId,
           apiKey,
           baseUrl: args.baseUrl ?? stored?.baseUrl,
+          headers: requestHeaders,
+          providerConfig: runtimeProviderConfig,
           systemPrompt:
             buildSystemPrompt(args.systemPrompt, args.cwd, skillHints(this.dataDir)) +
             TODO_INSTRUCTION,
@@ -1373,7 +1424,10 @@ export class AgentHarness {
           teamName: args.teamName ?? "YZPZ",
           maxTokensPerTurn: DEFAULT_MAX_OUTPUT_TOKENS,
           maxIterations: DEFAULT_MAX_ITERATIONS,
-          knownModels: await this.resolveModelInfo(args.providerId, args.modelId),
+          knownModels,
+          // The SDK otherwise falls back to 128K when a provider is added at
+          // runtime. Pin the active model's real request budget explicitly.
+          maxInputTokens: activeModel?.maxInputTokens,
           execution: {
             maxConsecutiveMistakes: 4,
             loopDetection: { softThreshold: 3, hardThreshold: 5 },
@@ -2110,8 +2164,18 @@ export class AgentHarness {
     const cline = this.requireCline();
     const session = (await cline.get(sessionId)) as { metadata?: Record<string, unknown> } | undefined;
     const metadata = session?.metadata ?? {};
-    const targetProviderId = (update.providerId ?? metadata.providerId) as string | undefined;
-    const savedProviderConfig = targetProviderId ? this.getProviderStore().get(targetProviderId) : undefined;
+    const currentProviderId = metadata.providerId as string | undefined;
+    const targetProviderId = (update.providerId ?? currentProviderId) as string | undefined;
+    const targetModelId = (update.modelId ?? metadata.modelId) as string | undefined;
+    const savedProviderConfig = targetProviderId ? this.getStoredProviderConfig(targetProviderId) : undefined;
+    if (targetProviderId && targetModelId) {
+      assertCommandCodeModelProtocol(targetProviderId, targetModelId);
+      // A model-only update can safely reuse the active session credential.
+      // Revalidate only when the provider itself is changing.
+      if (update.providerId) {
+        await this.validateConnection(targetProviderId, update.apiKey, update.baseUrl, targetModelId);
+      }
+    }
 
     // Build the SDK update explicitly, dropping undefined/null for the reasoning
     // fields so a model switch never clears an effort the user already chose.
@@ -2126,6 +2190,9 @@ export class AgentHarness {
     }
     if (update.apiKey !== undefined && update.apiKey !== null) {
       sdkUpdate.apiKey = update.apiKey;
+    } else if (targetProviderId && isCommandCodeProvider(targetProviderId)) {
+      const commandCodeKey = resolveCommandCodeApiKey(savedProviderConfig?.apiKey);
+      if (commandCodeKey) sdkUpdate.apiKey = commandCodeKey;
     } else if (targetProviderId && isOAuthProvider(targetProviderId)) {
       // OAuth providers never carry a secret through the renderer: resolve the
       // stored token (refreshing when needed) into the SDK's apiKey format.
@@ -2142,6 +2209,41 @@ export class AgentHarness {
     }
     if (update.thinking !== undefined && update.thinking !== null) sdkUpdate.thinking = update.thinking;
     if (update.reasoningEffort !== undefined && update.reasoningEffort !== null) sdkUpdate.reasoningEffort = update.reasoningEffort;
+    if (targetProviderId && targetModelId && (update.providerId || update.modelId)) {
+      const knownModels = await this.resolveModelInfo(targetProviderId, targetModelId);
+      sdkUpdate.knownModels = knownModels;
+      sdkUpdate.maxInputTokens = knownModels[targetModelId]?.maxInputTokens;
+      const requestHeaders = commandCodeRequestHeaders(targetProviderId);
+      sdkUpdate.headers = requestHeaders;
+      const runtimeProviderConfig = commandCodeRuntimeProviderConfig({
+        providerId: targetProviderId,
+        modelId: targetModelId,
+        apiKey:
+          typeof sdkUpdate.apiKey === "string"
+            ? sdkUpdate.apiKey
+            : resolveCommandCodeApiKey(savedProviderConfig?.apiKey),
+        baseUrl:
+          typeof sdkUpdate.baseUrl === "string"
+            ? sdkUpdate.baseUrl
+            : savedProviderConfig?.baseUrl,
+        headers: requestHeaders,
+        knownModels,
+      });
+      if (runtimeProviderConfig) {
+        sdkUpdate.providerConfig = runtimeProviderConfig;
+      } else if (update.providerId && currentProviderId && isCommandCodeProvider(currentProviderId)) {
+        // Clear the custom Command Code route when moving to a regular SDK
+        // provider; omitting providerConfig would retain the previous route.
+        sdkUpdate.providerConfig = {
+          providerId: targetProviderId,
+          modelId: targetModelId,
+          apiKey: typeof sdkUpdate.apiKey === "string" ? sdkUpdate.apiKey : undefined,
+          baseUrl: typeof sdkUpdate.baseUrl === "string" ? sdkUpdate.baseUrl : undefined,
+          knownModels,
+          maxInputTokens: knownModels[targetModelId]?.maxInputTokens,
+        };
+      }
+    }
     await cline.updateSessionConnection(sessionId, sdkUpdate);
 
     // Persist the new connection in session metadata so it survives restores.
@@ -2638,7 +2740,9 @@ export class AgentHarness {
 
   async updateModel(sessionId: string, modelId: string): Promise<void> {
     await this.ensureSessionActive(sessionId);
-    await this.requireCline().updateSessionModel(sessionId, modelId);
+    // Keep the model catalog and effective input budget in lockstep. The SDK's
+    // model-only shortcut does not refresh runtime-registered provider limits.
+    await this.updateConnection(sessionId, { modelId });
   }
 
   async getUsage(sessionId: string): Promise<unknown> {
@@ -2914,6 +3018,9 @@ export class AgentHarness {
   }
 
   static async getModels(providerId: string): Promise<unknown[]> {
+    if (isCommandCodeProvider(providerId)) {
+      await refreshCommandCodeModels().catch(() => undefined);
+    }
     const result = (await Llms.getModelsForProvider(providerId)) as Record<
       string,
       {
@@ -2921,6 +3028,7 @@ export class AgentHarness {
         name?: string;
         contextWindow?: number | null;
         maxOutput?: number | null;
+        maxTokens?: number | null;
         capabilities?: string[];
         reasoningOptions?: Array<{ type: string; values?: Array<string | null>; min?: number; max?: number }>;
       }
@@ -2930,7 +3038,7 @@ export class AgentHarness {
       id: m.id ?? "",
       name: m.name ?? m.id ?? "",
       contextWindow: m.contextWindow ?? null,
-      maxOutput: m.maxOutput ?? null,
+      maxOutput: m.maxOutput ?? m.maxTokens ?? null,
       capabilities: m.capabilities ?? [],
       reasoningOptions: m.reasoningOptions ?? [],
     }));

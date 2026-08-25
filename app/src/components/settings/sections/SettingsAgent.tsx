@@ -50,6 +50,8 @@ const PROVIDER_DISPLAY: Record<string, string> = {
   openai_compatible: 'OpenAI-Compatible',
   'openai-codex': 'ChatGPT',
   'opencode-go': 'OpenCode Zen (Go)',
+  commandcode: 'Command Code',
+  'commandcode-anthropic': 'Command Code · Claude',
 };
 
 const INSTRUCTION_TYPES = [
@@ -409,6 +411,7 @@ export const SettingsAgent: React.FC = () => {
     modelOptions.unshift({ value: selectedDraft.modelId, label: `${selectedDraft.modelId} (saved custom model)` });
   }
   const editorIsOAuth = authMethods[selectedProvider] === 'oauth';
+  const editorIsCommandCode = selectedProvider === 'commandcode' || selectedProvider === 'commandcode-anthropic';
   const oauthEmail = selectedCfg?.oauthEmail;
   const oauthLinked = editorIsOAuth && selectedCfg ? hasSavedProviderAuth(selectedCfg) : false;
   const oauthBusy = oauthStatus !== 'idle';
@@ -1272,6 +1275,15 @@ export const SettingsAgent: React.FC = () => {
             </span>
           </div>
           <div className="px-5 py-4 space-y-3.5">
+            {editorIsCommandCode && (
+              <div className="rounded-md border border-[var(--accent-border)]/40 bg-[var(--accent-light)]/10 px-3 py-2.5">
+                <p className="font-mono text-[9px] leading-relaxed text-[var(--text-secondary)]/70">
+                  GOAT and Pro plans support the Provider API. Both Command Code entries share one Studio/CLI key:
+                  use Command Code for non-Claude models and Command Code · Claude for Claude models. An existing
+                  cmd/cmdc login or COMMAND_CODE_API_KEY is reused automatically, so this field can stay blank.
+                </p>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {editorIsOAuth ? (
                 <div className="flex flex-col gap-3">
@@ -1322,7 +1334,7 @@ export const SettingsAgent: React.FC = () => {
                         type={revealKey ? 'text' : 'password'}
                         value={selectedDraft.apiKey}
                         onChange={(e) => setDraft((prev) => ({ ...prev, [selectedProvider]: { ...selectedDraft, apiKey: e.target.value } }))}
-                        placeholder="sk-…"
+                        placeholder={editorIsCommandCode ? 'user_…' : 'sk-…'}
                         autoComplete="off"
                         className="w-full h-8 rounded-md border border-[var(--border-primary)] bg-[var(--bg-main)] px-2.5 pr-8 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]/30 focus:outline-none focus:border-[var(--accent-border)]"
                       />
@@ -1430,8 +1442,9 @@ export const SettingsAgent: React.FC = () => {
       {/* Attribution */}
       <div className="rounded-md border border-[var(--border-primary)]/60 bg-[var(--bg-tertiary)]/30 px-4 py-3">
         <p className="font-mono text-[9px] leading-relaxed text-[var(--text-secondary)]/60">
-          YZPZ Agent runs 100% locally on your machine. Provider API keys are stored in ~/.yzpzcode/agent/providers.json and are
-          never transmitted to YzPzCode servers. MCP servers live in the YZPZ Agent data dir
+          YZPZ Agent runs 100% locally on your machine. Keys entered here are stored in ~/.yzpzcode/agent/providers.json and are
+          never transmitted to YzPzCode servers. Existing Command Code CLI/environment credentials are read in place and never
+          exposed to the renderer. MCP servers live in the YZPZ Agent data dir
           (cline_mcp_settings.json). Skills, workflows, and rules live in
           ~/.yzpzcode/agent/{'{skills,workflows,rules}'} and apply to every workspace.
         </p>
