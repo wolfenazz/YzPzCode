@@ -166,8 +166,44 @@ function splitModels(models: CommandCodeApiModel[]): {
   return { openAi, anthropic };
 }
 
+/**
+ * Cline's public provider catalog and its local agent runtime use different
+ * registries. In SDK 0.0.74 the local runtime drops `routingProviderId` while
+ * constructing its per-session gateway, so catalog-only custom providers fail
+ * on the first model call with `Unknown or disabled provider`.
+ *
+ * Register concrete handlers for our public ids and delegate to Cline's native
+ * transports. This preserves the Command Code ids in session metadata/UI while
+ * sending non-Claude models through OpenAI Chat Completions and Claude models
+ * through Anthropic Messages, as required by the Provider API.
+ */
+function registerCommandCodeRuntimeHandlers(): void {
+  if (!Llms.hasRegisteredHandler(COMMAND_CODE_PROVIDER_ID)) {
+    Llms.registerHandler(COMMAND_CODE_PROVIDER_ID, (config: ProviderConfig) =>
+      Llms.createHandler({
+        ...config,
+        providerId: "openai-compatible",
+        routingProviderId: undefined,
+        clientType: "openai-compatible",
+      }),
+    );
+  }
+
+  if (!Llms.hasRegisteredHandler(COMMAND_CODE_ANTHROPIC_PROVIDER_ID)) {
+    Llms.registerHandler(COMMAND_CODE_ANTHROPIC_PROVIDER_ID, (config: ProviderConfig) =>
+      Llms.createHandler({
+        ...config,
+        providerId: "anthropic",
+        routingProviderId: undefined,
+        clientType: "anthropic",
+      }),
+    );
+  }
+}
+
 /** Register both native API protocols before the renderer can query providers. */
 export function registerCommandCodeProviders(): void {
+  registerCommandCodeRuntimeHandlers();
   const models = splitModels(fallbackApiModels());
   const knownProviders = new Set(Llms.getProviderIds());
 
