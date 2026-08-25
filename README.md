@@ -70,7 +70,7 @@ Modern AI-assisted development often degrades into a chaotic shuffle between doz
   <table>
     <tr>
       <td width="50%" align="center">
-        <img src="docs/capture/Capture2New" alt="YzPzCode Workspace" style="border-radius: 8px;" />
+        <img src="docs/capture/Capture2New.png" alt="YzPzCode Workspace" style="border-radius: 8px;" />
         <br />
         <sub><b>Terminal Grid & Workspace Explorer</b></sub>
       </td>
