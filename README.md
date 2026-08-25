@@ -1,673 +1,438 @@
 <div align="center">
 
-<img src="app/src/assets/YzPzCodeLogo.png" alt="YzPzCode Logo" width="120" />
+<img src="app/src/assets/YzPzCodeLogo.png" alt="YzPzCode Logo" width="96" />
 
-YzPzCode
+# YzPzCode
 
-The Unified Workspace for AI Coding Agents
+### The Unified Workspace for AI Coding Agents
 
-Run Claude, Gemini, Codex, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, and the built-in YZPZ Agent from one native desktop workspace.
+**Run Claude, Gemini, Codex, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, and the built-in YZPZ Agent from one native desktop application.**
 
-YzPzCode brings AI coding agents, real terminals, code editing, Git tools, browser inspection, visual design tools, and developer CLIs together — so you can stay focused on building instead of managing windows.
-
-<p>
-  <a href="https://github.com/wolfenazz/YzPzCode/releases">
-    <img src="https://img.shields.io/badge/Download-Latest%20Release-000000?style=for-the-badge&logo=github&logoColor=white" alt="Download latest release" />
+<p align="center">
+  <a href="https://github.com/wolfenazz/YzPzCode/releases/latest">
+    <img src="https://img.shields.io/github/v/release/wolfenazz/YzPzCode?color=000000&label=Release&logo=github&style=for-the-badge" alt="Latest Release" />
+  </a>
+  <a href="https://github.com/wolfenazz/YzPzCode/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-Apache--2.0-00DC82?style=for-the-badge&logo=apache" alt="License" />
   </a>
   <a href="docs/userguid.md">
-    <img src="https://img.shields.io/badge/Read-Documentation-4ECDC4?style=for-the-badge" alt="Documentation" />
+    <img src="https://img.shields.io/badge/Docs-User%20Guide-4ECDC4?style=for-the-badge&logo=gitbook&logoColor=white" alt="Documentation" />
   </a>
   <a href="https://github.com/wolfenazz/YzPzCode/issues">
-    <img src="https://img.shields.io/badge/Report-Issue-EF4444?style=for-the-badge&logo=github" alt="Report issue" />
+    <img src="https://img.shields.io/github/issues/wolfenazz/YzPzCode?color=EF4444&label=Issues&style=for-the-badge&logo=github" alt="Report Issue" />
   </a>
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-6366F1?style=for-the-badge" alt="Platform Support" />
 </p>
+
+<p align="center">
+  <a href="#-why-yzpzcode">Why YzPzCode?</a> •
+  <a href="#-see-it-in-action">Screenshots</a> •
+  <a href="#-supported-ai-coding-clis">AI Agents</a> •
+  <a href="#-core-features">Features</a> •
+  <a href="#-yzpz-agent">Built-in Agent</a> •
+  <a href="#-download--installation">Download</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-contributors">Contributors</a>
+</p>
+
+---
+
+<img src="docs/capture/banner1%20(1).png" width="100%" alt="YzPzCode Hero Banner" style="border-radius: 10px;" />
 
 </div>
 
 > [!NOTE]
-> **YzPzCode is under active development.**  
-> Some features may be experimental or change between releases. Bug reports, feedback, and contributions are welcome.
+> **YzPzCode is under active development.** Some features may be experimental or evolve between releases. Feedback, bug reports, and pull requests are warmly welcomed!
 
-────────
+---
 
-Table of Contents
+## ⚡ Why YzPzCode?
 
-• Why YzPzCode?
-• See It in Action
-• What You Can Do
-• Supported AI Coding CLIs
-• Core Features
-• SaaS & Developer CLI Management
-• Supported Development Environments
-• Download & Installation
-• YZPZ Agent
-• Tech Stack
-• Architecture
-• Project Structure
-• Customization
-• Updates
-• Security & Privacy
-• Contributing
-• License
-• Contributors
+Modern AI-assisted development often degrades into a chaotic shuffle between dozens of terminal tabs, scattered coding agents, disconnected browsers, IDEs, and ad-hoc CLI tools.
 
-────────
+**YzPzCode replaces the window juggling with a single, coherent command center.**
 
-Why YzPzCode?
+| Traditional Workflow | With YzPzCode |
+| :--- | :--- |
+| 🪟 8+ disconnected terminal windows | 🖥️ **Single native workspace** with custom layouts |
+| 🔄 Constant `Alt+Tab` context switching | 🎛️ **Side-by-side terminal grid** with PTY sessions |
+| 🧩 External editor + external file viewer | 📝 **Embedded Monaco editor** + virtualized file tree |
+| 🌐 Separate browser for UI validation | 🔍 **In-app browser** with deep CSS / visual inspector |
+| ⚙️ Repetitive CLI install & auth checks | 🔑 **Automatic detection, 1-click install & auth tracking** |
+| 💬 Isolated AI chats with lost context | 🤖 **Built-in YZPZ Agent** + 9 supported external AI CLIs |
+| 🎨 Switching to Photoshop / Figma for quick edits | 🖌️ **Built-in layered image editor** with blend modes |
 
-Modern AI-assisted development often means juggling several terminals, coding agents, browser windows, editors, and developer tools at the same time.
+---
 
-YzPzCode brings them into one workspace.
-
-|Typical Workflow                |With YzPzCode                             |
-|--------------------------------|------------------------------------------|
-|Multiple terminal windows       |One native application                    |
-|Separate AI coding CLIs         |Multiple agents in one workspace          |
-|Constant window switching       |Side-by-side terminal grid                |
-|Separate editor and file browser|Monaco editor + integrated explorer       |
-|Separate browser for UI testing |Built-in browser + visual inspector       |
-|Repeated CLI setup              |Detection, installation, and auth tracking|
-|Scattered project context       |Workspace-scoped sessions and tools       |
+## 📸 See It in Action
 
 <div align="center">
-  <br />
-  <img src="docs/capture/banner1%20(1).png" width="100%" alt="YzPzCode workspace" />
-  <br />
+  <table>
+    <tr>
+      <td width="50%" align="center">
+        <img src="docs/capture/Caoture1New.png" alt="YzPzCode Workspace" style="border-radius: 8px;" />
+        <br />
+        <sub><b>Terminal Grid & Workspace Explorer</b></sub>
+      </td>
+      <td width="50%" align="center">
+        <img src="docs/capture/Capture4new.jpg" alt="Multi-Agent Workspace" style="border-radius: 8px;" />
+        <br />
+        <sub><b>Multi-Agent Collaborative Layout</b></sub>
+      </td>
+    </tr>
+    <tr>
+      <td width="50%" align="center">
+        <img src="docs/capture/Capture5new.jpg" alt="In-App Browser" style="border-radius: 8px;" />
+        <br />
+        <sub><b>Integrated Multi-Tab Webview Browser</b></sub>
+      </td>
+      <td width="50%" align="center">
+        <img src="docs/capture/Capture6new.jpg" alt="Visual Design Inspector" style="border-radius: 8px;" />
+        <br />
+        <sub><b>Deep Visual Element & Style Inspector</b></sub>
+      </td>
+    </tr>
+  </table>
 </div>
 
-────────
+---
 
-See It in Action
+## 🤖 Supported AI Coding CLIs
 
-<div align="center">
+YzPzCode detects, launches, and manages PTY sessions for 9 industry-standard AI coding agents out of the box:
 
-<img src="docs/capture/Caoture1New.png" width="48%" alt="YzPzCode workspace screenshot" />
-&nbsp;
-<img src="docs/capture/Capture4new.jpg" width="48%" alt="YzPzCode multi-agent workspace screenshot" />
+```
+                     ┌─── Claude (Anthropic)
+                     ├─── Gemini (Google)
+                     ├─── Codex (OpenAI)
+                     ├─── OpenCode
+  YzPzCode Host ─────┼─── Cursor
+                     ├─── Kilo
+                     ├─── Hermes
+                     ├─── Pi (earendil-works)
+                     └─── Command Code
+```
 
-<br /><br />
-
-Run agents, edit code, inspect interfaces, and manage your entire development workflow without leaving YzPzCode.
-
-</div>
-
-────────
-
-What You Can Do
-
-Run Multiple AI Coding Agents
-
-Launch supported AI coding CLIs in real PTY terminal sessions and arrange them side by side inside the same project workspace.
-
-• Run multiple agents simultaneously
-• Save and restore workspace presets
-• Automatically detect locally installed CLIs
-• Track authentication state
-• Launch supported agents in external terminals when needed
-• Keep terminal sessions scoped to the active workspace
-
-Use the Built-In YZPZ Agent
-
-YzPzCode includes its own AI coding agent experience, so an external CLI is not required.
-
-• Streaming chat
-• Tool execution logs
-• Approval and permission controls
-• Session history and resume
-• Provider and model selection
-• Custom API keys and base URLs
-• Custom system prompts
-• Token and context usage gauges
-• Todos and sub-agent activity
-• Agent Teams for multi-agent task orchestration
-• Rich prompts with @ file mentions
-• Per-agent slash-command reference
-
-Work Without Leaving the App
-
-Each workspace can include:
-
-|View             |Purpose                                   |
-|-----------------|------------------------------------------|
-|**Terminal View**|Multi-pane PTY terminal grid              |
-|**Agent View**   |Built-in YZPZ Agent                       |
-|**Editor View**  |Monaco-based editor with multiple tabs    |
-|**Browser View** |In-app browser and visual inspection tools|
-|**Image View**   |Built-in layered image editor             |
-
-Multiple workspaces can remain open at the same time, each preserving its own terminal sessions, files, browser state, and active view.
-
-────────
-
-Supported AI Coding CLIs
-
-YzPzCode can detect and launch multiple AI coding tools from one workspace.
-
-|Agent           |Command       |Role                               |
-|----------------|--------------|-----------------------------------|
-|**Claude**      |`claude`      |AI coding and reasoning            |
-|**Gemini**      |`gemini`      |Multimodal AI development workflows|
-|**Codex**       |`codex`       |AI-assisted coding workflows       |
-|**OpenCode**    |`opencode`    |Open-source coding agent           |
-|**Cursor**      |`cursor`      |AI-assisted development            |
-|**Kilo**        |`kilo`        |Coding agent workflows             |
-|**Hermes**      |`hermes`      |Terminal-based coding agent        |
-|**Pi**          |`pi`          |Minimal terminal coding harness    |
-|**Command Code**|`cmd` / `cmdc`|Coding workflow assistant          |
+| Agent | CLI Command | Primary Role & Strengths |
+| :--- | :---: | :--- |
+| **Claude Code** | `claude` | Deep reasoning, autonomous refactoring, large context |
+| **Gemini CLI** | `gemini` | Multimodal development, rapid prototyping |
+| **Codex CLI** | `codex` | Precision code generation & unit test authoring |
+| **OpenCode** | `opencode` | Open-source agent for customizable local workflows |
+| **Cursor CLI** | `cursor` | Agentic file editing and codebase indexing |
+| **Kilo** | `kilo` | Fast, terminal-native agent workflows |
+| **Hermes** | `hermes` | Compact autonomous terminal assistant |
+| **Pi** | `pi` | Minimalist coding agent harness with extension hooks |
+| **Command Code** | `cmd` / `cmdc` | Interactive command & script orchestration |
 
 > [!IMPORTANT]
-> YzPzCode integrates with third-party CLIs but is **not affiliated with or endorsed by their respective vendors** unless explicitly stated.
+> YzPzCode integrates with third-party CLIs via PTY bridges and is **not affiliated with or endorsed by their respective vendors** unless explicitly stated.
 
-────────
+---
 
-Core Features
+## 🛠️ SaaS & Developer Tool CLIs
 
-Agent & Terminal Workspace
-
-• Real PTY-backed terminal sessions
-• Multi-agent grid
-• Automated CLI detection and setup
-• Workspace presets
-• Authentication tracking
-• Managed background and non-interactive commands
-• PID, status, exit-code, and real-time output tracking
-• External terminal launching
-• Per-agent slash-command reference
-
-Code, Files & Git
-
-• Integrated file explorer
-• Monaco-based multi-tab editor
-• Syntax highlighting
-• Find and replace
-• Git status and diff statistics
-• File watching
-• Rich previews for supported document formats
-• XLSX and CSV editing
-• Draw.io preview support
-• Multiple workspace tabs
-
-In-App Browser
-
-• Multi-tab browser
-• Responsive device presets
-• Orientation switching
-• Zoom controls
-• HTML snapshot export
-• Pop-out mode
-
-Visual Design Inspector
-
-Inspect and capture UI details directly from webpages without constantly switching to external developer tools.
-
-YzPzCode can inspect:
-
-• HTML structure and selectors
-• Element attributes
-• Computed CSS styles
-• Pseudo-element styles
-• Layout and spacing
-• Typography
-• Colors
-• Box model
-• Assets
-• Deep component structure
-
-It also supports:
-
-• Design intent analysis
-• Style application with undo support
-• Customizable quick prompts
+YzPzCode automatically tracks installation status, executable paths, and authentication state for popular cloud & developer CLIs:
 
 <div align="center">
-  <br />
-  <img src="docs/capture/Capture5new.jpg" width="48%" alt="YzPzCode browser" />
-  &nbsp;
-  <img src="docs/capture/Capture6new.jpg" width="48%" alt="YzPzCode visual inspector" />
-  <br /><br />
+
+| Service | Command | Service | Command |
+| :--- | :---: | :--- | :---: |
+| **GitHub CLI** | `gh` | **PostHog** | `posthog-cli` |
+| **Supabase** | `supabase` | **ElevenLabs** | `elevenlabs` |
+| **Stripe** | `stripe` | **Google Workspace** | `gws` |
+| **Vercel** | `vercel` | **AgentMail** | `agentmail-cli` |
+| **Valyu** | `valyu-cli` | **Ramp** | `ramp` |
+
 </div>
 
-AI Designer
+---
 
-Generate and iterate on UI designs using natural-language prompts.
+## ✨ Core Features
 
-• Prompt-based design generation
-• Curated themes
-• Multiple page types
-• Responsive live preview
-• Color controls
-• Font controls
-• Spacing controls
-• Element inspection
-• HTML/CSS/JS export
-• Design history
-• Skills management
+### 🖥️ 1. Multi-Agent Terminal Grid
+- **Real PTY Backend**: Full xterm.js 6 frontend powered by Rust's `portable-pty`
+- **Managed Commands**: Run non-interactive / background tasks with PID, exit code, and live output streaming
+- **Workspace Scoping**: Terminal sessions are isolated per project workspace
+- **External Terminal Tiling**: Spawn external native consoles (Windows Terminal, macOS Terminal, Linux) with auto-tiling
 
-Built-In Image Editor
+### 🤖 2. Built-In YZPZ Agent
+- **Native AI Sidecar**: Powered by a supervised Node.js harness over WebSockets
+- **Zero-Setup Required**: Ready to chat, execute tools, and manipulate files without external CLIs
+- **Full Transparency**: Streaming tokens, tool-call logs, permission approval gates, and context-window meters
+- **Agent Teams & Mentions**: Orchestrate multi-agent subtasks and reference project files with `@filename`
 
-A layered image editor is available directly inside the workspace.
+### 📝 3. Monaco-Based Code Editor
+- **Multi-Tab Workspace**: Split views, tab management (close others / right / saved)
+- **Syntax Highlighting & Minimap**: Rich language support via Monaco + CodeMirror engines
+- **Rich File Previews**: Markdown, PDF, CSV, Excel (`.xlsx`), Word (`.docx`), and Draw.io diagrams
+- **Git Integration**: In-tree diff statistics, stage/unstage, status badges, and branch switching
 
-Layer System
+### 🌐 4. In-App Browser & Visual Inspector
+- **Device Presets**: Emulate iPhone, iPad, responsive desktop; toggle portrait/landscape
+- **Deep Element Inspector**: Inspect computed CSS, pseudo-elements, box model, and DOM hierarchy
+- **Style Picker & Generator**: Capture styles directly to clipboard, generate atomic CSS classes, and apply with full undo stack
 
-• Raster layers
-• Image layers
-• Text layers
-• Shape layers
-• Visibility controls
-• Locking
-• Opacity
-• Rotation
-• 16 blend modes
+### 🎨 5. AI Designer & Layered Image Editor
+- **Prompt-to-UI Generator**: Produce responsive HTML/CSS/JS interfaces directly from natural language prompts
+- **Full Layered Canvas**: Raster, vector, text, and shape layers powered by Konva
+- **16 Blend Modes**: Full layer opacity, rotation, masking, marquee/lasso selections, and history
+- **Multi-Format Export**: PNG, JPG, WebP, SVG, GIF, BMP, AVIF, TIFF
 
-Editing Tools
+---
 
-• Move
-• Marquee
-• Lasso
-• Crop
-• Brush
-• Eraser
-• Fill
-• Text
-• Shapes
-• Eyedropper
-• Hand
-• Zoom
+## 🧠 YZPZ Agent: Under the Hood
 
-Additional Capabilities
+<div align="center">
+  <img src="docs/capture/Capture3new.PNG.jpg" width="85%" alt="YZPZ Agent Interface" style="border-radius: 8px;" />
+  <br />
+  <sub><b>Interactive Agent Chat with tool execution logs, approval controls, and token context meter</b></sub>
+</div>
 
-• Selection masks
-• Undo history
-• Layer properties
-• Built-in color picker
-• New, open, save, and flattened export workflows
+<br />
 
-Supported Formats
+The built-in **YZPZ Agent** runs as an isolated Node.js sidecar process supervised directly by the Tauri Rust host:
 
-PNG · JPG · WebP · SVG · GIF · BMP · AVIF · TIFF
+- ⚡ **Real-Time Streaming**: Incremental token delivery via low-latency WebSocket connection
+- 🛡️ **Permission Controls**: Approve or reject bash commands, file writes, and external network requests
+- 🔄 **Session Persistence**: Resumable workspace-scoped sessions stored locally
+- 🎯 **Model Flexibility**: Connect to OpenAI, Anthropic, Gemini, Ollama, DeepSeek, or any custom OpenAI-compatible endpoint
+- 📊 **Context Awareness**: Real-time context budget tracking, automatic compaction strategies, and token cost estimation
 
-────────
+---
 
-SaaS & Developer CLI Management
+## 🏗️ Architecture
 
-YzPzCode can detect, manage, and check authentication for supported developer tool CLIs.
+```mermaid
+flowchart TB
+    subgraph Frontend["React 19 + TypeScript Frontend (Vite 6)"]
+        direction LR
+        UI_Term["Terminal Grid\n(xterm.js 6)"]
+        UI_Agent["YZPZ Agent\nChat UI"]
+        UI_Editor["Code Editor\n(Monaco)"]
+        UI_Browser["Browser &\nInspector"]
+        UI_Image["Image Editor\n(Konva)"]
+    end
 
-|Tool          |Command        |
-|--------------|---------------|
-|**GitHub**    |`gh`           |
-|**Stripe**    |`stripe`       |
-|**Supabase**  |`supabase`     |
-|**Valyu**     |`valyu-cli`    |
-|**PostHog**   |`posthog-cli`  |
-|**ElevenLabs**|`elevenlabs`   |
-|**Ramp**      |`ramp`         |
-|**GWS**       |`gws`          |
-|**AgentMail** |`agentmail-cli`|
-|**Vercel**    |`vercel`       |
+    subgraph TauriHost["Tauri v2 + Rust Core Host"]
+        IPC["Tauri IPC Command Router"]
+        PTY["PTY Manager\n(portable-pty)"]
+        FS["File & Git Watcher\n(notify)"]
+        Host["Agent Host Supervisor"]
+        DevEnv["IDE / CLI Detector"]
+    end
 
-────────
+    subgraph External["External Runtime"]
+        Harness["Node.js 22+ Agent Harness\n(WebSocket Server)"]
+        CLIs["External AI & Tool CLIs\n(Claude, Gemini, gh, etc.)"]
+        IDEs["External IDEs\n(VS Code, Cursor, Zed)"]
+    end
 
-Supported Development Environments
+    Frontend <==>|"Tauri IPC (Async Invokes + Events)"| IPC
+    IPC --> PTY
+    IPC --> FS
+    IPC --> Host
+    IPC --> DevEnv
 
-YzPzCode can detect and launch supported development environments, including:
+    PTY <==>|"Raw PTY Stream"| CLIs
+    Host <==>|"Localhost WebSocket (JSON-RPC)"| Harness
+    DevEnv -.->|"Process Launch"| IDEs
+```
 
-• Visual Studio Code
-• Cursor
-• Zed
-• Visual Studio
-• WebStorm
-• IntelliJ IDEA
-• Sublime Text
-• Windsurf
-• Perplexity
-• Antigravity
+### Technology Matrix
 
-────────
+| Layer | Technologies |
+| :--- | :--- |
+| **Desktop Shell** | [Tauri v2](https://v2.tauri.app/), [Rust](https://www.rust-lang.org/) (2021 Edition) |
+| **Concurrency & PTY** | `tokio`, `portable-pty`, `tokio-tungstenite`, `notify`, `which` |
+| **Frontend Framework** | [React 19](https://react.dev/), [TypeScript 5.6](https://www.typescriptlang.org/), [Vite 6](https://vitejs.dev/) |
+| **Styling & Motion** | [Tailwind CSS v4](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/) |
+| **Terminal & Editor** | [@xterm/xterm 6](https://xtermjs.org/), [Monaco Editor](https://microsoft.github.io/monaco-editor/), CodeMirror 6 |
+| **Canvas & Media** | [Konva](https://konvajs.org/), `pdfjs`, `xlsx`, `mammoth` |
+| **State Management** | [Zustand 5](https://github.com/pmndrs/zustand) (with persistent storage) |
 
-Download & Installation
+---
 
-Download a Release
+## 📂 Project Structure
 
-The easiest way to try YzPzCode is through the GitHub Releases page:
+```text
+yzpzcode/
+├── .github/workflows/          # CI/CD Release workflows (multi-platform builds)
+├── docs/                       # Screenshots, assets, and user guides
+└── app/
+    ├── src-tauri/              # Rust backend
+    │   └── src/
+    │       ├── agent/          # Autonomous agent task orchestration & retry logic
+    │       ├── agent_cli/      # AI & Tool CLI detection, installation & auth
+    │       ├── agent_host/     # Supervisor for built-in Node.js agent harness
+    │       ├── browser/        # Webview management & visual inspector bridge
+    │       ├── commands/       # Tauri IPC commands (~100+ endpoints)
+    │       ├── terminal/       # PTY sessions & managed non-interactive commands
+    │       ├── filesystem/     # File tree, Git diffs, watchers, validations
+    │       ├── ide/            # External IDE launcher (VS Code, Cursor, Zed, etc.)
+    │       └── discord_presence/ # Discord Rich Presence integration
+    │
+    ├── src/                    # React 19 frontend
+    │   ├── components/         # Modular UI components
+    │   │   ├── workspace/      # Terminal grid, browser, view switchers
+    │   │   ├── editor/         # Monaco editor tabs & rich file previews
+    │   │   ├── explorer/       # Virtualized file tree & Git panels
+    │   │   ├── designer/       # AI design generation studio
+    │   │   ├── image/          # Layered canvas image editor
+    │   │   ├── settings/       # 11-section preferences panel
+    │   │   └── setup/          # Interactive onboarding wizard
+    │   ├── hooks/              # Custom React hooks (useTerminal, useBrowser, etc.)
+    │   ├── stores/             # Zustand global state stores
+    │   └── types/              # TypeScript mirror interfaces of Rust structs
+    │
+    └── agent-harness/          # Supervised Node.js sidecar for YZPZ Agent
+```
 
-Download the latest YzPzCode release
+---
 
-Builds are intended for:
+## 🚀 Download & Installation
 
-• Windows
-• macOS
-• Linux
+### Option 1: Pre-Built Binaries (Recommended)
 
-────────
+Grab the latest installer for your operating system from the **[Releases Page](https://github.com/wolfenazz/YzPzCode/releases/latest)**:
 
-Build From Source
+| Platform | Package Format | Architecture |
+| :--- | :--- | :--- |
+| **🪟 Windows** | `.msi` / `.exe` installer | x86_64 |
+| **🍎 macOS** | `.dmg` installer | Apple Silicon (`aarch64`) & Intel (`x86_64`) |
+| **🐧 Linux** | `.deb` / `.AppImage` | x86_64 |
 
-Requirements
+> [!TIP]
+> **macOS Note**: If running an unsigned build, open with **Right Click → Open**, or allow it under *System Settings → Privacy & Security → Open Anyway*.
 
-Before building YzPzCode, install:
+---
 
-• Node.js 18+
-• Rust using the latest stable toolchain
+### Option 2: Build From Source
 
-Clone and Run
+#### Prerequisites
+- **Node.js**: `22.x` or higher
+- **Rust**: Latest stable toolchain (`rustup update stable`)
+- **C++ Build Tools**: Visual Studio Build Tools (Windows) / Xcode CLI Tools (macOS) / `build-essential` (Linux)
 
+#### 1. Clone the repository
 ```bash
 git clone https://github.com/wolfenazz/YzPzCode.git
 cd YzPzCode/app
+```
+
+#### 2. Install dependencies
+```bash
+# Install frontend dependencies
 npm install
+
+# Install agent harness dependencies
+cd agent-harness && npm install && cd ..
+```
+
+#### 3. Run in development mode
+```bash
 npm run tauri dev
 ```
 
-YzPzCode will detect supported AI CLIs installed on your system and help configure the workspace.
-
-Production Build
-
+#### 4. Build production installer
 ```bash
 npm run tauri build
 ```
+The compiled binaries will be output to `app/src-tauri/target/release/bundle/`.
 
-This generates a native installer for your current platform.
+---
 
-────────
+## 🎨 UI Customization
 
-macOS
+Tailor YzPzCode to your aesthetic and workflow preferences:
 
-Install Rust first if needed:
+- 🌗 **Dark / Light Modes**: Full dynamic theming across the entire UI
+- 🎨 **8 Accent Color Schemes**: Default, Blue, Purple, Green, Orange, Red, Pink, Cyan
+- 📐 **3 Density Presets**: Compact, Comfortable, Spacious
+- ⌨️ **Terminal Styling**: Configurable font families, ligatures, cursor styles, and opacity
+- ✨ **Accessibility**: Animation disable toggle (reduced-motion compliance), custom cursor toggle
 
+---
+
+## 🔒 Security & Privacy
+
+YzPzCode was built with a **local-first** security philosophy:
+
+- 🛡️ **Your Code Stays Local**: No project files or source code are ever uploaded to third-party servers by YzPzCode itself.
+- 🔑 **Locally Stored Secrets**: API keys and tokens are stored exclusively on your local machine.
+- 🚪 **Explicit Permission Gates**: The built-in agent requires explicit user confirmation before executing shell commands or writing destructive changes.
+- 📡 **Direct Provider Connections**: When you configure API keys for Anthropic, OpenAI, or other LLMs, requests are dispatched directly to their official endpoints.
+
+---
+
+## 🤝 Contributing
+
+Contributions make open source incredible! Any bugs found, improvements, or new features are appreciated.
+
+### Quality Checklist before Submitting PRs
 ```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+# 1. Typecheck the frontend
+cd app && npx tsc --noEmit
 
-Restart your terminal after installation.
-
-If you install an unsigned .dmg, macOS may require you to explicitly allow the application.
-
-You can either:
-
-1. Right-click the application and select Open
-2. Go to System Settings → Privacy & Security → Open Anyway
-
-> [!NOTE]
-> Code signing is still being worked on for supported desktop platforms.
-
-────────
-
-YZPZ Agent
-
-<div align="center">
-
-<img src="docs/capture/Capture3new.PNG.jpg" width="80%" alt="YZPZ Agent" />
-
-<br />
-
-Chat-driven coding with project context, tool visibility, approvals, and session history.
-
-</div>
-
-The built-in YZPZ Agent runs through a bundled Node.js sidecar harness that is started and supervised by the Rust host.
-
-Key Capabilities
-
-• Real-time streaming responses
-• Tool-call visibility
-• Interactive approvals
-• Workspace-scoped session history
-• Resume support
-• Provider and model selection
-• Optional custom API keys and endpoints
-• Context compaction strategies
-• Token usage and context-budget tracking
-• Todos and sub-agents
-• Agent Teams
-• Rich prompts
-• Workspace file mentions
-
-────────
-
-Tech Stack
-
-|Layer                |Technology                                                                                               |
-|---------------------|---------------------------------------------------------------------------------------------------------|
-|**Frontend**         |React 19, TypeScript, Vite 6, Tailwind CSS v4, Zustand 5, xterm.js 6, Monaco Editor, Konva, Framer Motion|
-|**Desktop / Backend**|Tauri v2, Rust, portable-pty, Tokio, tokio-tungstenite, serde, anyhow                                    |
-|**Agent Sidecar**    |Node.js 22+, bundled agent harness, WebSocket server                                                     |
-
-YzPzCode uses Tauri and Rust for the desktop backend while the user interface is built with React and TypeScript.
-
-────────
-
-Architecture
-
-```mermaid
-flowchart LR
-    UI["React + TypeScript UI"]
-
-    subgraph Workspace["Workspace"]
-        Terminal["Terminal Grid"]
-        AgentView["YZPZ Agent"]
-        Editor["Monaco Editor"]
-        Browser["Browser + Inspector"]
-        Image["Image Editor"]
-    end
-
-    subgraph Core["Tauri + Rust Core"]
-        IPC["Tauri Commands"]
-        PTY["PTY Manager"]
-        CLI["CLI Detection / Launching"]
-        FS["Files + Git"]
-        BrowserCore["Browser Manager"]
-        Host["Agent Host"]
-    end
-
-    Harness["Node.js Agent Harness"]
-    Agents["External AI / Tool CLIs"]
-
-    UI --> Workspace
-    Workspace --> IPC
-
-    IPC --> PTY
-    IPC --> CLI
-    IPC --> FS
-    IPC --> BrowserCore
-    IPC --> Host
-
-    PTY --> Agents
-    CLI --> Agents
-    Host <--> Harness
-```
-
-High-Level Flow
-
-1. The React + TypeScript frontend provides the main workspace UI.
-2. Workspace views communicate with the Tauri IPC layer.
-3. The Rust core manages terminals, files, Git, browsers, CLIs, and agent processes.
-4. External AI CLIs run through PTY or CLI management.
-5. The built-in YZPZ Agent communicates with its bundled Node.js agent harness.
-
-────────
-
-Project Structure
-
-```text
-app/
-├── src-tauri/
-│   └── src/
-│       ├── agent/              # Agent task execution and orchestration
-│       ├── agent_cli/          # CLI detection, installation, and launching
-│       ├── agent_host/         # Built-in YZPZ Agent host
-│       ├── browser/            # Browser and visual inspector
-│       ├── commands/           # Tauri IPC commands
-│       ├── terminal/           # PTY sessions and command runner
-│       ├── filesystem/         # Files, Git, validation, watchers
-│       ├── ide/                # IDE detection and launching
-│       └── discord_presence/   # Discord Rich Presence
-│
-├── src/
-│   ├── components/
-│   │   ├── setup/
-│   │   ├── workspace/
-│   │   ├── explorer/
-│   │   ├── editor/
-│   │   ├── image/
-│   │   ├── designer/
-│   │   ├── settings/
-│   │   ├── feedback/
-│   │   └── docs/
-│   ├── hooks/
-│   ├── stores/
-│   └── types/
-│
-├── agent-harness/              # Bundled Node.js agent sidecar
-└── docs/                       # Documentation
-```
-
-────────
-
-Customization
-
-YzPzCode includes workspace and interface customization options for different developer preferences.
-
-• Dark and light themes
-• 8 accent colors
-• 3 density levels
-• Terminal font selection
-• Custom cursor toggle
-• Animation controls
-• Reduced-motion support
-• Workspace-specific state
-
-────────
-
-Updates
-
-YzPzCode includes Tauri updater integration with support for:
-
-• Stable, Beta, and Nightly channels
-• Update checks on launch
-• Configurable auto-download
-• Download progress
-• One-click installation and relaunch
-
-────────
-
-Security & Privacy
-
-Because YzPzCode interacts with local projects, terminals, developer tools, and AI providers, security and transparency matter.
-
-Please review the project’s:
-
-• Security Policy
-• Privacy Policy
-
-> [!IMPORTANT]
-> When using external AI providers or third-party CLIs, their own authentication, privacy, usage, and billing policies also apply.
-
-────────
-
-Contributing
-
-Contributions are welcome.
-
-Development Checks
-
-Frontend Type Checking
-
-```bash
-npx tsc --noEmit
-```
-
-Backend Checks
-
-```bash
-cargo check
-cargo clippy
-cargo fmt
-```
-
-Tests
-
-```bash
+# 2. Check Rust formatting & lints
 cd src-tauri
+cargo fmt --check
+cargo clippy -- -D warnings
+
+# 3. Run unit & integration tests
 cargo test
 ```
 
-Found a Bug or Have an Idea?
+Please check [open issues](https://github.com/wolfenazz/YzPzCode/issues) or start a discussion before proposing major architectural changes.
 
-You can:
+---
 
-• Open an issue
-• Submit a pull request
+## 👥 Contributors
 
-For larger features, consider opening an issue before implementation so the approach can be discussed first.
-
-────────
-
-License
-
-YzPzCode is licensed under the Apache License 2.0.
-
-Use it. Fork it. Build on it.
-
-────────
-
-Contributors
+A huge thank you to everyone building and refining YzPzCode:
 
 <div align="center">
-
-<table>
-<tr>
-
-<td align="center" width="180">
-<a href="https://github.com/wolfenazz">
-<img src="https://github.com/wolfenazz.png?size=160" alt="Naz" width="72" height="72" />
-<br /><br />
-<strong>Naz</strong>
-<br />
-<sub>Creator &amp; Lead Developer</sub>
-<br />
-<code>@wolfenazz</code>
-</a>
-</td>
-
-<td align="center" width="180">
-<a href="https://github.com/Noor-Al-Khelaifi">
-<img src="https://github.com/Noor-Al-Khelaifi.png?size=160" alt="Noor" width="72" height="72" />
-<br /><br />
-<strong>Noor</strong>
-<br />
-<sub>Contributor &amp; Developer</sub>
-<br />
-<code>@Noor-Al-Khelaifi</code>
-</a>
-</td>
-
-</tr>
-</table>
-
+  <table>
+    <tr>
+      <td align="center" width="200">
+        <a href="https://github.com/wolfenazz">
+          <img src="https://github.com/wolfenazz.png?size=160" width="80" height="80" style="border-radius: 50%;" alt="Naz" />
+          <br /><br />
+          <b>Naz</b>
+          <br />
+          <sub>Creator & Lead Architect</sub>
+          <br />
+          <code>@wolfenazz</code>
+        </a>
+      </td>
+      <td align="center" width="200">
+        <a href="https://github.com/Noor-Al-Khelaifi">
+          <img src="https://github.com/Noor-Al-Khelaifi.png?size=160" width="80" height="80" style="border-radius: 50%;" alt="Noor" />
+          <br /><br />
+          <b>Noor</b>
+          <br />
+          <sub>Core Contributor & Developer</sub>
+          <br />
+          <code>@Noor-Al-Khelaifi</code>
+        </a>
+      </td>
+    </tr>
+  </table>
 </div>
 
-────────
+---
+
+## 📄 License
+
+YzPzCode is open-source software licensed under the **[Apache License 2.0](LICENSE)**.
 
 <div align="center">
-
-Build with your AI agents, not around them.
-
-YzPzCode is built for developers who want one place to run AI agents, inspect code, manage terminals, review files, test interfaces, and stay in flow.
-
-<br />
-
-Download YzPzCode
-  •  
-Documentation
-  •  
-Report a Bug
-  •  
-Request a Feature
-  •  
-Contribute
-
-<br />
-
-Built for developers. Designed for agent-powered workflows.
-
+  <br />
+  <b>Build with your AI agents, not around them.</b>
+  <br /><br />
+  <a href="https://github.com/wolfenazz/YzPzCode/releases/latest">Download YzPzCode</a> •
+  <a href="docs/userguid.md">Documentation</a> •
+  <a href="https://github.com/wolfenazz/YzPzCode/issues/new">Report Bug</a> •
+  <a href="https://github.com/wolfenazz/YzPzCode/issues/new">Request Feature</a>
+  <br /><br />
 </div>
