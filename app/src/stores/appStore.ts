@@ -144,6 +144,8 @@ interface AppState {
   customCursor: boolean;
   accentColor: string;
   uiDensity: "compact" | "comfortable" | "spacious";
+  /** Global UI scale for the app chrome and workspace surfaces, stored as a percentage. */
+  appZoom: number;
   animationsEnabled: boolean;
   /** Accessibility preferences for the built-in YZPZ Agent workspace. */
   agentSessionFontSize: number;
@@ -206,6 +208,7 @@ interface AppState {
   setCustomCursor: (enabled: boolean) => void;
   setAccentColor: (color: string) => void;
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
+  setAppZoom: (zoom: number) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
   setThemeMode: (mode: ThemeMode) => void;
   setAgentSessionFontSize: (size: number) => void;
@@ -419,6 +422,7 @@ export const useAppStore = create<AppState>()(
       customCursor: true,
       accentColor: "default",
       uiDensity: "comfortable",
+      appZoom: 100,
       animationsEnabled: true,
       agentSessionFontSize: 14,
       agentInterfaceScale: 100,
@@ -627,6 +631,7 @@ export const useAppStore = create<AppState>()(
       setCustomCursor: (enabled) => set({ customCursor: enabled }),
       setAccentColor: (color) => set({ accentColor: color }),
       setUiDensity: (density) => set({ uiDensity: density }),
+      setAppZoom: (zoom) => set({ appZoom: Math.min(140, Math.max(80, Math.round(zoom / 10) * 10)) }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
@@ -1686,6 +1691,7 @@ export const useAppStore = create<AppState>()(
           customCursor: state.customCursor,
           accentColor: state.accentColor,
           uiDensity: state.uiDensity,
+          appZoom: state.appZoom,
           animationsEnabled: state.animationsEnabled,
           themeMode: state.themeMode,
           agentSessionFontSize: state.agentSessionFontSize,

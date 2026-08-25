@@ -123,7 +123,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
       <header ref={titlebarRef} className="workspace-chrome app-chrome relative z-[100] h-12 select-none">
         <div className="workspace-chrome__brand flex h-full min-w-0 items-center">
           <div className="workspace-chrome__product flex h-full items-center gap-2 border-r border-[var(--border-primary)] px-3">
-            <span className="grid h-6 w-6 place-items-center overflow-hidden rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)]"><img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-85" draggable={false} /></span>
+            <img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-85" draggable={false} />
             <span className="text-[12px] font-medium tracking-[-0.02em] text-[var(--text-primary)]">YzPzCode</span>
           </div>
           <div className="workspace-chrome__utility-cluster flex items-center gap-0.5 px-1.5">

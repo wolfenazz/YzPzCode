@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Sun, Moon, Desktop } from '@phosphor-icons/react';
+import { Desktop, Minus, Moon, Plus, Sun } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
 import { SettingsToggle } from '../../common/SettingsToggle';
 import type { ThemeMode } from '../../../types';
+import claudeLogo from '../../../assets/claude.png';
+import yzpzLogo from '../../../assets/YzPzCodeLogo.png';
 
 const ACCENT_COLORS = [
-  { name: 'Claude', value: 'default', color: '#d87757' },
+  { name: 'Claude', value: 'default', color: '#c15f3c' },
+  { name: 'YzPz Burple', value: 'burple', color: '#8c4edd' },
   { name: 'Claude Blue', value: 'blue', color: '#1b7ede' },
   { name: 'Purple', value: 'purple', color: '#8b5cf6' },
   { name: 'Green', value: 'green', color: '#10b981' },
@@ -22,10 +25,60 @@ const UI_DENSITIES = [
   { value: 'spacious' as const, label: 'Spacious' },
 ];
 
-const THEME_OPTIONS: Array<{ value: ThemeMode; label: string; description: string; icon: React.ElementType }> = [
-  { value: 'light', label: 'Light', description: 'Bright interface', icon: Sun },
-  { value: 'dark', label: 'Dark', description: 'Dark interface', icon: Moon },
-  { value: 'system', label: 'System', description: 'Follows your OS theme', icon: Desktop },
+const APP_ZOOM_MIN = 80;
+const APP_ZOOM_MAX = 140;
+const APP_ZOOM_STEP = 10;
+
+const ClaudeLogoIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <img src={claudeLogo} alt="" style={{ width: size, height: size }} className="object-contain opacity-85" />
+);
+
+const YzPzLogoIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <img src={yzpzLogo} alt="" style={{ width: size, height: size }} className="object-contain opacity-85" />
+);
+
+const THEME_OPTIONS: Array<{
+  value: ThemeMode;
+  label: string;
+  description: string;
+  icon: React.ElementType;
+  swatches: string[];
+}> = [
+  {
+    value: 'light',
+    label: 'Light',
+    description: 'Bright neutral interface',
+    icon: Sun,
+    swatches: ['#f6f6f4', '#fbfbfa', '#4f5358'],
+  },
+  {
+    value: 'dark',
+    label: 'Dark',
+    description: 'Deep neutral interface',
+    icon: Moon,
+    swatches: ['#0b0b0b', '#1a1a1a', '#d0d0d0'],
+  },
+  {
+    value: 'claude',
+    label: 'Claude',
+    description: 'Warm Crail and Pampas interface',
+    icon: ClaudeLogoIcon,
+    swatches: ['#c15f3c', '#b1ada1', '#f4f3ee', '#ffffff'],
+  },
+  {
+    value: 'yzpz',
+    label: 'YzPzCode',
+    description: 'Textured Burple brand interface',
+    icon: YzPzLogoIcon,
+    swatches: ['#8c4edd', '#2e1b9c', '#546bf3', '#c7b8f5'],
+  },
+  {
+    value: 'system',
+    label: 'System',
+    description: 'Follows your OS theme',
+    icon: Desktop,
+    swatches: ['#0b0b0b', '#f6f6f4'],
+  },
 ];
 
 const Divider = () => (
@@ -40,6 +93,8 @@ export const SettingsAppearance: React.FC = () => {
     setAccentColor,
     uiDensity,
     setUiDensity,
+    appZoom,
+    setAppZoom,
     animationsEnabled,
     setAnimationsEnabled,
     themeMode,
@@ -51,6 +106,19 @@ export const SettingsAppearance: React.FC = () => {
   } = useAppStore();
 
   const [discordError, setDiscordError] = useState<string | null>(null);
+
+  const changeAppZoom = (delta: number): void => {
+    setAppZoom(Math.min(APP_ZOOM_MAX, Math.max(APP_ZOOM_MIN, appZoom + delta)));
+  };
+
+  const changeTheme = (mode: ThemeMode): void => {
+    setThemeMode(mode);
+    if (mode === 'claude') {
+      setAccentColor('default');
+    } else if (mode === 'yzpz') {
+      setAccentColor('burple');
+    }
+  };
 
   useEffect(() => {
     if (discordRichPresence) {
@@ -110,13 +178,13 @@ export const SettingsAppearance: React.FC = () => {
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
           Theme
         </h3>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Choose between a light, dark, or system-following interface</p>
+        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Choose a light, dark, Claude, YzPzCode, or system-following interface</p>
 
-        <div className="flex items-center gap-2">
-          {THEME_OPTIONS.map(({ value, label, description, icon: IconComponent }) => (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {THEME_OPTIONS.map(({ value, label, description, icon: IconComponent, swatches }) => (
             <button
               key={value}
-              onClick={() => setThemeMode(value)}
+              onClick={() => changeTheme(value)}
               className={`flex flex-1 flex-col items-center gap-1.5 rounded-md px-3 py-2.5 text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
                 themeMode === value
                   ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
@@ -126,6 +194,11 @@ export const SettingsAppearance: React.FC = () => {
             >
               <IconComponent size={16} weight="duotone" aria-hidden="true" />
               <span>{label}</span>
+              <span className="mt-0.5 flex h-1.5 w-12 items-center overflow-hidden rounded-full ring-1 ring-[var(--border-primary)]" aria-hidden="true">
+                {swatches.map((swatch) => (
+                  <span key={swatch} className="h-full flex-1" style={{ backgroundColor: swatch }} />
+                ))}
+              </span>
             </button>
           ))}
         </div>
@@ -151,6 +224,55 @@ export const SettingsAppearance: React.FC = () => {
               {density.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
+        <div>
+          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
+            App Zoom
+          </h3>
+          <p className="mt-1 text-[10px] text-[var(--text-secondary)] font-mono">
+            Scale the entire interface without changing terminal or editor font preferences
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 rounded-md border border-[var(--border-primary)]/70 bg-[var(--bg-primary)]/50 px-3 py-2.5">
+          <div>
+            <p className="text-xs text-[var(--text-primary)] font-mono">Interface scale</p>
+            <p className="mt-0.5 text-[10px] text-[var(--text-secondary)] font-mono">Default is 100%</p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => changeAppZoom(-APP_ZOOM_STEP)}
+              disabled={appZoom <= APP_ZOOM_MIN}
+              aria-label="Decrease app zoom"
+              title="Decrease app zoom"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+            >
+              <Minus size={14} weight="bold" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setAppZoom(100)}
+              aria-label={`Reset app zoom to 100%, currently ${appZoom}%`}
+              title="Reset to 100%"
+              className="min-w-16 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-2.5 py-1.5 text-center font-mono text-[11px] font-bold tabular-nums text-[var(--accent-text)] transition-colors hover:bg-[var(--accent-light)] hover:text-[var(--accent)] cursor-pointer"
+            >
+              {appZoom}%
+            </button>
+            <button
+              type="button"
+              onClick={() => changeAppZoom(APP_ZOOM_STEP)}
+              disabled={appZoom >= APP_ZOOM_MAX}
+              aria-label="Increase app zoom"
+              title="Increase app zoom"
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+            >
+              <Plus size={14} weight="bold" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       </div>
 

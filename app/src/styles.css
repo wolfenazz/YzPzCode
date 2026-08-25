@@ -265,17 +265,13 @@ kbd,
 .border-accent-light { border-color: var(--accent-border); }
 .ring-accent { --tw-ring-color: var(--accent); }
 
-/* ── UI Density ──────────────────────────────────────────────────────── */
-.density-compact .settings-section { padding: 0.75rem; }
-.density-compact .settings-section-gap { gap: 1rem; }
-.density-compact .settings-section-header { margin-bottom: 0.25rem; }
-
-.density-comfortable .settings-section { padding: 1.25rem; }
-.density-comfortable .settings-section-gap { gap: 1.5rem; }
-
-.density-spacious .settings-section { padding: 1.75rem; }
-.density-spacious .settings-section-gap { gap: 2rem; }
-.density-spacious .settings-section-header { margin-bottom: 0.75rem; }
+/* ── UI Density ────────────────────────────────────────────────────────
+   The app is built on Tailwind's rem-based spacing/sizing utilities, so
+   scaling the root font size adjusts padding, gaps, and text across the
+   whole interface. Compact = 14px, Comfortable = 16px, Spacious = 18px. */
+html.density-compact { font-size: 87.5%; }
+html.density-comfortable { font-size: 100%; }
+html.density-spacious { font-size: 112.5%; }
 
 /* ── Animations Disabled ─────────────────────────────────────────────── */
 html.animations-disabled *,
@@ -1070,15 +1066,134 @@ html.animations-disabled *::after {
 /* ── Custom Crosshair Cursor ──────────────────────────────────────────── */
 .custom-cursor-layer {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 32px;
+  height: 32px;
   pointer-events: none;
-  z-index: 99998;
+  z-index: 100001;
+  color: var(--accent);
+  opacity: 0;
+  transform: translate3d(-64px, -64px, 0);
+  transition: opacity 80ms linear;
+  contain: layout style;
+  will-change: transform;
+}
+
+.custom-cursor-layer.is-visible {
+  opacity: 1;
+}
+
+.custom-cursor-reticle,
+.custom-cursor-pulse,
+.custom-cursor-caret {
+  position: absolute;
+  pointer-events: none;
+}
+
+.custom-cursor-reticle {
+  inset: 0;
+  transform-origin: center;
+  transition: opacity 90ms ease, transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.custom-cursor-reticle svg {
+  display: block;
+  width: 32px;
+  height: 32px;
+  overflow: visible;
+  fill: none;
+}
+
+.custom-cursor-brackets,
+.custom-cursor-ticks {
+  stroke: currentColor;
+  stroke-linecap: square;
+  vector-effect: non-scaling-stroke;
+}
+
+.custom-cursor-brackets {
+  opacity: 0.46;
+  stroke-width: 1;
+}
+
+.custom-cursor-ticks {
+  opacity: 0.86;
+  stroke-width: 1.15;
+}
+
+.custom-cursor-core {
+  fill: currentColor;
+  stroke: var(--bg-primary);
+  stroke-width: 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 100ms ease;
+}
+
+.custom-cursor-pulse {
+  inset: 8px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.45);
+  transition: opacity 100ms ease, transform 120ms ease-out;
+}
+
+.custom-cursor-caret {
+  top: 6px;
+  left: 15px;
+  width: 2px;
+  height: 20px;
+  border-radius: 1px;
+  background: currentColor;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg-primary) 72%, transparent);
+  opacity: 0;
+  transform: scaleY(0.7);
+  transition: opacity 80ms ease, transform 100ms ease;
+}
+
+.custom-cursor-layer[data-mode="interactive"] .custom-cursor-reticle {
+  transform: rotate(45deg) scale(0.9);
+}
+
+.custom-cursor-layer[data-mode="interactive"] .custom-cursor-brackets {
+  opacity: 0.82;
+}
+
+.custom-cursor-layer[data-mode="interactive"] .custom-cursor-core {
+  transform: scale(1.35);
+}
+
+.custom-cursor-layer[data-mode="text"] .custom-cursor-reticle {
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.custom-cursor-layer[data-mode="text"] .custom-cursor-caret {
+  opacity: 0.9;
+  transform: scaleY(1);
+}
+
+.custom-cursor-layer.is-pressed .custom-cursor-reticle {
+  transform: scale(0.76);
+}
+
+.custom-cursor-layer[data-mode="interactive"].is-pressed .custom-cursor-reticle {
+  transform: rotate(45deg) scale(0.72);
+}
+
+.custom-cursor-layer.is-pressed .custom-cursor-pulse {
+  opacity: 0.72;
+  transform: scale(1.15);
+}
+
+.custom-cursor-layer[data-mode="text"].is-pressed .custom-cursor-caret {
+  transform: scaleY(0.72);
 }
 
 html.has-custom-cursor,
-html.has-custom-cursor *,
-html.has-custom-cursor *::before,
-html.has-custom-cursor *::after {
+html.has-custom-cursor * {
   cursor: none !important;
 }
 

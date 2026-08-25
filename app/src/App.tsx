@@ -1,4 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react';
+import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { SetupScreen } from './components/setup/SetupScreen';
 import { NodeJsCheckScreen } from './components/setup/NodeJsCheckScreen';
 import { UpdateNotification } from './components/common/UpdateNotification';
@@ -24,7 +25,8 @@ const LoadingFallback = () => (
 );
 
 const ACCENT_COLOR_MAP: Record<string, string> = {
-  default: '#d87757',  // Claude terracotta (new default)
+  default: '#c15f3c',  // Claude Crail
+  burple: '#8c4edd',   // YzPzCode Burple
   blue: '#1b7ede',     // Claude blue (ring color)
   purple: '#8b5cf6',
   green: '#10b981',
@@ -43,6 +45,8 @@ function App() {
     customCursor,
     accentColor,
     uiDensity,
+    appZoom,
+    themeMode,
     animationsEnabled,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
@@ -62,26 +66,30 @@ function App() {
   }, [customCursor]);
 
   useEffect(() => {
-    const palette = ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
+    const usesYzPzPalette = themeMode === 'yzpz' && (accentColor === 'burple' || accentColor === 'default');
+    const palette = usesYzPzPalette ? ACCENT_COLOR_MAP.burple : ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
+    const usesClaudePalette = themeMode === 'claude' && accentColor === 'default';
     const hex = palette;
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
     const b = parseInt(hex.slice(5, 7), 16);
     const root = document.documentElement;
     root.style.setProperty('--accent', hex);
-    root.style.setProperty('--accent-light', `rgba(${r}, ${g}, ${b}, 0.15)`);
-    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, 0.3)`);
-    root.style.setProperty('--accent-border', `rgba(${r}, ${g}, ${b}, 0.2)`);
-    root.style.setProperty('--accent-text', `rgba(${r}, ${g}, ${b}, 0.7)`);
-  }, [accentColor]);
+    root.style.setProperty('--accent-light', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.12 : usesYzPzPalette ? 0.2 : 0.15})`);
+    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.16 : usesYzPzPalette ? 0.28 : 0.3})`);
+    root.style.setProperty('--accent-border', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.28 : usesYzPzPalette ? 0.38 : 0.2})`);
+    root.style.setProperty('--accent-text', usesClaudePalette ? '#a64d31' : usesYzPzPalette ? '#c7b8f5' : `rgba(${r}, ${g}, ${b}, 0.7)`);
+  }, [accentColor, themeMode]);
 
   useEffect(() => {
     const root = document.documentElement;
     root.classList.toggle('light-theme', effectiveTheme === 'light');
+    root.classList.toggle('claude-theme', themeMode === 'claude');
+    root.classList.toggle('yzpz-theme', themeMode === 'yzpz');
     return () => {
-      root.classList.remove('light-theme');
+      root.classList.remove('light-theme', 'claude-theme', 'yzpz-theme');
     };
-  }, [effectiveTheme]);
+  }, [effectiveTheme, themeMode]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -91,6 +99,14 @@ function App() {
       root.classList.remove('density-compact', 'density-comfortable', 'density-spacious');
     };
   }, [uiDensity]);
+
+  useEffect(() => {
+    if ('__TAURI_INTERNALS__' in window) {
+      void getCurrentWebview().setZoom(appZoom / 100).catch((error: unknown) => {
+        console.error('Failed to update app zoom:', error);
+      });
+    }
+  }, [appZoom]);
 
   useEffect(() => {
     const root = document.documentElement;

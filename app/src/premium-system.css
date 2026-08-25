@@ -115,6 +115,196 @@
   --color-zinc-950: #f6f6f4;
 }
 
+/* Claude — a warm, editorial light theme grounded in the official palette:
+   Crail, Cloudy, Pampas, and White. Darker warm neutrals are used only where
+   text contrast requires them. */
+.claude-theme {
+  color-scheme: light;
+
+  --claude-crail: #c15f3c;
+  --claude-cloudy: #b1ada1;
+  --claude-pampas: #f4f3ee;
+  --claude-white: #ffffff;
+
+  --bg-primary: var(--claude-pampas);
+  --bg-main: var(--claude-pampas);
+  --bg-secondary: var(--claude-white);
+  --bg-tertiary: #e9e7e0;
+  --bg-terminal: #1f1e1b;
+  --border-primary: rgba(113, 106, 96, 0.22);
+  --text-primary: #2d2a26;
+  --text-secondary: #6f6a62;
+
+  --background: var(--claude-pampas);
+  --foreground: #36322d;
+  --card: var(--claude-white);
+  --card-foreground: #2d2a26;
+  --popover: var(--claude-white);
+  --popover-foreground: #2d2a26;
+  --primary: var(--claude-crail);
+  --primary-foreground: var(--claude-white);
+  --secondary: #e9e7e0;
+  --secondary-foreground: #36322d;
+  --muted: #e9e7e0;
+  --muted-foreground: #736e66;
+  --destructive: #b44237;
+  --destructive-foreground: var(--claude-white);
+  --border: rgba(113, 106, 96, 0.22);
+  --input: rgba(113, 106, 96, 0.25);
+  --ring: rgba(193, 95, 60, 0.45);
+  --sidebar: #edeae4;
+  --sidebar-foreground: #4d4943;
+  --sidebar-primary: #e1ded6;
+  --sidebar-primary-foreground: #2d2a26;
+  --sidebar-accent: #e5e2da;
+  --sidebar-accent-foreground: #2d2a26;
+  --sidebar-border: rgba(113, 106, 96, 0.18);
+  --sidebar-ring: rgba(193, 95, 60, 0.38);
+
+  --accent: var(--claude-crail);
+  --accent-light: rgba(193, 95, 60, 0.12);
+  --accent-border: rgba(193, 95, 60, 0.28);
+  --accent-text: #a64d31;
+  --accent-glow: rgba(193, 95, 60, 0.16);
+  --shadow-float: 0 10px 30px rgba(69, 59, 48, 0.09);
+  --shadow-dialog: 0 22px 55px rgba(69, 59, 48, 0.14);
+
+  --color-zinc-50: #2d2a26;
+  --color-zinc-100: #38342f;
+  --color-zinc-200: #4d4943;
+  --color-zinc-300: #625d56;
+  --color-zinc-400: #736e66;
+  --color-zinc-500: #878178;
+  --color-zinc-600: #9b958b;
+  --color-zinc-700: var(--claude-cloudy);
+  --color-zinc-800: #d9d6ce;
+  --color-zinc-900: #e9e7e0;
+  --color-zinc-950: var(--claude-pampas);
+}
+
+/* YzPzCode — a midnight-violet brand theme. The supplied noise texture is
+   composited once over the shell rather than repeated on every component. */
+.yzpz-theme {
+  color-scheme: dark;
+
+  --yzpz-burple: #8c4edd;
+  --yzpz-burple-after-noise: #2e1b9c;
+  --yzpz-burple-background: #2e1b9c;
+  --yzpz-burple-foreground: #546bf3;
+  --yzpz-purple: #c7b8f5;
+  --yzpz-purple-after-noise: #967aed;
+  --yzpz-peach: #f6d1ac;
+  --yzpz-peach-after-noise: #f1b27e;
+  --yzpz-teal: #a7eadc;
+  --yzpz-teal-after-noise: #76dec8;
+  --yzpz-blue: #afcdf6;
+  --yzpz-blue-after-noise: #4792e5;
+  --yzpz-coral: #f5b6a6;
+  --yzpz-coral-after-noise: #ef8169;
+  --yzpz-pink: #f3b5d2;
+  --yzpz-pink-after-noise: #eb81b3;
+
+  --bg-primary: rgba(12, 8, 27, 0.96);
+  --bg-main: rgba(12, 8, 27, 0.96);
+  --bg-secondary: rgba(23, 16, 44, 0.94);
+  --bg-tertiary: rgba(34, 23, 67, 0.94);
+  --bg-terminal: #080611;
+  --border-primary: rgba(199, 184, 245, 0.18);
+  --text-primary: #f8f6ff;
+  --text-secondary: #bdb3d7;
+
+  --background: rgba(12, 8, 27, 0.96);
+  --foreground: #e7e1f7;
+  --card: rgba(23, 16, 44, 0.94);
+  --card-foreground: #f8f6ff;
+  --popover: #17102c;
+  --popover-foreground: #f8f6ff;
+  --primary: var(--yzpz-burple);
+  --primary-foreground: #ffffff;
+  --secondary: #211641;
+  --secondary-foreground: #eee9ff;
+  --muted: #1b1235;
+  --muted-foreground: #aea3ca;
+  --destructive: var(--yzpz-coral-after-noise);
+  --destructive-foreground: #1a0c17;
+  --border: rgba(199, 184, 245, 0.18);
+  --input: rgba(199, 184, 245, 0.24);
+  --ring: rgba(140, 78, 221, 0.72);
+  --sidebar: rgba(10, 7, 23, 0.97);
+  --sidebar-foreground: #d8cff0;
+  --sidebar-primary: #24174b;
+  --sidebar-primary-foreground: #f8f6ff;
+  --sidebar-accent: #1c1239;
+  --sidebar-accent-foreground: #f8f6ff;
+  --sidebar-border: rgba(199, 184, 245, 0.14);
+  --sidebar-ring: rgba(140, 78, 221, 0.68);
+
+  --accent: var(--yzpz-burple);
+  --accent-light: rgba(140, 78, 221, 0.2);
+  --accent-border: rgba(140, 78, 221, 0.38);
+  --accent-text: var(--yzpz-purple);
+  --accent-glow: rgba(140, 78, 221, 0.28);
+  --shadow-float: 0 14px 38px rgba(3, 2, 12, 0.42);
+  --shadow-dialog: 0 28px 75px rgba(3, 2, 12, 0.58);
+
+  --color-zinc-50: #f8f6ff;
+  --color-zinc-100: #eee9ff;
+  --color-zinc-200: #ded5fb;
+  --color-zinc-300: var(--yzpz-purple);
+  --color-zinc-400: #aa96e0;
+  --color-zinc-500: #8a73bf;
+  --color-zinc-600: #6b579d;
+  --color-zinc-700: #4b3b75;
+  --color-zinc-800: #302452;
+  --color-zinc-900: #1c1437;
+  --color-zinc-950: #0c081b;
+}
+
+.yzpz-theme .app-shell {
+  position: relative;
+  isolation: isolate;
+  background-color: #0c081b;
+  background-image:
+    radial-gradient(circle at 12% -8%, rgba(140, 78, 221, 0.34), transparent 35%),
+    radial-gradient(circle at 88% 4%, rgba(71, 146, 229, 0.2), transparent 30%),
+    radial-gradient(circle at 74% 100%, rgba(235, 129, 179, 0.1), transparent 35%),
+    linear-gradient(145deg, #0c081b 0%, #140c32 54%, #090713 100%);
+}
+
+.yzpz-theme .app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("./assets/noise.webp");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  mix-blend-mode: overlay;
+  opacity: 0.22;
+}
+
+.yzpz-theme .app-shell > *:not(.custom-cursor-layer) {
+  position: relative;
+  z-index: 1;
+}
+
+.yzpz-theme .app-chrome,
+.yzpz-theme .workspace-chrome {
+  background: color-mix(in srgb, #0a0717 88%, transparent);
+  border-color: rgba(199, 184, 245, 0.14);
+}
+
+.yzpz-theme .workspace-chrome img {
+  filter: drop-shadow(0 0 8px rgba(140, 78, 221, 0.34));
+}
+
+.yzpz-theme :where(.xterm, .cm-editor, .monaco-editor) {
+  isolation: isolate;
+  background-color: var(--bg-terminal);
+}
+
 .light-theme .app-shell :where([class*="shadow-"]) {
   box-shadow: 0 1px 3px rgba(32, 31, 29, 0.06) !important;
 }
@@ -261,23 +451,6 @@ body {
   height: 100%;
   padding: 0 1rem;
   color: var(--text-primary);
-}
-
-.app-chrome__mark {
-  display: grid;
-  width: 1.625rem;
-  height: 1.625rem;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid var(--border-primary);
-  border-radius: 0.5rem;
-  background: var(--bg-tertiary);
-}
-
-.app-chrome__mark img {
-  width: 1.125rem;
-  height: 1.125rem;
-  object-fit: contain;
 }
 
 .app-chrome__title {

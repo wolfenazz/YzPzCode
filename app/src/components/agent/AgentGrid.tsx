@@ -24,7 +24,11 @@ function getDims(count: number): { cols: number; rows: number } {
   if (count === 2) return { cols: 2, rows: 1 };
   if (count <= 4) return { cols: 2, rows: 2 };
   if (count <= 6) return { cols: 3, rows: 2 };
-  return { cols: 3, rows: 3 };
+  // Square-ish grid that grows with the session count, so any number of
+  // sessions has a cell to occupy (previously capped at 3x3 = 9).
+  const cols = Math.ceil(Math.sqrt(count));
+  const rows = Math.ceil(count / cols);
+  return { cols, rows };
 }
 
 export const AgentGrid: React.FC<AgentGridProps> = ({ workspaceId }) => {

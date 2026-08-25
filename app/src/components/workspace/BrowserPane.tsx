@@ -298,6 +298,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspace = useAppStore((state) => state.currentWorkspace);
   const agentSessionsByWorkspace = useAppStore((state) => state.agentSessionsByWorkspace);
+  const appZoom = useAppStore((state) => state.appZoom);
   const ensureBrowserState = useAppStore((state) => state.ensureBrowserState);
   const setBrowserCurrentUrl = useAppStore((state) => state.setBrowserCurrentUrl);
   const setBrowserDraftUrl = useAppStore((state) => state.setBrowserDraftUrl);
@@ -554,7 +555,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       observer.disconnect();
       window.removeEventListener('resize', updateSize);
     };
-  }, []);
+  }, [appZoom]);
 
   const syncBrowserBounds = useCallback(async () => {
     if (isPoppedOut) return;
@@ -565,11 +566,14 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     const rect = viewport.getBoundingClientRect();
     if (rect.width < 80 || rect.height < 80) return;
 
+    // DOMRect values are CSS pixels inside the zoomed main webview, while
+    // Tauri positions child webviews in unzoomed logical pixels.
+    const appZoomFactor = appZoom / 100;
     const bounds = {
-      x: rect.left,
-      y: rect.top,
-      width: rect.width,
-      height: rect.height,
+      x: rect.left * appZoomFactor,
+      y: rect.top * appZoomFactor,
+      width: rect.width * appZoomFactor,
+      height: rect.height * appZoomFactor,
     };
 
     const url = resolvedCurrentUrl;
@@ -596,6 +600,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     }
   }, [
     ensureBrowserView,
+    appZoom,
     isPoppedOut,
     resolvedCurrentUrl,
     workspaceId,

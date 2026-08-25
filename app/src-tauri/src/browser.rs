@@ -148,6 +148,61 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     overlay.style.display = 'none';
   };
 
+  const applyBrowserScrollbar = () => {
+    const root = document.documentElement;
+    if (!root) return;
+
+    let style = document.getElementById('yzpz-browser-scrollbar-style');
+    if (!style) {
+      style = document.createElement('style');
+      style.id = 'yzpz-browser-scrollbar-style';
+      (document.head || root).appendChild(style);
+    }
+
+    // Keep the page's normal scrolling behavior, but replace the platform
+    // scrollbar with a compact, quiet track that fits the browser chrome.
+    style.textContent = `
+      :root, body {
+        scrollbar-width: thin !important;
+        scrollbar-color: rgba(128, 138, 154, 0.72) transparent !important;
+      }
+      :root::-webkit-scrollbar,
+      body::-webkit-scrollbar {
+        width: 9px !important;
+        height: 9px !important;
+      }
+      :root::-webkit-scrollbar-track,
+      body::-webkit-scrollbar-track {
+        background: transparent !important;
+      }
+      :root::-webkit-scrollbar-thumb,
+      body::-webkit-scrollbar-thumb {
+        background: rgba(128, 138, 154, 0.72) !important;
+        background-clip: padding-box !important;
+        border: 2px solid transparent !important;
+        border-radius: 999px !important;
+      }
+      :root::-webkit-scrollbar-thumb:hover,
+      body::-webkit-scrollbar-thumb:hover {
+        background: rgba(179, 190, 207, 0.9) !important;
+      }
+      :root::-webkit-scrollbar-thumb:active,
+      body::-webkit-scrollbar-thumb:active {
+        background: rgba(110, 231, 183, 0.95) !important;
+      }
+      :root::-webkit-scrollbar-corner,
+      body::-webkit-scrollbar-corner {
+        background: transparent !important;
+      }
+      :root::-webkit-scrollbar-button,
+      body::-webkit-scrollbar-button {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+    `;
+  };
+
   const applyPreviewChrome = () => {
     const html = document.documentElement;
     const body = document.body;
@@ -1162,6 +1217,9 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   }
 
   window.__YZPZ_BROWSER_BRIDGE__ = {
+    refreshScrollbar() {
+      applyBrowserScrollbar();
+    },
     setInspectMode(value) {
       inspectMode = !!value;
       pickStyleMode = false;
@@ -1244,6 +1302,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   window.addEventListener('click', handleApplyClick, true);
 
   scheduleEmitPageState();
+  applyBrowserScrollbar();
   setTimeout(applyPreviewChrome, 0);
 })();
 "#;
@@ -2249,6 +2308,11 @@ impl BrowserManager {
                 let script = preview_chrome_script(Some(chrome));
                 webview.eval(format!("setTimeout(() => {{ {script} }}, 0);"))?;
             }
+            webview
+                .eval(
+                    "setTimeout(() => window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.refreshScrollbar && window.__YZPZ_BROWSER_BRIDGE__.refreshScrollbar(), 0);",
+                )
+                .ok();
             webview
                 .eval(
                     "setTimeout(() => window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.emitPageState && window.__YZPZ_BROWSER_BRIDGE__.emitPageState(), 0);",

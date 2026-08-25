@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '../stores/appStore';
 
-/** Resolve the user's theme mode to the effective 'light' | 'dark' applied to the app. */
+/** Resolve app themes to the light/dark mode expected by editors and previews. */
 export const useEffectiveTheme = (): 'light' | 'dark' => {
   const themeMode = useAppStore((s) => s.themeMode);
   const [systemDark, setSystemDark] = useState<boolean>(
@@ -18,5 +18,7 @@ export const useEffectiveTheme = (): 'light' | 'dark' => {
   }, [themeMode]);
 
   if (themeMode === 'system') return systemDark ? 'dark' : 'light';
+  if (themeMode === 'claude') return 'light';
+  if (themeMode === 'yzpz') return 'dark';
   return themeMode;
 };

@@ -4,7 +4,7 @@ export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "
 
 export type CliType = AgentType | ToolCliType;
 export type WorkspaceView = "terminal" | "agent" | "editor" | "browser";
-export type ThemeMode = "light" | "dark" | "system";
+export type ThemeMode = "light" | "dark" | "claude" | "yzpz" | "system";
 
 export interface ImageEditorWorkspaceState {
   path: string | null;

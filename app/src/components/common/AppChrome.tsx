@@ -53,9 +53,7 @@ export const AppChrome = ({
           </div>
         ) : null}
         <div className="app-chrome__brand">
-          <span className="app-chrome__mark" aria-hidden="true">
-            <img src={logo} alt="" />
-          </span>
+          <img src={logo} alt="" className="h-4 w-auto opacity-85" />
           <span className="app-chrome__title">{title}</span>
         </div>
         {onDocs ? (

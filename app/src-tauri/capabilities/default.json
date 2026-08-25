@@ -16,6 +16,7 @@
     "core:window:allow-close",
     "core:window:allow-set-decorations",
     "core:window:allow-is-maximized",
+    "core:webview:allow-set-webview-zoom",
     "opener:default",
     "opener:allow-open-path",
     "dialog:default",
