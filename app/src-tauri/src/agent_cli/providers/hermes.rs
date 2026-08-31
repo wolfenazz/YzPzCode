@@ -33,7 +33,7 @@ impl AgentCliProvider for HermesCliProvider {
     }
 
     fn get_version_command(&self) -> Vec<String> {
-        vec!["version".to_string()]
+        vec!["--version".to_string()]
     }
 
     fn get_docs_url(&self) -> &'static str {

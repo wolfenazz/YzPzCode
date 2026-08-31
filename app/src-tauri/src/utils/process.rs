@@ -243,6 +243,8 @@ impl ProcessRunner {
             paths.push(format!(r"{}\bin", local));
             paths.push(format!(r"{}\pnpm", local));
             paths.push(format!(r"{}\Programs\nodejs", local));
+            paths.push(format!(r"{}\hermes\bin", local));
+            paths.push(format!(r"{}\hermes\hermes-agent\venv\Scripts", local));
         }
         paths.push(r"C:\Program Files\nodejs".to_string());
         paths.push(r"C:\Program Files\Git\bin".to_string());
@@ -297,6 +299,7 @@ impl ProcessRunner {
         if let Ok(home) = std::env::var("HOME") {
             paths.push(format!("{}/.claude/bin", home));
             paths.push(format!("{}/.grok/bin", home));
+            paths.push(format!("{}/.hermes/bin", home));
             paths.push(format!("{}/.local/bin", home));
             paths.push(format!("{}/bin", home));
             paths.push(format!("{}/.npm-global/bin", home));
@@ -307,6 +310,7 @@ impl ProcessRunner {
             paths.push(format!("{}/.volta/bin", home));
             paths.push(format!("{}/.fnm/bin", home));
             paths.push(format!("{}/go/bin", home));
+            paths.push(format!("{}/.local/share/hermes/bin", home));
             paths.extend(Self::nvm_version_dirs(&home));
         }
 
@@ -333,6 +337,7 @@ impl ProcessRunner {
         if let Ok(home) = std::env::var("HOME") {
             paths.push(format!("{}/.claude/bin", home));
             paths.push(format!("{}/.grok/bin", home));
+            paths.push(format!("{}/.hermes/bin", home));
             paths.push(format!("{}/.local/bin", home));
             paths.push(format!("{}/bin", home));
             paths.push(format!("{}/.npm-global/bin", home));
@@ -349,6 +354,7 @@ impl ProcessRunner {
             paths.push(format!("{}/go/bin", home));
             paths.push(format!("{}/.local/share/fnm/bin", home));
             paths.push(format!("{}/.sdkman/candidates/java/current/bin", home));
+            paths.push(format!("{}/.local/share/hermes/bin", home));
             paths.extend(Self::nvm_version_dirs(&home));
         }
 
