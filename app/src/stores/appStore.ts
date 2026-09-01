@@ -952,10 +952,11 @@ export const useAppStore = create<AppState>()(
           // Opening Source Control slides the Explorer off; closing it restores the Explorer.
           explorerOpen: state.sourceControlOpen ? true : false,
         })),
-      setSourceControlOpen: (open) => ({
-        sourceControlOpen: open,
-        explorerOpen: open ? false : true,
-      }),
+      setSourceControlOpen: (open) =>
+        set({
+          sourceControlOpen: open,
+          explorerOpen: !open,
+        }),
       setExplorerClipboard: (entry) => set({ explorerClipboard: entry }),
       clearRestoredFilePaths: (workspaceId) =>
         set((state) => {

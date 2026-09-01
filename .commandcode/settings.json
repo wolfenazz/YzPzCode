@@ -36,7 +36,8 @@
       "Shell(node ./node_modules/typescript/bin/tsc --noEmit)",
       "Shell(node -e \"const fs=require('fs'); let s=fs.readFileSync('src/components/workspace/TerminalHeader.tsx','utf8'); s=s.replace(/React\\.ReactNode/g,'ReactNode'); fs.writeFileSync('src/components/workspace/TerminalHeader.tsx',s); console.log('ok');\")",
       "Shell(node -e \"const fs=require('fs'); let s=fs.readFileSync('src/data/agentCommands.ts','utf8'); s=s.replace(/export const getCommandIcon = \\(command: string\\): React\\.ReactNode => COMMAND_ICONS\\[command\\] \\?\\? <TerminalWindow size=\\{14\\} \\/>;/,'export const getCommandIcon = (command: string): ReactNode => COMMAND_ICONS[command] ?? <TerminalWindow size={14} />;').replace(/const COMMAND_ICONS: Record<string, React\\.ReactNode>/,'const COMMAND_ICONS: Record<string, ReactNode>'); fs.writeFileSync('src/data/agentCommands.ts',s); console.log(s.slice(0,200));\")",
-      "Shell(node ./node_modules/typescript/bin/tsc)"
+      "Shell(node ./node_modules/typescript/bin/tsc)",
+      "powershell"
     ],
     "deny": [],
     "defaultMode": "default"

@@ -1,15 +1,25 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useAppStore } from '../stores/appStore';
-import type { GitDiffStat } from '../types';
+import type { GitDiffStat, GitFileStatus } from '../types';
 
-export const useFileWatcher = (workspacePath: string | null) => {
+interface FileWatcherState {
+  refreshGitStatus: () => Promise<void>;
+  isRefreshingGit: boolean;
+  gitRefreshError: string | null;
+}
+
+export const useFileWatcher = (workspacePath: string | null): FileWatcherState => {
   const setGitStatuses = useAppStore((s) => s.setGitStatuses);
   const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
+  const [isRefreshingGit, setIsRefreshingGit] = useState(false);
+  const [gitRefreshError, setGitRefreshError] = useState<string | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const refreshInFlightRef = useRef(false);
   const refreshQueuedRef = useRef(false);
+  const activeWorkspacePathRef = useRef(workspacePath);
+  activeWorkspacePathRef.current = workspacePath;
 
   const refreshGitStatus = useCallback(async () => {
     if (!workspacePath) return;
@@ -19,23 +29,31 @@ export const useFileWatcher = (workspacePath: string | null) => {
     }
 
     refreshInFlightRef.current = true;
+    setIsRefreshingGit(true);
+    setGitRefreshError(null);
 
     try {
       do {
         refreshQueuedRef.current = false;
 
         const [statuses, diffStats] = await Promise.all([
-          invoke<any[]>('get_git_status', { workspacePath }),
+          invoke<GitFileStatus[]>('get_git_status', { workspacePath }),
           invoke<GitDiffStat[]>('get_git_diff_stats', { workspacePath }),
         ]);
+
+        if (activeWorkspacePathRef.current !== workspacePath) return;
         setGitStatuses(statuses);
         setGitDiffStats(diffStats);
       } while (refreshQueuedRef.current);
-    } catch {
-      setGitStatuses([]);
-      setGitDiffStats([]);
+    } catch (error) {
+      if (activeWorkspacePathRef.current === workspacePath) {
+        setGitRefreshError(error instanceof Error ? error.message : String(error));
+      }
     } finally {
       refreshInFlightRef.current = false;
+      if (activeWorkspacePathRef.current === workspacePath) {
+        setIsRefreshingGit(false);
+      }
     }
   }, [workspacePath, setGitStatuses, setGitDiffStats]);
 
@@ -59,18 +77,32 @@ export const useFileWatcher = (workspacePath: string | null) => {
       return;
     }
 
-    invoke('start_fs_watcher', { workspacePath }).catch((err) => {
-      console.error('Failed to start file watcher:', err);
-    });
-
     let unlisten: UnlistenFn | null = null;
+    let disposed = false;
 
     const setupListener = async () => {
-      unlisten = await listen('file-system-changed', debouncedRefresh);
+      try {
+        const stopListening = await listen('file-system-changed', debouncedRefresh);
+        if (disposed) {
+          stopListening();
+          return;
+        }
+        unlisten = stopListening;
+        await invoke('start_fs_watcher', { workspacePath });
+        if (!disposed) {
+          await refreshGitStatus();
+        }
+      } catch (error) {
+        if (!disposed) {
+          console.error('Failed to start file watcher:', error);
+          setGitRefreshError(error instanceof Error ? error.message : String(error));
+        }
+      }
     };
-    setupListener();
+    void setupListener();
 
     return () => {
+      disposed = true;
       invoke('stop_fs_watcher').catch((err) => {
         console.error('Failed to stop file watcher:', err);
       });
@@ -81,5 +113,7 @@ export const useFileWatcher = (workspacePath: string | null) => {
       refreshInFlightRef.current = false;
       refreshQueuedRef.current = false;
     };
-  }, [workspacePath, debouncedRefresh]);
+  }, [workspacePath, debouncedRefresh, refreshGitStatus]);
+
+  return { refreshGitStatus, isRefreshingGit, gitRefreshError };
 };

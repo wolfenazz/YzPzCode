@@ -15,32 +15,40 @@ pub fn get_git_status(workspace_path: &str) -> Result<Vec<GitFileStatus>, String
     }
 
     let stdout = run_git_hidden(
-        &["status", "--porcelain=v1", "--no-renames"],
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--no-renames",
+        ],
         workspace_path,
-    )
-    .unwrap_or_default();
+    )?;
 
-    let mut statuses: Vec<GitFileStatus> = Vec::new();
+    Ok(parse_porcelain_status(&stdout, root))
+}
 
-    for line in stdout.lines() {
-        let line = line.trim();
-        if line.len() < 4 {
-            continue;
-        }
+/// Parse NUL-delimited porcelain records without trimming them. The first two
+/// bytes are fixed Git status columns, and the third byte is a separator, so
+/// removing leading whitespace shifts both the status and the file path.
+fn parse_porcelain_status(stdout: &str, root: &Path) -> Vec<GitFileStatus> {
+    stdout
+        .split_terminator('\0')
+        .filter_map(|record| {
+            if record.len() < 4 || record.as_bytes().get(2) != Some(&b' ') {
+                return None;
+            }
 
-        let xy = &line[..2];
-        let file_path = &line[3..];
+            let xy = &record[..2];
+            let file_path = &record[3..];
+            let full_path = root.join(file_path);
 
-        let change = parse_git_xy(xy);
-
-        let full_path = root.join(file_path);
-        statuses.push(GitFileStatus {
-            path: full_path.to_string_lossy().to_string(),
-            change,
-        });
-    }
-
-    Ok(statuses)
+            Some(GitFileStatus {
+                path: full_path.to_string_lossy().to_string(),
+                change: parse_git_xy(xy),
+            })
+        })
+        .collect()
 }
 
 fn parse_git_xy(xy: &str) -> GitFileChange {
@@ -55,6 +63,44 @@ fn parse_git_xy(xy: &str) -> GitFileChange {
         GitFileChange::Added
     } else {
         GitFileChange::Modified
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preserves_unstaged_status_column_and_dotfile_path() {
+        let root = Path::new("workspace");
+        let statuses = parse_porcelain_status(" M .commandcode/settings.json\0", root);
+
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(
+            statuses[0].path,
+            root.join(".commandcode/settings.json")
+                .to_string_lossy()
+                .to_string()
+        );
+        assert_eq!(statuses[0].change, GitFileChange::Modified);
+    }
+
+    #[test]
+    fn preserves_spaces_and_reports_each_untracked_file() {
+        let root = Path::new("workspace");
+        let statuses = parse_porcelain_status(
+            "?? new folder/first file.txt\0?? new folder/second.txt\0",
+            root,
+        );
+
+        assert_eq!(statuses.len(), 2);
+        assert_eq!(
+            statuses[0].path,
+            root.join("new folder/first file.txt")
+                .to_string_lossy()
+                .to_string()
+        );
+        assert_eq!(statuses[0].change, GitFileChange::Untracked);
     }
 }
 

@@ -28,6 +28,9 @@ interface SourceControlPanelProps {
   onStageFile: (filePath: string) => void;
   onUnstageFile: (filePath: string) => void;
   onOpenDiff: (file: { path: string; name: string }) => void;
+  onRefresh: () => Promise<void>;
+  isRefreshing: boolean;
+  refreshError: string | null;
 }
 
 interface ChangedFile {
@@ -50,6 +53,9 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
   onStageFile,
   onUnstageFile,
   onOpenDiff,
+  onRefresh,
+  isRefreshing,
+  refreshError,
 }) => {
   const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
 
@@ -204,11 +210,12 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
       try {
         await invoke('git_discard_file', { workspacePath, filePath: file.path });
         setGitDiffFile(null);
+        await onRefresh();
       } catch (err) {
         setCommitError(err instanceof Error ? err.message : String(err));
       }
     },
-    [workspacePath, setGitDiffFile]
+    [workspacePath, setGitDiffFile, onRefresh]
   );
 
   const handleCommit = useCallback(async () => {
@@ -222,6 +229,7 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
     setCommitNotice(null);
     try {
       await invoke('git_commit', { workspacePath, message });
+      await onRefresh();
       setCommitMessage('');
       setCommitDescription('');
       setCommitNotice(`Committed: ${summary.slice(0, 60)}`);
@@ -237,7 +245,7 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
     } finally {
       setCommitting(false);
     }
-  }, [commitMessage, commitDescription, committing, workspacePath, refreshCommitLog, loadRemote, pushAfterCommit, remoteInfo]);
+  }, [commitMessage, commitDescription, committing, workspacePath, refreshCommitLog, loadRemote, pushAfterCommit, remoteInfo, onRefresh]);
 
   const handleCheckout = useCallback(
     async (branch: string) => {
@@ -398,10 +406,25 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
 
             {/* Count line */}
             <div className="mt-2 flex items-center gap-1.5 px-0.5">
-              <span className="font-mono text-[10px] font-bold text-[var(--text-primary)]">
+              <span className="min-w-0 flex-1 font-mono text-[10px] font-bold text-[var(--text-primary)]">
                 {changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}
               </span>
+              <button
+                type="button"
+                onClick={() => void onRefresh()}
+                disabled={isRefreshing}
+                title="Refresh local changes"
+                aria-label="Refresh local changes"
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:cursor-default disabled:opacity-50"
+              >
+                <ArrowClockwise size={12} className={isRefreshing ? 'animate-spin' : ''} aria-hidden="true" />
+              </button>
             </div>
+            {refreshError && (
+              <p className="mt-1 truncate px-0.5 font-mono text-[8.5px] text-rose-400" title={refreshError}>
+                Could not refresh changes: {refreshError}
+              </p>
+            )}
           </div>
 
           {/* File list */}

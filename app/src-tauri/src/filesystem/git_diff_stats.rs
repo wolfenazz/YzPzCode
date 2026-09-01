@@ -100,23 +100,28 @@ fn collect_untracked_line_counts(
     stats_map: &mut HashMap<String, (u32, u32)>,
 ) -> Result<(), String> {
     let stdout = run_git_hidden(
-        &["status", "--porcelain=v1", "--no-renames"],
+        &[
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--no-renames",
+        ],
         workspace_path,
     )
     .unwrap_or_default();
 
-    for line in stdout.lines() {
-        let line = line.trim();
-        if line.len() < 4 {
+    for record in stdout.split_terminator('\0') {
+        if record.len() < 4 || record.as_bytes().get(2) != Some(&b' ') {
             continue;
         }
 
-        let xy = &line[..2];
+        let xy = &record[..2];
         if xy != "??" {
             continue;
         }
 
-        let file_path = &line[3..];
+        let file_path = &record[3..];
         let full_path = root.join(file_path);
 
         if !full_path.exists() || full_path.is_dir() {
