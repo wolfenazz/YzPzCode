@@ -25,6 +25,7 @@ interface WorkspaceProps {
 }
 
 import { motion, AnimatePresence } from 'framer-motion';
+import logo from '../../assets/YzPzCodeLogo.png';
 
 export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
@@ -48,8 +49,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     clearRestoredFilePaths,
   } = useAppStore();
   const devServerUrl = useAppStore((s) => (currentWorkspace ? s.devServerUrlByWorkspace[currentWorkspace.id] : undefined));
-  const autoOpenPreview = useAppStore((s) => s.autoOpenPreview);
-  const addBrowserTab = useAppStore((s) => s.addBrowserTab);
+  const openBrowserTab = useAppStore((s) => s.openBrowserTab);
   const setDevServerUrl = useAppStore((s) => s.setDevServerUrl);
   const { createSessions, killAllSessions, killWorkspaceSessions, isLoading, error } = useTerminal();
   const { detectAllClis } = useAgentCli();
@@ -98,25 +98,15 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   }, [currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, setSessionsForWorkspace, markWorkspaceOpened]);
 
   // ── Dev-server preview ─────────────────────────────────────────────
-  const openedPreviewRef = useRef<string | null>(null);
-
+  // Opening the preview is always an explicit user action (the chip's "Open"
+  // button, or clicking a localhost link in the terminal). It never happens
+  // automatically — dev servers re-print their URL constantly, which used to
+  // spawn a fresh browser tab per occurrence.
   const openPreview = useCallback(() => {
     if (!currentWorkspace || !devServerUrl) return;
     setActiveView('browser');
-    const id = `tab-${Date.now()}`;
-    addBrowserTab(currentWorkspace.id, { id, url: devServerUrl, title: 'Preview' });
-  }, [currentWorkspace, devServerUrl, setActiveView, addBrowserTab]);
-
-  // Auto-open the embedded browser the first time a dev-server URL appears
-  // (per URL — switching back to the terminal doesn't re-trigger it).
-  useEffect(() => {
-    if (!autoOpenPreview || !devServerUrl || !currentWorkspace) return;
-    if (openedPreviewRef.current === devServerUrl) return;
-    openedPreviewRef.current = devServerUrl;
-    setActiveView('browser');
-    const id = `tab-${Date.now()}`;
-    addBrowserTab(currentWorkspace.id, { id, url: devServerUrl, title: 'Preview' });
-  }, [autoOpenPreview, devServerUrl, currentWorkspace, setActiveView, addBrowserTab]);
+    openBrowserTab(currentWorkspace.id, devServerUrl);
+  }, [currentWorkspace, devServerUrl, setActiveView, openBrowserTab]);
 
   const restoredFilesRef = useRef<Record<string, boolean>>({});
 
@@ -343,10 +333,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
               className="workspace-dev-server absolute left-1/2 top-2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-emerald-500/30 bg-[#1c2b22]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-md"
             >
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-70" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              </span>
+              <img src={logo} alt="" className="h-4 w-auto opacity-90" draggable={false} />
               <span className="font-mono text-[9px] font-bold text-emerald-300/90">
                 App running at {devServerUrl.replace(/^https?:\/\//, '')}
               </span>

@@ -675,11 +675,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         try {
           setDevServerUrl(session.workspaceId, uri);
           useAppStore.getState().setActiveView('browser');
-          useAppStore.getState().addBrowserTab(session.workspaceId, {
-            id: `tab-${Date.now()}`,
-            url: uri,
-            title: 'Preview',
-          });
+          // Reuse an existing tab for the same URL instead of stacking
+          // duplicates — the same localhost URL may be printed many times.
+          useAppStore.getState().openBrowserTab(session.workspaceId, uri);
           return;
         } catch (e) {
           console.error('Failed to open URL in embedded browser:', e);

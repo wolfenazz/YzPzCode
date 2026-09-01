@@ -8,6 +8,27 @@ const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
   !value || value.trim() === '' || value.trim() === 'about:blank';
 
+/**
+ * Best-effort URL normalization used to detect duplicate browser tabs
+ * (trailing slashes, default ports, scheme case etc.). Falls back to the
+ * raw trimmed value when parsing fails.
+ */
+const normalizeUrlForTabMatch = (value: string): string => {
+  const trimmed = value.trim();
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `http://${trimmed}`);
+    url.hash = '';
+    url.search = '';
+    if ((url.protocol === 'http:' && url.port === '80') || (url.protocol === 'https:' && url.port === '443')) {
+      url.port = '';
+    }
+    if (url.pathname === '/') url.pathname = '';
+    return url.toString();
+  } catch {
+    return trimmed;
+  }
+};
+
 const getPlatformDefaultTerminalFont = (): string => {
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes('windows')) return 'Cascadia Mono';
@@ -283,8 +304,6 @@ interface AppState {
   gitDiffFile: { path: string; name: string } | null;
   /** Latest dev-server URL detected in terminal output, per workspace. */
   devServerUrlByWorkspace: Record<string, string>;
-  /** Auto-open the embedded browser when a dev-server URL is detected. */
-  autoOpenPreview: boolean;
   /** One-shot editor "reveal this line" request (from search results). */
   editorRevealLine: { path: string; line: number } | null;
   filesByWorkspace: Record<string, FileTab[]>;
@@ -331,6 +350,7 @@ interface AppState {
   setBrowserTargetSession: (workspaceId: string, sessionId: string | null) => void;
   clearBrowserSelection: (workspaceId: string) => void;
   addBrowserTab: (workspaceId: string, tab: BrowserTab) => void;
+  openBrowserTab: (workspaceId: string, url: string, title?: string) => void;
   removeBrowserTab: (workspaceId: string, tabId: string) => void;
   setActiveBrowserTab: (workspaceId: string, tabId: string) => void;
   updateBrowserTab: (workspaceId: string, tabId: string, updates: Partial<BrowserTab>) => void;
@@ -355,7 +375,6 @@ interface AppState {
   setGitDiffStats: (stats: GitDiffStat[]) => void;
   setGitDiffFile: (file: { path: string; name: string } | null) => void;
   setDevServerUrl: (workspaceId: string, url: string | null) => void;
-  setAutoOpenPreview: (enabled: boolean) => void;
   setEditorRevealLine: (req: { path: string; line: number } | null) => void;
   closeAllFiles: () => void;
   closeOtherFiles: (exceptPath: string) => void;
@@ -894,7 +913,6 @@ export const useAppStore = create<AppState>()(
       gitDiffStats: [],
       gitDiffFile: null,
       devServerUrlByWorkspace: {},
-      autoOpenPreview: true,
       editorRevealLine: null,
       filesByWorkspace: {} as Record<string, FileTab[]>,
       activeFileByWorkspace: {} as Record<string, string | null>,
@@ -1230,6 +1248,33 @@ export const useAppStore = create<AppState>()(
           };
         }),
 
+      /**
+       * Open a URL in the embedded browser. If a tab already points at the
+       * same URL, reuse it (and just focus it) instead of stacking duplicate
+       * tabs — dev servers re-emit their URL constantly, which used to spawn
+       * a fresh tab on every occurrence.
+       */
+      openBrowserTab: (workspaceId, url, title = 'Preview') =>
+        set((state) => {
+          const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
+          const existing = bs.browserTabs.find((t) => t.url === url || normalizeUrlForTabMatch(t.url) === normalizeUrlForTabMatch(url));
+          if (existing) {
+            return {
+              browserStateByWorkspace: {
+                ...state.browserStateByWorkspace,
+                [workspaceId]: { ...bs, activeTabId: existing.id },
+              },
+            };
+          }
+          const tab: BrowserTab = { id: `tab-${Date.now()}`, url, title };
+          return {
+            browserStateByWorkspace: {
+              ...state.browserStateByWorkspace,
+              [workspaceId]: { ...bs, browserTabs: [...bs.browserTabs, tab], activeTabId: tab.id },
+            },
+          };
+        }),
+
       removeBrowserTab: (workspaceId, tabId) =>
         set((state) => {
           const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
@@ -1541,7 +1586,6 @@ export const useAppStore = create<AppState>()(
             ? { ...state.devServerUrlByWorkspace, [workspaceId]: url }
             : { ...state.devServerUrlByWorkspace, [workspaceId]: undefined as unknown as string },
         })),
-      setAutoOpenPreview: (enabled) => set({ autoOpenPreview: enabled }),
       setEditorRevealLine: (req) => set({ editorRevealLine: req }),
 
       closeAllFiles: () =>
@@ -1732,7 +1776,6 @@ export const useAppStore = create<AppState>()(
           inspectorQuickPrompts: state.inspectorQuickPrompts,
           agentPaneUIModes: state.agentPaneUIModes,
           showAgentReasoning: state.showAgentReasoning,
-          autoOpenPreview: state.autoOpenPreview,
         };
 
         if (state.saveWorkspaceState) {

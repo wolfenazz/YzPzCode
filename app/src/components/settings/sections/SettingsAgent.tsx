@@ -155,8 +155,6 @@ export const SettingsAgent: React.FC = () => {
     setAgentInterfaceScale,
     setAgentConversationWidth,
     resetAgentDisplayPreferences,
-    autoOpenPreview,
-    setAutoOpenPreview,
     agentTimeout,
     setAgentTimeout,
   } = useAppStore();
@@ -833,12 +831,6 @@ export const SettingsAgent: React.FC = () => {
               hint="Disable anonymous usage telemetry"
               checked={g?.telemetryOptOut ?? false}
               onChange={(v) => void applyGlobal({ telemetryOptOut: v })}
-            />
-            <Toggle
-              label="Auto-open live preview"
-              hint="When a dev-server URL appears in terminal output, open it in the embedded browser automatically"
-              checked={autoOpenPreview}
-              onChange={(v) => setAutoOpenPreview(v)}
             />
             <div className="pt-1">
               <SettingsSlider
