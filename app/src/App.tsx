@@ -8,6 +8,7 @@ import { CustomCursor } from './components/common/CustomCursor';
 import { BoxLoader } from './components/common/BoxLoader';
 import { TooltipProvider } from './components/ui/tooltip';
 import { useAppStore } from './stores/appStore';
+import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { useEffectiveTheme } from './hooks/useEffectiveTheme';
 import { initWindowPlatform } from './utils/window';
 import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
@@ -53,6 +54,7 @@ function App() {
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
   const effectiveTheme = useEffectiveTheme();
+  useDiscordPresence();
 
   useEffect(() => {
     if (customCursor) {

@@ -2,12 +2,16 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use discord_rich_presence::{
-    activity::{Activity, Assets, Timestamps},
+    activity::{Activity, Assets, Button, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
 use serde::{Deserialize, Serialize};
 
 const DISCORD_APP_ID: &str = "1371569865835315280";
+const DISCORD_LOGO_URL: &str =
+    "https://cdn.jsdelivr.net/gh/wolfenazz/YzPzCode@main/app/src-tauri/icons/icon.png";
+const PROJECT_URL: &str = "https://github.com/wolfenazz/YzPzCode";
+const RELEASES_URL: &str = "https://github.com/wolfenazz/YzPzCode/releases/latest";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,6 +26,7 @@ pub struct DiscordPresenceState {
 pub struct DiscordPresenceManager {
     client: Arc<Mutex<Option<DiscordIpcClient>>>,
     enabled: Arc<Mutex<bool>>,
+    started_at: Arc<Mutex<i64>>,
     current_state: Arc<Mutex<DiscordPresenceState>>,
 }
 
@@ -30,6 +35,7 @@ impl Clone for DiscordPresenceManager {
         Self {
             client: self.client.clone(),
             enabled: self.enabled.clone(),
+            started_at: self.started_at.clone(),
             current_state: self.current_state.clone(),
         }
     }
@@ -40,6 +46,7 @@ impl DiscordPresenceManager {
         Self {
             client: Arc::new(Mutex::new(None)),
             enabled: Arc::new(Mutex::new(false)),
+            started_at: Arc::new(Mutex::new(Self::unix_timestamp())),
             current_state: Arc::new(Mutex::new(DiscordPresenceState {
                 enabled: false,
                 workspace_name: None,
@@ -57,6 +64,7 @@ impl DiscordPresenceManager {
         *enabled = true;
         drop(enabled);
 
+        *self.started_at.lock().unwrap() = Self::unix_timestamp();
         self.current_state.lock().unwrap().enabled = true;
         self.connect_and_update()
     }
@@ -131,66 +139,105 @@ impl DiscordPresenceManager {
             let w = state.workspace_name.clone();
             (d, s, w)
         };
+        let details_text = Self::truncate_for_discord(&details_text);
+        let state_text = Self::truncate_for_discord(&state_text);
+        let started_at = *self.started_at.lock().unwrap();
+        let large_text = workspace_name
+            .as_deref()
+            .map(|name| format!("YzPzCode - {}", name))
+            .unwrap_or_else(|| "YzPzCode - AI coding workspace".to_string());
+        let large_text = Self::truncate_for_discord(&large_text);
 
-        let mut activity = Activity::new()
+        let activity = Activity::new()
             .details(&details_text)
             .state(&state_text)
-            .assets(Assets::new().large_image("yzpzcode").large_text("YzPzCode"))
-            .timestamps(
-                Timestamps::new().start(
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs() as i64,
-                ),
-            );
-
-        if let Some(ref ws_name) = workspace_name {
-            activity = activity.assets(
+            .assets(
                 Assets::new()
-                    .large_image("yzpzcode")
-                    .large_text("YzPzCode")
-                    .small_image("workspace")
-                    .small_text(ws_name),
-            );
-        }
+                    .large_image(DISCORD_LOGO_URL)
+                    .large_text(&large_text),
+            )
+            .timestamps(Timestamps::new().start(started_at))
+            .buttons(Self::activity_buttons());
 
         self.send_activity(activity)
     }
 
     fn send_idle_presence(&self) -> Result<(), String> {
+        let started_at = *self.started_at.lock().unwrap();
         let activity = Activity::new()
             .details("Idle")
             .state("No workspace open")
-            .assets(Assets::new().large_image("yzpzcode").large_text("YzPzCode"));
+            .assets(
+                Assets::new()
+                    .large_image(DISCORD_LOGO_URL)
+                    .large_text("YzPzCode - AI coding workspace"),
+            )
+            .timestamps(Timestamps::new().start(started_at))
+            .buttons(Self::activity_buttons());
 
         self.send_activity(activity)
+    }
+
+    fn activity_buttons() -> Vec<Button<'static>> {
+        vec![
+            Button::new("View on GitHub", PROJECT_URL),
+            Button::new("Download YzPzCode", RELEASES_URL),
+        ]
+    }
+
+    fn truncate_for_discord(value: &str) -> String {
+        value.chars().take(128).collect()
+    }
+
+    fn unix_timestamp() -> i64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs() as i64
     }
 
     fn send_activity(&self, activity: Activity) -> Result<(), String> {
         let mut client_guard = self.client.lock().unwrap();
 
         if client_guard.is_none() {
-            let mut client = DiscordIpcClient::new(DISCORD_APP_ID)
-                .map_err(|e| format!("Failed to create Discord IPC client: {}", e))?;
-
-            if let Err(e) = client.connect() {
-                eprintln!(
-                    "Discord Rich Presence: could not connect to Discord client: {}",
-                    e
-                );
-                return Err(format!("Discord client not running: {}", e));
-            }
-            *client_guard = Some(client);
+            *client_guard = Some(Self::connect_client()?);
         }
 
         if let Some(ref mut client) = *client_guard {
-            client
-                .set_activity(activity)
-                .map_err(|e| format!("Failed to set Discord activity: {}", e))?;
+            if let Err(first_error) = client.set_activity(activity.clone()) {
+                eprintln!(
+                    "Discord Rich Presence: reconnecting after update failed: {}",
+                    first_error
+                );
+
+                if let Some(mut stale_client) = client_guard.take() {
+                    let _ = stale_client.close();
+                }
+
+                let mut client = Self::connect_client()?;
+                client.set_activity(activity).map_err(|e| {
+                    format!("Failed to set Discord activity after reconnect: {}", e)
+                })?;
+                *client_guard = Some(client);
+            }
         }
 
         Ok(())
+    }
+
+    fn connect_client() -> Result<DiscordIpcClient, String> {
+        let mut client = DiscordIpcClient::new(DISCORD_APP_ID)
+            .map_err(|e| format!("Failed to create Discord IPC client: {}", e))?;
+
+        if let Err(e) = client.connect() {
+            eprintln!(
+                "Discord Rich Presence: could not connect to Discord client: {}",
+                e
+            );
+            return Err(format!("Discord client not running: {}", e));
+        }
+
+        Ok(client)
     }
 
     fn disconnect(&self) -> Result<(), String> {

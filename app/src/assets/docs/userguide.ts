@@ -432,9 +432,10 @@ Go to **Settings → Appearance** and toggle **Discord Rich Presence**.
 ### What Shows on Discord
 
 - **Workspace name** or "No workspace open"
-- **Activity details** or "Idle"
+- **Active file name** while editing or reviewing a diff
+- **Current view** when using the terminal, AI agents, or browser preview
 - **Elapsed time** since current activity started
-- YzPzCode branding
+- YzPzCode logo, plus GitHub and download links
 
 ---
 
