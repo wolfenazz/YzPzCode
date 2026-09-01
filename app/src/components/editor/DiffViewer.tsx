@@ -4,6 +4,7 @@ import { DiffEditor } from '@monaco-editor/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowBendUpLeft, ArrowsLeftRight, ArrowClockwise, ClockCounterClockwise, FileText, Warning, X } from '@phosphor-icons/react';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
+import { toMonacoLanguage } from '../../utils/monacoLanguage';
 import type { FileBackupInfo, GitFileDiff } from '../../types';
 
 interface DiffViewerProps {
@@ -32,7 +33,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
   const effectiveTheme = useEffectiveTheme();
   const language = useMemo(() => {
     const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
-    return ext;
+    return toMonacoLanguage(ext);
   }, [fileName]);
 
   const load = useCallback(async () => {

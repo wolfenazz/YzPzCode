@@ -36,6 +36,7 @@ interface WorkspaceHeaderProps {
   onSidebarToggle: () => void;
   onSourceControlToggle: () => void;
   sourceControlOpen: boolean;
+  sourceControlChangeCount: number;
   onViewChange: (view: WorkspaceView) => void;
   activeView: WorkspaceView;
 }
@@ -117,6 +118,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onSidebarToggle,
   onSourceControlToggle,
   sourceControlOpen,
+  sourceControlChangeCount,
   onViewChange,
   activeView,
 }) => {
@@ -135,11 +137,17 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
             <button onClick={onDocsClick} className="workspace-chrome__tool app-icon-button" title="Documentation" type="button"><BookOpenText size={16} aria-hidden="true" /><span className="sr-only">Documentation</span></button>
             <button
               onClick={onSourceControlToggle}
-              className={`workspace-chrome__tool app-icon-button ${sourceControlOpen ? 'text-[var(--accent)]' : ''}`}
-              title="Toggle Source Control"
+              className={`workspace-chrome__tool app-icon-button relative ${sourceControlOpen ? 'text-[var(--accent)]' : ''}`}
+              title={sourceControlChangeCount > 0 ? `Source Control — ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Toggle Source Control'}
+              aria-label={sourceControlChangeCount > 0 ? `Source Control, ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Toggle Source Control'}
               type="button"
             >
               <GitBranch size={16} aria-hidden="true" />
+              {sourceControlChangeCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-[var(--bg-secondary)] bg-[var(--accent)] px-0.5 font-mono text-[8px] font-bold leading-none text-[var(--text-primary)] tabular-nums">
+                  {sourceControlChangeCount > 99 ? '99+' : sourceControlChangeCount}
+                </span>
+              )}
               <span className="sr-only">Toggle Source Control</span>
             </button>
             <button onClick={onSidebarToggle} className="workspace-chrome__tool app-icon-button" title="Toggle sidebar (Ctrl+B)" type="button"><SidebarSimple size={16} aria-hidden="true" /><span className="sr-only">Toggle sidebar</span></button>

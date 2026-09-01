@@ -4,7 +4,7 @@
 - Treats performance/stability as critical: any OS lag, high CPU, or crash (e.g., while running dev servers) must be root-caused and fixed; the app should be smooth and light. Confidence: 0.8
 - Wants the in-app terminal to behave and look exactly like the system CMD/PowerShell: Cascadia Mono font, smooth scrolling, working mouse support, no text-overlap/glitch rendering. Confidence: 0.8
 - Wants every child process the app spawns on Windows to be launched hidden (CREATE_NO_WINDOW / windowsHide) so no visible console/CMD window ever flashes during background work. Confidence: 0.8
-- Prefers driving releases through GitHub CLI (gh): commit, bump version, tag (v*), push, and trigger/watch the GitHub Actions release workflow so updates deploy to users. Confidence: 0.8
+- Prefers driving releases through GitHub CLI (gh) as one end-to-end chain the user requests in a single ask: bump the app version first, then commit, push to GitHub, and trigger/watch the GitHub Actions release workflow (tag v*) so updates deploy to users. Confidence: 0.85
 - Adds explicit type annotations to callback handler parameters (e.g. `onAuth: (info: { url: string }) =>`) instead of relying on contextual typing flowing through SDK `exports` maps under NodeNext, which routinely fails to infer. Confidence: 0.9
 - Never exposes provider secrets to the renderer; always projects configs into safe status-only shapes (`hasApiKey`/`hasOAuth` booleans + `oauthEmail: string | null`) and strips `apiKey`/`oauth` token objects from any settings view sent over the bridge. Confidence: 0.9
 - Uses long custom `Duration` timeouts for OAuth/browser round-trip flows (e.g. 600s for login, ~120s for manual-code prompt resolution) rather than default/empty timeouts. Confidence: 0.85

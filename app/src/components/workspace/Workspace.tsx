@@ -29,6 +29,8 @@ interface WorkspaceProps {
 import { motion, AnimatePresence } from 'framer-motion';
 import logo from '../../assets/YzPzCodeLogo.png';
 
+const EMPTY_DEV_SERVER_URLS: string[] = [];
+
 export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
     currentWorkspace,
@@ -52,9 +54,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     restoredFilePathsByWorkspace,
     clearRestoredFilePaths,
   } = useAppStore();
-  const devServerUrl = useAppStore((s) => (currentWorkspace ? s.devServerUrlByWorkspace[currentWorkspace.id] : undefined));
+  const devServerUrls = useAppStore((s) => (currentWorkspace ? s.devServerUrlsByWorkspace[currentWorkspace.id] ?? EMPTY_DEV_SERVER_URLS : EMPTY_DEV_SERVER_URLS));
+  const devServerUrl = devServerUrls[0];
   const openBrowserTab = useAppStore((s) => s.openBrowserTab);
-  const setDevServerUrl = useAppStore((s) => s.setDevServerUrl);
+  const clearDevServerUrls = useAppStore((s) => s.clearDevServerUrls);
   const gitStatuses = useAppStore((s) => s.gitStatuses);
   const gitDiffStats = useAppStore((s) => s.gitDiffStats);
   const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
@@ -354,6 +357,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onSidebarToggle={toggleExplorer}
         onSourceControlToggle={toggleSourceControl}
         sourceControlOpen={sourceControlOpen}
+        sourceControlChangeCount={gitStatuses.length}
         onViewChange={handleViewChange}
         activeView={activeView}
       />
@@ -361,7 +365,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       <main className="workspace-main relative flex-1 overflow-hidden bg-[var(--bg-primary)]">
         {/* Dev-server preview chip — appears when a terminal prints a local URL. */}
         <AnimatePresence>
-          {currentWorkspace && devServerUrl && (
+          {currentWorkspace && devServerUrls.length > 0 && (
             <motion.div
               key="dev-server-chip"
               initial={{ opacity: 0, y: -12 }}
@@ -372,7 +376,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
             >
               <img src={logo} alt="" className="h-4 w-auto opacity-90" draggable={false} />
               <span className="font-mono text-[9px] font-bold text-emerald-300/90">
-                App running at {devServerUrl.replace(/^https?:\/\//, '')}
+                {devServerUrls.length === 1
+                  ? `App running at ${devServerUrl?.replace(/^https?:\/\//, '') ?? ''}`
+                  : `${devServerUrls.length} local dev servers detected`}
               </span>
               <button
                 type="button"
@@ -384,7 +390,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               </button>
               <button
                 type="button"
-                onClick={() => currentWorkspace && setDevServerUrl(currentWorkspace.id, null)}
+                onClick={() => currentWorkspace && clearDevServerUrls(currentWorkspace.id)}
                 className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-emerald-300/40 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200"
                 title="Dismiss"
                 aria-label="Dismiss dev-server chip"

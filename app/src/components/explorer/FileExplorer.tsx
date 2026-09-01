@@ -6,7 +6,6 @@ import { FileEntry } from '../../types';
 import { useFileTree, type TreeNodeData } from '../../hooks/useFileTree';
 import { TreeNode, ExplorerContext, type ExplorerClipboardEntry } from './TreeNode';
 import { FileIcon } from './FileIcon';
-import { GitChangesPanel } from './GitChangesPanel';
 import { MemoryPanel } from './MemoryPanel';
 import { SearchPanel } from './SearchPanel';
 import { DockerPanel } from './DockerPanel';
@@ -54,14 +53,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   onFileClick,
 }) => {
   const gitStatuses = useAppStore((s) => s.gitStatuses);
-  const gitDiffStats = useAppStore((s) => s.gitDiffStats);
   const activeFilePath = useAppStore((s) => s.activeFilePath);
   const setExplorerClipboard = useAppStore((s) => s.setExplorerClipboard);
   const explorerClipboard = useAppStore((s) => s.explorerClipboard);
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const addSession = useAppStore((s) => s.addSession);
-  const setGitStatuses = useAppStore((s) => s.setGitStatuses);
-  const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
   const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
   const openFiles = useAppStore((s) => s.openFiles);
   const closeFileTab = useAppStore((s) => s.closeFileTab);
@@ -637,36 +633,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     }
   }, [activeFilePath, treeRef]);
 
-  const handleStageFile = useCallback(
-    async (filePath: string) => {
-      try {
-        await invoke('git_stage_file', { workspacePath, filePath });
-        const statuses = await invoke<{ path: string; change: string }[]>('get_git_status', { workspacePath });
-        setGitStatuses(statuses as never[]);
-        const stats = await invoke<{ path: string; linesAdded: number; linesDeleted: number }[]>('get_git_diff_stats', { workspacePath });
-        setGitDiffStats(stats as never[]);
-      } catch (err) {
-        console.error('Failed to stage file:', err);
-      }
-    },
-    [workspacePath, setGitStatuses, setGitDiffStats]
-  );
-
-  const handleUnstageFile = useCallback(
-    async (filePath: string) => {
-      try {
-        await invoke('git_unstage_file', { workspacePath, filePath });
-        const statuses = await invoke<{ path: string; change: string }[]>('get_git_status', { workspacePath });
-        setGitStatuses(statuses as never[]);
-        const stats = await invoke<{ path: string; linesAdded: number; linesDeleted: number }[]>('get_git_diff_stats', { workspacePath });
-        setGitDiffStats(stats as never[]);
-      } catch (err) {
-        console.error('Failed to unstage file:', err);
-      }
-    },
-    [workspacePath, setGitStatuses, setGitDiffStats]
-  );
-
   const handleKeyDownCapture = useCallback(
     (e: React.KeyboardEvent) => {
       // Intercept Enter in the capture phase so react-arborist's own
@@ -1217,15 +1183,6 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       <DockerPanel workspaceId={currentWorkspace?.id ?? ''} workspacePath={workspacePath} />
 
       <DbPanel workspacePath={workspacePath} />
-
-      <GitChangesPanel
-        gitStatuses={gitStatuses}
-        gitDiffStats={gitDiffStats}
-        workspacePath={workspacePath}
-        onFileClick={onFileClick}
-        onStageFile={handleStageFile}
-        onUnstageFile={handleUnstageFile}
-      />
 
       <AnimatePresence>
         {pendingDelete && (

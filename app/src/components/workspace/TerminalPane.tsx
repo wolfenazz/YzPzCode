@@ -75,8 +75,8 @@ const withOpacity = (color: string, opacityPercent: number): string => {
 
 const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
 const DEFAULT_MOUSE_TRACKING_MODES = [1000, 1002, 1006] as const;
-/** Dev-server URLs printed by `npm run dev` / `vite` / `next dev` etc. */
-const DEV_SERVER_URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1):\d+/g;
+/** Local dev-server URLs printed by `npm run dev` / `vite` / `next dev` etc. */
+const DEV_SERVER_URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?/gi;
 const MANAGED_COMMAND_PREFIXES = [
   'npm run dev',
   'npm run build',
@@ -269,7 +269,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const lineBufferRef = useRef('');
   const lineTrackingReliableRef = useRef(true);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
-  const setDevServerUrl = useAppStore((state) => state.setDevServerUrl);
+  const addDevServerUrl = useAppStore((state) => state.addDevServerUrl);
   const manualAgent = useAppStore((state) => state.manualAgentBySession[session.id]);
   const setManualAgent = useAppStore((state) => state.setManualAgent);
   const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
@@ -699,9 +699,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       event.preventDefault();
       // Localhost links open in the embedded browser pane; everything else
       // still goes to the system browser.
-      if (/^https?:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\//i.test(`${uri}/`)) {
+      if (/^https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?\//i.test(`${uri}/`)) {
         try {
-          setDevServerUrl(session.workspaceId, uri);
+          addDevServerUrl(session.workspaceId, uri);
           useAppStore.getState().setActiveView('browser');
           // Reuse an existing tab for the same URL instead of stacking
           // duplicates — the same localhost URL may be printed many times.
@@ -1026,7 +1026,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         // and surface them to the workspace (chip + optional auto-open).
         const urls = event.payload.match(DEV_SERVER_URL_RE);
         if (urls && urls.length > 0) {
-          setDevServerUrl(session.workspaceId, urls[urls.length - 1].replace(/[.,;)\]}>]+$/g, ''));
+          urls.forEach((url) => addDevServerUrl(session.workspaceId, url.replace(/[.,;)\]}>]+$/g, '')));
         }
         const term = xtermRef.current;
         if (!term) return;

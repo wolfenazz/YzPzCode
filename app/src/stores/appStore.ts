@@ -29,6 +29,28 @@ const normalizeUrlForTabMatch = (value: string): string => {
   }
 };
 
+const normalizeDevServerUrl = (value: string): string | null => {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed.startsWith('http') ? trimmed : `http://${trimmed}`);
+    const hostname = url.hostname.toLowerCase();
+    const isLocalHost = hostname === 'localhost'
+      || hostname === '127.0.0.1'
+      || hostname === '0.0.0.0'
+      || hostname === '[::1]';
+    if (!isLocalHost || !['http:', 'https:'].includes(url.protocol)) return null;
+
+    // Store the origin so links such as /login do not create duplicate
+    // entries for the same running server.
+    const displayHost = hostname === '0.0.0.0' || hostname === '[::1]' ? 'localhost' : hostname;
+    return `${url.protocol}//${displayHost}${url.port ? `:${url.port}` : ''}`;
+  } catch {
+    return null;
+  }
+};
+
 const getPlatformDefaultTerminalFont = (): string => {
   const ua = navigator.userAgent.toLowerCase();
   if (ua.includes('windows')) return 'Cascadia Mono';
@@ -308,8 +330,8 @@ interface AppState {
   gitDiffStats: GitDiffStat[];
   /** When set, the editor area shows a working-tree diff instead of a tab. */
   gitDiffFile: { path: string; name: string } | null;
-  /** Latest dev-server URL detected in terminal output, per workspace. */
-  devServerUrlByWorkspace: Record<string, string>;
+  /** Unique local dev-server origins detected in terminal output, per workspace. */
+  devServerUrlsByWorkspace: Record<string, string[]>;
   /** One-shot editor "reveal this line" request (from search results). */
   editorRevealLine: { path: string; line: number } | null;
   filesByWorkspace: Record<string, FileTab[]>;
@@ -382,7 +404,8 @@ interface AppState {
   setGitStatuses: (statuses: GitFileStatus[]) => void;
   setGitDiffStats: (stats: GitDiffStat[]) => void;
   setGitDiffFile: (file: { path: string; name: string } | null) => void;
-  setDevServerUrl: (workspaceId: string, url: string | null) => void;
+  addDevServerUrl: (workspaceId: string, url: string) => void;
+  clearDevServerUrls: (workspaceId: string) => void;
   setEditorRevealLine: (req: { path: string; line: number } | null) => void;
   closeAllFiles: () => void;
   closeOtherFiles: (exceptPath: string) => void;
@@ -925,7 +948,7 @@ export const useAppStore = create<AppState>()(
       gitStatuses: [],
       gitDiffStats: [],
       gitDiffFile: null,
-      devServerUrlByWorkspace: {},
+      devServerUrlsByWorkspace: {},
       editorRevealLine: null,
       filesByWorkspace: {} as Record<string, FileTab[]>,
       activeFileByWorkspace: {} as Record<string, string | null>,
@@ -1609,12 +1632,29 @@ export const useAppStore = create<AppState>()(
       setGitStatuses: (statuses) => set({ gitStatuses: statuses }),
       setGitDiffStats: (stats: GitDiffStat[]) => set({ gitDiffStats: stats }),
       setGitDiffFile: (file) => set({ gitDiffFile: file }),
-      setDevServerUrl: (workspaceId, url) =>
-        set((state) => ({
-          devServerUrlByWorkspace: url
-            ? { ...state.devServerUrlByWorkspace, [workspaceId]: url }
-            : { ...state.devServerUrlByWorkspace, [workspaceId]: undefined as unknown as string },
-        })),
+      addDevServerUrl: (workspaceId, url) => {
+        const normalizedUrl = normalizeDevServerUrl(url);
+        if (!normalizedUrl) return;
+
+        set((state) => {
+          const existingUrls = state.devServerUrlsByWorkspace[workspaceId] ?? [];
+          if (existingUrls.includes(normalizedUrl)) return state;
+
+          return {
+            devServerUrlsByWorkspace: {
+              ...state.devServerUrlsByWorkspace,
+              // Most recently announced servers are the best default to open.
+              [workspaceId]: [normalizedUrl, ...existingUrls].slice(0, 12),
+            },
+          };
+        });
+      },
+      clearDevServerUrls: (workspaceId) =>
+        set((state) => {
+          const devServerUrlsByWorkspace = { ...state.devServerUrlsByWorkspace };
+          delete devServerUrlsByWorkspace[workspaceId];
+          return { devServerUrlsByWorkspace };
+        }),
       setEditorRevealLine: (req) => set({ editorRevealLine: req }),
 
       closeAllFiles: () =>

@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   Browsers,
+  CaretDown,
   CaretLeft,
   CaretRight,
   CheckCircle,
@@ -75,7 +76,7 @@ interface BrowserPaneProps {
 }
 
 const FALLBACK_URL = 'https://www.google.com';
-const LOCALHOST_URL = 'http://localhost:3000';
+const EMPTY_DEV_SERVER_URLS: string[] = [];
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
 const BROWSER_DEVICES: BrowserDevicePreset[] = [
   { id: 'responsive', label: 'Responsive', width: null, height: null, category: 'desktop' },
@@ -108,6 +109,15 @@ const browserUrlsEqual = (left: string, right: string): boolean => {
     }
   };
   return normalize(left) === normalize(right);
+};
+
+const getLocalhostLabel = (url: string): string => {
+  try {
+    const parsed = new URL(url);
+    return `localhost${parsed.port ? `:${parsed.port}` : ''}`;
+  } catch {
+    return url.replace(/^https?:\/\//, '');
+  }
 };
 
 const clampZoom = (value: number): number => Math.min(2, Math.max(0.5, Math.round(value * 100) / 100));
@@ -295,6 +305,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const lastSyncedBoundsKeyRef = useRef<string | null>(null);
   const isPoppedOutRef = useRef(false);
   const browserStateByWorkspace = useAppStore((state) => state.browserStateByWorkspace);
+  const devServerUrls = useAppStore((state) => state.devServerUrlsByWorkspace[workspaceId] ?? EMPTY_DEV_SERVER_URLS);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspace = useAppStore((state) => state.currentWorkspace);
   const agentSessionsByWorkspace = useAppStore((state) => state.agentSessionsByWorkspace);
@@ -313,6 +324,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const setBrowserTargetSession = useAppStore((state) => state.setBrowserTargetSession);
   const clearBrowserSelection = useAppStore((state) => state.clearBrowserSelection);
   const addBrowserTab = useAppStore((state) => state.addBrowserTab);
+  const openBrowserTab = useAppStore((state) => state.openBrowserTab);
   const removeBrowserTab = useAppStore((state) => state.removeBrowserTab);
   const setActiveBrowserTab = useAppStore((state) => state.setActiveBrowserTab);
   const updateBrowserTab = useAppStore((state) => state.updateBrowserTab);
@@ -342,6 +354,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const [appliedToolbarOpen, setAppliedToolbarOpen] = useState(false);
   const [lastApplied, setLastApplied] = useState<AppliedStyle | null>(null);
   const [showFullUiReferenceInfo, setShowFullUiReferenceInfo] = useState(false);
+  const [isLocalhostMenuOpen, setIsLocalhostMenuOpen] = useState(false);
+  const localhostMenuRef = useRef<HTMLDivElement>(null);
 
   const {
     ensureBrowserView,
@@ -1227,10 +1241,18 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     addBrowserTab(workspaceId, { id, url: FALLBACK_URL, title: 'New Tab' });
   }, [addBrowserTab, workspaceId]);
 
-  const handleOpenLocalhost = useCallback(() => {
-    const id = `tab-${Date.now()}`;
-    addBrowserTab(workspaceId, { id, url: LOCALHOST_URL, title: 'Localhost' });
-  }, [addBrowserTab, workspaceId]);
+  const handleOpenLocalhost = useCallback((url: string) => {
+    setIsLocalhostMenuOpen(false);
+    openBrowserTab(workspaceId, url, getLocalhostLabel(url));
+  }, [openBrowserTab, workspaceId]);
+
+  const handleLocalhostButtonClick = useCallback(() => {
+    if (devServerUrls.length === 1) {
+      handleOpenLocalhost(devServerUrls[0]);
+      return;
+    }
+    setIsLocalhostMenuOpen((isOpen) => !isOpen);
+  }, [devServerUrls, handleOpenLocalhost]);
 
   const handleSelectTab = useCallback((tabId: string) => {
     setActiveBrowserTab(workspaceId, tabId);
@@ -1254,6 +1276,26 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   useEffect(() => {
     setShowFullUiReferenceInfo(false);
   }, [activeUiReference]);
+
+  useEffect(() => {
+    if (!isLocalhostMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!localhostMenuRef.current?.contains(event.target as Node)) {
+        setIsLocalhostMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsLocalhostMenuOpen(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isLocalhostMenuOpen]);
 
   const handleCopyUiReferenceHtml = useCallback(() => {
     if (!activeUiReference) return;
@@ -1321,18 +1363,83 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               </motion.button>
             </div>
 
-            {/* Localhost quick-access */}
-            <motion.button
-              onClick={handleOpenLocalhost}
-              title="Open localhost:3000 in new tab"
-              aria-label="Open localhost:3000 in new tab"
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              className="browser-localhost app-button app-button--quiet h-7 shrink-0 px-2 text-[11px]"
-            >
-              <ArrowUpRight size={13} aria-hidden="true" />
-              Localhost
-            </motion.button>
+            {/* Localhost quick-access: uses detected dev servers instead of a fixed port. */}
+            <div ref={localhostMenuRef} className="relative shrink-0">
+              <motion.button
+                onClick={handleLocalhostButtonClick}
+                title={devServerUrls.length === 0
+                  ? 'No local dev server detected'
+                  : devServerUrls.length === 1
+                    ? `Open ${getLocalhostLabel(devServerUrls[0])} in new tab`
+                    : 'Choose a local dev server'}
+                aria-label={devServerUrls.length === 0
+                  ? 'No local dev server detected'
+                  : devServerUrls.length === 1
+                    ? `Open ${getLocalhostLabel(devServerUrls[0])} in new tab`
+                    : 'Choose a local dev server'}
+                aria-haspopup={devServerUrls.length !== 1 ? 'menu' : undefined}
+                aria-expanded={devServerUrls.length !== 1 ? isLocalhostMenuOpen : undefined}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="browser-localhost app-button app-button--quiet h-7 shrink-0 px-2 text-[11px]"
+              >
+                <ArrowUpRight size={13} aria-hidden="true" />
+                Localhost
+                {devServerUrls.length > 1 && (
+                  <span className="rounded-full bg-[var(--accent-light)]/25 px-1 text-[9px] font-bold tabular-nums text-[var(--accent)]">
+                    {devServerUrls.length}
+                  </span>
+                )}
+                {devServerUrls.length !== 1 && <CaretDown size={11} aria-hidden="true" />}
+              </motion.button>
+
+              <AnimatePresence>
+                {isLocalhostMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.12 }}
+                    role="menu"
+                    aria-label="Detected local dev servers"
+                    className="absolute right-0 top-full z-50 mt-1.5 min-w-[190px] overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-1 shadow-xl"
+                  >
+                    {devServerUrls.length > 0 ? (
+                      <>
+                        <p className="px-2 py-1 font-mono text-[9px] uppercase tracking-wider text-[var(--text-secondary)]/60">
+                          Detected local servers
+                        </p>
+                        {devServerUrls.map((url) => (
+                          <button
+                            key={url}
+                            type="button"
+                            role="menuitem"
+                            onClick={() => handleOpenLocalhost(url)}
+                            title={`Open ${url}`}
+                            className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-[var(--bg-hover)]"
+                          >
+                            <span className="flex min-w-0 items-center gap-2">
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" aria-hidden="true" />
+                              <span className="truncate font-mono text-[10px] text-[var(--text-primary)]">
+                                {getLocalhostLabel(url)}
+                              </span>
+                            </span>
+                            <ArrowUpRight size={12} className="shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
+                          </button>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="px-2 py-2">
+                        <p className="font-mono text-[10px] text-[var(--text-primary)]">No local server detected</p>
+                        <p className="mt-1 font-mono text-[9px] leading-4 text-[var(--text-secondary)]">
+                          Start a dev server in a terminal and its URL will appear here.
+                        </p>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
             {/* Primary Actions */}
             <div className="browser-actions flex shrink-0 items-center gap-1">

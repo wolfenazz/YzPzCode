@@ -21,49 +21,9 @@ import { SpreadsheetEditor } from './SpreadsheetEditor';
 import { PptxPreview } from './PptxPreview';
 import { DrawioPreview } from './DrawioPreview';
 import { invoke } from '@tauri-apps/api/core';
+import { toMonacoLanguage } from '../../utils/monacoLanguage';
 
 type MonacoEditor = Parameters<OnMount>[0];
-
-/**
- * Maps the backend's FileTab.language value to a Monaco language id.
- * Accepts known names (`typescript`, `python`, ...) and raw extensions (`ts`, `py`, ...).
- */
-const toMonacoLanguage = (lang: string): string => {
-  const key = lang.toLowerCase();
-  const knownLanguages: Record<string, string> = {
-    typescript: 'typescript',
-    javascript: 'javascript',
-    python: 'python',
-    rust: 'rust',
-    html: 'html',
-    css: 'css',
-    json: 'json',
-    markdown: 'markdown',
-    md: 'markdown',
-    java: 'java',
-    cpp: 'cpp',
-    c: 'cpp',
-    ts: 'typescript',
-    tsx: 'typescript',
-    js: 'javascript',
-    jsx: 'javascript',
-    py: 'python',
-    rs: 'rust',
-    txt: 'plaintext',
-    yaml: 'yaml',
-    yml: 'yaml',
-    xml: 'xml',
-    sql: 'sql',
-    sh: 'shell',
-    bash: 'shell',
-    zsh: 'shell',
-    go: 'go',
-    php: 'php',
-    rb: 'ruby',
-    cs: 'csharp',
-  };
-  return knownLanguages[key] ?? 'plaintext';
-};
 
 interface CursorStatus {
   line: number;
