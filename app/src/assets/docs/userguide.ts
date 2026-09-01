@@ -364,10 +364,11 @@ Press **Ctrl+,** or use the context menu to open Settings. There are 11 sections
 ### 2. Terminal
 
 - Font family, font size
+- Custom terminal background and text colors, including curated presets and theme reset
 - Cursor style (block, underline, bar) and blink
 - Scrollback size (default: 10,000 lines)
 - Copy on select, paste on right-click
-- Terminal bell, opacity, word wrap
+- Terminal bell, background opacity, word wrap
 
 ### 3. Editor
 

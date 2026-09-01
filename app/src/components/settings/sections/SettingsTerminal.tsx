@@ -92,6 +92,17 @@ const CURSOR_STYLES = [
   { value: 'bar' as const, label: 'Bar' },
 ];
 
+const DEFAULT_TERMINAL_BACKGROUND = '#262626';
+const DEFAULT_TERMINAL_FOREGROUND = '#c3c1ba';
+
+const TERMINAL_COLOR_PRESETS = [
+  { label: 'Theme', background: null, foreground: null },
+  { label: 'Graphite', background: '#171717', foreground: '#e5e7eb' },
+  { label: 'Midnight', background: '#0b1020', foreground: '#d7e0ff' },
+  { label: 'Solarized', background: '#002b36', foreground: '#93a1a1' },
+  { label: 'Paper', background: '#f4f0e6', foreground: '#2f2a24' },
+] as const;
+
 const Divider = () => (
   <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
 );
@@ -116,6 +127,10 @@ export const SettingsTerminal: React.FC = () => {
     setTerminalBellEnabled,
     terminalOpacity,
     setTerminalOpacity,
+    terminalBackgroundColor,
+    setTerminalBackgroundColor,
+    terminalForegroundColor,
+    setTerminalForegroundColor,
     terminalWordWrap,
     setTerminalWordWrap,
     independentGridResize,
@@ -235,6 +250,125 @@ export const SettingsTerminal: React.FC = () => {
         </div>
 
         <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
+                Colors
+              </h3>
+              <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
+                Personalize the terminal canvas and default text color
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setTerminalBackgroundColor(null);
+                setTerminalForegroundColor(null);
+              }}
+              disabled={!terminalBackgroundColor && !terminalForegroundColor}
+              className="rounded-md border border-[var(--border-primary)] px-2.5 py-1.5 text-[9px] uppercase tracking-wider text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+            >
+              Reset colors
+            </button>
+          </div>
+
+          <div
+            className="relative overflow-hidden rounded-lg border border-white/10 p-4 shadow-inner"
+            style={{
+              backgroundColor: terminalBackgroundColor ?? 'var(--bg-terminal)',
+              color: terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND,
+            }}
+          >
+            <div className="absolute inset-y-0 left-0 w-0.5 bg-[var(--accent)]" />
+            <p className="text-[9px] uppercase tracking-[0.16em] opacity-55">Live preview</p>
+            <p className="mt-2 text-[12px] leading-relaxed">
+              <span className="text-emerald-400">user@yzpz</span>
+              <span className="opacity-55">:</span>
+              <span className="text-sky-400">~/workspace</span>
+              <span className="opacity-55">$</span> npm run dev
+            </p>
+            <p className="mt-1 text-[10px] opacity-65">Ready on http://localhost:8745</p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 px-3 py-2.5">
+              <span>
+                <span className="block text-[10px] text-[var(--text-primary)]">Background</span>
+                <span className="mt-0.5 block text-[9px] text-[var(--text-secondary)]">
+                  {terminalBackgroundColor ?? 'Theme default'}
+                </span>
+              </span>
+              <input
+                type="color"
+                value={terminalBackgroundColor ?? DEFAULT_TERMINAL_BACKGROUND}
+                onChange={(event) => setTerminalBackgroundColor(event.target.value)}
+                aria-label="Terminal background color"
+                className="h-8 w-11 cursor-pointer rounded border border-[var(--border-primary)] bg-transparent p-0.5"
+              />
+            </label>
+
+            <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 px-3 py-2.5">
+              <span>
+                <span className="block text-[10px] text-[var(--text-primary)]">Text</span>
+                <span className="mt-0.5 block text-[9px] text-[var(--text-secondary)]">
+                  {terminalForegroundColor ?? 'Theme default'}
+                </span>
+              </span>
+              <input
+                type="color"
+                value={terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND}
+                onChange={(event) => setTerminalForegroundColor(event.target.value)}
+                aria-label="Terminal text color"
+                className="h-8 w-11 cursor-pointer rounded border border-[var(--border-primary)] bg-transparent p-0.5"
+              />
+            </label>
+          </div>
+
+          <div>
+            <p className="mb-2 text-[9px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">Presets</p>
+            <div className="flex flex-wrap gap-2">
+              {TERMINAL_COLOR_PRESETS.map((preset) => {
+                const isActive = terminalBackgroundColor === preset.background
+                  && terminalForegroundColor === preset.foreground;
+                return (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setTerminalBackgroundColor(preset.background);
+                      setTerminalForegroundColor(preset.foreground);
+                    }}
+                    className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${
+                      isActive
+                        ? 'border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)]'
+                        : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/55 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                  >
+                    <span
+                      className="h-3 w-3 rounded-full border border-white/15"
+                      style={{ backgroundColor: preset.background ?? 'var(--bg-terminal)' }}
+                    />
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <Divider />
+
+          <SettingsSlider
+            label="Background Opacity"
+            description="Transparency of the terminal canvas"
+            value={terminalOpacity}
+            displayValue={`${terminalOpacity}%`}
+            min={70}
+            max={100}
+            onChange={setTerminalOpacity}
+          />
+        </div>
+
+        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Cursor
           </h3>
@@ -282,18 +416,6 @@ export const SettingsTerminal: React.FC = () => {
             max={100000}
             step={1000}
             onChange={setTerminalScrollbackSize}
-          />
-
-          <Divider />
-
-          <SettingsSlider
-            label="Terminal Opacity"
-            description="Background transparency"
-            value={terminalOpacity}
-            displayValue={`${terminalOpacity}%`}
-            min={70}
-            max={100}
-            onChange={setTerminalOpacity}
           />
 
           <Divider />

@@ -204,12 +204,7 @@ impl DiscordPresenceManager {
         }
 
         if let Some(ref mut client) = *client_guard {
-            if let Err(first_error) = client.set_activity(activity.clone()) {
-                eprintln!(
-                    "Discord Rich Presence: reconnecting after update failed: {}",
-                    first_error
-                );
-
+            if client.set_activity(activity.clone()).is_err() {
                 if let Some(mut stale_client) = client_guard.take() {
                     let _ = stale_client.close();
                 }
@@ -230,10 +225,6 @@ impl DiscordPresenceManager {
             .map_err(|e| format!("Failed to create Discord IPC client: {}", e))?;
 
         if let Err(e) = client.connect() {
-            eprintln!(
-                "Discord Rich Presence: could not connect to Discord client: {}",
-                e
-            );
             return Err(format!("Discord client not running: {}", e));
         }
 

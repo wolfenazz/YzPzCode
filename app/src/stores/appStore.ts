@@ -181,6 +181,8 @@ interface AppState {
   terminalPasteOnRightClick: boolean;
   terminalBellEnabled: boolean;
   terminalOpacity: number;
+  terminalBackgroundColor: string | null;
+  terminalForegroundColor: string | null;
   terminalWordWrap: boolean;
   independentGridResize: boolean;
   editorFontFamily: string;
@@ -245,6 +247,8 @@ interface AppState {
   setTerminalPasteOnRightClick: (enabled: boolean) => void;
   setTerminalBellEnabled: (enabled: boolean) => void;
   setTerminalOpacity: (opacity: number) => void;
+  setTerminalBackgroundColor: (color: string | null) => void;
+  setTerminalForegroundColor: (color: string | null) => void;
   setTerminalWordWrap: (enabled: boolean) => void;
   setIndependentGridResize: (enabled: boolean) => void;
   setEditorFontFamily: (font: string) => void;
@@ -459,6 +463,8 @@ export const useAppStore = create<AppState>()(
       terminalPasteOnRightClick: false,
       terminalBellEnabled: true,
       terminalOpacity: 100,
+      terminalBackgroundColor: null,
+      terminalForegroundColor: null,
       terminalWordWrap: false,
       independentGridResize: true,
       editorFontFamily: "Cascadia Mono",
@@ -675,6 +681,8 @@ export const useAppStore = create<AppState>()(
       setTerminalPasteOnRightClick: (enabled) => set({ terminalPasteOnRightClick: enabled }),
       setTerminalBellEnabled: (enabled) => set({ terminalBellEnabled: enabled }),
       setTerminalOpacity: (opacity) => set({ terminalOpacity: opacity }),
+      setTerminalBackgroundColor: (color) => set({ terminalBackgroundColor: color }),
+      setTerminalForegroundColor: (color) => set({ terminalForegroundColor: color }),
       setTerminalWordWrap: (enabled) => set({ terminalWordWrap: enabled }),
       setIndependentGridResize: (enabled) => set({ independentGridResize: enabled }),
       setEditorFontFamily: (font) => set({ editorFontFamily: font }),
@@ -1770,6 +1778,8 @@ export const useAppStore = create<AppState>()(
           terminalPasteOnRightClick: state.terminalPasteOnRightClick,
           terminalBellEnabled: state.terminalBellEnabled,
           terminalOpacity: state.terminalOpacity,
+          terminalBackgroundColor: state.terminalBackgroundColor,
+          terminalForegroundColor: state.terminalForegroundColor,
           terminalWordWrap: state.terminalWordWrap,
           independentGridResize: state.independentGridResize,
           editorFontFamily: state.editorFontFamily,

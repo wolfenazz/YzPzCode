@@ -50,6 +50,29 @@ const DARK_TERMINAL_THEME = {
   brightWhite: '#faf8f1',
 };
 
+const withOpacity = (color: string, opacityPercent: number): string => {
+  const alpha = Math.min(1, Math.max(0, opacityPercent / 100));
+  if (alpha >= 1) return color;
+
+  const hex = color.match(/^#([\da-f]{3}|[\da-f]{6})$/i)?.[1];
+  if (hex) {
+    const normalized = hex.length === 3
+      ? hex.split('').map((digit) => `${digit}${digit}`).join('')
+      : hex;
+    const red = parseInt(normalized.slice(0, 2), 16);
+    const green = parseInt(normalized.slice(2, 4), 16);
+    const blue = parseInt(normalized.slice(4, 6), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
+  }
+
+  const rgb = color.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgb) {
+    return `rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})`;
+  }
+
+  return color;
+};
+
 const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
 const DEFAULT_MOUSE_TRACKING_MODES = [1000, 1002, 1006] as const;
 /** Dev-server URLs printed by `npm run dev` / `vite` / `next dev` etc. */
@@ -285,6 +308,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const terminalCursorStyle = useAppStore((s) => s.terminalCursorStyle);
   const terminalCursorBlink = useAppStore((s) => s.terminalCursorBlink);
   const terminalScrollbackSize = useAppStore((s) => s.terminalScrollbackSize);
+  const terminalOpacity = useAppStore((s) => s.terminalOpacity);
+  const terminalBackgroundColor = useAppStore((s) => s.terminalBackgroundColor);
+  const terminalForegroundColor = useAppStore((s) => s.terminalForegroundColor);
 
   const terminalPrefsRef = useRef({
     fontFamily: terminalFontFamily,
@@ -316,13 +342,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   // xterm's color parser rejects CSS var strings, so read the resolved value
   // of --bg-terminal (app background darkened) for the canvas background.
   const terminalTheme = useMemo(() => {
-    const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-terminal').trim();
+    const themeBackground = getComputedStyle(document.documentElement).getPropertyValue('--bg-terminal').trim();
+    const background = terminalBackgroundColor || themeBackground || DARK_TERMINAL_THEME.background;
     return {
       ...DARK_TERMINAL_THEME,
-      background: bg || DARK_TERMINAL_THEME.background,
-      cursorAccent: bg || DARK_TERMINAL_THEME.cursorAccent,
+      background: withOpacity(background, terminalOpacity),
+      foreground: terminalForegroundColor || DARK_TERMINAL_THEME.foreground,
+      cursorAccent: background,
     };
-  }, [effectiveTheme]);
+  }, [effectiveTheme, terminalBackgroundColor, terminalForegroundColor, terminalOpacity]);
   const managedCommandActive =
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
@@ -656,7 +684,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       allowProposedApi: true,
       scrollback: terminalPrefs.scrollback,
       convertEol: false,
-      allowTransparency: false,
+      allowTransparency: true,
       disableStdin: false,
       macOptionIsMeta: false,
       macOptionClickForcesSelection: false,
