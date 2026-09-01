@@ -37,7 +37,7 @@ notify = { version = "6", features = ["macos_kqueue"] }
 base64 = "0.22"
 regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
-discord-rich-presence = "0.2"
+discord-rich-presence = "1.1"
 url = "2"
 tokio-tungstenite = "0.26"
 futures-util = "0.3"

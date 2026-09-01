@@ -2,12 +2,12 @@ use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use discord_rich_presence::{
-    activity::{Activity, Assets, Button, Timestamps},
+    activity::{Activity, ActivityType, Assets, Button, StatusDisplayType, Timestamps},
     DiscordIpc, DiscordIpcClient,
 };
 use serde::{Deserialize, Serialize};
 
-const DISCORD_APP_ID: &str = "1371569865835315280";
+const DISCORD_APP_ID: &str = "1544244849207672862";
 const DISCORD_LOGO_URL: &str =
     "https://cdn.jsdelivr.net/gh/wolfenazz/YzPzCode@main/app/src-tauri/icons/icon.png";
 const PROJECT_URL: &str = "https://github.com/wolfenazz/YzPzCode";
@@ -149,6 +149,9 @@ impl DiscordPresenceManager {
         let large_text = Self::truncate_for_discord(&large_text);
 
         let activity = Activity::new()
+            .name("YzPzCode")
+            .activity_type(ActivityType::Playing)
+            .status_display_type(StatusDisplayType::Details)
             .details(&details_text)
             .state(&state_text)
             .assets(
@@ -165,6 +168,9 @@ impl DiscordPresenceManager {
     fn send_idle_presence(&self) -> Result<(), String> {
         let started_at = *self.started_at.lock().unwrap();
         let activity = Activity::new()
+            .name("YzPzCode")
+            .activity_type(ActivityType::Playing)
+            .status_display_type(StatusDisplayType::Details)
             .details("Idle")
             .state("No workspace open")
             .assets(
@@ -221,8 +227,7 @@ impl DiscordPresenceManager {
     }
 
     fn connect_client() -> Result<DiscordIpcClient, String> {
-        let mut client = DiscordIpcClient::new(DISCORD_APP_ID)
-            .map_err(|e| format!("Failed to create Discord IPC client: {}", e))?;
+        let mut client = DiscordIpcClient::new(DISCORD_APP_ID);
 
         if let Err(e) = client.connect() {
             return Err(format!("Discord client not running: {}", e));
