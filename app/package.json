@@ -1,7 +1,7 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.5.8",
+  "version": "5.5.9",
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",

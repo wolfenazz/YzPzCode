@@ -477,6 +477,15 @@ export interface GitBranchInfo {
   branches: string[];
 }
 
+export interface GitRemoteInfo {
+  name: string;
+  url: string;
+  /** Commits the local branch is ahead of its upstream (pushable). */
+  ahead: number;
+  /** Commits the local branch is behind its upstream (pullable). */
+  behind: number;
+}
+
 export interface FileBackupInfo {
   name: string;
   fileName: string;

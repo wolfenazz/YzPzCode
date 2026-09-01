@@ -3,6 +3,7 @@ use crate::filesystem::history::FileBackupInfo;
 use crate::filesystem::search::SearchResult;
 use crate::types::{
     FileContent, FileEntry, GitBranchInfo, GitCommitInfo, GitDiffStat, GitFileDiff, GitFileStatus,
+    GitRemoteInfo,
 };
 
 #[tauri::command]
@@ -202,6 +203,26 @@ pub async fn search_files(
 #[tauri::command]
 pub async fn git_checkout(workspace_path: String, branch: String) -> Result<(), String> {
     filesystem::git_ops::git_checkout(&workspace_path, &branch)
+}
+
+#[tauri::command]
+pub async fn git_remote_info(workspace_path: String) -> Result<Option<GitRemoteInfo>, String> {
+    filesystem::git_ops::git_remote_info(&workspace_path)
+}
+
+#[tauri::command]
+pub async fn git_fetch(workspace_path: String) -> Result<(), String> {
+    filesystem::git_ops::git_fetch(&workspace_path)
+}
+
+#[tauri::command]
+pub async fn git_push(workspace_path: String) -> Result<(), String> {
+    filesystem::git_ops::git_push(&workspace_path)
+}
+
+#[tauri::command]
+pub async fn git_pull(workspace_path: String) -> Result<(), String> {
+    filesystem::git_ops::git_pull(&workspace_path)
 }
 
 #[tauri::command]

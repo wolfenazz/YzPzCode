@@ -295,6 +295,8 @@ interface AppState {
   setIdeStatuses: (statuses: Record<IdeType, IdeInfo | null>) => void;
 
   explorerOpen: boolean;
+  /** When true, the workspace shows the GitHub-style Source Control view and slides the explorer off. */
+  sourceControlOpen: boolean;
   activeView: WorkspaceView;
   openFiles: FileTab[];
   activeFilePath: string | null;
@@ -317,6 +319,8 @@ interface AppState {
   addRecentDirectory: (path: string) => void;
   clearRecentDirectories: () => void;
   toggleExplorer: () => void;
+  toggleSourceControl: () => void;
+  setSourceControlOpen: (open: boolean) => void;
   setExplorerClipboard: (entry: { operation: 'copy' | 'cut'; entries: { path: string; name: string; isDir: boolean }[] } | null) => void;
   clearRestoredFilePaths: (workspaceId: string) => void;
   setActiveView: (view: WorkspaceView) => void;
@@ -906,6 +910,7 @@ export const useAppStore = create<AppState>()(
       setIdeStatuses: (statuses) => set({ ideStatuses: statuses }),
 
       explorerOpen: true,
+      sourceControlOpen: false,
       activeView: "terminal",
       openFiles: [],
       activeFilePath: null,
@@ -927,7 +932,22 @@ export const useAppStore = create<AppState>()(
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
 
-      toggleExplorer: () => set((state) => ({ explorerOpen: !state.explorerOpen })),
+      toggleExplorer: () =>
+        set((state) => ({
+          explorerOpen: !state.explorerOpen,
+          // Opening the Explorer slides Source Control off (mutually exclusive).
+          sourceControlOpen: state.explorerOpen ? false : state.sourceControlOpen,
+        })),
+      toggleSourceControl: () =>
+        set((state) => ({
+          sourceControlOpen: !state.sourceControlOpen,
+          // Opening Source Control slides the Explorer off; closing it restores the Explorer.
+          explorerOpen: state.sourceControlOpen ? true : false,
+        })),
+      setSourceControlOpen: (open) => ({
+        sourceControlOpen: open,
+        explorerOpen: open ? false : true,
+      }),
       setExplorerClipboard: (entry) => set({ explorerClipboard: entry }),
       clearRestoredFilePaths: (workspaceId) =>
         set((state) => {

@@ -3,6 +3,7 @@ import {
   BookOpenText,
   Code,
   GearSix,
+  GitBranch,
   GlobeSimple,
   Keyboard,
   Minus,
@@ -33,6 +34,8 @@ interface WorkspaceHeaderProps {
   onMaximizeWindow: () => void;
   onCloseWindow: () => void;
   onSidebarToggle: () => void;
+  onSourceControlToggle: () => void;
+  sourceControlOpen: boolean;
   onViewChange: (view: WorkspaceView) => void;
   activeView: WorkspaceView;
 }
@@ -112,6 +115,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onMaximizeWindow,
   onCloseWindow,
   onSidebarToggle,
+  onSourceControlToggle,
+  sourceControlOpen,
   onViewChange,
   activeView,
 }) => {
@@ -128,6 +133,15 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           </div>
           <div className="workspace-chrome__utility-cluster flex items-center gap-0.5 px-1.5">
             <button onClick={onDocsClick} className="workspace-chrome__tool app-icon-button" title="Documentation" type="button"><BookOpenText size={16} aria-hidden="true" /><span className="sr-only">Documentation</span></button>
+            <button
+              onClick={onSourceControlToggle}
+              className={`workspace-chrome__tool app-icon-button ${sourceControlOpen ? 'text-[var(--accent)]' : ''}`}
+              title="Toggle Source Control"
+              type="button"
+            >
+              <GitBranch size={16} aria-hidden="true" />
+              <span className="sr-only">Toggle Source Control</span>
+            </button>
             <button onClick={onSidebarToggle} className="workspace-chrome__tool app-icon-button" title="Toggle sidebar (Ctrl+B)" type="button"><SidebarSimple size={16} aria-hidden="true" /><span className="sr-only">Toggle sidebar</span></button>
           </div>
         </div>

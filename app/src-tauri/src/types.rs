@@ -212,6 +212,18 @@ pub struct GitBranchInfo {
     pub branches: Vec<String>,
 }
 
+/// Info about the git remote (origin) for a repo.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRemoteInfo {
+    pub name: String,
+    pub url: String,
+    /// How many commits the local branch is ahead of its upstream (push), or
+    /// behind (pull). Computed against the last fetched state.
+    pub ahead: i64,
+    pub behind: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileContent {

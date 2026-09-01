@@ -746,7 +746,7 @@ const MessageActions: React.FC<{ text: string; onReply?: (text: string) => void;
 
 const UserBubble = React.memo(function UserBubble({ text, attachments = [], onReply }: { text: string; attachments?: AgentAttachment[]; onReply?: (text: string) => void }) {
   return (
-    <div className="group flex w-fit max-w-full justify-end animate-fade-in-up">
+    <div className="group ml-auto flex w-fit max-w-[70%] justify-end animate-fade-in-up">
     <div className="w-fit max-w-full rounded-2xl rounded-br-md bg-[var(--bg-tertiary)] px-4 py-3">
       <div className="agent-rich-text text-[length:var(--agent-session-text-size)] leading-relaxed text-[var(--text-primary)] markdown-body" {...richTextDirection(text)}>
         <ReactMarkdown remarkPlugins={markdownPlugins} rehypePlugins={markdownRehype} components={markdownComponents}>
@@ -1253,13 +1253,12 @@ export const AgentChat: React.FC<AgentChatProps> = ({
           // center, and developer details behind collapsible sections.
           return <UiEditRequestCard key={i} request={uiEditRequest} />;
         }
-        return (
-          <AiMessage from="user" key={i}>
-            <AiMessageContent className="bg-transparent p-0">
-              <UserBubble text={text} attachments={attachments} onReply={onReply} />
-            </AiMessageContent>
-          </AiMessage>
-        );
+        // Render the self-contained UserBubble directly. Wrapping it in
+        // AiMessage/AiMessageContent previously produced two nested bubble
+        // boxes: the wrapper's baked-in group-[.is-user] bg/padding classes
+        // outranked the bg-transparent p-0 override (higher specificity), so
+        // a wide 100%-width panel wrapped around the real bubble.
+        return <UserBubble key={i} text={text} attachments={attachments} onReply={onReply} />;
       }
       const visibleBlocks = message.content.filter((block) => isVisibleAssistantBlock(block, showAgentReasoning));
       if (visibleBlocks.length === 0) return null;

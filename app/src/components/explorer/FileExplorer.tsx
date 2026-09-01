@@ -87,6 +87,8 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<FileEntry[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -108,6 +110,50 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     const handler = setTimeout(() => setDebouncedSearchQuery(searchQuery), 200);
     return () => clearTimeout(handler);
   }, [searchQuery]);
+
+  // Workspace-wide filename search. The lazy tree only knows about folders
+  // that were expanded, so we query the whole workspace recursively instead
+  // of relying on react-arborist's `searchTerm` (which can't see unloaded
+  // folders). Files are found even when their folder is closed.
+  useEffect(() => {
+    const term = debouncedSearchQuery.trim().toLowerCase();
+    if (!term) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setSearchLoading(true);
+    invoke<FileEntry[]>('list_all_files', { path: workspacePath })
+      .then((all) => {
+        if (cancelled) return;
+        const matches = all
+          .filter((f) => {
+            const name = f.name.toLowerCase();
+            const rel = f.path.replace(/\\/g, '/').toLowerCase();
+            return name.includes(term) || rel.includes(term);
+          })
+          // Name matches first, then path matches, then alphabetical.
+          .sort((a, b) => {
+            const aName = a.name.toLowerCase().includes(term);
+            const bName = b.name.toLowerCase().includes(term);
+            if (aName !== bName) return aName ? -1 : 1;
+            return a.path.toLowerCase().localeCompare(b.path.toLowerCase());
+          })
+          .slice(0, 200);
+        setSearchResults(matches);
+      })
+      .catch((err) => {
+        console.error('Failed to search files:', err);
+        if (!cancelled) setSearchResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSearchLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSearchQuery, workspacePath]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -911,6 +957,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             aria-label="Search files"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && searchResults.length > 0) {
+                onFileClick(searchResults[0]);
+              }
+            }}
             placeholder="Search patterns..."
             className="flex-1 bg-transparent text-[12px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] outline-none"
           />
@@ -979,7 +1030,72 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         onDragLeave={handleContainerDragLeave}
         onDrop={handleContainerDrop}
       >
-        {isLoading && treeData.length === 0 ? (
+        {debouncedSearchQuery.trim() ? (
+          <div className="explorer-pane__search-results h-full overflow-y-auto custom-scrollbar">
+            {searchLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <svg
+                  className="w-5 h-5 animate-spin text-[var(--text-secondary)]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                  />
+                </svg>
+              </div>
+            ) : searchResults.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-10 px-4 text-center">
+                <MagnifyingGlass size={22} className="text-[var(--text-secondary)]/60" aria-hidden="true" />
+                <span className="text-[11px] text-[var(--text-secondary)]">
+                  No files match “{debouncedSearchQuery.trim()}”
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="sticky top-0 z-10 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5 text-[10px] font-medium text-[var(--text-secondary)]">
+                  {searchResults.length} result{searchResults.length !== 1 ? 's' : ''} across workspace
+                </div>
+                {searchResults.map((file) => {
+                  const normWorkspace = workspacePath.replace(/\\/g, '/').replace(/\/+$/, '');
+                  const rel = file.path
+                    .replace(/\\/g, '/')
+                    .replace(normWorkspace, '')
+                    .replace(/^\//, '');
+                  return (
+                    <button
+                      key={file.path}
+                      onClick={() => onFileClick(file)}
+                      className="group/result flex w-full items-center gap-2 px-2.5 py-1 text-left hover:bg-[var(--bg-primary)] cursor-pointer"
+                      title={file.path}
+                    >
+                      <FileIcon
+                        extension={file.extension}
+                        isDir={false}
+                        className="w-4 h-4 shrink-0"
+                        name={file.name}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs text-[var(--text-primary)]">{file.name}</span>
+                        <span className="block truncate text-[10px] text-[var(--text-secondary)]/70">{rel}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        ) : isLoading && treeData.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <svg
               className="w-5 h-5 animate-spin text-[var(--text-secondary)]"

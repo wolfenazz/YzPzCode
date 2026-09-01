@@ -183,16 +183,17 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             onToggleMouseTracking?.();
           }}
           aria-pressed={mouseOn}
-            className={`app-icon-button relative h-5 w-5 rounded-md border transition-all duration-200 cursor-pointer ${
-            mouseOn
-              ? 'border-emerald-400/70 bg-emerald-500/15 text-emerald-300 shadow-[0_0_0_1px_rgba(52,211,153,0.12),0_0_12px_rgba(52,211,153,0.16)] hover:border-emerald-300 hover:bg-emerald-500/20'
-              : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]'
-          }`}
+          className="app-icon-button relative h-5 w-5 rounded-md border transition-all duration-200 cursor-pointer border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
           title={mouseOn
             ? 'Mouse mode enabled (click to disable)'
             : 'Mouse mode disabled (click to enable manually)'}
         >
-          <MouseSimple size={14} weight={mouseOn ? 'fill' : 'regular'} aria-hidden="true" />
+          <MouseSimple
+            size={14}
+            weight={mouseOn ? 'fill' : 'regular'}
+            aria-hidden="true"
+            className={mouseOn ? 'text-emerald-300' : ''}
+          />
           <span
             className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full border border-[var(--bg-primary)] transition-colors duration-200 ${
               mouseOn ? 'bg-emerald-300 shadow-[0_0_5px_rgba(110,231,183,0.9)]' : 'bg-[var(--text-secondary)]/45'

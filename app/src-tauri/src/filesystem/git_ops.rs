@@ -3,7 +3,7 @@
 use std::path::Path;
 
 use super::run_git_hidden;
-use crate::types::{GitBranchInfo, GitCommitInfo, GitFileDiff};
+use crate::types::{GitBranchInfo, GitCommitInfo, GitFileDiff, GitRemoteInfo};
 
 /// Resolve a possibly-absolute file path to a repo-relative path (git arg).
 fn rel_path(workspace_path: &str, file_path: &str) -> String {
@@ -153,6 +153,103 @@ pub fn git_checkout(workspace_path: &str, branch: &str) -> Result<(), String> {
         );
     }
     run_git_hidden(&["checkout", branch], workspace_path)?;
+    Ok(())
+}
+
+/// The fetch/push URL of the primary remote (origin, or the first remote).
+pub fn git_remote_info(workspace_path: &str) -> Result<Option<GitRemoteInfo>, String> {
+    let stdout = run_git_hidden(&["remote"], workspace_path)?;
+    let mut remotes: Vec<String> = stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    if remotes.is_empty() {
+        return Ok(None);
+    }
+
+    let name = if remotes.contains(&"origin".to_string()) {
+        "origin".to_string()
+    } else {
+        remotes.remove(0)
+    };
+
+    let url = run_git_hidden(&["remote", "get-url", &name], workspace_path)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    let current = run_git_hidden(&["rev-parse", "--abbrev-ref", "HEAD"], workspace_path)
+        .unwrap_or_else(|_| "HEAD".to_string())
+        .trim()
+        .to_string();
+
+    // Count ahead/behind vs the remote-tracking branch, if any.
+    let mut ahead = 0i64;
+    let mut behind = 0i64;
+    if current != "HEAD" {
+        let tracking = format!("{}/{}", name, current);
+        // A remote-tracking branch exists (earlier fetch) → count divergence.
+        let upstream_ok = run_git_hidden(
+            &["rev-parse", "--verify", "--quiet", &tracking],
+            workspace_path,
+        )
+        .is_ok();
+        if upstream_ok {
+            let spec = format!("{}...{}", current, tracking);
+            if let Ok(out) = run_git_hidden(
+                &["rev-list", "--left-right", "--count", &spec],
+                workspace_path,
+            ) {
+                let mut parts = out.split_whitespace();
+                // `rev-list --left-right` prints "left<TAB>right".
+                // left  = commits reachable from tracking (remote) but not current → behind.
+                // right = commits reachable from current but not tracking (remote) → ahead.
+                let left = parts
+                    .next()
+                    .and_then(|p| p.parse::<i64>().ok())
+                    .unwrap_or(0);
+                let right = parts
+                    .next()
+                    .and_then(|p| p.parse::<i64>().ok())
+                    .unwrap_or(0);
+                behind = left;
+                ahead = right;
+            }
+        }
+    }
+
+    Ok(Some(GitRemoteInfo {
+        name,
+        url,
+        ahead,
+        behind,
+    }))
+}
+
+/// Fetch the remote (origin) — updates remote-tracking refs only, no merge.
+pub fn git_fetch(workspace_path: &str) -> Result<(), String> {
+    run_git_hidden(&["fetch", "origin"], workspace_path)?;
+    Ok(())
+}
+
+/// Push the current branch to its upstream. Uses `--set-upstream` so a branch
+/// with no upstream is published on first push.
+pub fn git_push(workspace_path: &str) -> Result<(), String> {
+    let current = run_git_hidden(&["rev-parse", "--abbrev-ref", "HEAD"], workspace_path)
+        .unwrap_or_else(|_| "HEAD".to_string())
+        .trim()
+        .to_string();
+    if current == "HEAD" {
+        return Err("Detached HEAD — cannot push.".to_string());
+    }
+    run_git_hidden(&["push", "-u", "origin", current.as_str()], workspace_path)?;
+    Ok(())
+}
+
+/// Pull the current branch from its upstream (fetch + merge fast-forward).
+pub fn git_pull(workspace_path: &str) -> Result<(), String> {
+    run_git_hidden(&["pull"], workspace_path)?;
     Ok(())
 }
 

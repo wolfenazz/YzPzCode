@@ -5,6 +5,7 @@ import { BrowserPane } from './BrowserPane';
 import { AgentGrid } from '../agent/AgentGrid';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
+import { SourceControlPanel } from '../explorer/SourceControlPanel';
 import { FileEditor } from '../editor/FileEditor';
 import { QuickOpenPalette } from '../editor/QuickOpenPalette';
 import { useFileEditor } from '../../hooks/useFileEditor';
@@ -14,9 +15,10 @@ import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useAgentHost } from '../../hooks/useAgentHost';
+import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
-import { FileEntry, WorkspaceView } from '../../types';
+import { FileEntry, WorkspaceView, GitDiffStat } from '../../types';
 
 interface WorkspaceProps {
   isWindows: boolean;
@@ -41,6 +43,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     setView,
     setSessionsForWorkspace,
     explorerOpen,
+    sourceControlOpen,
+    toggleSourceControl,
     activeView,
     toggleExplorer,
     setActiveView,
@@ -51,6 +55,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const devServerUrl = useAppStore((s) => (currentWorkspace ? s.devServerUrlByWorkspace[currentWorkspace.id] : undefined));
   const openBrowserTab = useAppStore((s) => s.openBrowserTab);
   const setDevServerUrl = useAppStore((s) => s.setDevServerUrl);
+  const gitStatuses = useAppStore((s) => s.gitStatuses);
+  const gitDiffStats = useAppStore((s) => s.gitDiffStats);
+  const setGitStatuses = useAppStore((s) => s.setGitStatuses);
+  const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
+  const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
   const { createSessions, killAllSessions, killWorkspaceSessions, isLoading, error } = useTerminal();
   const { detectAllClis } = useAgentCli();
   const { checkAllAuth } = useCliLauncher();
@@ -220,6 +229,43 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     }
   }, [openFile]);
 
+  const handleOpenDiff = useCallback((file: { path: string; name: string }) => {
+    setGitDiffFile(file);
+    setActiveView('editor');
+  }, [setGitDiffFile, setActiveView]);
+
+  const refreshGitState = useCallback(async () => {
+    if (!currentWorkspace) return;
+    try {
+      const statuses = await invoke<{ path: string; change: string }[]>('get_git_status', { workspacePath: currentWorkspace.path });
+      setGitStatuses(statuses as never[]);
+      const stats = await invoke<GitDiffStat[]>('get_git_diff_stats', { workspacePath: currentWorkspace.path });
+      setGitDiffStats(stats);
+    } catch (err) {
+      console.error('Failed to refresh git state:', err);
+    }
+  }, [currentWorkspace, setGitStatuses, setGitDiffStats]);
+
+  const handleStageFile = useCallback(async (filePath: string) => {
+    if (!currentWorkspace) return;
+    try {
+      await invoke('git_stage_file', { workspacePath: currentWorkspace.path, filePath });
+      void refreshGitState();
+    } catch (err) {
+      console.error('Failed to stage file:', err);
+    }
+  }, [currentWorkspace, refreshGitState]);
+
+  const handleUnstageFile = useCallback(async (filePath: string) => {
+    if (!currentWorkspace) return;
+    try {
+      await invoke('git_unstage_file', { workspacePath: currentWorkspace.path, filePath });
+      void refreshGitState();
+    } catch (err) {
+      console.error('Failed to unstage file:', err);
+    }
+  }, [currentWorkspace, refreshGitState]);
+
   const handleQuickOpenSelect = useCallback((entry: FileEntry) => {
     openFile(entry);
   }, [openFile]);
@@ -317,6 +363,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
         onSidebarToggle={toggleExplorer}
+        onSourceControlToggle={toggleSourceControl}
+        sourceControlOpen={sourceControlOpen}
         onViewChange={handleViewChange}
         activeView={activeView}
       />
@@ -362,7 +410,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         {currentWorkspace ? (
           <div className="workspace-stage h-full flex items-stretch">
             <AnimatePresence initial={false}>
-              {explorerOpen && (
+              {(explorerOpen || sourceControlOpen) && (
                 <motion.div
                   key="sidebar"
                   initial={{ width: 0, opacity: 0 }}
@@ -375,11 +423,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                     style={{ width: `${sidebarWidth}px`, minWidth: '180px' }}
                     className="workspace-sidebar__content h-full shrink-0 overflow-hidden"
                   >
-                    <FileExplorer
-                      workspacePath={currentWorkspace.path}
-                      workspaceName={currentWorkspace.name}
-                      onFileClick={handleFileClick}
-                    />
+                    {sourceControlOpen ? (
+                      <SourceControlPanel
+                        gitStatuses={gitStatuses}
+                        gitDiffStats={gitDiffStats}
+                        workspacePath={currentWorkspace.path}
+                        onStageFile={handleStageFile}
+                        onUnstageFile={handleUnstageFile}
+                        onOpenDiff={handleOpenDiff}
+                      />
+                    ) : (
+                      <FileExplorer
+                        workspacePath={currentWorkspace.path}
+                        workspaceName={currentWorkspace.name}
+                        onFileClick={handleFileClick}
+                      />
+                    )}
                   </div>
                   <div
                     className="workspace-sidebar__resizer w-px hover:w-1 cursor-col-resize hover:bg-zinc-500 active:bg-zinc-400 transition-all duration-150 shrink-0 z-50"
