@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { getIconForFilePath } from 'vscode-material-icons';
 import { useAppStore } from '../stores/appStore';
 import type { WorkspaceView } from '../types';
 
@@ -11,6 +12,8 @@ interface DiscordActivityPayload {
   workspaceName: string | null;
   details: string;
   stateText: string;
+  fileIcon: string | null;
+  fileIconText: string | null;
 }
 
 const VIEW_DETAILS: Record<WorkspaceView, string> = {
@@ -26,6 +29,26 @@ function getFileName(path: string): string {
 
 function limitDiscordText(value: string): string {
   return Array.from(value).slice(0, DISCORD_TEXT_LIMIT).join('');
+}
+
+function getPresenceFilePath(
+  activeView: WorkspaceView,
+  activeFilePath: string | null,
+  gitDiffFileName: string | null,
+  imageEditorPath: string | null,
+): string | null {
+  if (activeView !== 'editor') return null;
+  return gitDiffFileName ?? imageEditorPath ?? activeFilePath;
+}
+
+function getFileIcon(filePath: string | null): string | null {
+  if (!filePath) return null;
+
+  try {
+    return getIconForFilePath(filePath);
+  } catch {
+    return 'file';
+  }
 }
 
 function buildWorkspaceDetails(
@@ -81,30 +104,46 @@ export function useDiscordPresence(): void {
 
     let payload: DiscordActivityPayload;
     if (appView === 'workspace' && workspace) {
+      const presenceFilePath = getPresenceFilePath(
+        activeView,
+        activeFilePath,
+        gitDiffFileName,
+        imageEditorPath,
+      );
       payload = {
         workspaceName: limitDiscordText(workspace.name),
         details: limitDiscordText(
           buildWorkspaceDetails(activeView, activeFilePath, gitDiffFileName, imageEditorPath),
         ),
         stateText: limitDiscordText(`Workspace: ${workspace.name}`),
+        fileIcon: getFileIcon(presenceFilePath),
+        fileIconText: presenceFilePath
+          ? limitDiscordText(`File: ${getFileName(presenceFilePath)}`)
+          : null,
       };
     } else if (appView === 'docs') {
       payload = {
         workspaceName: null,
         details: 'Reading the documentation',
         stateText: 'Learning YzPzCode',
+        fileIcon: null,
+        fileIconText: null,
       };
     } else if (appView === 'settings') {
       payload = {
         workspaceName: null,
         details: 'Customizing the app',
         stateText: 'YzPzCode settings',
+        fileIcon: null,
+        fileIconText: null,
       };
     } else {
       payload = {
         workspaceName: null,
         details: 'Choosing a workspace',
         stateText: 'Getting ready to code',
+        fileIcon: null,
+        fileIconText: null,
       };
     }
 
@@ -116,6 +155,8 @@ export function useDiscordPresence(): void {
           workspaceName: payload.workspaceName,
           details: payload.details,
           stateText: payload.stateText,
+          fileIcon: payload.fileIcon,
+          fileIconText: payload.fileIconText,
         });
       } catch (error: unknown) {
         if (!cancelled) {
