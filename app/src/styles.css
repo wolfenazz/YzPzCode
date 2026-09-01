@@ -681,6 +681,74 @@ html.animations-disabled *::after {
   font-style: italic;
 }
 
+/* Local-image hydration states (placeholder → loaded / error) */
+.markdown-dark .md-content img[data-md-image-src] {
+  min-height: 64px;
+  min-width: 160px;
+}
+
+.markdown-dark .md-content .md-image-loading img,
+.markdown-dark .md-content img.md-image-loading {
+  background:
+    linear-gradient(100deg, rgba(255, 255, 255, 0.03) 40%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.03) 60%)
+    #1f1f1f;
+  background-size: 200% 100%;
+  animation: md-image-shimmer 1.4s ease-in-out infinite;
+  border-radius: 12px;
+  color: transparent;
+}
+
+.markdown-dark .md-content img.md-image-error {
+  background: #1f1f1f;
+  border: 1px dashed var(--md-code-border);
+  opacity: 0.85;
+  image-rendering: auto;
+}
+
+@keyframes md-image-shimmer {
+  0% {
+    background-position: 120% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown-dark .md-content .md-image-loading img,
+  .markdown-dark .md-content img.md-image-loading {
+    animation: none;
+  }
+}
+
+/* Local images while their bytes load from disk (shimmer placeholder) */
+.markdown-dark .md-content .md-image.md-image-loading img,
+.markdown-dark .md-content img[data-md-image-src]:not([src]):not(.md-image-error) {
+  min-height: 120px;
+  background:
+    linear-gradient(100deg, rgba(255, 255, 255, 0.03) 40%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 60%);
+  background-size: 200% 100%;
+  animation: md-image-shimmer 1.4s ease-in-out infinite;
+  border-radius: 12px;
+}
+
+@keyframes md-image-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Image failed to load (missing file, bad path) — soften the placeholder frame */
+.markdown-dark .md-content .md-image.md-image-error img,
+.markdown-dark .md-content img.md-image-error {
+  opacity: 0.75;
+  border-style: dashed;
+  box-shadow: none;
+}
+
 /* Permalinks */
 .markdown-dark .md-content .md-anchor {
   position: absolute;

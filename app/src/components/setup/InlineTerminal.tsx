@@ -2,10 +2,12 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession } from '../../types';
 import { useAppStore } from '../../stores/appStore';
+import { getTerminalFontStack } from '../../utils/terminalFonts';
 import '@xterm/xterm/css/xterm.css';
 
 interface InlineTerminalProps {
@@ -119,13 +121,11 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
         const xterm = new XTerm({
           theme: TERMINAL_THEME,
-          fontFamily: useAppStore.getState().terminalFontFamily,
+          fontFamily: getTerminalFontStack(useAppStore.getState().terminalFontFamily),
           fontSize: 14,
           fontWeight: '400',
           lineHeight: 1,
           letterSpacing: 0,
-          customGlyphs: true,
-          rescaleOverlappingGlyphs: true,
           minimumContrastRatio: 1,
           cursorBlink: true,
           cursorStyle: 'block',
@@ -152,6 +152,17 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
         xterm.loadAddon(fitAddon);
         xterm.loadAddon(webLinksAddon);
         xterm.open(terminalElement);
+
+        try {
+          const webglAddon = new WebglAddon();
+          webglAddon.onContextLoss(() => {
+            console.warn('Inline terminal WebGL context lost; falling back to the DOM renderer.');
+            webglAddon.dispose();
+          });
+          xterm.loadAddon(webglAddon);
+        } catch (error) {
+          console.warn('Inline terminal WebGL renderer is unavailable; using the DOM renderer.', error);
+        }
 
         const handleMouseDownFocus = () => {
           xterm.focus();

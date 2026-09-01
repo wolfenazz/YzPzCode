@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { SearchAddon } from '@xterm/addon-search';
 import { Unicode11Addon } from '@xterm/addon-unicode11';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, CliType, ManagedTerminalCommandState } from '../../types';
@@ -11,6 +12,7 @@ import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 import { useAppStore } from '../../stores/appStore';
+import { getTerminalFontStack } from '../../utils/terminalFonts';
 import { registerTerminal } from '../../utils/terminalRegistry';
 import '@xterm/xterm/css/xterm.css';
 
@@ -304,6 +306,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [terminalPasteOnRightClick]);
 
   const terminalFontFamily = useAppStore((s) => s.terminalFontFamily);
+  const terminalFontStack = useMemo(() => getTerminalFontStack(terminalFontFamily), [terminalFontFamily]);
   const terminalFontSize = useAppStore((s) => s.terminalFontSize);
   const terminalCursorStyle = useAppStore((s) => s.terminalCursorStyle);
   const terminalCursorBlink = useAppStore((s) => s.terminalCursorBlink);
@@ -313,7 +316,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const terminalForegroundColor = useAppStore((s) => s.terminalForegroundColor);
 
   const terminalPrefsRef = useRef({
-    fontFamily: terminalFontFamily,
+    fontFamily: terminalFontStack,
     fontSize: terminalFontSize,
     cursorStyle: terminalCursorStyle,
     cursorBlink: terminalCursorBlink,
@@ -321,13 +324,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   });
   useEffect(() => {
     terminalPrefsRef.current = {
-      fontFamily: terminalFontFamily,
+      fontFamily: terminalFontStack,
       fontSize: terminalFontSize,
       cursorStyle: terminalCursorStyle,
       cursorBlink: terminalCursorBlink,
       scrollback: terminalScrollbackSize,
     };
-  }, [terminalFontFamily, terminalFontSize, terminalCursorStyle, terminalCursorBlink, terminalScrollbackSize]);
+  }, [terminalFontStack, terminalFontSize, terminalCursorStyle, terminalCursorBlink, terminalScrollbackSize]);
 
   const { cliStatuses, installCli, installProgress, detectCli } = useAgentCli();
   const { launchCli, stopCli, checkAuth, getAuthInstructions, getLaunchState, getLaunchStateSync, getAuthInfoSync } = useCliLauncher();
@@ -676,8 +679,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fontWeight: '400',
       lineHeight: 1,
       letterSpacing: 0,
-      customGlyphs: true,
-      rescaleOverlappingGlyphs: true,
       minimumContrastRatio: 1,
       cursorBlink: terminalPrefs.cursorBlink,
       cursorStyle: terminalPrefs.cursorStyle,
@@ -727,6 +728,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     xterm.unicode.activeVersion = '11';
 
     xterm.open(terminalElement);
+
+    // xterm 6 defaults to its DOM renderer, whose per-cell fractional spacing
+    // breaks Unicode block art at Windows display scaling. Use the same GPU
+    // renderer as VS Code; if WebGL is unavailable xterm continues with DOM.
+    try {
+      const webglAddon = new WebglAddon();
+      webglAddon.onContextLoss(() => {
+        console.warn('Terminal WebGL context lost; falling back to the DOM renderer.');
+        webglAddon.dispose();
+      });
+      xterm.loadAddon(webglAddon);
+    } catch (error) {
+      console.warn('Terminal WebGL renderer is unavailable; using the DOM renderer.', error);
+    }
 
     const handlePasteCapture = (e: Event) => {
       e.preventDefault();
@@ -959,12 +974,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   useEffect(() => {
     const term = xtermRef.current;
     if (!term) return;
-    term.options.fontFamily = terminalFontFamily;
+    term.options.fontFamily = terminalFontStack;
     term.options.fontSize = terminalFontSize;
     term.options.cursorBlink = terminalCursorBlink;
     term.options.cursorStyle = terminalCursorStyle;
     handleFitAndResize();
-  }, [terminalFontFamily, terminalFontSize, terminalCursorBlink, terminalCursorStyle, handleFitAndResize]);
+  }, [terminalFontStack, terminalFontSize, terminalCursorBlink, terminalCursorStyle, handleFitAndResize]);
 
   useEffect(() => {
     if (!('fonts' in document)) return;
@@ -979,7 +994,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [terminalFontFamily, handleFitAndResize]);
+  }, [terminalFontStack, handleFitAndResize]);
 
   useEffect(() => {
     let mounted = true;

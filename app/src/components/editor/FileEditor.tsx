@@ -591,7 +591,11 @@ export const FileEditor: React.FC = () => {
             )}
 
             {activeFile && isMarkdown && mdPreview && (
-              <MarkdownPreview content={activeFile.content} />
+              <MarkdownPreview
+                content={activeFile.content}
+                filePath={activeFile.path}
+                workspacePath={workspacePath}
+              />
             )}
 
             {!activeFile && (
