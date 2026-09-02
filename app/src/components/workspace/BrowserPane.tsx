@@ -78,6 +78,31 @@ interface BrowserPaneProps {
 const FALLBACK_URL = 'https://www.google.com';
 const EMPTY_DEV_SERVER_URLS: string[] = [];
 const ZOOM_STEPS = [0.5, 0.67, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+/** Ports yzpzcode may serve on itself (8745 = the Tauri devUrl) plus common
+ *  framework dev-server ports. Probing these over HTTP lets the Localhost
+ *  menu find a server running in *any* terminal — even one launched outside
+ *  the app — without requiring a localhost link to be clicked in the
+ *  built-in terminal first. */
+const DEV_SERVER_PROBE_PORTS = [8745, 5173, 5174, 4173, 3000, 3001, 8080, 8000, 5000, 4321, 6006, 1420];
+
+/** Best-effort check that an HTTP server is actually listening on a port.
+ *  Uses a no-cors fetch so we don't need CORS headers for a liveness probe:
+ *  the promise resolving means the port speaks HTTP (opaque responses are
+ *  fine — we never read the body), while a network failure or abort timeout
+ *  means nothing is listening. */
+const isLocalPortResponding = async (url: string, timeoutMs = 800): Promise<boolean> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await fetch(url, { mode: 'no-cors', signal: controller.signal });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const BROWSER_DEVICES: BrowserDevicePreset[] = [
   { id: 'responsive', label: 'Responsive', width: null, height: null, category: 'desktop' },
   { id: 'iphone-14-pro', label: 'iPhone 14 Pro', width: 393, height: 852, category: 'mobile' },
@@ -325,6 +350,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const clearBrowserSelection = useAppStore((state) => state.clearBrowserSelection);
   const addBrowserTab = useAppStore((state) => state.addBrowserTab);
   const openBrowserTab = useAppStore((state) => state.openBrowserTab);
+  const addDevServerUrl = useAppStore((state) => state.addDevServerUrl);
+
   const removeBrowserTab = useAppStore((state) => state.removeBrowserTab);
   const setActiveBrowserTab = useAppStore((state) => state.setActiveBrowserTab);
   const updateBrowserTab = useAppStore((state) => state.updateBrowserTab);
@@ -1246,13 +1273,43 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     openBrowserTab(workspaceId, url, getLocalhostLabel(url));
   }, [openBrowserTab, workspaceId]);
 
+  /** Proactively probe common dev-server ports so the Localhost menu works
+   *  even when the server was started in a terminal outside the app (the
+   *  click-a-link detection in TerminalPane never sees that output). */
+  const scanDevServers = useCallback(async () => {
+    const probes = DEV_SERVER_PROBE_PORTS.map(async (port) => {
+      // Try 127.0.0.1 first: some servers bind only the IPv4 loopback, and
+      // fetch('localhost') can resolve to ::1 and time out even though the
+      // server is up. Report the friendlier localhost URL when either works.
+      if (await isLocalPortResponding(`http://127.0.0.1:${port}/`)) {
+        return `http://localhost:${port}`;
+      }
+      if (await isLocalPortResponding(`http://localhost:${port}/`)) {
+        return `http://localhost:${port}`;
+      }
+      return null;
+    });
+    const found = (await Promise.all(probes)).filter((url): url is string => url !== null);
+    // addDevServerUrl normalizes, de-dupes and keeps the newest-first order.
+    found.forEach((url) => addDevServerUrl(workspaceId, url));
+  }, [addDevServerUrl, workspaceId]);
+
   const handleLocalhostButtonClick = useCallback(() => {
     if (devServerUrls.length === 1) {
       handleOpenLocalhost(devServerUrls[0]);
       return;
     }
     setIsLocalhostMenuOpen((isOpen) => !isOpen);
-  }, [devServerUrls, handleOpenLocalhost]);
+    void scanDevServers();
+  }, [devServerUrls, handleOpenLocalhost, scanDevServers]);
+
+  // Populate the Localhost menu shortly after mount so the first click
+  // already shows servers that were started before the pane opened.
+  useEffect(() => {
+    const timer = setTimeout(() => { void scanDevServers(); }, 600);
+    return () => clearTimeout(timer);
+  }, [scanDevServers]);
+
 
   const handleSelectTab = useCallback((tabId: string) => {
     setActiveBrowserTab(workspaceId, tabId);

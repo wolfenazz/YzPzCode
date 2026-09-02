@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowClockwise, ListBullets, MouseSimple, Plus, TerminalWindow, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ListBullets, MouseSimple, Plus, Sparkle, TerminalWindow, X } from '@phosphor-icons/react';
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession } from '../../types';
 import { QuickActions } from './QuickActions';
@@ -66,6 +66,8 @@ interface TerminalHeaderProps {
   onRunCommand?: (command: string) => void;
   agentOverride?: CliType | null;
   isActive?: boolean;
+  showQuickPrompts?: boolean;
+  onToggleQuickPrompts?: () => void;
 }
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
@@ -81,6 +83,8 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   onRunCommand,
   agentOverride,
   isActive = false,
+  showQuickPrompts = false,
+  onToggleQuickPrompts,
 }) => {
   // The effective agent combines the fleet-assigned agent with a runtime
   // detection of an agent launched manually inside the terminal, so the badge
@@ -268,6 +272,25 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
               </div>
             )}
           </div>
+        )}
+        {isAiAgent && onToggleQuickPrompts && (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleQuickPrompts();
+            }}
+            className={`app-icon-button h-5 w-5 rounded border transition-all duration-150 cursor-pointer ${
+              showQuickPrompts
+                ? 'border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent-text)]'
+                : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            }`}
+            title={showQuickPrompts ? 'Hide quick prompts' : 'Show quick prompts'}
+          >
+            <Sparkle size={12} />
+          </button>
         )}
         <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} />
         <div className="h-3 w-px bg-[var(--border-primary)]" />

@@ -297,6 +297,7 @@ interface AppState {
   addInspectorQuickPrompt: (group: InspectorQuickPromptGroup) => void;
   updateInspectorQuickPrompt: (id: string, patch: Partial<Pick<InspectorQuickPrompt, 'label' | 'text' | 'group'>>) => void;
   removeInspectorQuickPrompt: (id: string) => void;
+  reorderInspectorQuickPrompts: (group: InspectorQuickPromptGroup, fromIndex: number, toIndex: number) => void;
   resetInspectorQuickPrompts: () => void;
 
   openWorkspace: (workspace: WorkspaceConfig) => void;
@@ -752,6 +753,28 @@ export const useAppStore = create<AppState>()(
           inspectorQuickPrompts: state.inspectorQuickPrompts.filter((prompt) => prompt.id !== id),
         })),
       resetInspectorQuickPrompts: () => set({ inspectorQuickPrompts: DEFAULT_INSPECTOR_QUICK_PROMPTS }),
+      reorderInspectorQuickPrompts: (group, fromIndex, toIndex) =>
+        set((state) => {
+          // Reorder within the target group.
+          const groupPrompts = state.inspectorQuickPrompts.filter((p) => p.group === group);
+          const reordered = [...groupPrompts];
+          const [moved] = reordered.splice(fromIndex, 1);
+          if (!moved) return state;
+          reordered.splice(toIndex, 0, moved);
+
+          // Rebuild the full array preserving the original interleaving of
+          // non-target prompts and inserting the reordered group in their place.
+          const result: typeof state.inspectorQuickPrompts = [];
+          let gi = 0;
+          for (const p of state.inspectorQuickPrompts) {
+            if (p.group === group) {
+              result.push(reordered[gi++]);
+            } else {
+              result.push(p);
+            }
+          }
+          return { inspectorQuickPrompts: result };
+        }),
 
 
       openWorkspace: (workspace) =>

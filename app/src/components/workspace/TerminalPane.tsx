@@ -19,6 +19,7 @@ import '@xterm/xterm/css/xterm.css';
 import { TerminalHeader } from './TerminalHeader';
 import { CliStatusBadge } from './CliStatusBadge';
 import { AuthModal } from './AuthModal';
+import { QuickPromptChips } from '../common/QuickPromptChips';
 
 interface TerminalPaneProps {
   session: TerminalSession;
@@ -265,6 +266,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const launchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showPasteConfirm, setShowPasteConfirm] = useState(false);
   const [pendingPasteText, setPendingPasteText] = useState('');
+  const [showQuickPrompts, setShowQuickPrompts] = useState(false);
   const [mouseTrackingEnabled, setMouseTrackingEnabled] = useState(false);
   const [managedCommandState, setManagedCommandState] = useState<ManagedTerminalCommandState | null>(null);
   const mouseModesRef = useRef<Set<number>>(new Set());
@@ -1300,6 +1302,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         onNewSession={handleNewSession}
         onRunCommand={handleRunCommand}
         agentOverride={effectiveAgent}
+        showQuickPrompts={showQuickPrompts}
+        onToggleQuickPrompts={() => setShowQuickPrompts((v) => !v)}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}
@@ -1312,6 +1316,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         }
         dragListeners={dragListeners}
       />
+
+      {showQuickPrompts && effectiveAgent && (
+        <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5 shrink-0">
+          <QuickPromptChips
+            compact
+            onSelect={(prompt) => void handleRunCommand(prompt.text)}
+          />
+        </div>
+      )}
 
       {showSearch && (
         <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5">

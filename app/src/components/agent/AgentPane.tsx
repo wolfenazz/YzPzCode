@@ -786,15 +786,6 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
               {!isVeryNarrow && <span>reconnecting</span>}
             </span>
           )}
-          {fastMode && (
-            <span
-              className="electric-chip font-mono text-[9px] font-bold uppercase tracking-widest rounded-md border px-1.5 py-0.5 shrink-0"
-              title="Fast mode is ON — the agent skips extra thinking and works as fast as possible (toggle in ⋯ menu)."
-            >
-              <Lightning size={12} weight="fill" aria-hidden="true" />
-              {!isVeryNarrow && <span>Fast</span>}
-            </span>
-          )}
           {error && uiMode === 'full' && !isVeryNarrow && (
             <span className="font-mono text-[9px] text-rose-500 truncate max-w-[100px]" title={error}>
               {error}

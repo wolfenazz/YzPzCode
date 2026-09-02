@@ -22,6 +22,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useAgentMention } from '../../hooks/useAgentMention';
 import type { MentionItem } from '../../hooks/useAgentMention';
 import { AgentMentionMenu } from './AgentMentionMenu';
+import { QuickPromptChips } from '../common/QuickPromptChips';
 
 const invokeErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message) return error.message;
@@ -681,6 +682,17 @@ export const AgentInput: React.FC<AgentInputProps> = ({
         <p role="status" className="m-0 px-1 text-[10px] leading-tight text-[var(--text-secondary)]/80">
           {attachmentNotice}
         </p>
+      )}
+
+      {!compact && !isRunning && (
+        <QuickPromptChips
+          compact={compact}
+          onSelect={(prompt) => {
+            setValue((prev) => (prev ? `${prev}\n\n${prompt.text}` : prompt.text));
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          }}
+          className="px-0.5"
+        />
       )}
 
       <div className={`agent-composer-compose flex items-center gap-2 rounded-xl border p-2 ${isRunning ? 'is-queueing' : ''}`}>
