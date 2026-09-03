@@ -63,7 +63,13 @@ if ((await harness.listPendingPrompts('queue-probe')).length !== 0) throw new Er
 
 const started = events.find((entry) => entry.payload?.type === 'queued_prompt_started');
 if (!started) throw new Error('queued_prompt_started was not emitted');
+const visiblePrompts = events.filter((entry) => entry.payload?.type === 'user_prompt_started');
+if (visiblePrompts.length !== 2) throw new Error('each promoted queue prompt must emit one visible transcript event');
+if (visiblePrompts[0].payload?.payload?.prompt?.prompt !== 'Run third') {
+  throw new Error('visible transcript event did not precede the correct queued prompt');
+}
 
 console.log('PASS  queued prompts never intercept the active task');
 console.log('PASS  FIFO cancellation and fresh-turn delivery');
 console.log('PASS  queue events omit attachment payloads');
+console.log('PASS  promoted prompts emit visible transcript events');

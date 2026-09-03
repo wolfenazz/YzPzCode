@@ -95,6 +95,21 @@ const DEFAULT_MAX_ITERATIONS = 40;
 // of what they had just done after a compaction.
 const COMPACTION_PRESERVE_RECENT_TOKENS = 30_000;
 
+type CompactionPreference = {
+  compactionEnabled?: boolean;
+  compactionStrategy?: "basic" | "agentic";
+};
+
+/** Resolve compaction once per session. An explicit per-session strategy turns
+ * it on; otherwise the global Off/Basic/Agentic setting is authoritative. */
+export const resolveCompactionPreference = (
+  global: CompactionPreference,
+  sessionStrategy?: "basic" | "agentic",
+): { enabled: boolean; strategy: "basic" | "agentic" } => ({
+  enabled: sessionStrategy !== undefined || global.compactionEnabled !== false,
+  strategy: sessionStrategy ?? global.compactionStrategy ?? "basic",
+});
+
 // @cline/llms validates image content before building the provider request.
 // `userImages` must be a data URL or base64 string; a local Windows path is
 // not a valid image payload and becomes "[media omitted...]". Keep these
@@ -1366,6 +1381,10 @@ export class AgentHarness {
 
     const knownModels = await this.resolveModelInfo(args.providerId, args.modelId);
     const activeModel = knownModels[args.modelId];
+    const compactionPreference = resolveCompactionPreference(
+      readGlobalSettings() as CompactionPreference,
+      args.compactionStrategy,
+    );
     const requestHeaders = commandCodeRequestHeaders(args.providerId);
     const runtimeProviderConfig = commandCodeRuntimeProviderConfig({
       providerId: args.providerId,
@@ -1433,8 +1452,8 @@ export class AgentHarness {
             loopDetection: { softThreshold: 3, hardThreshold: 5 },
           },
           compaction: {
-            enabled: true,
-            strategy: args.compactionStrategy ?? "basic",
+            enabled: compactionPreference.enabled,
+            strategy: compactionPreference.strategy,
             preserveRecentTokens: COMPACTION_PRESERVE_RECENT_TOKENS,
           },
           toolPolicies: this.buildToolPolicies(),
@@ -1778,6 +1797,21 @@ export class AgentHarness {
     // Mark this before the asynchronous send begins so a quick second message
     // is held in our FIFO rather than starting a competing turn.
     this.runningSessions.add(sessionId);
+
+    // Publish every accepted user turn through one shared event before model
+    // execution begins. Composer sends, queued prompts, browser inspector
+    // handoffs, and future integrations all use the same transcript path.
+    this.sink("session-event", {
+      type: "user_prompt_started",
+      payload: {
+        sessionId,
+        prompt: {
+          id: `prompt-${randomUUID()}`,
+          prompt,
+          attachmentCount: userImages.length + userFiles.length,
+        },
+      },
+    });
 
     // Acknowledge admission before starting the SDK on the next event-loop
     // tick. This keeps the user's transcript entry ahead of synchronous status
@@ -2897,6 +2931,7 @@ export class AgentHarness {
     if (existsSync(filePath)) throw new Error(`File already exists: ${filePath}`);
     const body = `---\nname: ${name}\ndescription: ${description ?? ""}\ndisabled: false\n---\n\n${instructions ?? ""}\n`;
     writeFileSync(filePath, body, "utf8");
+    if (type === "skill") skillHintsCache.delete(this.dataDir);
     const svc = this.getGlobalUserInstructionService();
     await svc.refreshType(type);
     return { filePath };
@@ -2915,6 +2950,7 @@ export class AgentHarness {
     const rec = items.find((r) => r.id === id || r.name === id || r.filePath.endsWith(`${id}.md`));
     if (!rec) throw new Error(`Not found: ${id}`);
     await this.setFrontmatterDisabled(rec.filePath, !enabled);
+    if (type === "skill") skillHintsCache.delete(this.dataDir);
     const svc = this.getGlobalUserInstructionService();
     await svc.refreshType(type).catch(() => undefined);
     return { id: rec.id, enabled };

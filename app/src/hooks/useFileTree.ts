@@ -92,6 +92,45 @@ function sortNodes(nodes: TreeNodeData[]): TreeNodeData[] {
   });
 }
 
+/**
+ * Reconcile a directory listing without discarding descendants that have
+ * already been loaded. Replacing those nodes with fresh lazy placeholders
+ * makes react-arborist collapse every open folder after a filesystem event.
+ */
+export function mergePreservingLoaded(
+  previous: TreeNodeData[],
+  fresh: TreeNodeData[],
+): TreeNodeData[] {
+  const previousByPath = new Map<string, TreeNodeData>();
+  const index = (nodes: TreeNodeData[]) => {
+    for (const node of nodes) {
+      previousByPath.set(node.path, node);
+      if (node.children) index(node.children);
+    }
+  };
+  index(previous);
+
+  const merge = (nodes: TreeNodeData[]): TreeNodeData[] =>
+    nodes.map((entry) => {
+      const previousNode = previousByPath.get(entry.path);
+      if (previousNode?.isDir && previousNode.loaded && previousNode.children) {
+        return {
+          ...entry,
+          loaded: true,
+          children: merge(previousNode.children),
+        };
+      }
+      return entry;
+    });
+
+  return sortNodes(merge(fresh));
+}
+
+function upsertNode(nodes: TreeNodeData[], node: TreeNodeData): TreeNodeData[] {
+  const withoutStaleCopy = nodes.filter((entry) => entry.id !== node.id);
+  return sortNodes([...withoutStaleCopy, node]);
+}
+
 function rebaseNodePath(node: TreeNodeData, oldBasePath: string, newBasePath: string): TreeNodeData {
   const nextPath = node.path === oldBasePath
     ? newBasePath
@@ -230,7 +269,9 @@ export function useFileTree(workspacePath: string | null) {
       const entries = await invoke<FileEntry[]>('list_directory_entries', {
         path: workspacePath,
       });
-      setTreeData(entries.map(entryToNode));
+      setTreeData((previous) =>
+        mergePreservingLoaded(previous, entries.map(entryToNode))
+      );
     } catch (err) {
       console.error('Failed to load directory:', err);
     }
@@ -463,11 +504,11 @@ export function useFileTree(workspacePath: string | null) {
         pushUndoOp({ kind: 'create', path: fullPath, isDir: type === 'directory' });
 
         if (dir === workspacePath) {
-          setTreeData((prev) => [...prev, newNode]);
+          setTreeData((prev) => upsertNode(prev, newNode));
         } else {
           setTreeData((prev) =>
             updateNodeInTreeWithCallback(prev, dir, (prevNode) => {
-              const children = prevNode.children ? [...prevNode.children, newNode] : [newNode];
+              const children = upsertNode(prevNode.children ?? [], newNode);
               return { children, loaded: true };
             })
           );
@@ -551,39 +592,6 @@ export function useFileTree(workspacePath: string | null) {
     [loadRoot]
   );
 
-  /**
-   * Merge freshly-fetched children over existing tree nodes so already-loaded
-   * directories keep their expanded children (and open state) intact.
-   */
-  const mergePreservingLoaded = useCallback(
-    (prev: TreeNodeData[], fresh: TreeNodeData[]): TreeNodeData[] => {
-      const prevMap = new Map<string, TreeNodeData>();
-      const walk = (nodes: TreeNodeData[]) => {
-        for (const node of nodes) {
-          prevMap.set(node.path, node);
-          if (node.children) walk(node.children);
-        }
-      };
-      walk(prev);
-
-      const merge = (nodes: TreeNodeData[]): TreeNodeData[] =>
-        nodes.map((entry) => {
-          const prevNode = prevMap.get(entry.path);
-          if (prevNode?.isDir && prevNode.loaded && prevNode.children) {
-            return {
-              ...entry,
-              loaded: true,
-              children: merge(prevNode.children),
-            };
-          }
-          return entry;
-        });
-
-      return merge(fresh);
-    },
-    []
-  );
-
   /** Reload the children of a single (already loaded) directory in place. */
   const refreshPath = useCallback(
     async (dirPath: string | null) => {
@@ -607,7 +615,7 @@ export function useFileTree(workspacePath: string | null) {
         console.error('Failed to refresh path:', err);
       }
     },
-    [workspacePath, mergePreservingLoaded]
+    [workspacePath]
   );
 
   // ---- Undo log -----------------------------------------------------------

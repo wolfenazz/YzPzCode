@@ -177,6 +177,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       unlisten = await listen<{ workspacePath: string; paths: string[] }>(
         'file-system-changed',
         (event) => {
+          if (event.payload?.workspacePath !== workspacePath) return;
           const paths = event.payload?.paths;
           if (!paths || paths.length === 0) {
             refreshRoot();

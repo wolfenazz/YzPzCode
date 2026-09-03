@@ -470,7 +470,7 @@ export const useAppStore = create<AppState>()(
       autoSave: true,
       autoSaveDelay: 1000,
       showMinimap: true,
-      customCursor: true,
+      customCursor: false,
       accentColor: "default",
       uiDensity: "comfortable",
       appZoom: 100,

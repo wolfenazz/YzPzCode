@@ -503,7 +503,10 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           return;
         }
       }
-      if (e.key === 'Tab') {
+      // Keep plain Tab available for normal keyboard focus navigation. Mode
+      // switching is an explicit Ctrl/Cmd+Tab shortcut instead of trapping
+      // keyboard users inside the composer.
+      if (e.key === 'Tab' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         cycleMode(e.shiftKey ? -1 : 1);
         return;
@@ -533,12 +536,13 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           const tabStyle = MODE_STYLES[tab.id];
           return (
             <button
+              type="button"
               key={tab.id}
               data-mode={tab.id}
               onClick={() => (compact ? cycleMode(1) : onModeChange(tab.id))}
               title={tab.title}
               aria-label={tab.label}
-              aria-selected={active}
+              aria-pressed={active}
               className={`premium-segmented-item flex items-center justify-center gap-1.5 rounded-lg border text-[11px] font-medium leading-none transition-all duration-150 ease-out cursor-pointer select-none active:scale-[0.97] ${
                 compact ? 'h-6 px-2 text-[10px]' : 'h-8 px-2.5'
               } ${
@@ -563,6 +567,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           )}
           {isRunning && (
             <button
+              type="button"
               onClick={() => void onAbort()}
               title="Interrupt the running task and remove its queued prompts"
               className={`flex cursor-pointer items-center gap-1.5 rounded-md border border-rose-500/25 bg-rose-500/[0.06] text-[10px] font-medium text-rose-400 transition-all duration-150 ease-out hover:border-rose-500/45 hover:bg-rose-500/[0.1] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-500/60 active:scale-[0.97] ${
@@ -754,6 +759,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           <Paperclip size={16} aria-hidden="true" />
         </button>
         <button
+          type="button"
           onClick={() => void handleSend()}
           disabled={disabled || (!value.trim() && attachments.length === 0)}
           title={

@@ -465,6 +465,8 @@ export const useAgentSession = (
   queuedPromptsRef.current = queuedPrompts;
   /** Local previews keyed by the harness queue id; file data stays out of events. */
   const queuedAttachmentsRef = useRef<Map<string, AgentAttachment[]>>(new Map());
+  /** A runtime-accepted prompt that may not be present in persisted history yet. */
+  const visiblePromptRef = useRef<{ prompt: string; attachments: AgentAttachment[] } | null>(null);
 
   // ── Message helpers ────────────────────────────────────────────────
   const appendAssistantText = useCallback((text: string, providerId?: string, modelId?: string) => {
@@ -474,10 +476,19 @@ export const useAgentSession = (
       if (last && last.role === 'assistant') {
         const lastBlock = last.content[last.content.length - 1];
         if (lastBlock && lastBlock.type === 'text') {
-          lastBlock.text += text;
+          copy[copy.length - 1] = {
+            ...last,
+            content: [
+              ...last.content.slice(0, -1),
+              { ...lastBlock, text: lastBlock.text + text },
+            ],
+          };
           return copy;
         }
-        last.content.push({ type: 'text', text });
+        copy[copy.length - 1] = {
+          ...last,
+          content: [...last.content, { type: 'text', text }],
+        };
         return copy;
       }
       copy.push({ role: 'assistant', content: [{ type: 'text', text }], providerId, modelId });
@@ -573,7 +584,30 @@ export const useAgentSession = (
     try {
       const msgs = (await readMessages(sid)) as ClineMessage[];
       if (Array.isArray(msgs) && msgs.length > 0) {
-        setMessages(normalizeClineMessages(msgs));
+        const normalized = normalizeClineMessages(msgs);
+        const pending = visiblePromptRef.current;
+        if (pending) {
+          const persisted = normalized.some((message) =>
+            message.role === 'user' &&
+            message.content
+              .filter((block): block is Extract<ClineContentBlock, { type: 'text' }> => block.type === 'text')
+              .map((block) => block.text)
+              .join('\n')
+              .trim() === pending.prompt.trim(),
+          );
+          if (persisted) {
+            visiblePromptRef.current = null;
+          } else {
+            normalized.push({
+              role: 'user',
+              content: [
+                { type: 'text', text: pending.prompt },
+                ...pending.attachments.map((attachment): ClineContentBlock => ({ type: 'attachment', attachment })),
+              ],
+            });
+          }
+        }
+        setMessages(normalized);
       }
     } catch (err) {
       console.error('[agent] failed to read messages:', err);
@@ -861,12 +895,34 @@ export const useAgentSession = (
           const prompts = Array.isArray(list) ? list.filter((p) => p && typeof p.id === 'string') : [];
           queuedPromptsRef.current = prompts;
           setQueuedPrompts(prompts);
+        } else if (payload.type === 'user_prompt_started') {
+          const started = (payload.payload as {
+            prompt?: { id?: string; prompt?: string; attachmentCount?: number };
+          } | undefined)?.prompt;
+          if (started && typeof started.prompt === 'string' && started.prompt.trim()) {
+            // Local composer sends may have attachment previews waiting under a
+            // queue id; direct/browser sends intentionally have none. The
+            // optimistic composer append later merges its previews into this
+            // already-visible runtime entry.
+            lastPromptRef.current = started.prompt;
+            visiblePromptRef.current = { prompt: started.prompt, attachments: [] };
+            appendUserMessage(started.prompt);
+            setStatus('running');
+            setError(null);
+            setNotice(null);
+            markActivity();
+          }
         } else if (payload.type === 'queued_prompt_started') {
           const started = (payload.payload as { prompt?: AgentQueuedPrompt } | undefined)?.prompt;
           if (started && typeof started.id === 'string') {
             const attachments = queuedAttachmentsRef.current.get(started.id) ?? [];
             queuedAttachmentsRef.current.delete(started.id);
             lastPromptRef.current = started.prompt;
+            if (visiblePromptRef.current?.prompt.trim() === started.prompt.trim()) {
+              visiblePromptRef.current = { prompt: started.prompt, attachments };
+            }
+            // `user_prompt_started` is emitted first and creates the text row;
+            // this legacy queue event enriches it with local attachment cards.
             appendUserMessage(started.prompt, attachments);
             setStatus('running');
             setError(null);
@@ -931,6 +987,12 @@ export const useAgentSession = (
     unlisteners.push(
     onSessionEnded((event) => {
       if (disposed || event.payload.sessionId !== sessionIdRef.current) return;
+      // Commit any frame-coalesced deltas before replacing the transcript with
+      // the persisted copy. Otherwise the final words can briefly disappear
+      // (or be lost when the refresh fails) when `ended` races the next rAF.
+      finalizeStream();
+      finalizeThinking();
+      resetLiveStream();
       setStatus('done');
       setToolLog([]);
       setStreamingThinking('');
@@ -1026,26 +1088,62 @@ export const useAgentSession = (
 
   // ── Actions ────────────────────────────────────────────────────────
   const appendUserMessage = useCallback((prompt: string, attachments: AgentAttachment[] = []) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          ...attachments.map((attachment): ClineContentBlock => ({ type: 'attachment', attachment })),
-        ],
-      },
-    ]);
+    if (visiblePromptRef.current?.prompt.trim() === prompt.trim() && attachments.length > 0) {
+      visiblePromptRef.current = { prompt, attachments };
+    }
+    setMessages((prev) => {
+      const last = prev[prev.length - 1];
+      const lastText = last?.role === 'user'
+        ? last.content
+            .filter((block): block is Extract<ClineContentBlock, { type: 'text' }> => block.type === 'text')
+            .map((block) => block.text)
+            .join('\n')
+            .trim()
+        : '';
+
+      // The runtime event normally arrives before the originating IPC call
+      // resolves. Merge local attachment previews into that entry rather than
+      // rendering the same prompt twice.
+      if (last?.role === 'user' && lastText === prompt.trim()) {
+        if (attachments.length === 0) return prev;
+        const existingPaths = new Set(
+          last.content
+            .filter((block): block is Extract<ClineContentBlock, { type: 'attachment' }> => block.type === 'attachment')
+            .map((block) => block.attachment.path),
+        );
+        const additions = attachments
+          .filter((attachment) => !existingPaths.has(attachment.path))
+          .map((attachment): ClineContentBlock => ({ type: 'attachment', attachment }));
+        if (additions.length === 0) return prev;
+        return [...prev.slice(0, -1), { ...last, content: [...last.content, ...additions] }];
+      }
+
+      return [
+        ...prev,
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            ...attachments.map((attachment): ClineContentBlock => ({ type: 'attachment', attachment })),
+          ],
+        },
+      ];
+    });
   }, []);
 
   const send = useCallback(
     async (prompt: string, attachments: AgentAttachment[] = []) => {
       const sid = sessionIdRef.current;
-      if (!sid || !prompt.trim()) return;
+      if (!sid || (!prompt.trim() && attachments.length === 0)) return;
+      const effectivePrompt = prompt.trim() || (
+        attachments.length === 1
+          ? `Please inspect the attached ${attachments[0].kind === 'image' ? 'image' : 'file'} and help me with it.`
+          : `Please inspect the ${attachments.length} attached files and help me with them.`
+      );
       try {
         const m = modeRef.current;
         const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'orchestrator' : undefined;
-        const result = await sendMessage(sid, prompt, modeToSend, attachments);
+        const result = await sendMessage(sid, effectivePrompt, modeToSend, attachments);
         if (!result.accepted) {
           throw new Error(result.error || 'The agent did not accept the prompt.');
         }
@@ -1067,8 +1165,8 @@ export const useAgentSession = (
         activeToolIdRef.current = null;
         setStatus('running');
         markActivity();
-        lastPromptRef.current = prompt;
-        appendUserMessage(prompt, attachments);
+        lastPromptRef.current = effectivePrompt;
+        appendUserMessage(effectivePrompt, attachments);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStatus('error');
@@ -1085,6 +1183,10 @@ export const useAgentSession = (
       await abortSession(sid);
     } catch (err) {
       console.error('[agent] abort failed:', err);
+      // The harness may still be running. Keep the live state and queue visible
+      // instead of pretending Stop succeeded and leaving an invisible process.
+      setError(err instanceof Error ? err.message : 'Could not stop the agent. Please try again.');
+      return;
     }
     finalizeStream();
     clearStreamFlush();
@@ -1120,17 +1222,18 @@ export const useAgentSession = (
         const workspacePath = useAppStore.getState().currentWorkspace?.path;
         const paths = extractAffectedFilePaths(request.toolName, request.input);
         if (workspacePath && paths.length > 0) {
-          for (const rel of paths) {
+          await Promise.all(paths.map(async (rel) => {
             const full = resolveToolPath(workspacePath, rel);
-            void invoke('create_file_backup', { workspacePath, filePath: full }).catch(() => undefined);
-          }
+            await invoke('create_file_backup', { workspacePath, filePath: full }).catch(() => undefined);
+          }));
         }
       }
-      setApprovals((prev) => prev.filter((a) => a.requestId !== requestId));
       try {
         await approveTool(requestId, approved, reason);
+        setApprovals((prev) => prev.filter((a) => a.requestId !== requestId));
       } catch (err) {
         console.error('[agent] approve failed:', err);
+        setError(err instanceof Error ? err.message : 'Could not submit the approval. Please try again.');
       }
     },
     [approvals, approveTool]
@@ -1138,11 +1241,12 @@ export const useAgentSession = (
 
   const answerQuestion = useCallback(
     async (requestId: string, answer: string) => {
-      setPendingQuestion((prev) => (prev && prev.requestId === requestId ? null : prev));
       try {
         await hostAnswerQuestion(requestId, answer);
+        setPendingQuestion((prev) => (prev && prev.requestId === requestId ? null : prev));
       } catch (err) {
         console.error('[agent] answer question failed:', err);
+        setError(err instanceof Error ? err.message : 'Could not submit the answer. Please try again.');
       }
     },
     [hostAnswerQuestion]

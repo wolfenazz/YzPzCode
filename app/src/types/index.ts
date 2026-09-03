@@ -570,6 +570,7 @@ export interface AgentCatalogSyncResult {
   syncedAt: string | null;
   providersAdded: string[];
   modelsAdded: Array<{ providerId: string; modelId: string }>;
+  modelsUpdated: Array<{ providerId: string; modelId: string }>;
   skippedProviders: number;
   source: 'network' | 'cache' | 'skipped';
 }
@@ -579,6 +580,7 @@ export interface AgentCatalogUpdate {
   syncedAt: string;
   providersAdded: string[];
   modelsAdded: Array<{ providerId: string; modelId: string }>;
+  modelsUpdated: Array<{ providerId: string; modelId: string }>;
   skippedProviders: number;
   source: 'network' | 'cache';
 }
@@ -653,6 +655,8 @@ export interface AgentCoreSessionEvent {
     | "team_progress"
     | "pending_prompts"
     | "pending_prompt_submitted"
+    | "user_prompt_started"
+    | "queued_prompt_started"
     | "session_snapshot"
     | "ended"
     | "hook"

@@ -61,6 +61,7 @@ export interface CatalogSyncResult {
   syncedAt: string | null;
   providersAdded: string[];
   modelsAdded: Array<{ providerId: string; modelId: string }>;
+  modelsUpdated: Array<{ providerId: string; modelId: string }>;
   skippedProviders: number;
   source: "network" | "cache" | "skipped";
 }
@@ -248,6 +249,7 @@ export class CatalogSync {
       syncedAt: this.lastSyncedAt,
       providersAdded: [],
       modelsAdded: [],
+      modelsUpdated: [],
       skippedProviders: 0,
       source: "skipped",
     };
@@ -270,18 +272,17 @@ export class CatalogSync {
     return { normalized, meta, fetchedAt: new Date().toISOString() };
   }
 
-  /**
-   * Additive-only merge into the shared Llms registry.
-   */
-  private apply(
+  /** Merge live additions and metadata refreshes into the shared Llms registry. */
+  private async apply(
     providers: Record<string, CatalogModelMap>,
     syncedAt: string,
     source: "network" | "cache",
-  ): CatalogSyncResult {
+  ): Promise<CatalogSyncResult> {
     const result: CatalogSyncResult = {
       syncedAt,
       providersAdded: [],
       modelsAdded: [],
+      modelsUpdated: [],
       skippedProviders: 0,
       source,
     };
@@ -299,20 +300,27 @@ export class CatalogSync {
       if (modelIds.length === 0) continue;
 
       if (knownIds.includes(providerId)) {
-        // Known provider: add only the model ids it is missing.
+        // Known provider: add missing ids and refresh existing metadata. Model
+        // context limits change over time; keeping the SDK's bundled entry made
+        // a newly-advertised 1M model compact at its old ~256K limit.
         let currentKeys: Record<string, unknown> = {};
         try {
-          currentKeys = (Llms.getModelsForProvider(providerId) ??
+          currentKeys = ((await Llms.getModelsForProvider(providerId)) ??
             {}) as unknown as Record<string, unknown>;
         } catch {
           currentKeys = {};
         }
         for (const modelId of modelIds) {
-          if (Object.hasOwn(currentKeys, modelId)) continue;
-          const info = { ...liveModels[modelId], id: modelId };
+          const existing = currentKeys[modelId];
+          const exists = existing && typeof existing === "object";
+          const info = {
+            ...(exists ? (existing as Record<string, unknown>) : {}),
+            ...liveModels[modelId],
+            id: modelId,
+          };
           try {
             Llms.registerModel(providerId, modelId, info as never);
-            result.modelsAdded.push({ providerId, modelId });
+            (exists ? result.modelsUpdated : result.modelsAdded).push({ providerId, modelId });
           } catch (err) {
             console.error(`[yzpz-agent] catalog: registerModel ${providerId}/${modelId} failed: ${err}`);
           }
@@ -369,11 +377,10 @@ export class CatalogSync {
     this.appliedThisProcess = true;
     this.lastSyncedAt = syncedAt;
 
-    const total =
-      result.providersAdded.length + result.modelsAdded.length;
+    const total = result.providersAdded.length + result.modelsAdded.length + result.modelsUpdated.length;
     console.log(
       `[yzpz-agent] catalog: ${source} sync at ${syncedAt}: +${result.providersAdded.length} providers, ` +
-        `+${result.modelsAdded.length} models, ${result.skippedProviders} skipped`,
+        `+${result.modelsAdded.length} models, ${result.modelsUpdated.length} refreshed, ${result.skippedProviders} skipped`,
     );
     if (total > 0) {
       try {
@@ -381,6 +388,7 @@ export class CatalogSync {
           syncedAt: result.syncedAt,
           providersAdded: result.providersAdded,
           modelsAdded: result.modelsAdded,
+          modelsUpdated: result.modelsUpdated,
           skippedProviders: result.skippedProviders,
           source: result.source,
         });
