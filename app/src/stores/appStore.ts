@@ -345,6 +345,7 @@ interface AppState {
   recentDirectories: string[];
   addRecentDirectory: (path: string) => void;
   clearRecentDirectories: () => void;
+  setExplorerOpen: (open: boolean) => void;
   toggleExplorer: () => void;
   toggleSourceControl: () => void;
   setSourceControlOpen: (open: boolean) => void;
@@ -986,23 +987,22 @@ export const useAppStore = create<AppState>()(
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
 
+      setExplorerOpen: (open) =>
+        set(open
+          ? { explorerOpen: true, sourceControlOpen: false }
+          : { explorerOpen: false }),
       toggleExplorer: () =>
-        set((state) => ({
-          explorerOpen: !state.explorerOpen,
-          // Opening the Explorer slides Source Control off (mutually exclusive).
-          sourceControlOpen: state.explorerOpen ? false : state.sourceControlOpen,
-        })),
+        set((state) => state.explorerOpen
+          ? { explorerOpen: false }
+          : { explorerOpen: true, sourceControlOpen: false }),
       toggleSourceControl: () =>
-        set((state) => ({
-          sourceControlOpen: !state.sourceControlOpen,
-          // Opening Source Control slides the Explorer off; closing it restores the Explorer.
-          explorerOpen: state.sourceControlOpen ? true : false,
-        })),
+        set((state) => state.sourceControlOpen
+          ? { sourceControlOpen: false }
+          : { sourceControlOpen: true, explorerOpen: false }),
       setSourceControlOpen: (open) =>
-        set({
-          sourceControlOpen: open,
-          explorerOpen: !open,
-        }),
+        set(open
+          ? { sourceControlOpen: true, explorerOpen: false }
+          : { sourceControlOpen: false }),
       setExplorerClipboard: (entry) => set({ explorerClipboard: entry }),
       clearRestoredFilePaths: (workspaceId) =>
         set((state) => {

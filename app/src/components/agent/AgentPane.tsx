@@ -894,15 +894,12 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
         />
       )}
 
-      {/* The conversation always keeps the full pane width. Orchestrator
-          activity is a session-local overlay drawer, so opening it never
-          changes chat or composer measurements. */}
+      {/* Keep the transcript and composer in the same flex column. The composer
+          used to float over the transcript with a fixed bottom spacer, so a
+          growing prompt could cover the agent's latest response. */}
       <div className="relative flex flex-1 min-h-0">
         <div className="flex min-w-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col">
-            {/* The floating task rail layers on top of the chat (left gutter),
-                so it never steals width from the conversation. It is available
-                in both minimal and full UI modes. */}
             <div className="relative flex min-h-0 flex-1">
               <AgentChat
                 messages={messages}
@@ -925,7 +922,6 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 completed={status === 'done' && messages.length > 0}
                 elapsedSec={elapsed}
                 toolCount={toolCount}
-                composerOverlay
               />
               <TodoPanel
                 todos={todos}
@@ -933,31 +929,30 @@ export const AgentPane: React.FC<AgentPaneProps> = ({ session, index, onClose, o
                 running={isWorking}
                 onToggle={() => setTasksOpen((v) => !v)}
               />
-              {/* The composer overlays the transcript rather than consuming a
-                  solid footer. AgentChat reserves scroll room for it, while
-                  transparent gaps between controls reveal the conversation. */}
-              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20">
-                <div className="pointer-events-auto">
-                  <AgentInput
-                    disabled={!session.sessionId}
-                    isRunning={isWorking}
-                    mode={mode}
-                    onModeChange={setMode}
-                    onSend={handleSend}
-                    onAbort={abort}
-                    placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
-                    compact={inputCompact}
-                    supportsImages={supportsImages}
-                    fastMode={fastMode}
-                    onToggleFastMode={() => void setFastMode(!fastMode)}
-                    queuedPrompts={queuedPrompts}
-                    onRemoveQueued={(id) => void removeQueuedPrompt(id)}
-                    onClearQueue={() => void clearQueue()}
-                    replyTo={replyDraft}
-                    onReplyConsumed={() => setReplyDraft(null)}
-                  />
-                </div>
-              </div>
+            </div>
+
+            {/* The composer is a real footer, not an overlay. This lets the
+                transcript keep a valid viewport and scroll above it as the
+                textarea grows. */}
+            <div className="shrink-0">
+              <AgentInput
+                disabled={!session.sessionId}
+                isRunning={isWorking}
+                mode={mode}
+                onModeChange={setMode}
+                onSend={handleSend}
+                onAbort={abort}
+                placeholder={mode === 'ask' ? 'Ask a question about this project…' : undefined}
+                compact={inputCompact}
+                supportsImages={supportsImages}
+                fastMode={fastMode}
+                onToggleFastMode={() => void setFastMode(!fastMode)}
+                queuedPrompts={queuedPrompts}
+                onRemoveQueued={(id) => void removeQueuedPrompt(id)}
+                onClearQueue={() => void clearQueue()}
+                replyTo={replyDraft}
+                onReplyConsumed={() => setReplyDraft(null)}
+              />
             </div>
 
             <AgentApprovalBar

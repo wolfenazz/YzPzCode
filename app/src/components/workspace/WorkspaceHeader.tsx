@@ -33,8 +33,9 @@ interface WorkspaceHeaderProps {
   onMinimizeWindow: () => void;
   onMaximizeWindow: () => void;
   onCloseWindow: () => void;
-  onSidebarToggle: () => void;
-  onSourceControlToggle: () => void;
+  onExplorerClick: () => void;
+  onSourceControlClick: () => void;
+  explorerOpen: boolean;
   sourceControlOpen: boolean;
   sourceControlChangeCount: number;
   onViewChange: (view: WorkspaceView) => void;
@@ -115,8 +116,9 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onMinimizeWindow,
   onMaximizeWindow,
   onCloseWindow,
-  onSidebarToggle,
-  onSourceControlToggle,
+  onExplorerClick,
+  onSourceControlClick,
+  explorerOpen,
   sourceControlOpen,
   sourceControlChangeCount,
   onViewChange,
@@ -136,10 +138,11 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           <div className="workspace-chrome__utility-cluster flex items-center gap-0.5 px-1.5">
             <button onClick={onDocsClick} className="workspace-chrome__tool app-icon-button" title="Documentation" type="button"><BookOpenText size={16} aria-hidden="true" /><span className="sr-only">Documentation</span></button>
             <button
-              onClick={onSourceControlToggle}
+              onClick={onSourceControlClick}
               className={`workspace-chrome__tool app-icon-button relative ${sourceControlOpen ? 'text-[var(--accent)]' : ''}`}
-              title={sourceControlChangeCount > 0 ? `Source Control — ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Toggle Source Control'}
-              aria-label={sourceControlChangeCount > 0 ? `Source Control, ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Toggle Source Control'}
+              title={sourceControlChangeCount > 0 ? `Source Control — ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Source Control'}
+              aria-label={sourceControlChangeCount > 0 ? `Source Control, ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Source Control'}
+              aria-pressed={sourceControlOpen}
               type="button"
             >
               <GitBranch size={16} aria-hidden="true" />
@@ -148,9 +151,19 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                   {sourceControlChangeCount > 99 ? '99+' : sourceControlChangeCount}
                 </span>
               )}
-              <span className="sr-only">Toggle Source Control</span>
+              <span className="sr-only">Source Control</span>
             </button>
-            <button onClick={onSidebarToggle} className="workspace-chrome__tool app-icon-button" title="Toggle sidebar (Ctrl+B)" type="button"><SidebarSimple size={16} aria-hidden="true" /><span className="sr-only">Toggle sidebar</span></button>
+            <button
+              onClick={onExplorerClick}
+              className={`workspace-chrome__tool app-icon-button ${explorerOpen ? 'text-[var(--accent)]' : ''}`}
+              title="Explorer"
+              aria-label="Explorer"
+              aria-pressed={explorerOpen}
+              type="button"
+            >
+              <SidebarSimple size={16} aria-hidden="true" />
+              <span className="sr-only">Explorer</span>
+            </button>
           </div>
         </div>
 

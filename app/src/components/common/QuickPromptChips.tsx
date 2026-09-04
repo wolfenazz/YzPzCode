@@ -4,6 +4,7 @@ import { useAppStore } from '../../stores/appStore';
 import type { InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
 
 interface QuickPromptChipsProps {
+  id?: string;
   /** Called when the user clicks a prompt chip. Receives the full prompt object. */
   onSelect: (prompt: InspectorQuickPrompt) => void;
   /** Optional extra class on the outer wrapper. */
@@ -22,6 +23,7 @@ const GROUP_ICON: Record<InspectorQuickPromptGroup, React.ReactNode> = {
  * input area and the Terminal CLI prompt strip. Reads prompts from the global store.
  */
 export const QuickPromptChips: React.FC<QuickPromptChipsProps> = ({
+  id,
   onSelect,
   className = '',
   compact = false,
@@ -42,7 +44,7 @@ export const QuickPromptChips: React.FC<QuickPromptChipsProps> = ({
   if (inspectorQuickPrompts.length === 0) return null;
 
   return (
-    <div className={`quick-prompt-chips flex items-center gap-1.5 overflow-x-auto overflow-y-hidden scrollbar-none ${className}`}>
+    <div id={id} className={`quick-prompt-chips flex items-center gap-1.5 overflow-x-auto overflow-y-hidden scrollbar-none ${className}`}>
       {Array.from(grouped.entries()).map(([group, prompts]) => (
         <React.Fragment key={group}>
           {prompts.map((prompt) => (

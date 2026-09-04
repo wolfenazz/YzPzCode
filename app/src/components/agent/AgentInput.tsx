@@ -1,6 +1,7 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useId } from 'react';
 import {
   ChatCircle,
+  CaretDown,
   CircleNotch,
   Clock,
   FileText,
@@ -8,6 +9,7 @@ import {
   Lightning,
   ListChecks,
   ListPlus,
+  MagicWand,
   Paperclip,
   PaperPlaneRight,
   ShareNetwork,
@@ -244,10 +246,13 @@ export const AgentInput: React.FC<AgentInputProps> = ({
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [showQuickPrompts, setShowQuickPrompts] = useState(false);
+  const quickPromptListId = `agent-quick-prompts-${useId().replace(/:/g, '')}`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const valueRef = useRef(value);
 
   const workspacePath = useAppStore((s) => s.currentWorkspace?.path);
+  const quickPromptCount = useAppStore((s) => s.inspectorQuickPrompts.length);
   const {
     mention,
     loading,
@@ -559,11 +564,22 @@ export const AgentInput: React.FC<AgentInputProps> = ({
       </div>
 
         <div className="ml-auto flex items-center gap-1.5">
-          {!compact && (
-            <span className={`agent-composer-status inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-[10px] font-medium ${isRunning ? 'is-running' : ''}`}>
-              <span className="agent-composer-status-dot" aria-hidden="true" />
-              {isRunning ? 'Working' : 'Ready'}
-            </span>
+          {!compact && quickPromptCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowQuickPrompts((open) => !open)}
+              aria-expanded={showQuickPrompts}
+              aria-controls={quickPromptListId}
+              aria-label={showQuickPrompts ? 'Hide saved quick prompts' : 'Show saved quick prompts'}
+              disabled={disabled}
+              className="agent-quick-prompts-toggle"
+              title={showQuickPrompts ? 'Hide saved quick prompts' : 'Show saved quick prompts'}
+            >
+              <MagicWand size={13} aria-hidden="true" />
+              <span>Prompts</span>
+              <span className="agent-quick-prompts-count">{quickPromptCount}</span>
+              <CaretDown size={11} className={showQuickPrompts ? 'rotate-180' : ''} aria-hidden="true" />
+            </button>
           )}
           {isRunning && (
             <button
@@ -581,6 +597,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
       {onToggleFastMode && (
         <button
           type="button"
+          disabled={disabled}
           onClick={() => onToggleFastMode()}
           title={
             fastMode
@@ -594,9 +611,7 @@ export const AgentInput: React.FC<AgentInputProps> = ({
           } ${fastMode ? 'is-fast' : ''}`}
         >
           <Lightning size={14} className="shrink-0" aria-hidden="true" />
-          {!compact && fastMode && (
-            <span className="text-[10px] font-medium leading-none">Fast</span>
-          )}
+          {!compact && <span className="text-[10px] font-medium leading-none">{fastMode ? 'Fast on' : 'Fast'}</span>}
         </button>
       )}
         </div>
@@ -689,8 +704,9 @@ export const AgentInput: React.FC<AgentInputProps> = ({
         </p>
       )}
 
-      {!compact && !isRunning && (
+      {!compact && showQuickPrompts && (
         <QuickPromptChips
+          id={quickPromptListId}
           compact={compact}
           onSelect={(prompt) => {
             setValue((prev) => (prev ? `${prev}\n\n${prompt.text}` : prompt.text));

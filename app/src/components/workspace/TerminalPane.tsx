@@ -509,7 +509,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     } catch (e) {
       console.error('Failed to run agent command:', e);
     }
-  }, [session.id]);
+  }, [session.id, setManualAgent]);
 
   const handleNewSession = useCallback(async () => {
     if (!effectiveAgentRef.current) return;
@@ -611,6 +611,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const pasteToTerminal = useCallback(async (text: string) => {
     if (!text) return;
 
+    // Pasting writes directly to the PTY (and therefore does not pass through
+    // xterm's onData handler). Promote a plain pasted agent command as well so
+    // the header controls stay in sync with what the shell is running.
+    if (!effectiveAgentRef.current) {
+      const pastedCommand = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')[0] ?? '';
+      const detectedAgent = detectAgentFromCommand(pastedCommand);
+      if (detectedAgent) setManualAgent(session.id, detectedAgent);
+    }
+
     const shellKind = detectShellKind(session.shell);
     const CHUNK_SIZE = 512;
     const DELAY = 2;
@@ -653,7 +662,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       }
     }
     await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
-  }, [session.id]);
+  }, [session.id, setManualAgent]);
 
   const pasteClipboardText = useCallback(
     (text: string) => {
@@ -822,7 +831,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     let inputFlushTimer: ReturnType<typeof setTimeout> | null = null;
 
     xterm.onData((data) => {
-      if (!managedCommandActive && data.includes('\r') && lineTrackingReliableRef.current) {
+      // xterm normally reports Enter as CR, but some shells/keymaps emit LF.
+      // Detect both so manually typed AI commands promote the terminal header
+      // consistently across Windows, macOS, and Linux shells.
+      if (!managedCommandActive && /[\r\n]/.test(data) && lineTrackingReliableRef.current) {
         const commandCandidate = lineBufferRef.current;
         lineBufferRef.current = '';
         lineTrackingReliableRef.current = true;

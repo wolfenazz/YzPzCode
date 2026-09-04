@@ -184,7 +184,9 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
   const handleResizeMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
     const resizeState = resizeStateRef.current;
     if (!resizeState || resizeState.pointerId !== event.pointerId) return;
-    const nextWidth = resizeState.startWidth + (resizeState.startX - event.clientX);
+    // The panel is anchored to the left edge, so dragging the right handle
+    // rightward increases its width (and leftward decreases it).
+    const nextWidth = resizeState.startWidth + (event.clientX - resizeState.startX);
     setPanelWidth(Math.min(Math.max(nextWidth, minPanelWidth), maxPanelWidth));
   }, [maxPanelWidth, minPanelWidth]);
 
@@ -222,10 +224,10 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
 
   return (
     <aside
-      className={`absolute inset-y-2 right-0 z-30 flex flex-col overflow-visible ${
+      className={`absolute inset-y-2 left-0 z-30 flex flex-col overflow-visible ${
         isResizing ? 'transition-none' : 'transition-[transform,width] duration-300 ease-out motion-reduce:transition-none'
       } ${
-        isOpen ? 'translate-x-0' : 'translate-x-full'
+        isOpen ? 'translate-x-0' : '-translate-x-full'
       }`}
       style={{ width: resolvedWidth }}
       aria-label="Delegated work"
@@ -237,7 +239,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
         onClick={() => (isOpen ? minimizePanel() : setIsOpen(true))}
         aria-expanded={isOpen}
         aria-controls={panelId}
-        className={`absolute left-[-36px] top-5 flex h-[76px] w-9 flex-col items-center justify-center gap-1.5 rounded-l-lg border border-r-0 bg-[var(--bg-secondary)] shadow-[-8px_0_24px_rgba(0,0,0,0.2)] transition-colors cursor-pointer ${
+        className={`absolute right-[-36px] top-5 flex h-[76px] w-9 flex-col items-center justify-center gap-1.5 rounded-r-lg border border-l-0 bg-[var(--bg-secondary)] shadow-[8px_0_24px_rgba(0,0,0,0.2)] transition-colors cursor-pointer ${
           errorCount > 0
             ? 'border-rose-500/35 text-rose-400 hover:bg-rose-500/[0.08]'
             : activeCount > 0
@@ -261,7 +263,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
           onPointerCancel={handleResizeEnd}
           onDoubleClick={toggleMaximized}
           onKeyDown={handleResizeKeyDown}
-          className={`group absolute inset-y-0 left-[-5px] z-10 flex w-[10px] touch-none items-center justify-center cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
+          className={`group absolute inset-y-0 right-[-5px] z-10 flex w-[10px] touch-none items-center justify-center cursor-col-resize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
             isResizing ? 'text-[var(--accent)]' : 'text-[var(--text-secondary)]/35 hover:text-[var(--accent)]'
           }`}
           role="separator"
@@ -281,7 +283,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
       <div
         id={panelId}
         inert={!isOpen}
-        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-l-xl border border-r-0 border-[var(--border-primary)] bg-[var(--bg-main)]/96 shadow-[-16px_0_40px_rgba(0,0,0,0.3)] backdrop-blur-md"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-r-xl border border-l-0 border-[var(--border-primary)] bg-[var(--bg-main)]/96 shadow-[16px_0_40px_rgba(0,0,0,0.3)] backdrop-blur-md"
       >
         <header className="flex min-h-12 shrink-0 items-center gap-2.5 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]/88 px-3">
           <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${
@@ -315,7 +317,7 @@ export const TeamProgressPanel: React.FC<TeamProgressPanelProps> = ({
             title="Minimize coordinator"
             aria-label="Minimize coordinator"
           >
-            <CaretRight size={14} aria-hidden="true" />
+            <CaretLeft size={14} aria-hidden="true" />
           </button>
         </header>
 

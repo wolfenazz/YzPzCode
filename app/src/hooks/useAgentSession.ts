@@ -1140,6 +1140,10 @@ export const useAgentSession = (
           ? `Please inspect the attached ${attachments[0].kind === 'image' ? 'image' : 'file'} and help me with it.`
           : `Please inspect the ${attachments.length} attached files and help me with them.`
       );
+      // Render the user's prompt immediately. The sidecar request can take a
+      // moment (especially when an image is included), but the transcript
+      // should acknowledge the send without waiting for IPC to resolve.
+      appendUserMessage(effectivePrompt, attachments);
       try {
         const m = modeRef.current;
         const modeToSend = m === 'ask' ? 'ask' : m === 'plan' ? 'plan' : m === 'orchestrator' ? 'orchestrator' : undefined;
@@ -1166,7 +1170,6 @@ export const useAgentSession = (
         setStatus('running');
         markActivity();
         lastPromptRef.current = effectivePrompt;
-        appendUserMessage(effectivePrompt, attachments);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
         setStatus('error');

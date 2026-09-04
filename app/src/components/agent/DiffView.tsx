@@ -81,6 +81,14 @@ const asRecord = (value: unknown): Record<string, unknown> | null => (
 );
 
 const pathFromText = (value: string): string | null => {
+  // `apply_patch` carries its target in patch directives rather than a
+  // top-level path field (for example: `*** Update File: src/App.tsx`).
+  const patchPath = value.match(/^\*\*\*\s+(?:Update|Add|Delete|Move to)\s+File:\s*(.+?)\s*$/im)?.[1]?.trim();
+  if (patchPath) return patchPath;
+  // Also support standard unified-diff headers from providers that wrap the
+  // patch before sending it to the editor tool.
+  const unifiedPath = value.match(/^\+\+\+\s+(?:b\/)?([^\s\t]+)$/m)?.[1]?.trim();
+  if (unifiedPath && unifiedPath !== '/dev/null') return unifiedPath;
   const queryPath = value.match(/(?:edit|write|create|delete|rename|move)\s*:\s*([^\r\n"}]+)/i)?.[1]?.trim();
   if (queryPath) return queryPath;
   const resultPath = value.match(/(?:edited|created|deleted|moved)\s+([^\r\n"}]+)/i)?.[1]?.trim();
@@ -103,7 +111,7 @@ const extractPath = (value: unknown, depth = 0): string | null => {
   for (const key of ['path', 'filePath', 'file_path', 'target_path', 'new_path', 'directory', 'dir']) {
     if (typeof obj[key] === 'string' && obj[key]) return obj[key] as string;
   }
-  for (const key of ['query', 'result', 'output', 'message', 'data']) {
+  for (const key of ['query', 'result', 'output', 'message', 'data', 'input', 'diff', 'patch']) {
     const path = extractPath(obj[key], depth + 1);
     if (path) return path;
   }
@@ -113,10 +121,10 @@ const extractPath = (value: unknown, depth = 0): string | null => {
 const EDIT_TOOLS = new Set(['editor', 'apply_patch', 'write_file', 'create_file', 'delete_file', 'rename_file', 'create_directory', 'mkdir']);
 
 const LINE_COLORS: Record<DiffLine['type'], string> = {
-  ctx: 'text-[var(--text-secondary)] bg-transparent',
-  add: 'text-emerald-300 bg-emerald-500/10',
-  del: 'text-rose-300 bg-rose-500/10',
-  hunk: 'text-[var(--accent)] bg-[var(--accent-light)]/10',
+  ctx: 'diff-line--context',
+  add: 'diff-line--add',
+  del: 'diff-line--del',
+  hunk: 'diff-line--hunk',
 };
 
 const MARK: Record<DiffLine['type'], string> = { ctx: ' ', add: '+', del: '-', hunk: '@' };
@@ -295,9 +303,9 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) =
         <pre className="min-w-max font-mono text-[10px] leading-[1.65]">
           {highlightedLines.map((line, i) => (
             <div key={i} className={`flex min-h-[1.05rem] ${LINE_COLORS[line.type]}`}>
-              <span className="w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8] opacity-40">{line.oldNumber ?? ''}</span>
-              <span className="w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8] opacity-40">{line.newNumber ?? ''}</span>
-              <span className="w-4 flex-shrink-0 text-center select-none opacity-70">{MARK[line.type]}</span>
+              <span className="diff-gutter w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8]">{line.oldNumber ?? ''}</span>
+              <span className="diff-gutter w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8]">{line.newNumber ?? ''}</span>
+              <span className="diff-marker w-4 flex-shrink-0 text-center select-none">{MARK[line.type]}</span>
               <span className="diff-code__text flex-1 whitespace-pre-wrap break-all px-1" dangerouslySetInnerHTML={{ __html: line.html }} />
             </div>
           ))}

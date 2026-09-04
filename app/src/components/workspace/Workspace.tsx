@@ -46,7 +46,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     setSessionsForWorkspace,
     explorerOpen,
     sourceControlOpen,
-    toggleSourceControl,
+    setExplorerOpen,
+    setSourceControlOpen,
     activeView,
     toggleExplorer,
     setActiveView,
@@ -354,8 +355,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onMinimizeWindow={minimizeWindow}
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
-        onSidebarToggle={toggleExplorer}
-        onSourceControlToggle={toggleSourceControl}
+        onExplorerClick={() => setExplorerOpen(true)}
+        onSourceControlClick={() => setSourceControlOpen(true)}
+        explorerOpen={explorerOpen}
         sourceControlOpen={sourceControlOpen}
         sourceControlChangeCount={gitStatuses.length}
         onViewChange={handleViewChange}

@@ -1191,6 +1191,16 @@ html.animations-disabled .browser-inspect__beam::after {
 /* Diff previews retain the change tint while giving code tokens their own
    hierarchy, so patches remain scannable instead of becoming one flat color. */
 .diff-code {
+  --diff-context-text: var(--text-secondary);
+  --diff-gutter-text: var(--text-secondary);
+  --diff-hunk-text: var(--accent);
+  --diff-hunk-bg: color-mix(in srgb, var(--accent) 12%, transparent);
+  --diff-add-text: #86efac;
+  --diff-add-bg: rgba(16, 185, 129, 0.16);
+  --diff-add-border: rgba(52, 211, 153, 0.32);
+  --diff-del-text: #fda4af;
+  --diff-del-bg: rgba(244, 63, 94, 0.16);
+  --diff-del-border: rgba(251, 113, 133, 0.32);
   --diff-code-text: var(--hljs-text, var(--text-primary));
   --diff-code-keyword: var(--hljs-keyword, #c084fc);
   --diff-code-string: var(--hljs-string, #34d399);
@@ -1198,6 +1208,51 @@ html.animations-disabled .browser-inspect__beam::after {
   --diff-code-comment: var(--hljs-comment, var(--text-secondary));
   --diff-code-function: var(--hljs-function, #60a5fa);
   color: var(--diff-code-text);
+}
+
+/* Pale surfaces need darker ink and a stronger tint than the dark defaults.
+   The left border keeps additions/removals legible even for subtle snippets. */
+.light-theme .diff-code,
+.claude-theme .diff-code {
+  --diff-context-text: #45453f;
+  --diff-gutter-text: #73736c;
+  --diff-hunk-text: #73511e;
+  --diff-hunk-bg: rgba(180, 125, 20, 0.14);
+  --diff-code-text: #2d2a26;
+  --diff-code-keyword: #7c3f96;
+  --diff-code-string: #087443;
+  --diff-code-number: #925f00;
+  --diff-code-comment: #6f6a62;
+  --diff-code-function: #155da8;
+  --hljs-built_in: #a04412;
+  --hljs-variable: #2d2a26;
+  --diff-add-text: #087443;
+  --diff-add-bg: rgba(16, 185, 129, 0.18);
+  --diff-add-border: rgba(4, 120, 87, 0.42);
+  --diff-del-text: #b42336;
+  --diff-del-bg: rgba(244, 63, 94, 0.16);
+  --diff-del-border: rgba(190, 24, 53, 0.38);
+}
+
+.diff-code .diff-line--context { color: var(--diff-context-text); }
+.diff-code .diff-line--hunk {
+  color: var(--diff-hunk-text);
+  background: var(--diff-hunk-bg);
+  font-weight: 650;
+}
+.diff-code .diff-gutter { color: var(--diff-gutter-text); opacity: 0.85; }
+.diff-code .diff-marker { opacity: 0.95; font-weight: 700; }
+
+.diff-code .diff-line--add {
+  color: var(--diff-add-text);
+  background: var(--diff-add-bg);
+  border-inline-start: 3px solid var(--diff-add-border);
+}
+
+.diff-code .diff-line--del {
+  color: var(--diff-del-text);
+  background: var(--diff-del-bg);
+  border-inline-start: 3px solid var(--diff-del-border);
 }
 
 .diff-code .hljs-keyword,
@@ -1817,6 +1872,64 @@ html.animations-disabled .browser-inspect__beam::after {
   border: 1px solid var(--border-primary);
   color: var(--text-secondary);
   background: var(--bg-primary);
+}
+
+.app-shell .agent-quick-prompts-toggle {
+  display: inline-flex;
+  height: 1.875rem;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 0.625rem;
+  padding: 0 0.6rem;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  font-size: 0.625rem;
+  font-weight: 520;
+  cursor: pointer;
+  transition: border-color 160ms var(--ease-product), color 160ms var(--ease-product), background 160ms var(--ease-product);
+}
+.app-shell .agent-quick-prompts-toggle:hover,
+.app-shell .agent-quick-prompts-toggle[aria-expanded="true"] {
+  border-color: var(--accent-border);
+  color: var(--accent-text);
+  background: var(--accent-light);
+}
+.app-shell .agent-quick-prompts-toggle:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.app-shell .agent-quick-prompts-toggle:disabled,
+.app-shell .agent-input-keycap:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.app-shell .agent-quick-prompts-count {
+  min-width: 1.1rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.3rem;
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+  text-align: center;
+  font-family: var(--font-code);
+  font-size: 0.5625rem;
+}
+
+.app-shell .agent-input-keycap {
+  height: 1.875rem;
+  min-width: 4.2rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 0.625rem;
+  padding: 0 0.65rem;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+  box-shadow: none !important;
+}
+.app-shell .agent-input-keycap:hover,
+.app-shell .agent-input-keycap.is-fast {
+  border-color: var(--accent-border);
+  color: var(--accent);
+  background: var(--accent-light);
 }
 
 .app-shell .agent-composer-status-dot {

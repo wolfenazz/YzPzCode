@@ -81,8 +81,6 @@ interface AgentChatProps {
   completed?: boolean;
   elapsedSec?: number;
   toolCount?: number;
-  /** Reserves scroll room when the transparent composer overlays this chat. */
-  composerOverlay?: boolean;
   onReply?: (text: string) => void;
 }
 
@@ -1197,7 +1195,6 @@ export const AgentChat: React.FC<AgentChatProps> = ({
   completed,
   elapsedSec,
   toolCount,
-  composerOverlay = false,
   onReply,
 }) => {
   const showAgentReasoning = useAppStore((s) => s.showAgentReasoning);
@@ -1290,7 +1287,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
       } as React.CSSProperties}
     >
       <AiConversation className="h-full">
-      <AiConversationContent className={`min-h-full gap-0 px-4 pt-8 sm:px-8 ${composerOverlay ? 'pb-40 sm:pb-44' : 'pb-8'}`}>
+      <AiConversationContent className="min-h-full gap-0 px-4 pb-8 pt-8 sm:px-8">
       {messages.length === 0 && !hasNewContent && (
         <AiConversationEmptyState className="min-h-[360px] px-4 py-12">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
@@ -1386,7 +1383,7 @@ export const AgentChat: React.FC<AgentChatProps> = ({
         )}
       </div>
       </AiConversationContent>
-      <AiConversationScrollButton className={composerOverlay ? 'bottom-36' : 'bottom-4'} />
+      <AiConversationScrollButton className="bottom-4" />
       </AiConversation>
     </div>
   );
