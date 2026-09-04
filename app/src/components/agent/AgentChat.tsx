@@ -784,8 +784,8 @@ const UserBubble = React.memo(function UserBubble({ text, attachments = [], onRe
 });
 
 const AgentAvatar: React.FC = () => (
-  <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]">
-    <img src={logo} alt="YzPzCode Agent" className="h-4 w-4 object-contain" draggable={false} />
+  <div className="agent-avatar mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center" title="YzPzCode Agent">
+    <img src={logo} alt="YzPzCode Agent" className="agent-avatar__logo h-6 w-6 object-contain" draggable={false} />
   </div>
 );
 

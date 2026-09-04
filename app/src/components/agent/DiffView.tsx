@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { FileText } from '@phosphor-icons/react';
+import hljs from 'highlight.js';
 
 interface DiffViewProps {
   toolName: string;
@@ -120,6 +121,40 @@ const LINE_COLORS: Record<DiffLine['type'], string> = {
 
 const MARK: Record<DiffLine['type'], string> = { ctx: ' ', add: '+', del: '-', hunk: '@' };
 
+const languageFromPath = (path: string | null): string | null => {
+  const fileName = path?.split(/[\\/]/).pop()?.toLowerCase() ?? '';
+  const extension = fileName.split('.').pop() ?? '';
+  const aliases: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    mjs: 'javascript', cjs: 'javascript', css: 'css', scss: 'scss',
+    html: 'xml', vue: 'xml', svelte: 'xml', json: 'json', md: 'markdown',
+    yml: 'yaml', yaml: 'yaml', py: 'python', rs: 'rust', go: 'go',
+    java: 'java', kt: 'kotlin', sql: 'sql', sh: 'shell', bash: 'shell',
+    ps1: 'powershell', xml: 'xml', svg: 'xml', cpp: 'cpp', c: 'c', h: 'c',
+  };
+  if (aliases[extension] && hljs.getLanguage(aliases[extension])) return aliases[extension];
+  if (/^(dockerfile|makefile)$/i.test(fileName) && hljs.getLanguage(fileName)) return fileName;
+  return null;
+};
+
+const highlightDiffLine = (text: string, language: string | null): string => {
+  if (!text) return ' ';
+  try {
+    return language
+      ? hljs.highlight(text, { language }).value
+      : hljs.highlightAuto(text).value;
+  } catch {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+};
+
+const escapeHtml = (text: string): string => text
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
 export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) => {
   const { path, lines, stats } = useMemo(() => {
     const p = extractPath(input) ?? extractPath(result);
@@ -216,6 +251,14 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) =
     return { path: p, lines: numbered, stats };
   }, [toolName, input, result]);
 
+  const highlightedLines = useMemo(() => {
+    const language = languageFromPath(path);
+    return lines.map((line) => ({
+      ...line,
+      html: line.type === 'hunk' ? escapeHtml(line.text) : highlightDiffLine(line.text, language),
+    }));
+  }, [lines, path]);
+
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     try {
@@ -248,14 +291,14 @@ export const DiffView: React.FC<DiffViewProps> = ({ toolName, input, result }) =
           <span className="text-rose-500">-{stats.del}</span>
         </span>
       </div>
-      <div className="max-h-64 overflow-auto custom-scrollbar premium-scrollbar bg-[var(--bg-main)]">
-        <pre className="min-w-max font-mono text-[10px] leading-[1.6]">
-          {lines.map((line, i) => (
-            <div key={i} className={`flex ${LINE_COLORS[line.type]}`}>
+      <div className="diff-code max-h-64 overflow-auto custom-scrollbar premium-scrollbar bg-[var(--bg-main)]">
+        <pre className="min-w-max font-mono text-[10px] leading-[1.65]">
+          {highlightedLines.map((line, i) => (
+            <div key={i} className={`flex min-h-[1.05rem] ${LINE_COLORS[line.type]}`}>
               <span className="w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8] opacity-40">{line.oldNumber ?? ''}</span>
               <span className="w-8 flex-shrink-0 select-none border-r border-[var(--border-primary)]/40 pr-1 text-right text-[9px] leading-[1.8] opacity-40">{line.newNumber ?? ''}</span>
               <span className="w-4 flex-shrink-0 text-center select-none opacity-70">{MARK[line.type]}</span>
-              <span className="flex-1 whitespace-pre-wrap break-all px-1">{line.text || ' '}</span>
+              <span className="diff-code__text flex-1 whitespace-pre-wrap break-all px-1" dangerouslySetInnerHTML={{ __html: line.html }} />
             </div>
           ))}
         </pre>

@@ -1176,16 +1176,94 @@ html.animations-disabled .browser-inspect__beam::after {
 }
 
 .workspace-chrome__utility-cluster {
-  background: var(--bg-primary);
+  background: inherit;
 }
 
 .workspace-chrome__controls {
-  background: var(--bg-primary);
+  background: inherit;
 }
 
 .workspace-chrome__tool {
   width: 1.875rem;
   height: 1.875rem;
+}
+
+/* Diff previews retain the change tint while giving code tokens their own
+   hierarchy, so patches remain scannable instead of becoming one flat color. */
+.diff-code {
+  --diff-code-text: var(--hljs-text, var(--text-primary));
+  --diff-code-keyword: var(--hljs-keyword, #c084fc);
+  --diff-code-string: var(--hljs-string, #34d399);
+  --diff-code-number: var(--hljs-number, #fbbf24);
+  --diff-code-comment: var(--hljs-comment, var(--text-secondary));
+  --diff-code-function: var(--hljs-function, #60a5fa);
+  color: var(--diff-code-text);
+}
+
+.diff-code .hljs-keyword,
+.diff-code .hljs-selector-tag,
+.diff-code .hljs-literal { color: var(--diff-code-keyword); }
+.diff-code .hljs-string,
+.diff-code .hljs-regexp,
+.diff-code .hljs-attr { color: var(--diff-code-string); }
+.diff-code .hljs-number { color: var(--diff-code-number); }
+.diff-code .hljs-comment { color: var(--diff-code-comment); font-style: italic; }
+.diff-code .hljs-title,
+.diff-code .hljs-title.function_,
+.diff-code .hljs-function { color: var(--diff-code-function); }
+.diff-code .hljs-built_in,
+.diff-code .hljs-type { color: var(--hljs-built_in, #f97316); }
+.diff-code .hljs-variable,
+.diff-code .hljs-params { color: var(--hljs-variable, var(--text-primary)); }
+.diff-code__text { tab-size: 2; }
+
+.agent-avatar {
+  position: relative;
+  isolation: isolate;
+  border-radius: 0.75rem;
+  transition: transform 180ms var(--ease-product), filter 180ms ease;
+}
+
+.agent-avatar::before {
+  content: "";
+  position: absolute;
+  inset: 0.25rem;
+  z-index: -1;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  opacity: 0;
+  transform: scale(0.72);
+  transition: opacity 180ms ease, transform 180ms var(--ease-product);
+}
+
+.agent-avatar:hover,
+.agent-avatar:focus-within {
+  transform: translateY(-1px) rotate(-2deg);
+  filter: drop-shadow(0 5px 10px color-mix(in srgb, var(--accent) 22%, transparent));
+}
+
+.agent-avatar:hover::before,
+.agent-avatar:focus-within::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.agent-avatar__logo {
+  transition: transform 220ms var(--ease-product), filter 220ms ease;
+}
+
+.agent-avatar:hover .agent-avatar__logo,
+.agent-avatar:focus-within .agent-avatar__logo {
+  transform: scale(1.08);
+  filter: brightness(1.12) saturate(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar,
+  .agent-avatar::before,
+  .agent-avatar__logo {
+    transition: none;
+  }
 }
 
 .workspace-tabs {
