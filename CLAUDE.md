@@ -250,9 +250,8 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 - `UtilizationBar.tsx`: Resource utilization display
 - `ErrorBoundary.tsx`: React error boundary
 
-### Feedback System
-- `FeedbackModal.tsx`: User feedback collection modal
-- `commands/feedback_commands.rs`: `send_feedback` Tauri command
+### Feedback
+- The footer Feedback button opens the project's GitHub Issues page.
 
 ### Docs Screen
 - `DocsScreen.tsx`: Built-in documentation viewer with theme support

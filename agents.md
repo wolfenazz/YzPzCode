@@ -64,7 +64,6 @@ app/
 │   │   ├── designer/       # AI design generation tools (12 components)
 │   │   ├── settings/       # Settings screen with 11 sections
 │   │   ├── common/         # Shared (theme toggle, footer, context menu, cursor)
-│   │   ├── feedback/       # Feedback modal
 │   │   └── docs/           # Built-in docs viewer
 │   ├── hooks/              # useTerminal, useWorkspace, useFileEditor, useBrowser, etc.
 │   ├── stores/             # Zustand stores (appStore.ts, updaterStore.ts)

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowClockwise, CheckCircle, DownloadSimple } from '@phosphor-icons/react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { useUpdaterStore } from '../../stores/updaterStore';
 import { useAppStore } from '../../stores/appStore';
-import { FeedbackModal } from '../feedback/FeedbackModal';
 import { TerminalStatusBar } from '../workspace/TerminalStatusBar';
 import discordLogo from '../../assets/discordLOGO.png';
 import instagramLogo from '../../assets/Instagramlogo.png';
+
+const GITHUB_ISSUES_URL = 'https://github.com/wolfenazz/YzPzCode/issues';
 
 const authors = [
   { name: 'Naseem', discord: '@ws.', instagram: null },
@@ -41,7 +43,6 @@ export const AppFooter: React.FC = () => {
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [copiedAuthor, setCopiedAuthor] = useState<string | null>(null);
   const [copiedType, setCopiedType] = useState<'discord' | 'instagram' | null>(null);
-  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -247,8 +248,14 @@ export const AppFooter: React.FC = () => {
               )}
 
               <button
-                onClick={() => setIsFeedbackOpen(true)}
+                type="button"
+                onClick={() => {
+                  void openUrl(GITHUB_ISSUES_URL).catch((error: unknown) => {
+                    console.error('Failed to open GitHub Issues:', error);
+                  });
+                }}
                 className="cursor-pointer border-l border-[var(--border-primary)] px-2 py-1 text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                title="Open GitHub Issues"
               >
                 Feedback
               </button>
@@ -279,8 +286,6 @@ export const AppFooter: React.FC = () => {
           </div>
         </div>
       </footer>
-
-      <FeedbackModal isOpen={isFeedbackOpen} onClose={() => setIsFeedbackOpen(false)} />
     </>
   );
 };

@@ -231,7 +231,6 @@ pub fn run() {
             commands::detect_ide,
             commands::detect_all_ides_cmd,
             commands::launch_ide_cmd,
-            commands::send_feedback,
             commands::get_os_version,
             commands::launch_external_terminals,
             commands::launch_external_command,
