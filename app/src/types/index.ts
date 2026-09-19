@@ -213,6 +213,7 @@ export interface BrowserSelectedElement {
   htmlSnippet: string;
   selectors: string[];
   attributes: Record<string, string>;
+  computedStyles: Record<string, string>;
   rect: BrowserElementRect;
   pageUrl: string;
   pageTitle: string;

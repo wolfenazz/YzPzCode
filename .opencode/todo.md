@@ -1,52 +1,28 @@
-# Mission: Add Cline CLI agent to YzPzCode
+# Mission: Remediate exposed Discord webhook (FriendlyScanner finding a3d46c4b)
 
-Baseline: clean tree. Logo already copied to `app/src/assets/cline.webp`.
-Verification: `cargo check` + `cargo clippy` (src-tauri), `node ./node_modules/typescript/bin/tsc --noEmit` + `npm run build` (app).
+Baseline: `app/src-tauri/src/commands/feedback_commands.rs:28-29` hardcoded a Discord webhook URL (full secret REDACTED — removed).
+Scanner reports webhook deleted permanently (HTTP 200 at discovery). Old URL is dead but was in git history + working tree.
+Verification: `cargo check` (src-tauri), `npx tsc --noEmit` (app), `grep` sweep for webhook URLs = zero matches.
 
-## M1: Rust backend integration | agent:Worker | status: pending
-### T1.1: AgentType + provider plumbing | size:M
-- [ ] S1.1.1: `types.rs` — add `Cline` variant to AgentType (AI agents block, after CommandCode)
-- [ ] S1.1.2: Create `agent_cli/providers/cline.rs` modeled on kilo.rs
-      (binary "cline", display "Cline CLI", desc "Cline's agentic coding CLI with TUI and headless automation",
-       provider "Cline", install `npm install -g cline`, version cmd `--version`,
-       docs https://docs.cline.bot/cli/overview, prereqs NodeJs+Git, icon "/assets/cline.webp",
-       npm package "cline")
-- [ ] S1.1.3: Register in providers/mod.rs (mod + pub use), provider.rs get_provider match arm
-- [ ] S1.1.4: detector.rs detect_all array += AgentType::Cline
-      | verify: cargo check exit 0
-### T1.2: Auth detection + prerequisites | size:S
-- [ ] S1.2.1: auth_detector.rs — match arm, check_all list entry, new check_cline_auth()
-      (authenticated if ~/.cline/data/settings/providers.json exists; config_path set; else NotAuthenticated),
-      get_auth_instructions arm ("Run 'cline auth' to authenticate with the Cline Provider or configure your own provider key")
-- [ ] S1.2.2: prerequisites.rs — append "Cline CLI" to the 3 Node.js-dependent agent lists
-      | verify: cargo check exit 0
-### T1.3: Backend quality gate | agent:Reviewer | depends:T1.1,T1.2
-- [ ] S1.3.1: cargo check + cargo clippy zero errors/warnings on new code; cargo test pass
+## M1: Emergency remediation — remove hardcoded secret | agent:Worker | status:completed
+### T1.1: Purge secret from working tree | size:S | status:completed
+- [x] S1.1.1: `feedback_commands.rs` — delete hardcoded fallback URL, env-only lookup | verified Reviewer 2026-09-19 (re-read 281 lines: env-only `map_err("not configured")`, no `unwrap_or_else` fallback; `git grep discord.com/api/webhooks` = only prefix-validation lines + todo baseline docs; full-URL+digits = only todo baseline; `cargo check` exit 0)
+- [x] S1.1.2: Confirm no other hardcoded webhook/token in `app/src-tauri`, `app/src` (discord, ghp_, sk- real keys) | verified Reviewer 2026-09-19 (token frag redacted — 0 hits in source, only todo pattern-desc line; frontend modal only `placeholder="Email or Discord"`, no URL literal)
 
-## M2: Frontend integration | agent:Worker | status: pending
-### T2.1: Types + state defaults | size:M
-- [ ] S2.1.1: types/index.ts — add "cline" to AgentType union (position mirrors Rust enum order)
-- [ ] S2.1.2: useAgentAllocation.ts — AGENT_TYPES + DEFAULT_ALLOCATION += cline:0
-- [ ] S2.1.3: useWorkspace.ts — TOOL_ZEROS/defaults + all 6 seed template allocations += cline:0
-- [ ] S2.1.4: stores/appStore.ts — cliStatuses/authInfos default records += cline
-      | verify: tsc --noEmit exit 0
-### T2.2: UI surfaces | size:L
-- [ ] S2.2.1: TerminalHeader.tsx — import clineLogo from '../../assets/cline.webp' + AGENT_LOGOS map entry
-- [ ] S2.2.2: AgentTargetSelect.tsx — logo import + map entry
-- [ ] S2.2.3: NewTerminalDialog.tsx — AGENT_OPTIONS entry {type:'cline', label:'Cline',
-      description:'Agentic coding CLI with TUI and headless mode', logo, color} + DESCRIPTIONS entry
-- [ ] S2.2.4: TerminalPane.tsx — BINARY_NAMES cline:'cline'; retry agentTypes arr += 'cline';
-      omit NEW_SESSION_COMMANDS (no documented /new for cline)
-- [ ] S2.2.5: DesignerPage.tsx — agents list += { id:'cline', label:'Cline' }; update 'Local CLI'
-      copy to include Cline
-- [ ] S2.2.6: AgentFleetConfig.tsx — AGENT_INFO { label:'Cline', color class, logo } + agentTypes arr
-- [ ] S2.2.7: WorkspaceTemplatePicker.tsx — LABELS/COLORS/EMPTY_ALLOCATION entries
-- [ ] S2.2.8: SettingsAgents.tsx — logo import + map entry
-- [ ] S2.2.9: Docs/text mentions: userguide.ts table row (| **Cline** | `cline` | Interactive TUI + headless coding agent |) and intro line; NodeJsCheckScreen L163 + SettingsEnvironment L122 mention Cline
-      | verify each: tsc --noEmit exit 0
+## M2: Harden feedback pipeline | agent:Worker | depends:T1.1 | status:completed
+### T2.1: Secure `send_feedback` implementation | size:M | status:completed
+- [x] S2.1.1: Require `DISCORD_WEBHOOK_URL` env at runtime, return user-friendly "not configured" error if missing/empty (no fallback, no panic, no URL in error text) | verified Reviewer 2026-09-19 (lines 28-33: `map_err("not configured")` + trim + empty check, zero URL in error text)
+- [x] S2.1.2: Input hardening — trim, reject empty message, enforce limits (message 4000, name 100, contact 160 to mirror frontend), validate webhook URL is https discord webhook shape | verified Reviewer 2026-09-19 (lines 34-69: 3-prefix allowlist discord/canary/ptb, trim, empty-reject, 4000/100/160 with char-boundary truncate)
+- [x] S2.1.3: Network hardening — reqwest client with 10s timeout, check HTTP success status, map errors without leaking URL | verified Reviewer 2026-09-19 (lines 94-105: `Client::builder().timeout(10s)`, `error_for_status`, `format!("Failed to send feedback: {}")` no URL; `cargo check` Finished dev-profile exit 0)
 
-## M3: Final verification | agent:Reviewer | depends:M1,M2
-- [ ] S3.1: cargo check + cargo clippy clean (no new warnings)
-- [ ] S3.2: tsc --noEmit exit 0
-- [ ] S3.3: npm run build exit 0
-- [ ] S3.4: rg sweep — every file listing agent arrays contains cline consistently; no missed exhaustive Records (tsc enforces); report evidence
+## M3: Prevent recurrence | agent:Worker
+### T3.1: Env hygiene + docs | size:S
+- [x] S3.1.1: Strengthen root `.gitignore` (cover `.env*` + `!.env.example`), add `app/src-tauri/.env.example` + root `.env.example` with `DISCORD_WEBHOOK_URL=` placeholder + comment never commit real URL | verified Reviewer 2026-09-19 (tsc 0, cargo 0, files on disk correct; advisory: add literal `.env*` wildcard + stage untracked examples)
+- [x] S3.1.2: Verify no `.env` file is git-tracked (`git ls-files | grep env` = only `*.example`) | verified Reviewer 2026-09-19 (only tracked `.env*` is `app/desgin/deploy/.env.example`; no real `.env` tracked)
+- [x] S3.1.3: Frontend `FeedbackModal.tsx` already surfaces backend error via `errorMessage` — no secret added there, confirm no change leaks URL | verified Reviewer 2026-09-19 (full read 322 lines: only `invoke('send_feedback')`, `String(err)` display, zero webhook literals)
+
+## M4: Final verification | agent:Reviewer | depends:M1,M2,M3
+- [x] S4.1: `cargo check` clean in `app/src-tauri` | verified Reviewer 2026-09-19 (`Finished dev profile in 36.05s`, exit 0)
+- [x] S4.2: `npx tsc --noEmit` clean in `app` | verified Reviewer 2026-09-19 (exit `TSC-EXIT:0`, empty output)
+- [x] S4.3: Secret sweep — `discord.com/api/webhooks/<digits>` full-URL pattern = 0 hits in tracked files; old token fragment (redacted) = 0 hits | verified Reviewer 2026-09-19 (digits-pattern 0 hits tracked after baseline redaction; token-frag 0 hits tracked after note redaction; source hits limited to 3 allowlist-prefix lines without digits/token)
+- [x] S4.4: Reviewer sign-off + rotation/runbook for user (new webhook steps, history-purge guidance, proxy recommendation) | signed off 2026-09-19 (cargo check exit 0 re-verified directly; old+new secret sweeps = 0 hits in tracked files; local .env with new URL deleted per user request)

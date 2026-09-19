@@ -81,6 +81,8 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   let undoStack = [];
   let applyHoverTarget = null;
   let applyHoverBackup = null;
+  let selectedInspectorElement = null;
+  let inspectorPreviewBackup = null;
   let pointerMoveFrame = 0;
   let lastPointerEvent = null;
   let pageStateTimer = 0;
@@ -356,6 +358,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
 
   const serializeElement = (element) => {
     const rect = element.getBoundingClientRect();
+    const computed = window.getComputedStyle(element);
     const attrs = {};
     for (const attr of Array.from(element.attributes).slice(0, 20)) {
       attrs[attr.name] = attr.value;
@@ -369,6 +372,66 @@ const BROWSER_INIT_SCRIPT: &str = r#"
       htmlSnippet: (element.outerHTML || '').replace(/\s+/g, ' ').trim().slice(0, 1800),
       selectors: selectorCandidates(element),
       attributes: attrs,
+      computedStyles: {
+        'width': computed.getPropertyValue('width'),
+        'height': computed.getPropertyValue('height'),
+        'padding-top': computed.getPropertyValue('padding-top'),
+        'padding-right': computed.getPropertyValue('padding-right'),
+        'padding-bottom': computed.getPropertyValue('padding-bottom'),
+        'padding-left': computed.getPropertyValue('padding-left'),
+        'margin-top': computed.getPropertyValue('margin-top'),
+        'margin-right': computed.getPropertyValue('margin-right'),
+        'margin-bottom': computed.getPropertyValue('margin-bottom'),
+        'margin-left': computed.getPropertyValue('margin-left'),
+        'font-size': computed.getPropertyValue('font-size'),
+        'font-weight': computed.getPropertyValue('font-weight'),
+        'line-height': computed.getPropertyValue('line-height'),
+        'letter-spacing': computed.getPropertyValue('letter-spacing'),
+        'text-align': computed.getPropertyValue('text-align'),
+        'color': computed.getPropertyValue('color'),
+        'background-color': computed.getPropertyValue('background-color'),
+        'border-radius': computed.getPropertyValue('border-radius'),
+        'box-shadow': computed.getPropertyValue('box-shadow'),
+        'opacity': computed.getPropertyValue('opacity'),
+        'min-width': computed.getPropertyValue('min-width'),
+        'max-width': computed.getPropertyValue('max-width'),
+        'min-height': computed.getPropertyValue('min-height'),
+        'max-height': computed.getPropertyValue('max-height'),
+        'aspect-ratio': computed.getPropertyValue('aspect-ratio'),
+        'display': computed.getPropertyValue('display'),
+        'overflow': computed.getPropertyValue('overflow'),
+        'box-sizing': computed.getPropertyValue('box-sizing'),
+        'gap': computed.getPropertyValue('gap'),
+        'flex-direction': computed.getPropertyValue('flex-direction'),
+        'flex-wrap': computed.getPropertyValue('flex-wrap'),
+        'justify-content': computed.getPropertyValue('justify-content'),
+        'align-items': computed.getPropertyValue('align-items'),
+        'grid-template-columns': computed.getPropertyValue('grid-template-columns'),
+        'grid-template-rows': computed.getPropertyValue('grid-template-rows'),
+        'border-width': computed.getPropertyValue('border-width'),
+        'border-style': computed.getPropertyValue('border-style'),
+        'border-color': computed.getPropertyValue('border-color'),
+        'outline-width': computed.getPropertyValue('outline-width'),
+        'outline-style': computed.getPropertyValue('outline-style'),
+        'outline-color': computed.getPropertyValue('outline-color'),
+        'font-family': computed.getPropertyValue('font-family'),
+        'text-transform': computed.getPropertyValue('text-transform'),
+        'text-decoration-line': computed.getPropertyValue('text-decoration-line'),
+        'white-space': computed.getPropertyValue('white-space'),
+        'position': computed.getPropertyValue('position'),
+        'z-index': computed.getPropertyValue('z-index'),
+        'top': computed.getPropertyValue('top'),
+        'right': computed.getPropertyValue('right'),
+        'bottom': computed.getPropertyValue('bottom'),
+        'left': computed.getPropertyValue('left'),
+        'transform': computed.getPropertyValue('transform'),
+        'transform-origin': computed.getPropertyValue('transform-origin'),
+        'filter': computed.getPropertyValue('filter'),
+        'backdrop-filter': computed.getPropertyValue('backdrop-filter'),
+        'mix-blend-mode': computed.getPropertyValue('mix-blend-mode'),
+        'cursor': computed.getPropertyValue('cursor'),
+        'transition': computed.getPropertyValue('transition')
+      },
       rect: {
         x: Math.round(rect.x),
         y: Math.round(rect.y),
@@ -663,6 +726,8 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     event.stopPropagation();
     event.stopImmediatePropagation();
 
+    clearInspectorPreview();
+    selectedInspectorElement = element;
     const payload = serializeElement(element);
     inspectMode = false;
     document.documentElement.style.cursor = '';
@@ -1199,6 +1264,46 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     }
   };
 
+  const inspectorEditableProperties = new Set([
+    'width', 'height',
+    'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'font-size', 'font-weight', 'line-height', 'letter-spacing', 'text-align',
+    'color', 'background-color', 'border-radius', 'box-shadow', 'opacity',
+    'min-width', 'max-width', 'min-height', 'max-height', 'aspect-ratio',
+    'display', 'overflow', 'box-sizing', 'gap',
+    'flex-direction', 'flex-wrap', 'justify-content', 'align-items',
+    'grid-template-columns', 'grid-template-rows',
+    'border-width', 'border-style', 'border-color',
+    'outline-width', 'outline-style', 'outline-color',
+    'font-family', 'text-transform', 'text-decoration-line', 'white-space',
+    'position', 'z-index', 'top', 'right', 'bottom', 'left',
+    'transform', 'transform-origin', 'filter', 'backdrop-filter',
+    'mix-blend-mode', 'cursor', 'transition'
+  ]);
+
+  const clearInspectorPreview = () => {
+    if (selectedInspectorElement && inspectorPreviewBackup && document.contains(selectedInspectorElement)) {
+      restoreStyleToElement(selectedInspectorElement, inspectorPreviewBackup);
+    }
+    inspectorPreviewBackup = null;
+  };
+
+  const previewInspectorStyles = (styles) => {
+    if (!selectedInspectorElement || !document.contains(selectedInspectorElement)) return;
+
+    clearInspectorPreview();
+    const safeStyles = {};
+    for (const [property, value] of Object.entries(styles || {})) {
+      if (!inspectorEditableProperties.has(property) || typeof value !== 'string') continue;
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.length > 180) continue;
+      if (/url\s*\(/i.test(trimmed)) continue;
+      safeStyles[property] = trimmed;
+    }
+    inspectorPreviewBackup = applyStyleToElement(selectedInspectorElement, safeStyles);
+  };
+
   styleOverlay();
 
   window.addEventListener('mousemove', handlePointerMove, true);
@@ -1272,6 +1377,12 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     setPreviewChrome(payload) {
       previewChrome = payload || null;
       applyPreviewChrome();
+    },
+    previewInspectorStyles(styles) {
+      previewInspectorStyles(styles);
+    },
+    clearInspectorPreview() {
+      clearInspectorPreview();
     },
     undoLastStyle() {
       handleUndoLastStyle();
@@ -1408,6 +1519,7 @@ pub struct BrowserSelectedElementPayload {
     pub html_snippet: String,
     pub selectors: Vec<String>,
     pub attributes: HashMap<String, String>,
+    pub computed_styles: HashMap<String, String>,
     pub rect: BrowserElementRect,
     pub page_url: String,
     pub page_title: String,
@@ -2223,6 +2335,22 @@ impl BrowserManager {
         Ok(())
     }
 
+    pub fn preview_selected_element_styles(
+        &self,
+        workspace_id: &str,
+        styles: HashMap<String, String>,
+    ) -> Result<()> {
+        let webview = self.webview_for_workspace(workspace_id)?;
+        webview.eval(preview_inspector_styles_script(styles))?;
+        Ok(())
+    }
+
+    pub fn clear_selected_element_preview(&self, workspace_id: &str) -> Result<()> {
+        let webview = self.webview_for_workspace(workspace_id)?;
+        webview.eval(clear_inspector_preview_script())?;
+        Ok(())
+    }
+
     pub fn handle_style_captured(&self, webview_label: &str, payload: CapturedStyle) -> Result<()> {
         let workspace_id = self.workspace_for_label(webview_label)?;
         self.emit_event(BROWSER_STYLE_CAPTURED_EVENT, &payload)?;
@@ -2505,6 +2633,18 @@ fn apply_mode_script(style_payload: Option<CapturedStyle>) -> String {
 
 fn undo_style_script() -> String {
     "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.undoLastStyle();".to_string()
+}
+
+fn preview_inspector_styles_script(styles: HashMap<String, String>) -> String {
+    let json = serde_json::to_string(&styles).unwrap_or_else(|_| "{}".to_string());
+    format!(
+        "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.previewInspectorStyles({json});"
+    )
+}
+
+fn clear_inspector_preview_script() -> String {
+    "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.clearInspectorPreview();"
+        .to_string()
 }
 
 #[cfg(test)]

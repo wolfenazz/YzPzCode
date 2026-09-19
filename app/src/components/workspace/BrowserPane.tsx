@@ -328,6 +328,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const loadStartRef = useRef<number | null>(null);
   const lastNavigatedTabRef = useRef<string | null>(null);
   const lastSyncedBoundsKeyRef = useRef<string | null>(null);
+  const inspectorPreviewQueueRef = useRef<Promise<void>>(Promise.resolve());
   const isPoppedOutRef = useRef(false);
   const browserStateByWorkspace = useAppStore((state) => state.browserStateByWorkspace);
   const devServerUrls = useAppStore((state) => state.devServerUrlsByWorkspace[workspaceId] ?? EMPTY_DEV_SERVER_URLS);
@@ -401,6 +402,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     setBrowserPickUiElementMode,
     setBrowserApplyMode,
     undoBrowserStyle,
+    previewBrowserElementStyles,
+    clearBrowserElementPreview,
   } = useBrowser();
   const { writeToTerminal } = useTerminal();
   const { ensureHost, resumeSession, sendMessage } = useAgentHost();
@@ -961,7 +964,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     }
   }, [goForwardBrowserView, workspaceId]);
 
-  const handleInspectorSend = useCallback(async (promptText?: string) => {
+  const handleInspectorSend = useCallback(async (
+    promptText?: string,
+    styleOverrides: Record<string, string> = {},
+  ) => {
     if (!effectiveState.selectedElement) return;
 
     const targetSessionId = effectiveState.targetSessionId ?? defaultSessionId;
@@ -976,9 +982,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       ? [promptText]
       : effectiveState.instructionSlots.map((slot) => htmlToPlainText(slot).trim()).filter((text) => text.length > 0)
     );
-    if (slotTexts.length === 0) {
-      setError('Enter a prompt before sending it to a terminal agent.');
-      throw new Error('Enter a prompt before sending it to a terminal agent.');
+    if (slotTexts.length === 0 && Object.keys(styleOverrides).length === 0) {
+      setError('Describe a change or adjust at least one preview style before sending.');
+      throw new Error('Describe a change or adjust at least one preview style before sending.');
     }
 
     const instructions = slotTexts
@@ -990,6 +996,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       instructions,
       activeDevice.label,
       effectiveState.zoomFactor,
+      styleOverrides,
     );
 
     setIsSubmitting(true);
@@ -1021,6 +1028,25 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const handleInspectorTargetSessionChange = useCallback((sessionId: string | null) => {
     setBrowserTargetSession(workspaceId, sessionId);
   }, [setBrowserTargetSession, workspaceId]);
+
+  const handleInspectorPreviewStylesChange = useCallback((styles: Record<string, string>) => {
+    const next = inspectorPreviewQueueRef.current
+      .catch(() => undefined)
+      .then(() => previewBrowserElementStyles(workspaceId, styles));
+    inspectorPreviewQueueRef.current = next.catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : String(err));
+    });
+  }, [previewBrowserElementStyles, workspaceId]);
+
+  const handleInspectorResetPreview = useCallback(async () => {
+    const next = inspectorPreviewQueueRef.current
+      .catch(() => undefined)
+      .then(() => clearBrowserElementPreview(workspaceId));
+    inspectorPreviewQueueRef.current = next.catch((err: unknown) => {
+      setError(err instanceof Error ? err.message : String(err));
+    });
+    await next;
+  }, [clearBrowserElementPreview, workspaceId]);
 
   const handleInspectorDraftChange = useCallback(
     (html: string) => {
@@ -2283,6 +2309,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               onAddSlot={handleAddInstructionSlot}
               onRemoveSlot={handleRemoveInstructionSlot}
               onSend={handleInspectorSend}
+              onPreviewStylesChange={handleInspectorPreviewStylesChange}
+              onResetPreview={handleInspectorResetPreview}
               onTargetSessionChange={handleInspectorTargetSessionChange}
               onDraftChange={handleInspectorDraftChange}
               onClear={handleInspectorClear}

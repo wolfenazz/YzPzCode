@@ -8,10 +8,12 @@ export const formatElementPrompt = (
   prompt: string,
   deviceLabel: string,
   zoomFactor: number,
+  styleOverrides: Record<string, string> = {},
 ): string => {
   const attributeEntries = Object.entries(element.attributes)
     .slice(0, 12)
     .map(([key, value]) => `${key}="${value}"`);
+  const styleEntries = Object.entries(styleOverrides);
 
   return [
     `UI edit request for the running local app.`,
@@ -31,7 +33,14 @@ export const formatElementPrompt = (
     `- HTML snippet: ${element.htmlSnippet}`,
     '',
     `User request:`,
-    prompt.trim(),
+    prompt.trim() || 'Apply the previewed style changes listed below.',
+    ...(styleEntries.length > 0
+      ? [
+          '',
+          'Previewed style changes (temporary browser overrides; implement these in source):',
+          ...styleEntries.map(([property, value]) => `- ${property}: ${value}`),
+        ]
+      : []),
     '',
     `Please inspect this workspace, identify the component or markup responsible for this exact UI element, apply the requested change, and then explain the edit you made.`,
   ].join('\n');

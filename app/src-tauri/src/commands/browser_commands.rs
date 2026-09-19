@@ -267,6 +267,13 @@ pub struct BrowserUndoStyleRequest {
     pub workspace_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserInspectorPreviewRequest {
+    pub workspace_id: String,
+    pub styles: std::collections::HashMap<String, String>,
+}
+
 #[tauri::command]
 pub async fn set_browser_pick_style_mode(
     manager: State<'_, BrowserManager>,
@@ -304,6 +311,26 @@ pub async fn undo_browser_style(
 ) -> Result<(), String> {
     manager
         .undo_last_style(&request.workspace_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn preview_browser_element_styles(
+    manager: State<'_, BrowserManager>,
+    request: BrowserInspectorPreviewRequest,
+) -> Result<(), String> {
+    manager
+        .preview_selected_element_styles(&request.workspace_id, request.styles)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn clear_browser_element_preview(
+    manager: State<'_, BrowserManager>,
+    request: BrowserWorkspaceRequest,
+) -> Result<(), String> {
+    manager
+        .clear_selected_element_preview(&request.workspace_id)
         .map_err(|e| e.to_string())
 }
 

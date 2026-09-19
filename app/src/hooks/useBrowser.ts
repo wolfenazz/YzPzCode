@@ -157,6 +157,23 @@ export const useBrowser = () => {
     });
   }, []);
 
+  const previewBrowserElementStyles = useCallback(async (workspaceId: string, styles: Record<string, string>) => {
+    await invoke('preview_browser_element_styles', {
+      request: {
+        workspaceId,
+        styles,
+      },
+    });
+  }, []);
+
+  const clearBrowserElementPreview = useCallback(async (workspaceId: string) => {
+    await invoke('clear_browser_element_preview', {
+      request: {
+        workspaceId,
+      },
+    });
+  }, []);
+
   return {
     ensureBrowserView,
     resizeBrowserView,
@@ -176,5 +193,7 @@ export const useBrowser = () => {
     setBrowserPickUiElementMode,
     setBrowserApplyMode,
     undoBrowserStyle,
+    previewBrowserElementStyles,
+    clearBrowserElementPreview,
   };
 };

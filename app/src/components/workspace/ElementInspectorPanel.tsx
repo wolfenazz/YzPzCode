@@ -21,6 +21,7 @@ import { formatElementPrompt } from '../../utils/inspectorPrompt';
 import { RichPromptEditor } from './RichPromptEditor';
 import { useAppStore } from '../../stores/appStore';
 import { AgentTargetSelect } from './AgentTargetSelect';
+import { InspectorStyleEditor } from './InspectorStyleEditor';
 
 export interface SessionOption {
   id: string;
@@ -44,7 +45,9 @@ interface ElementInspectorPanelProps {
   onSelectSlot: (index: number) => void;
   onAddSlot: () => void;
   onRemoveSlot: (index: number) => void;
-  onSend: (plainText?: string) => Promise<void> | void;
+  onSend: (plainText?: string, styleOverrides?: Record<string, string>) => Promise<void> | void;
+  onPreviewStylesChange: (styles: Record<string, string>) => void;
+  onResetPreview: () => Promise<void> | void;
   onTargetSessionChange: (sessionId: string | null) => void;
   onDraftChange: (html: string) => void;
   onClear: () => void;
@@ -52,6 +55,75 @@ interface ElementInspectorPanelProps {
 
 /** Maximum number of instruction slots the user can queue at once. */
 const MAX_INSTRUCTION_SLOTS = 4;
+
+const editableStyleProperties = [
+  'width',
+  'height',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'font-size',
+  'font-weight',
+  'line-height',
+  'letter-spacing',
+  'text-align',
+  'color',
+  'background-color',
+  'border-radius',
+  'box-shadow',
+  'opacity',
+  'min-width',
+  'max-width',
+  'min-height',
+  'max-height',
+  'aspect-ratio',
+  'display',
+  'overflow',
+  'box-sizing',
+  'gap',
+  'flex-direction',
+  'flex-wrap',
+  'justify-content',
+  'align-items',
+  'grid-template-columns',
+  'grid-template-rows',
+  'border-width',
+  'border-style',
+  'border-color',
+  'outline-width',
+  'outline-style',
+  'outline-color',
+  'font-family',
+  'text-transform',
+  'text-decoration-line',
+  'white-space',
+  'position',
+  'z-index',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'transform',
+  'transform-origin',
+  'filter',
+  'backdrop-filter',
+  'mix-blend-mode',
+  'cursor',
+  'transition',
+] as const;
+
+const createInitialStyleValues = (element: BrowserSelectedElement): Record<string, string> => {
+  const values: Record<string, string> = {};
+  for (const property of editableStyleProperties) {
+    values[property] = element.computedStyles?.[property] ?? '';
+  }
+  return values;
+};
 
 const escapePromptHtml = (value: string): string =>
   value
@@ -117,19 +189,33 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   onAddSlot,
   onRemoveSlot,
   onSend,
+  onPreviewStylesChange,
+  onResetPreview,
   onTargetSessionChange,
   onDraftChange,
   onClear,
 }: ElementInspectorPanelProps) {
   const [showFullInfo, setShowFullInfo] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [styleValues, setStyleValues] = useState<Record<string, string>>(() => createInitialStyleValues(element));
+  const [styleOverrides, setStyleOverrides] = useState<Record<string, string>>({});
   const copiedTimerRef = useRef<number | null>(null);
+  const initialStyleValuesRef = useRef(createInitialStyleValues(element));
 
   const inspectorQuickPrompts = useAppStore((state) => state.inspectorQuickPrompts);
 
   useEffect(() => {
     setShowFullInfo(false);
+    const nextValues = createInitialStyleValues(element);
+    initialStyleValuesRef.current = nextValues;
+    setStyleValues(nextValues);
+    setStyleOverrides({});
   }, [element]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => onPreviewStylesChange(styleOverrides), 40);
+    return () => window.clearTimeout(timer);
+  }, [onPreviewStylesChange, styleOverrides]);
 
   useEffect(
     () => () => {
@@ -137,6 +223,10 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
     },
     [],
   );
+
+  useEffect(() => () => {
+    void onResetPreview();
+  }, [onResetPreview]);
 
   const attributeEntries = useMemo(() => Object.entries(element.attributes), [element.attributes]);
 
@@ -163,16 +253,20 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   const handleSend = useCallback(
     async (plainText?: string) => {
       if (isSubmitting) return;
-      const text = (plainText ?? htmlToPlainText(initialHtml)).trim();
-      if (!text) return;
+      const text = (plainText === undefined ? batchedPromptText : plainText).trim();
+      if (!text && Object.keys(styleOverrides).length === 0) return;
       try {
-        await onSend(text);
+        await onSend(text, styleOverrides);
         onDraftChange('');
+        await onResetPreview();
+        const initialValues = initialStyleValuesRef.current;
+        setStyleValues(initialValues);
+        setStyleOverrides({});
       } catch {
         // keep the draft so the user can retry
       }
     },
-    [initialHtml, isSubmitting, onDraftChange, onSend],
+    [batchedPromptText, isSubmitting, onDraftChange, onResetPreview, onSend, styleOverrides],
   );
 
   const handleSelectSlot = useCallback(
@@ -203,8 +297,8 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   }, [element.htmlSnippet]);
 
   const handleCopyPrompt = useCallback(async () => {
-    if (filledSlotCount === 0) return;
-    const prompt = formatElementPrompt(element, batchedPromptText, deviceLabel, zoomFactor);
+    if (filledSlotCount === 0 && Object.keys(styleOverrides).length === 0) return;
+    const prompt = formatElementPrompt(element, batchedPromptText, deviceLabel, zoomFactor, styleOverrides);
     try {
       await navigator.clipboard.writeText(prompt);
       setCopied(true);
@@ -213,7 +307,31 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
     } catch {
       // clipboard unavailable — leave the button idle
     }
-  }, [batchedPromptText, deviceLabel, element, filledSlotCount, zoomFactor]);
+  }, [batchedPromptText, deviceLabel, element, filledSlotCount, styleOverrides, zoomFactor]);
+
+  const handleStyleChange = useCallback((property: string, value: string) => {
+    setStyleValues((current) => ({ ...current, [property]: value }));
+    setStyleOverrides((current) => {
+      const next = { ...current };
+      if (!value.trim() || value.trim() === (initialStyleValuesRef.current[property] ?? '').trim()) {
+        delete next[property];
+      } else {
+        next[property] = value;
+      }
+      return next;
+    });
+  }, []);
+
+  const handleResetStyles = useCallback(() => {
+    setStyleValues(initialStyleValuesRef.current);
+    setStyleOverrides({});
+    void onResetPreview();
+  }, [onResetPreview]);
+
+  const handleClear = useCallback(async () => {
+    await onResetPreview();
+    onClear();
+  }, [onClear, onResetPreview]);
 
   const handleApplyPrompt = useCallback(
     (prompt: InspectorQuickPrompt) => {
@@ -247,10 +365,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
       <div className="sticky top-0 z-10 border-b border-[var(--border-primary)] bg-[color-mix(in_srgb,var(--bg-tertiary)_88%,transparent)] px-4 py-3 backdrop-blur-md">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2.5">
-            <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-40" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_6px_var(--accent-glow)]" />
-            </span>
+            <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--accent)]" aria-hidden="true" />
             <div className="min-w-0">
               <h2 className="text-xs font-semibold leading-4 text-[var(--text-primary)]">Element inspector</h2>
               <p className="truncate text-[9px] leading-3.5 text-[var(--text-secondary)]/70">
@@ -276,7 +391,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
             </button>
             <button
               type="button"
-              onClick={onClear}
+              onClick={() => void handleClear()}
               title="Clear selection"
               aria-label="Clear selection"
               className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-rose-500/10 hover:text-rose-400 cursor-pointer"
@@ -288,28 +403,27 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
       </div>
 
       <div className="space-y-3 p-3.5">
-        {/* ── Selected element ────────────────────────────────────────── */}
-        <SectionCard icon={<Fingerprint size={13} />} title="Selected element">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--accent-text)]">
-              {element.tagName}
-            </span>
-            {element.id && (
-              <span className="rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2 py-0.5 font-mono text-[10px] text-[var(--text-primary)]">
-                #{element.id}
-              </span>
-            )}
-          </div>
-          {element.className && (
-            <p className="mt-2 truncate font-mono text-[10px] text-[var(--text-secondary)]" title={element.className}>
-              {element.className}
-            </p>
-          )}
-        </SectionCard>
-
         {/* ── Developer details (opt-in) ─────────────────────────────── */}
         {showFullInfo && (
           <>
+            <SectionCard icon={<Fingerprint size={13} />} title="Selected element">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-2 py-0.5 font-mono text-[10px] font-bold text-[var(--accent-text)]">
+                  {element.tagName}
+                </span>
+                {element.id && (
+                  <span className="rounded-md border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-2 py-0.5 font-mono text-[10px] text-[var(--text-primary)]">
+                    #{element.id}
+                  </span>
+                )}
+              </div>
+              {element.className && (
+                <p className="mt-2 truncate font-mono text-[10px] text-[var(--text-secondary)]" title={element.className}>
+                  {element.className}
+                </p>
+              )}
+            </SectionCard>
+
             <SectionCard icon={<Code size={13} />} title="Element details">
               <div className="space-y-2.5">
                 {element.textContent && (
@@ -376,38 +490,46 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
                 {element.htmlSnippet}
               </pre>
             </SectionCard>
+
+            <SectionCard icon={<Hash size={13} />} title="Selectors" meta={countPill(`${element.selectors.length} found`)}>
+              <div className="space-y-1.5">
+                {shownSelectors.length === 0 ? (
+                  <div className="text-[10px] text-[var(--text-secondary)]/50">No usable selector</div>
+                ) : (
+                  shownSelectors.map((selector, index) => (
+                    <div
+                      key={`${selector}-${index}`}
+                      className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 ${
+                        index === 0
+                          ? 'border-[var(--accent-border)] bg-[var(--accent-light)]'
+                          : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40'
+                      }`}
+                    >
+                      <span className={`mt-px shrink-0 font-mono text-[9px] font-bold ${index === 0 ? 'text-[var(--accent-text)]' : 'text-[var(--text-secondary)]/50'}`}>
+                        {index === 0 ? 'P' : `F${index}`}
+                      </span>
+                      <code className="min-w-0 flex-1 break-all font-mono text-[10px] leading-4 text-[var(--text-primary)]">
+                        {selector}
+                      </code>
+                    </div>
+                  ))
+                )}
+              </div>
+            </SectionCard>
           </>
         )}
 
-        {/* ── Selectors ───────────────────────────────────────────────── */}
-        <SectionCard icon={<Hash size={13} />} title="Selectors" meta={countPill(`${element.selectors.length} found`)}>
-          <div className="space-y-1.5">
-            {shownSelectors.length === 0 ? (
-              <div className="text-[10px] text-[var(--text-secondary)]/50">No usable selector</div>
-            ) : (
-              shownSelectors.map((selector, index) => (
-                <div
-                  key={`${selector}-${index}`}
-                  className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 ${
-                    index === 0
-                      ? 'border-[var(--accent-border)] bg-[var(--accent-light)]'
-                      : 'border-[var(--border-primary)] bg-[var(--bg-tertiary)]/40'
-                  }`}
-                >
-                  <span
-                    className={`mt-px shrink-0 rounded font-mono text-[9px] font-bold ${
-                      index === 0 ? 'text-[var(--accent-text)]' : 'text-[var(--text-secondary)]/50'
-                    }`}
-                  >
-                    {index === 0 ? 'P' : `F${index}`}
-                  </span>
-                  <code className="min-w-0 flex-1 break-all font-mono text-[10px] leading-4 text-[var(--text-primary)]">
-                    {selector}
-                  </code>
-                </div>
-              ))
-            )}
-          </div>
+        <SectionCard
+          icon={<SlidersHorizontal size={13} />}
+          title="Preview styles"
+          meta={countPill(`${Object.keys(styleOverrides).length} changed`)}
+        >
+          <InspectorStyleEditor
+            values={styleValues}
+            changedCount={Object.keys(styleOverrides).length}
+            onChange={handleStyleChange}
+            onReset={handleResetStyles}
+          />
         </SectionCard>
 
         {/* ── Target agent ────────────────────────────────────────────── */}
@@ -540,7 +662,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
         <button
           type="button"
           onClick={() => void handleCopyPrompt()}
-          disabled={isSubmitting || filledSlotCount === 0}
+          disabled={isSubmitting || (filledSlotCount === 0 && Object.keys(styleOverrides).length === 0)}
           className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-tertiary)]/50 px-4 py-2.5 text-[11px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
         >
           {copied ? (

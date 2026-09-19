@@ -5,4 +5,9 @@ target/
 *.pdb
 *.ilk
 .env
+.env*
+!.env.example
 .env.local
+.env.*.local
+.env.development
+.env.production

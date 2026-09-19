@@ -26,7 +26,47 @@ pub async fn send_feedback(
     }
 
     let webhook_url = std::env::var("DISCORD_WEBHOOK_URL")
-        .unwrap_or_else(|_| "https://canary.discord.com/api/webhooks/1486331999936581664/5NhDM8ejMhP_nWwvGwhxbTewEiYr8xsNtrvYB2v3QHZxUUEiOcFwm3mQvlkXUv13yYwI".to_string());
+        .map_err(|_| "Feedback service is not configured. Please try again later.".to_string())?;
+    let webhook_url = webhook_url.trim().to_string();
+    if webhook_url.is_empty() {
+        return Err("Feedback service is not configured. Please try again later.".to_string());
+    }
+    if !(webhook_url.starts_with("https://discord.com/api/webhooks/")
+        || webhook_url.starts_with("https://canary.discord.com/api/webhooks/")
+        || webhook_url.starts_with("https://ptb.discord.com/api/webhooks/"))
+    {
+        return Err("Feedback service is misconfigured. Please try again later.".to_string());
+    }
+
+    let message = message.trim().to_string();
+    if message.is_empty() {
+        return Err("Feedback message cannot be empty.".to_string());
+    }
+    if message.len() > 4000 {
+        return Err("Feedback message is too long (maximum 4000 characters).".to_string());
+    }
+
+    let name = name
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let name = if name.is_empty() {
+        "Anonymous".to_string()
+    } else {
+        truncate_to_char_boundary(&name, 100)
+    };
+
+    let contact = contact
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let contact = if contact.is_empty() {
+        "Not provided".to_string()
+    } else {
+        truncate_to_char_boundary(&contact, 160)
+    };
 
     let embed = DiscordEmbed {
         title: "📝 New Feedback".to_string(),
@@ -34,12 +74,12 @@ pub async fn send_feedback(
         fields: vec![
             DiscordField {
                 name: "Name".to_string(),
-                value: name.unwrap_or_else(|| "Anonymous".to_string()),
+                value: name,
                 inline: true,
             },
             DiscordField {
                 name: "Contact".to_string(),
-                value: contact.unwrap_or_else(|| "Not provided".to_string()),
+                value: contact,
                 inline: true,
             },
         ],
@@ -51,15 +91,31 @@ pub async fn send_feedback(
         embeds: vec![embed],
     };
 
-    let client = reqwest::Client::new();
-    client
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to send feedback: {}", e))?;
+    let resp = client
         .post(webhook_url)
         .json(&webhook)
         .send()
         .await
         .map_err(|e| format!("Failed to send feedback: {}", e))?;
+    resp.error_for_status()
+        .map_err(|e| format!("Failed to send feedback: {}", e))?;
 
     Ok(())
+}
+
+fn truncate_to_char_boundary(value: &str, max_bytes: usize) -> String {
+    if value.len() <= max_bytes {
+        return value.to_string();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    value[..end].to_string()
 }
 
 #[derive(Debug, Clone, serde::Serialize)]

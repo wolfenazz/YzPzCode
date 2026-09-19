@@ -193,6 +193,8 @@ pub fn run() {
             commands::set_browser_pick_ui_element_mode,
             commands::set_browser_apply_mode,
             commands::undo_browser_style,
+            commands::preview_browser_element_styles,
+            commands::clear_browser_element_preview,
             commands::browser_style_captured,
             commands::browser_ui_element_captured,
             commands::browser_style_applied,
