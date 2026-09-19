@@ -20,6 +20,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
 import { BoxLoader } from '../common/BoxLoader';
 import { Plus, TerminalWindow } from '@phosphor-icons/react';
+import { TerminalLayoutContext } from './TerminalLayoutContext';
+import { DEFAULT_TERMINAL_ARRANGEMENT, useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
+import { getTerminalLayoutRects } from '../../utils/terminalLayouts';
+import type { TerminalLayoutPreset } from '../../utils/terminalLayouts';
 
 interface TerminalGridProps {
   sessions: TerminalSession[];
@@ -69,9 +73,37 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
   const reorderSessions = useAppStore((s) => s.reorderSessions);
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const independentGridResize = useAppStore((s) => s.independentGridResize);
+  const workspaceId = currentWorkspace?.id ?? sessions[0]?.workspaceId ?? '';
+  const arrangement = useTerminalLayoutStore((s) => s.arrangements[workspaceId] ?? DEFAULT_TERMINAL_ARRANGEMENT);
+  const setArrangement = useTerminalLayoutStore((s) => s.setArrangement);
+  const setActiveSession = useAppStore((s) => s.setActiveSession);
 
   const sorted = useMemo(() => [...sessions].sort((a, b) => a.index - b.index), [sessions]);
   const { cols, rows } = getGridDimensions(sorted.length);
+  const preset = arrangement.preset;
+  const customLayout = preset !== 'grid';
+  const focusedIndex = Math.max(0, sorted.findIndex((session) => session.id === arrangement.focusedSessionId));
+  const focusedSessionId = sorted[focusedIndex]?.id ?? null;
+  const presetRects = useMemo(
+    () => getTerminalLayoutRects(preset, sorted.length, focusedIndex),
+    [preset, sorted.length, focusedIndex],
+  );
+  const selectPreset = useCallback((next: TerminalLayoutPreset, sessionId: string) => {
+    setArrangement(workspaceId, next, sessionId);
+    setActiveSession(sessionId);
+    setRowColSizes(null);
+    setColRowSizes(null);
+    setColSizes(null);
+    setRowSizes(null);
+  }, [workspaceId, setArrangement, setActiveSession]);
+  const layoutControls = useMemo(() => ({ preset, focusedSessionId, selectPreset }), [preset, focusedSessionId, selectPreset]);
+  // Scroll when a preset would otherwise make the smaller terminals unusable.
+  const focusBeside = preset === 'focus-left' || preset === 'focus-right';
+  const focusAbove = preset === 'focus-top' || preset === 'focus-bottom';
+  const minSurfaceWidth = sorted.length <= 1 ? 0 : preset === 'columns' ? sorted.length * 320
+    : focusBeside ? 1080 : focusAbove ? (sorted.length - 1) * 320 : 0;
+  const minSurfaceHeight = sorted.length <= 1 ? 0 : preset === 'rows' ? sorted.length * 140
+    : focusBeside ? (sorted.length - 1) * 140 : focusAbove ? 480 : 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -375,6 +407,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
       collisionDetection={closestCenter}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={() => setActiveId(null)}
     >
       <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
         <div
@@ -384,6 +417,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
             right: GAP_PX,
             bottom: GAP_PX,
             left: GAP_PX,
+            minWidth: minSurfaceWidth,
+            minHeight: minSurfaceHeight,
           }}
         >
           {sorted.map((session, idx) => {
@@ -395,11 +430,18 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
               <div
                 key={session.id}
                 className="absolute overflow-hidden"
+                data-terminal-session={session.id}
                 style={{
                   left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
                   top: `calc(${topPct}% + ${r * GAP_PX}px)`,
                   width: `calc(${cellRowColSizes[r][c]}% - ${cellWidthGap}px)`,
                   height: `calc(${cellColRowSizes[c][r]}% - ${cellHeightGap}px)`,
+                  ...(customLayout ? {
+                    left: `calc(${presetRects[idx].x * 100}% + ${presetRects[idx].x * GAP_PX}px)`,
+                    top: `calc(${presetRects[idx].y * 100}% + ${presetRects[idx].y * GAP_PX}px)`,
+                    width: `calc(${presetRects[idx].width * 100}% - ${(1 - presetRects[idx].width) * GAP_PX}px)`,
+                    height: `calc(${presetRects[idx].height * 100}% - ${(1 - presetRects[idx].height) * GAP_PX}px)`,
+                  } : {}),
                 }}
               >
                 <SortableTerminalPane
@@ -410,7 +452,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
             );
           })}
 
-          {sorted.length < cellCount &&
+          {!customLayout && sorted.length < cellCount &&
             (() => {
               const r = Math.floor(sorted.length / cols);
               const c = sorted.length % cols;
@@ -447,7 +489,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
             })()}
 
           {/* Vertical dividers (independent): one segment per row, confined to that row's band */}
-          {independentGridResize && cols > 1 &&
+          {!customLayout && independentGridResize && cols > 1 &&
             Array.from({ length: rows }).flatMap((_, r) =>
               Array.from({ length: cols - 1 }).map((_, ci) => {
                 const leftPct = activeRowColSizes[r].slice(0, ci + 1).reduce((a, b) => a + b, 0);
@@ -475,7 +517,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
             )}
 
           {/* Horizontal dividers (independent): one segment per column, confined to that column's band */}
-          {independentGridResize && rows > 1 &&
+          {!customLayout && independentGridResize && rows > 1 &&
             Array.from({ length: cols }).flatMap((_, c) =>
               Array.from({ length: rows - 1 }).map((_, ri) => {
                 const topPct = activeColRowSizes[c].slice(0, ri + 1).reduce((a, b) => a + b, 0);
@@ -504,7 +546,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
 
           {/* Classic dividers (global resize): one full-height line per column
               and one full-width line per row, matching the original behavior */}
-          {!independentGridResize && cols > 1 && Array.from({ length: cols - 1 }).map((_, ci) => {
+          {!customLayout && !independentGridResize && cols > 1 && Array.from({ length: cols - 1 }).map((_, ci) => {
             const leftPct = cellRowColSizes[0].slice(0, ci + 1).reduce((a, b) => a + b, 0);
             return (
               <div
@@ -527,7 +569,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
             );
           })}
 
-          {!independentGridResize && rows > 1 && Array.from({ length: rows - 1 }).map((_, ri) => {
+          {!customLayout && !independentGridResize && rows > 1 && Array.from({ length: rows - 1 }).map((_, ri) => {
             const topPct = cellColRowSizes[0].slice(0, ri + 1).reduce((a, b) => a + b, 0);
             return (
               <div
@@ -557,7 +599,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
           <div className="border border-zinc-700 overflow-hidden bg-zinc-950/90 border-zinc-700">
             <div className="flex items-center gap-3 px-3 py-2 bg-zinc-900/90">
               <span className="text-[10px] font-black tracking-[0.2em] uppercase text-zinc-400">
-                TTY::{activeSession.index + 1}
+                TTY:{activeSession.index + 1}
               </span>
               {activeSession.agent && (
                 <span className="text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 border bg-zinc-950 border-zinc-800 text-zinc-400">
@@ -575,10 +617,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
   );
 
   return (
+    <TerminalLayoutContext.Provider value={layoutControls}>
     <div className="h-full w-full flex flex-col bg-theme-main relative overflow-hidden">
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 relative"
+        className="flex-1 min-h-0 relative overflow-auto"
+        data-terminal-layout={preset}
       >
         {renderGridContent()}
       </div>
@@ -590,5 +634,6 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
         />
       )}
     </div>
+    </TerminalLayoutContext.Provider>
   );
 };

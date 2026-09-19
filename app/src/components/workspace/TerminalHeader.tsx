@@ -4,6 +4,7 @@ import { ArrowClockwise, ListBullets, MouseSimple, Plus, Sparkle, TerminalWindow
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession } from '../../types';
 import { QuickActions } from './QuickActions';
+import { TerminalLayoutPicker } from './TerminalLayoutPicker';
 import { AGENT_COMMANDS, getCommandIcon } from '../../data/agentCommands';
 
 import claudeLogo from '../../assets/claude.png';
@@ -46,12 +47,6 @@ const TOOL_ICON_MAP: Record<ToolCliType, { icon: string; color: string }> = {
 };
 
 export const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGOS;
-
-const STATUS_COLORS = {
-  idle: 'bg-zinc-600',
-  running: 'bg-emerald-500',
-  error: 'bg-rose-500',
-};
 
 interface TerminalHeaderProps {
   session: TerminalSession;
@@ -123,14 +118,8 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       {...dragListeners}
     >
       <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-        <div className="relative flex h-2 w-2 shrink-0">
-           <span className={`relative inline-flex h-2 w-2 rounded-full transition-colors duration-200 ${
-             isActive ? 'bg-[var(--accent)]' : STATUS_COLORS[session.status]
-           }`} />
-        </div>
-
-        <span className="shrink-0 text-[10px] font-medium text-[var(--text-primary)]">
-          Terminal {session.index + 1}
+        <span className="shrink-0 font-mono text-[10px] font-medium tracking-tight text-[var(--text-primary)]">
+          TTY:{session.index + 1}
         </span>
 
         <div className="mx-0.5 h-3 w-px bg-[var(--border-primary)]" />
@@ -178,6 +167,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
       </div>
 
       <div className="flex items-center shrink-0 gap-1 ml-2">
+        <TerminalLayoutPicker session={session} />
         <button
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
