@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowClockwise, ListBullets, MouseSimple, Plus, Sparkle, TerminalWindow, X } from '@phosphor-icons/react';
+import { ArrowClockwise, FolderOpen, ListBullets, MouseSimple, Plus, Sparkle, TerminalWindow, X } from '@phosphor-icons/react';
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession } from '../../types';
 import { QuickActions } from './QuickActions';
 import { TerminalLayoutPicker } from './TerminalLayoutPicker';
 import { AGENT_COMMANDS, getCommandIcon } from '../../data/agentCommands';
+import { terminalDirectoryLabel } from '../../utils/terminalCwd';
 
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
@@ -50,6 +51,7 @@ export const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGO
 
 interface TerminalHeaderProps {
   session: TerminalSession;
+  currentCwd: string;
   onRefreshCli: () => void;
   isRefreshing: boolean;
   onClose?: () => void;
@@ -67,6 +69,7 @@ interface TerminalHeaderProps {
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   session,
+  currentCwd,
   onRefreshCli,
   isRefreshing,
   onClose,
@@ -164,6 +167,13 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             <span className="text-[9px] font-medium text-[var(--text-secondary)]">Shell</span>
           </div>
         )}
+        <div
+          className="flex min-w-0 items-center gap-1 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] px-1.5 py-0 text-[9px] text-[var(--text-secondary)]"
+          title={currentCwd}
+        >
+          <FolderOpen size={11} className="shrink-0" aria-hidden="true" />
+          <span className="max-w-28 truncate">{terminalDirectoryLabel(currentCwd)}</span>
+        </div>
       </div>
 
       <div className="flex items-center shrink-0 gap-1 ml-2">
@@ -282,7 +292,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             <Sparkle size={12} />
           </button>
         )}
-        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={session.cwd} />
+        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={currentCwd} />
         <div className="h-3 w-px bg-[var(--border-primary)]" />
         {session.agent && (
           <button

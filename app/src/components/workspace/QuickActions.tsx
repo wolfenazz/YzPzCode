@@ -16,18 +16,20 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
   workspaceId,
   cwd,
 }) => {
-  const [actions, setActions] = useState<ProjectActions | null>(null);
+  const [detection, setDetection] = useState<{ cwd: string; actions: ProjectActions | null } | null>(null);
   const [managedState, setManagedState] = useState<ManagedTerminalCommandState | null>(null);
 
   useEffect(() => {
     let mounted = true;
     detectProject(cwd).then((result) => {
-      if (mounted) setActions(result);
+      if (mounted) setDetection({ cwd, actions: result });
     });
     return () => {
       mounted = false;
     };
   }, [cwd]);
+
+  const actions = detection?.cwd === cwd ? detection.actions : null;
 
   useEffect(() => {
     let mounted = true;

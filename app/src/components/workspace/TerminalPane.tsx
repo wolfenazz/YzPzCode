@@ -14,6 +14,7 @@ import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 import { useAppStore } from '../../stores/appStore';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
 import { registerTerminal } from '../../utils/terminalRegistry';
+import { detectTerminalCwd } from '../../utils/terminalCwd';
 import '@xterm/xterm/css/xterm.css';
 
 import { TerminalHeader } from './TerminalHeader';
@@ -269,6 +270,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [showQuickPrompts, setShowQuickPrompts] = useState(false);
   const [mouseTrackingEnabled, setMouseTrackingEnabled] = useState(false);
   const [managedCommandState, setManagedCommandState] = useState<ManagedTerminalCommandState | null>(null);
+  const [currentCwd, setCurrentCwd] = useState(session.cwd);
+  const currentCwdRef = useRef(session.cwd);
+  const cwdOutputBufferRef = useRef('');
   const mouseModesRef = useRef<Set<number>>(new Set());
   const lineBufferRef = useRef('');
   const lineTrackingReliableRef = useRef(true);
@@ -595,11 +599,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       request: {
         sessionId: session.id,
         workspaceId: session.workspaceId,
-        cwd: session.cwd,
+        cwd: currentCwdRef.current,
         command,
       },
     });
-  }, [session.cwd, session.id, session.workspaceId]);
+  }, [session.id, session.workspaceId]);
 
   /**
    * Shell-aware paste. CMD (cmd.exe) does NOT support bracketed paste — the
@@ -1051,6 +1055,16 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       const unlisten = await listen<string>(`terminal-output:${session.id}`, (event) => {
         if (!mounted) return;
         parseMouseTrackingState(event.payload);
+        cwdOutputBufferRef.current = `${cwdOutputBufferRef.current}${event.payload}`.slice(-8192);
+        const detectedCwd = detectTerminalCwd(
+          cwdOutputBufferRef.current,
+          session.shell,
+          currentCwdRef.current,
+        );
+        if (detectedCwd && detectedCwd !== currentCwdRef.current) {
+          currentCwdRef.current = detectedCwd;
+          setCurrentCwd(detectedCwd);
+        }
         // Detect dev-server URLs printed by `npm run dev` / vite / next etc.
         // and surface them to the workspace (chip + optional auto-open).
         const urls = event.payload.match(DEV_SERVER_URL_RE);
@@ -1085,9 +1099,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       mounted = false;
       if (unlistenFn) unlistenFn();
     };
-  }, [session.id, parseMouseTrackingState, handleFitAndResize]);
+  }, [session.id, session.shell, session.workspaceId, addDevServerUrl, parseMouseTrackingState, handleFitAndResize]);
 
   useEffect(() => {
+    currentCwdRef.current = session.cwd;
+    cwdOutputBufferRef.current = '';
+    setCurrentCwd(session.cwd);
     setCliLaunched(false);
     firstOutputFitDoneRef.current = false;
     launchAttemptsRef.current = 0;
@@ -1100,7 +1117,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       clearTimeout(launchTimeoutRef.current);
       launchTimeoutRef.current = null;
     }
-  }, [session.id, setTerminalMouseModes]);
+  }, [session.cwd, session.id, setTerminalMouseModes]);
 
   useEffect(() => {
     if (!session.agent) return;
@@ -1305,6 +1322,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     >
       <TerminalHeader
         session={session}
+        currentCwd={currentCwd}
         isActive={isActive}
         onRefreshCli={handleRefreshCli}
         isRefreshing={isRefreshing}
