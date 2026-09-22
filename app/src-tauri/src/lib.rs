@@ -6,6 +6,7 @@ mod commands;
 mod discord_presence;
 mod filesystem;
 mod ide;
+mod open_files;
 mod terminal;
 mod types;
 mod utils;
@@ -16,7 +17,7 @@ use agent_host::AgentHostManager;
 use browser::BrowserManager;
 use discord_presence::DiscordPresenceManager;
 use ide::IdeDetector;
-use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use terminal::{ManagedCommandManager, TerminalManager};
 
 fn setup_panic_hooks() {
@@ -42,6 +43,15 @@ fn setup_panic_hooks() {
     }));
 }
 
+fn focus_main_window_and_notify(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    let _ = app.emit("open-files-requested", ());
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     setup_panic_hooks();
@@ -58,8 +68,26 @@ pub fn run() {
     let ide_detector = IdeDetector::new();
     let discord_manager = DiscordPresenceManager::new();
     let agent_host_manager = AgentHostManager::new();
+    let open_file_manager = open_files::OpenFileManager::default();
+    let launch_directory =
+        std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+    open_file_manager.enqueue_candidates(std::env::args_os().skip(1), &launch_directory);
+    let single_instance_open_file_manager = open_file_manager.clone();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        // This plugin must be registered first. A file opened while YzPzCode is
+        // already running launches a short-lived second process; the plugin
+        // forwards its arguments to this callback in the original process.
+        .plugin(tauri_plugin_single_instance::init(move |app, args, cwd| {
+            let added = single_instance_open_file_manager
+                .enqueue_candidates(args.into_iter().skip(1), std::path::Path::new(&cwd));
+
+            if added == 0 {
+                return;
+            }
+
+            focus_main_window_and_notify(app);
+        }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -74,6 +102,7 @@ pub fn run() {
         .manage(ide_detector.clone())
         .manage(discord_manager.clone())
         .manage(agent_host_manager.clone())
+        .manage(open_file_manager)
         .setup(move |app| {
             terminal_manager.set_app_handle(app.handle().clone());
             agent_executor.set_app_handle(app.handle().clone());
@@ -235,6 +264,7 @@ pub fn run() {
             commands::launch_external_terminals,
             commands::launch_external_command,
             commands::path_exists,
+            commands::take_pending_open_files,
             commands::list_directory_entries,
             commands::list_all_files,
             commands::list_all_entries,
@@ -333,6 +363,26 @@ pub fn run() {
             commands::translate_prompt_to_english,
             commands::translate_text,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    #[cfg(target_os = "macos")]
+    app.run(|app, event| {
+        // macOS delivers Finder/Open-With requests as file URLs instead of
+        // process arguments. Keeping them in the same durable queue gives
+        // the frontend identical behavior on every desktop platform.
+        if let tauri::RunEvent::Opened { urls } = event {
+            let file_paths = urls
+                .into_iter()
+                .filter_map(|url| url.to_file_path().ok())
+                .collect::<Vec<_>>();
+            let manager = app.state::<open_files::OpenFileManager>();
+            if manager.enqueue_candidates(file_paths, std::path::Path::new(".")) > 0 {
+                focus_main_window_and_notify(app);
+            }
+        }
+    });
+
+    #[cfg(not(target_os = "macos"))]
+    app.run(|_, _| {});
 }

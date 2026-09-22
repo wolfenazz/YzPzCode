@@ -10,6 +10,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { useAppStore } from './stores/appStore';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { useEffectiveTheme } from './hooks/useEffectiveTheme';
+import { useDesktopFileOpen } from './hooks/useDesktopFileOpen';
 import { initWindowPlatform } from './utils/window';
 import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
 
@@ -53,8 +54,10 @@ function App() {
     pruneMissingWorkspaces,
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
+  const [startupReady, setStartupReady] = useState(false);
   const effectiveTheme = useEffectiveTheme();
   useDiscordPresence();
+  useDesktopFileOpen(startupReady);
 
   useEffect(() => {
     if (customCursor) {
@@ -128,7 +131,12 @@ function App() {
     });
 
     if (nodejsCheckPassed) {
-      restoreWorkspace();
+      void restoreWorkspace().finally(() => setStartupReady(true));
+    } else {
+      // File editing itself does not require Node.js. This lets a file opened
+      // from the desktop shell bypass onboarding while the normal first-run
+      // experience remains unchanged when there is no pending file.
+      setStartupReady(true);
     }
   }, [nodejsCheckPassed]);
 
