@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
@@ -41,7 +41,7 @@ pub struct ManagedCommandState {
 
 struct ManagedProcess {
     workspace_id: String,
-    child: Arc<Mutex<Child>>,
+    pid: u32,
     stop_requested: Arc<AtomicBool>,
 }
 
@@ -73,7 +73,8 @@ impl ManagedCommandManager {
         cwd: &str,
         command: &str,
     ) -> Result<()> {
-        self.stop_command(session_id).ok();
+        self.stop_command(session_id)
+            .context("Failed to stop the previous managed command")?;
 
         let app = self.app_handle()?;
         let workspace_id_owned = workspace_id.to_string();
@@ -103,7 +104,6 @@ impl ManagedCommandManager {
         let pid = child.id();
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
-        let child = Arc::new(Mutex::new(child));
         let stop_requested = Arc::new(AtomicBool::new(false));
 
         state.status = ManagedCommandStatus::Running;
@@ -114,7 +114,7 @@ impl ManagedCommandManager {
             session_id.to_string(),
             ManagedProcess {
                 workspace_id: workspace_id_owned.clone(),
-                child: child.clone(),
+                pid,
                 stop_requested: stop_requested.clone(),
             },
         );
@@ -134,26 +134,48 @@ impl ManagedCommandManager {
         let waiter_workspace_id = workspace_id_owned.clone();
         let waiter_command = command_owned.clone();
         thread::spawn(move || {
-            let exit_status = child.lock().unwrap().wait();
+            // The waiter exclusively owns the Child handle. Holding a mutex
+            // guard around Child::wait blocks the stop path for the entire
+            // lifetime of a development server, so stop by PID/process group
+            // instead and let this thread reap the process after termination.
+            let exit_status = child.wait();
             drop(output_tx);
 
-            let mut final_state = manager
-                .states
-                .lock()
-                .unwrap()
-                .get(&session_id_owned)
-                .cloned()
-                .unwrap_or(ManagedCommandState {
-                    session_id: session_id_owned.clone(),
-                    workspace_id: waiter_workspace_id,
-                    command: waiter_command,
-                    status: ManagedCommandStatus::Idle,
-                    pid: Some(pid),
-                    exit_code: None,
-                    error: None,
-                });
+            // A replacement command can be launched for the same terminal as
+            // soon as the old process tree has been terminated. Only the
+            // waiter that still owns the session slot may remove/update it;
+            // otherwise a late old waiter could erase the new command.
+            let owns_session = {
+                let mut processes = manager.processes.lock().unwrap();
+                let owns_session = processes
+                    .get(&session_id_owned)
+                    .is_some_and(|process| process.pid == pid);
+                if owns_session {
+                    processes.remove(&session_id_owned);
+                }
+                owns_session
+            };
+            if !owns_session {
+                return;
+            }
 
-            manager.processes.lock().unwrap().remove(&session_id_owned);
+            let mut final_state = {
+                manager
+                    .states
+                    .lock()
+                    .unwrap()
+                    .get(&session_id_owned)
+                    .cloned()
+            }
+            .unwrap_or(ManagedCommandState {
+                session_id: session_id_owned.clone(),
+                workspace_id: waiter_workspace_id,
+                command: waiter_command,
+                status: ManagedCommandStatus::Idle,
+                pid: Some(pid),
+                exit_code: None,
+                error: None,
+            });
 
             match exit_status {
                 Ok(status) => {
@@ -207,7 +229,7 @@ impl ManagedCommandManager {
             let processes = self.processes.lock().unwrap();
             processes.get(session_id).map(|process| ManagedProcess {
                 workspace_id: process.workspace_id.clone(),
-                child: process.child.clone(),
+                pid: process.pid,
                 stop_requested: process.stop_requested.clone(),
             })
         };
@@ -217,12 +239,52 @@ impl ManagedCommandManager {
         };
 
         process.stop_requested.store(true, Ordering::Relaxed);
-        if let Some(mut state) = self.states.lock().unwrap().get(session_id).cloned() {
+        let current_state = {
+            self.states
+                .lock()
+                .unwrap()
+                .get(session_id)
+                .filter(|state| state.pid == Some(process.pid))
+                .cloned()
+        };
+        if let Some(mut state) = current_state {
             state.status = ManagedCommandStatus::Stopping;
+            state.error = None;
             self.set_state(state);
         }
 
-        kill_child_process(&process.child)
+        if let Err(error) = terminate_process_tree(process.pid) {
+            let still_current = self
+                .processes
+                .lock()
+                .unwrap()
+                .get(session_id)
+                .is_some_and(|current| current.pid == process.pid);
+            // The process may have exited naturally between our lookup and
+            // taskkill/kill. Its waiter has already completed the state in
+            // that case, so do not overwrite the terminal with a stale error.
+            if !still_current {
+                return Ok(());
+            }
+
+            let current_state = {
+                self.states
+                    .lock()
+                    .unwrap()
+                    .get(session_id)
+                    .filter(|state| state.pid == Some(process.pid))
+                    .cloned()
+            };
+            if let Some(mut state) = current_state {
+                state.status = ManagedCommandStatus::Running;
+                state.error = Some(error.to_string());
+                self.set_state(state);
+            }
+            process.stop_requested.store(false, Ordering::Relaxed);
+            return Err(error);
+        }
+
+        Ok(())
     }
 
     pub fn stop_commands_by_workspace(&self, workspace_id: &str) -> Result<()> {
@@ -410,7 +472,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
 /// a root package or non-JavaScript commands.
 fn resolve_managed_command_cwd(cwd: &std::path::Path, command: &str) -> std::path::PathBuf {
     let starts_js_command = matches!(
-        command.trim_start().split_whitespace().next(),
+        command.split_whitespace().next(),
         Some("npm" | "npx" | "pnpm" | "yarn" | "bun" | "vite" | "next")
     );
     let app_dir = cwd.join("app");
@@ -469,35 +531,95 @@ fn build_windows_path() -> String {
     path
 }
 
-fn kill_child_process(child: &Arc<Mutex<Child>>) -> Result<()> {
-    let pid = child.lock().unwrap().id();
-
+fn terminate_process_tree(pid: u32) -> Result<()> {
     #[cfg(target_os = "windows")]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        Command::new("taskkill")
+        let output = Command::new("taskkill")
             .args(["/F", "/T", "/PID", &pid.to_string()])
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
+            .output()
             .with_context(|| format!("Failed to stop managed command pid {}", pid))?;
+
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(anyhow::anyhow!(
+                "Failed to stop managed command pid {} (taskkill exit {:?}){}",
+                pid,
+                output.status.code(),
+                if detail.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", detail)
+                }
+            ));
+        }
         Ok(())
     }
 
     #[cfg(not(target_os = "windows"))]
     {
-        Command::new("kill")
+        let status = Command::new("kill")
             .args(["-TERM", &format!("-{}", pid)])
             .stdin(Stdio::null())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
-            .ok();
-        child.lock().unwrap().kill().ok();
+            .with_context(|| format!("Failed to signal managed command group {}", pid))?;
+        if !status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to signal managed command group {} (kill exit {:?})",
+                pid,
+                status.code()
+            ));
+        }
         return Ok(());
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod tests {
+    use super::terminate_process_tree;
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn terminate_process_tree_stops_a_long_running_command() {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let mut child = Command::new("ping.exe")
+            .args(["-t", "127.0.0.1"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn long-running command");
+        let pid = child.id();
+
+        thread::sleep(Duration::from_millis(150));
+        if let Err(error) = terminate_process_tree(pid) {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("terminate command process tree: {error:#}");
+        }
+
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while Instant::now() < deadline {
+            if child.try_wait().expect("query child status").is_some() {
+                child.wait().expect("reap terminated child");
+                return;
+            }
+            thread::sleep(Duration::from_millis(25));
+        }
+
+        let _ = child.kill();
+        let _ = child.wait();
+        panic!("managed command was still running after process-tree termination");
     }
 }

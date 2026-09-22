@@ -276,6 +276,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const mouseModesRef = useRef<Set<number>>(new Set());
   const lineBufferRef = useRef('');
   const lineTrackingReliableRef = useRef(true);
+  const managedCommandActiveRef = useRef(false);
+  const managedStopRequestedRef = useRef(false);
   const setTerminalMouseModes = useAppStore((state) => state.setTerminalMouseModes);
   const addDevServerUrl = useAppStore((state) => state.addDevServerUrl);
   const manualAgent = useAppStore((state) => state.manualAgentBySession[session.id]);
@@ -364,6 +366,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
     managedCommandState?.status === 'Stopping';
+  managedCommandActiveRef.current = managedCommandActive;
+  if (!managedCommandActive) {
+    managedStopRequestedRef.current = false;
+  }
 
   const sendResize = useCallback(async (dims: { cols: number; rows: number; pixelWidth: number; pixelHeight: number }) => {
     resizeInFlightRef.current = true;
@@ -781,7 +787,31 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       }).catch(console.error);
     };
 
+    // Managed development commands run outside the shell PTY so they can be
+    // tracked and stopped as a complete process tree. Their lifetime must not
+    // depend on PTY input: stdin is disabled while they run, which means
+    // xterm's normal Ctrl+C data event is intentionally suppressed. Capture
+    // the physical shortcut before xterm and route it to the managed stop API.
+    const handleManagedInterrupt = (event: KeyboardEvent) => {
+      const isCtrlC = event.ctrlKey
+        && !event.altKey
+        && !event.shiftKey
+        && event.key.toLowerCase() === 'c';
+      if (!isCtrlC || !managedCommandActiveRef.current || xterm.hasSelection()) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (managedStopRequestedRef.current) return;
+      managedStopRequestedRef.current = true;
+
+      invoke('stop_managed_terminal_command', { sessionId: session.id }).catch((error) => {
+        managedStopRequestedRef.current = false;
+        console.error('Failed to interrupt managed terminal command:', error);
+      });
+    };
+
     terminalElement.addEventListener('paste', handlePasteCapture, { capture: true });
+    terminalElement.addEventListener('keydown', handleManagedInterrupt, { capture: true });
     terminalElement.addEventListener('mousedown', handleMouseDownFocus);
     terminalElement.addEventListener('wheel', handleWheel, { passive: true });
     terminalElement.addEventListener('contextmenu', handleContextMenu);
@@ -838,7 +868,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       // xterm normally reports Enter as CR, but some shells/keymaps emit LF.
       // Detect both so manually typed AI commands promote the terminal header
       // consistently across Windows, macOS, and Linux shells.
-      if (!managedCommandActive && /[\r\n]/.test(data) && lineTrackingReliableRef.current) {
+      if (!managedCommandActiveRef.current && /[\r\n]/.test(data) && lineTrackingReliableRef.current) {
         const commandCandidate = lineBufferRef.current;
         lineBufferRef.current = '';
         lineTrackingReliableRef.current = true;
@@ -972,6 +1002,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         fontsApi.removeEventListener('loadingdone', onFontsDone);
       }
       terminalElement.removeEventListener('paste', handlePasteCapture, true);
+      terminalElement.removeEventListener('keydown', handleManagedInterrupt, true);
       terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
       terminalElement.removeEventListener('wheel', handleWheel);
       terminalElement.removeEventListener('contextmenu', handleContextMenu);
@@ -982,7 +1013,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, handleFitAndResize, managedCommandActive, startManagedCommand, pasteToTerminal, pasteClipboardText]);
+  }, [session.id, handleFitAndResize, startManagedCommand, pasteToTerminal, pasteClipboardText]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
