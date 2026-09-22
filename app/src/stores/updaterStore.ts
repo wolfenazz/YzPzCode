@@ -93,7 +93,7 @@ export const useUpdaterStore = create<UpdaterState>((set, get) => ({
         return false;
       }
 
-      set({ downloading: true, downloadProgress: 0 });
+      set({ downloading: true, downloadProgress: 0, error: null });
 
       let downloaded = 0;
       let contentLength = 0;
