@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowClockwise, FolderOpen, ListBullets, MouseSimple, Plus, Sparkle, TerminalWindow, X } from '@phosphor-icons/react';
+import { ArrowClockwise, FolderOpen, ListBullets, MouseSimple, Plus, Sparkle, Square, TerminalWindow, X } from '@phosphor-icons/react';
 import { Icon } from '@iconify/react';
-import { CliType, AgentType, ToolCliType, TerminalSession } from '../../types';
+import { CliType, AgentType, ToolCliType, TerminalSession, ManagedTerminalCommandState } from '../../types';
 import { QuickActions } from './QuickActions';
 import { TerminalLayoutPicker } from './TerminalLayoutPicker';
 import { AGENT_COMMANDS, getCommandIcon } from '../../data/agentCommands';
@@ -65,6 +65,8 @@ interface TerminalHeaderProps {
   isActive?: boolean;
   showQuickPrompts?: boolean;
   onToggleQuickPrompts?: () => void;
+  managedCommandState: ManagedTerminalCommandState | null;
+  onStopManagedCommand: () => void;
 }
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
@@ -83,6 +85,8 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   isActive = false,
   showQuickPrompts = false,
   onToggleQuickPrompts,
+  managedCommandState,
+  onStopManagedCommand,
 }) => {
   // The effective agent combines the fleet-assigned agent with a runtime
   // detection of an agent launched manually inside the terminal, so the badge
@@ -90,6 +94,9 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   const effectiveAgent = agentOverride ?? session.agent;
   const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
   const mouseOn = mouseTrackingEnabled;
+  const managedBusy = managedCommandState?.status === 'Starting'
+    || managedCommandState?.status === 'Running'
+    || managedCommandState?.status === 'Stopping';
 
   const [commandsOpen, setCommandsOpen] = useState(false);
   const commandsRef = useRef<HTMLDivElement>(null);
@@ -292,7 +299,25 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
             <Sparkle size={12} />
           </button>
         )}
-        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={currentCwd} />
+        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={currentCwd} managedState={managedCommandState} />
+        {managedBusy && (
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onStopManagedCommand();
+            }}
+            disabled={managedCommandState?.status === 'Stopping'}
+            className="flex h-5 items-center gap-1 rounded border border-rose-400/40 bg-rose-500/10 px-1.5 text-[9px] font-medium text-rose-400 transition-colors cursor-pointer hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-50"
+            title={managedCommandState?.command ? `Stop: ${managedCommandState.command}` : 'Stop running command'}
+            aria-label="Stop running command"
+          >
+            <Square size={10} weight="fill" aria-hidden="true" />
+            <span>{managedCommandState?.status === 'Stopping' ? 'Stopping' : 'Stop'}</span>
+          </button>
+        )}
         <div className="h-3 w-px bg-[var(--border-primary)]" />
         {session.agent && (
           <button

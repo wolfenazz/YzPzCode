@@ -366,10 +366,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
     managedCommandState?.status === 'Stopping';
-  managedCommandActiveRef.current = managedCommandActive;
-  if (!managedCommandActive) {
-    managedStopRequestedRef.current = false;
-  }
+  useEffect(() => {
+    managedCommandActiveRef.current = managedCommandActive;
+    if (!managedCommandActive) managedStopRequestedRef.current = false;
+  }, [managedCommandActive]);
 
   const sendResize = useCallback(async (dims: { cols: number; rows: number; pixelWidth: number; pixelHeight: number }) => {
     resizeInFlightRef.current = true;
@@ -601,15 +601,33 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [mouseTrackingEnabled, syncMouseModes]);
 
   const startManagedCommand = useCallback(async (command: string) => {
-    await invoke('run_managed_terminal_command', {
-      request: {
-        sessionId: session.id,
-        workspaceId: session.workspaceId,
-        cwd: currentCwdRef.current,
-        command,
-      },
-    });
+    managedCommandActiveRef.current = true;
+    try {
+      await invoke('run_managed_terminal_command', {
+        request: {
+          sessionId: session.id,
+          workspaceId: session.workspaceId,
+          cwd: currentCwdRef.current,
+          command,
+        },
+      });
+    } catch (error) {
+      managedCommandActiveRef.current = false;
+      throw error;
+    }
   }, [session.id, session.workspaceId]);
+
+  const stopManagedCommand = useCallback(async () => {
+    if (managedStopRequestedRef.current) return;
+    managedStopRequestedRef.current = true;
+    try {
+      await invoke('stop_managed_terminal_command', { sessionId: session.id });
+    } catch (error) {
+      managedStopRequestedRef.current = false;
+      console.error('Failed to stop managed terminal command:', error);
+      xtermRef.current?.writeln(`\r\n[managed] failed to stop command: ${String(error)}`);
+    }
+  }, [session.id]);
 
   /**
    * Shell-aware paste. CMD (cmd.exe) does NOT support bracketed paste — the
@@ -619,7 +637,24 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
    * normalized \n endings.
    */
   const pasteToTerminal = useCallback(async (text: string) => {
-    if (!text) return;
+    if (!text || managedCommandActiveRef.current) return;
+
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const pastedLine = normalized.replace(/\n$/, '');
+    const isSingleLine = !pastedLine.includes('\n');
+    if (lineTrackingReliableRef.current && isSingleLine) {
+      const commandCandidate = lineBufferRef.current + pastedLine;
+      if (normalized.endsWith('\n') && shouldInterceptManagedCommand(commandCandidate)) {
+        lineBufferRef.current = '';
+        await invoke('write_to_terminal', { sessionId: session.id, input: '\x03\r' });
+        await startManagedCommand(commandCandidate.trim());
+        return;
+      }
+      lineBufferRef.current = normalized.endsWith('\n') ? '' : commandCandidate;
+    } else {
+      lineBufferRef.current = '';
+      lineTrackingReliableRef.current = false;
+    }
 
     // Pasting writes directly to the PTY (and therefore does not pass through
     // xterm's onData handler). Promote a plain pasted agent command as well so
@@ -635,7 +670,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const DELAY = 2;
 
     if (shellKind === 'cmd') {
-      const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
       const lines = normalized.split('\n');
       const endsWithNewline = normalized.endsWith('\n');
 
@@ -661,8 +695,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
 
     // PowerShell / bash / zsh: bracketed paste keeps multi-line input safe.
-    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
     await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
     for (let i = 0; i < normalized.length; i += CHUNK_SIZE) {
       const chunk = normalized.slice(i, i + CHUNK_SIZE);
@@ -672,7 +704,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       }
     }
     await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
-  }, [session.id, setManualAgent]);
+  }, [session.id, setManualAgent, startManagedCommand]);
 
   const pasteClipboardText = useCallback(
     (text: string) => {
@@ -801,13 +833,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
       event.preventDefault();
       event.stopPropagation();
-      if (managedStopRequestedRef.current) return;
-      managedStopRequestedRef.current = true;
-
-      invoke('stop_managed_terminal_command', { sessionId: session.id }).catch((error) => {
-        managedStopRequestedRef.current = false;
-        console.error('Failed to interrupt managed terminal command:', error);
-      });
+      void stopManagedCommand();
     };
 
     terminalElement.addEventListener('paste', handlePasteCapture, { capture: true });
@@ -1013,7 +1039,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, handleFitAndResize, startManagedCommand, pasteToTerminal, pasteClipboardText]);
+  }, [session.id, handleFitAndResize, startManagedCommand, stopManagedCommand, pasteToTerminal, pasteClipboardText]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
@@ -1047,26 +1073,25 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   useEffect(() => {
     let mounted = true;
-
-    invoke<ManagedTerminalCommandState | null>('get_managed_terminal_command_state', {
-      sessionId: session.id,
-    }).then((state) => {
-      if (mounted) {
-        setManagedCommandState(state);
-      }
-    }).catch(() => undefined);
-
     let unlistenFn: (() => void) | null = null;
-    listen<ManagedTerminalCommandState>('managed-command-state-changed', (event) => {
-      if (!mounted || event.payload.sessionId !== session.id) return;
-      setManagedCommandState(event.payload);
-    }).then((fn) => {
-      if (mounted) {
-        unlistenFn = fn;
-      } else {
-        fn();
+    let receivedEvent = false;
+    setManagedCommandState(null);
+    void (async () => {
+      const unlisten = await listen<ManagedTerminalCommandState>('managed-command-state-changed', (event) => {
+        if (!mounted || event.payload.sessionId !== session.id) return;
+        receivedEvent = true;
+        setManagedCommandState(event.payload);
+      });
+      if (!mounted) {
+        unlisten();
+        return;
       }
-    });
+      unlistenFn = unlisten;
+      const state = await invoke<ManagedTerminalCommandState | null>('get_managed_terminal_command_state', {
+        sessionId: session.id,
+      });
+      if (mounted && !receivedEvent) setManagedCommandState(state);
+    })().catch((error) => console.error('Failed to load managed command state:', error));
 
     return () => {
       mounted = false;
@@ -1365,6 +1390,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         agentOverride={effectiveAgent}
         showQuickPrompts={showQuickPrompts}
         onToggleQuickPrompts={() => setShowQuickPrompts((v) => !v)}
+        managedCommandState={managedCommandState}
+        onStopManagedCommand={() => void stopManagedCommand()}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}

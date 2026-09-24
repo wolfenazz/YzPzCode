@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-import { Hammer, Play, Square } from '@phosphor-icons/react';
+import { Hammer, Play } from '@phosphor-icons/react';
 import { detectProject, ProjectActions } from '../../utils/projectDetect';
 import type { ManagedTerminalCommandState } from '../../types';
 
@@ -9,15 +8,16 @@ interface QuickActionsProps {
   sessionId: string;
   workspaceId: string;
   cwd: string;
+  managedState: ManagedTerminalCommandState | null;
 }
 
 export const QuickActions: React.FC<QuickActionsProps> = ({
   sessionId,
   workspaceId,
   cwd,
+  managedState,
 }) => {
   const [detection, setDetection] = useState<{ cwd: string; actions: ProjectActions | null } | null>(null);
-  const [managedState, setManagedState] = useState<ManagedTerminalCommandState | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -30,35 +30,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
   }, [cwd]);
 
   const actions = detection?.cwd === cwd ? detection.actions : null;
-
-  useEffect(() => {
-    let mounted = true;
-    let unlisten: UnlistenFn | null = null;
-
-    invoke<ManagedTerminalCommandState | null>('get_managed_terminal_command_state', {
-      sessionId,
-    }).then((state) => {
-      if (mounted) {
-        setManagedState(state);
-      }
-    }).catch(() => undefined);
-
-    listen<ManagedTerminalCommandState>('managed-command-state-changed', (event) => {
-      if (!mounted || event.payload.sessionId !== sessionId) return;
-      setManagedState(event.payload);
-    }).then((fn) => {
-      if (mounted) {
-        unlisten = fn;
-      } else {
-        fn();
-      }
-    });
-
-    return () => {
-      mounted = false;
-      if (unlisten) unlisten();
-    };
-  }, [sessionId]);
 
   if (!actions) return null;
 
@@ -78,14 +49,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
       });
     } catch (e) {
       console.error('Quick action failed:', e);
-    }
-  };
-
-  const stopManagedCommand = async () => {
-    try {
-      await invoke('stop_managed_terminal_command', { sessionId });
-    } catch (e) {
-      console.error('Failed to stop managed command:', e);
     }
   };
 
@@ -118,16 +81,6 @@ export const QuickActions: React.FC<QuickActionsProps> = ({
         >
           <Hammer size={10} weight="fill" aria-hidden="true" />
           <span>Build</span>
-        </button>
-      )}
-      {managedBusy && (
-        <button
-          className={`${btnBase} hover:border-rose-400/60 hover:bg-rose-500/10 hover:text-rose-400`}
-          onClick={stopManagedCommand}
-          title={managedState?.command ? `Stop: ${managedState.command}` : 'Stop managed command'}
-        >
-          <Square size={10} weight="fill" aria-hidden="true" />
-          <span>Stop</span>
         </button>
       )}
     </div>

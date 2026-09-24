@@ -94,23 +94,36 @@ impl ManagedCommandManager {
             exit_code: None,
             error: None,
         };
+        // Keep stop requests behind startup until the child has a PID in the
+        // registry. Otherwise Ctrl+C during Starting can find no process and
+        // report success while the server continues to launch.
+        let mut processes = self.processes.lock().unwrap();
         self.set_state(state.clone());
 
-        let mut cmd = build_managed_command(cwd, &command_owned)?;
-        let mut child = cmd
-            .spawn()
-            .with_context(|| format!("Failed to spawn managed command: {}", command_owned))?;
+        let mut child = match build_managed_command(cwd, &command_owned).and_then(|mut cmd| {
+            cmd.spawn()
+                .with_context(|| format!("Failed to spawn managed command: {}", command_owned))
+        }) {
+            Ok(child) => child,
+            Err(error) => {
+                state.status = ManagedCommandStatus::Failed;
+                state.error = Some(error.to_string());
+                self.set_state(state);
+                self.emit_terminal_output(
+                    &app,
+                    session_id,
+                    &format!("\r\n[managed] command failed: {error}\r\n"),
+                );
+                return Err(error);
+            }
+        };
 
         let pid = child.id();
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         let stop_requested = Arc::new(AtomicBool::new(false));
 
-        state.status = ManagedCommandStatus::Running;
-        state.pid = Some(pid);
-        self.set_state(state.clone());
-
-        self.processes.lock().unwrap().insert(
+        processes.insert(
             session_id.to_string(),
             ManagedProcess {
                 workspace_id: workspace_id_owned.clone(),
@@ -118,6 +131,10 @@ impl ManagedCommandManager {
                 stop_requested: stop_requested.clone(),
             },
         );
+        state.status = ManagedCommandStatus::Running;
+        state.pid = Some(pid);
+        self.set_state(state.clone());
+        drop(processes);
 
         let (output_tx, output_rx) = mpsc::sync_channel(256);
         spawn_output_reader(app.clone(), session_id.to_string(), output_rx);
