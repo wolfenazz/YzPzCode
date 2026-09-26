@@ -6,7 +6,7 @@
 
 ### The Unified Workspace for AI Coding Agents
 
-**Run Claude, Gemini, Codex, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, and the built-in YZPZ Agent from one native desktop application.**
+**Run 27 external AI coding CLIs, 10 developer tool CLIs, and the built-in YZPZ Agent from one native desktop application.**
 
 <p align="center">
   <a href="https://github.com/wolfenazz/YzPzCode/releases/latest">
@@ -59,7 +59,7 @@ Modern AI-assisted development often degrades into a chaotic shuffle between doz
 | 🧩 External editor + external file viewer | 📝 **Embedded Monaco editor** + virtualized file tree |
 | 🌐 Separate browser for UI validation | 🔍 **In-app browser** with deep CSS / visual inspector |
 | ⚙️ Repetitive CLI install & auth checks | 🔑 **Automatic detection, 1-click install & auth tracking** |
-| 💬 Isolated AI chats with lost context | 🤖 **Built-in YZPZ Agent** + 9 supported external AI CLIs |
+| 💬 Isolated AI chats with lost context | 🤖 **Built-in YZPZ Agent** + 27 supported external AI CLIs |
 | 🎨 Switching to Photoshop / Figma for quick edits | 🖌️ **Built-in layered image editor** with blend modes |
 
 ---
@@ -99,7 +99,7 @@ Modern AI-assisted development often degrades into a chaotic shuffle between doz
 
 ## 🤖 Supported AI Coding CLIs
 
-YzPzCode detects, launches, and manages PTY sessions for 9 industry-standard AI coding agents out of the box:
+YzPzCode detects, launches, and manages PTY sessions for 27 external AI coding agents. The core integrations include:
 
 ```
                      ┌─── Claude (Anthropic)
@@ -124,6 +124,22 @@ YzPzCode detects, launches, and manages PTY sessions for 9 industry-standard AI 
 | **Hermes** | `hermes` | Compact autonomous terminal assistant |
 | **Pi** | `pi` | Minimalist coding agent harness with extension hooks |
 | **Command Code** | `cmd` / `cmdc` | Interactive command & script orchestration |
+
+Additional integrations include:
+
+| Agent | CLI Command | Agent | CLI Command |
+| :--- | :---: | :--- | :---: |
+| **Cline CLI** | `cline` | **Grok CLI** | `grok` |
+| **Devin for Terminal** | `devin` | **Trae CLI** | `traecli` |
+| **Kimi Code CLI** | `kimi` | **Qoder CLI** | `qoder` |
+| **GitHub Copilot CLI** | `copilot` | **Kiro CLI** | `kiro-cli` |
+| **Mistral Vibe** | `vibe` | **DeepSeek TUI** | `deepseek` |
+| **Aider** | `aider` | **Antigravity CLI** | `agy` |
+| **DeepSeek Reasonix** | `reasonix` | **Amp** | `amp` |
+| **DeepSeek Harness** | `dsh` | **CodeBuddy Code** | `codebuddy` |
+| **MiMo Code** | `mimo` | **AtomCode CLI** | `atomcode` |
+
+See [the CLI integration reference](docs/cli-integrations.md) for vendor install instructions, documentation, and platform notes.
 
 > [!IMPORTANT]
 > YzPzCode integrates with third-party CLIs via PTY bridges and is **not affiliated with or endorsed by their respective vendors** unless explicitly stated.
