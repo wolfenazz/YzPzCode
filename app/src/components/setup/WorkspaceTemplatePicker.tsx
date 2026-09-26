@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Icon } from '@iconify/react';
 import { WorkspaceTemplate } from '../../hooks/useWorkspace';
 import { CliType, AgentType } from '../../types';
+import { ADDITIONAL_AGENT_LABELS, ADDITIONAL_AGENT_COLORS, ADDITIONAL_AGENT_ZEROS } from '../../data/additionalAgents';
 
 interface WorkspaceTemplatePickerProps {
   selectedTemplateId: string;
@@ -55,6 +56,7 @@ const AGENT_LABELS: Record<AgentType, string> = {
   commandcode: 'Command Code',
   cline: 'Cline',
   grok: 'Grok',
+  ...ADDITIONAL_AGENT_LABELS,
 };
 
 const AGENT_COLORS: Record<AgentType, string> = {
@@ -69,10 +71,12 @@ const AGENT_COLORS: Record<AgentType, string> = {
   commandcode: '#D4D4D8',
   cline: '#0EA5E9',
   grok: '#A1A1AA',
+  ...ADDITIONAL_AGENT_COLORS,
 };
 
 const EMPTY_ALLOCATION: Record<CliType, number> = {
   claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, commandcode: 0, cline: 0, grok: 0,
+  ...ADDITIONAL_AGENT_ZEROS,
   gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0,
 };
 

@@ -9,6 +9,7 @@ use super::{
 };
 use crate::agent_cli::AgentCliProvider;
 use crate::terminal::TerminalManager;
+use crate::types::AgentType;
 use crate::utils::process::ProcessRunner;
 
 #[derive(Clone)]
@@ -186,9 +187,10 @@ impl AgentExecutor {
     }
 
     async fn generate_command(&self, prompt: &str) -> Result<String, String> {
-        let binary_name = {
+        let (binary_name, agent) = {
             let provider = self.provider.lock().unwrap();
-            provider.as_ref().ok_or("Provider not set")?.binary_name()
+            let provider = provider.as_ref().ok_or("Provider not set")?;
+            (provider.binary_name(), provider.agent_type())
         };
 
         let binary_path = ProcessRunner::find_binary_async(binary_name)
@@ -196,13 +198,21 @@ impl AgentExecutor {
             .ok_or(format!("CLI '{}' not found", binary_name))?;
 
         let prompt = prompt.to_string();
-        tokio::task::spawn_blocking(move || Self::run_cli(&binary_path, &prompt))
+        tokio::task::spawn_blocking(move || Self::run_cli(&binary_path, agent, &prompt))
             .await
             .map_err(|e| e.to_string())?
     }
 
-    fn run_cli(binary_path: &str, prompt: &str) -> Result<String, String> {
-        let output = ProcessRunner::run_cmd_hidden(binary_path, &[prompt])
+    fn run_cli(binary_path: &str, agent: AgentType, prompt: &str) -> Result<String, String> {
+        let mut args: Vec<&str> = Vec::new();
+        // Codex 0.157+ refuses to start its shared Windows app-server daemon
+        // from an elevated process; opt out so command generation still runs.
+        if agent == AgentType::Codex && crate::utils::process::is_process_elevated() {
+            args.push("--no-daemon");
+        }
+        args.push(prompt);
+
+        let output = ProcessRunner::run_cmd_hidden(binary_path, &args)
             .map_err(|e| format!("Failed to execute CLI: {}", e))?;
 
         if !output.status.success() {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Icon } from '@iconify/react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { SlidersHorizontal, TerminalWindow } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
 import { useAgentCli } from '../../../hooks/useAgentCli';
@@ -17,6 +18,7 @@ import piLogo from '../../../assets/pi.svg';
 import commandCodeLogo from '../../../assets/commandcode-logo.svg';
 import clineLogo from '../../../assets/cline.webp';
 import grokLogo from '../../../assets/Grok.png';
+import { ADDITIONAL_AGENT_LOGOS } from '../../../data/additionalAgents';
 
 const AGENT_ICONS: Record<string, string> = {
   claude: claudeLogo,
@@ -30,6 +32,7 @@ const AGENT_ICONS: Record<string, string> = {
   commandcode: commandCodeLogo,
   cline: clineLogo,
   grok: grokLogo,
+  ...ADDITIONAL_AGENT_LOGOS,
 };
 
 const TOOL_ICONS: Record<ToolCliType, string> = {
@@ -172,13 +175,13 @@ export const SettingsAgents: React.FC = () => {
                   <div className="flex items-center gap-2">
                     {!isInstalled && (
                       <button
-                        onClick={() => handleInstall(agentKey, () => openInstallTerminal(agentKey as AgentType))}
+                        onClick={() => handleInstall(agentKey, () => agentKey === 'amp' && navigator.userAgent.includes('Windows') ? openUrl('https://ampcode.com/docs/cli') : openInstallTerminal(agentKey as AgentType))}
                         onMouseEnter={() => loadTooltip(agentKey, () => getInstallCommand(agentKey as AgentType))}
                         disabled={installing[agentKey]}
                         className="px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={tooltips[agentKey] || 'Install via terminal'}
+                        title={agentKey === 'amp' && navigator.userAgent.includes('Windows') ? 'Open Amp WSL setup instructions' : tooltips[agentKey] || 'Install via terminal'}
                       >
-                        {installing[agentKey] ? 'Opening...' : 'Install'}
+                        {installing[agentKey] ? 'Opening...' : agentKey === 'amp' && navigator.userAgent.includes('Windows') ? 'Docs' : 'Install'}
                       </button>
                     )}
                     <span

@@ -5,9 +5,10 @@ interface AgentCliStatusBadgeProps {
   onInstall?: () => void;
   installing?: boolean;
   compact?: boolean;
+  installLabel?: string;
 }
 
-export function AgentCliStatusBadge({ cliInfo, onInstall, installing, compact = false }: AgentCliStatusBadgeProps) {
+export function AgentCliStatusBadge({ cliInfo, onInstall, installing, compact = false, installLabel = 'Install' }: AgentCliStatusBadgeProps) {
   const getStatusDisplay = () => {
     if (!cliInfo) {
       return {
@@ -96,7 +97,7 @@ export function AgentCliStatusBadge({ cliInfo, onInstall, installing, compact = 
           }}
           disabled={installing}
           className="inline-flex items-center gap-1.5 px-3 py-1 rounded-sm text-[10px] uppercase tracking-wider bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors disabled:opacity-50 border border-zinc-700"
-          title={`Install ${cliInfo?.displayName || 'CLI'}`}
+          title={`${installLabel} ${cliInfo?.displayName || 'CLI'}`}
         >
           {installing ? (
             <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -108,7 +109,7 @@ export function AgentCliStatusBadge({ cliInfo, onInstall, installing, compact = 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
           )}
-          {installing ? 'Running...' : 'Install'}
+          {installing ? 'Running...' : installLabel}
         </button>
       </div>
     );

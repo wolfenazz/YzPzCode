@@ -7,6 +7,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, CliType, ManagedTerminalCommandState } from '../../types';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
@@ -15,6 +16,7 @@ import { useAppStore } from '../../stores/appStore';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
 import { registerTerminal } from '../../utils/terminalRegistry';
 import { detectTerminalCwd } from '../../utils/terminalCwd';
+import { ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
 import '@xterm/xterm/css/xterm.css';
 
 import { TerminalHeader } from './TerminalHeader';
@@ -159,6 +161,22 @@ const AGENT_BINARY_NAMES: Record<string, AgentType> = {
   'command-code': 'commandcode',
   cline: 'cline',
   grok: 'grok',
+  devin: 'devin',
+  traecli: 'trae',
+  kimi: 'kimi',
+  qoder: 'qoder',
+  copilot: 'copilot',
+  'kiro-cli': 'kiro',
+  vibe: 'mistralvibe',
+  deepseek: 'deepseektui',
+  aider: 'aider',
+  agy: 'antigravity',
+  reasonix: 'reasonix',
+  amp: 'amp',
+  dsh: 'dsh',
+  codebuddy: 'codebuddy',
+  mimo: 'mimo',
+  atomcode: 'atomcode',
 };
 
 const LAUNCHER_TOKENS = new Set(['npx', 'npx.cmd', 'npx.exe', 'bunx', 'bunx.cmd', 'bunx.exe', 'sudo', 'yarn', 'npm', 'pnpm']);
@@ -1337,8 +1355,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleRetryInstall = async () => {
     if (!session.agent) return;
-    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok'];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
     if (!agentTypes.includes(session.agent as AgentType)) return;
+    if (session.agent === 'amp' && navigator.userAgent.includes('Windows')) {
+      await openUrl('https://ampcode.com/docs/cli');
+      return;
+    }
     setInstalling(true);
     await installCli(session.agent as AgentType);
     if (session.agent) {

@@ -17,7 +17,9 @@ use agent_host::AgentHostManager;
 use browser::BrowserManager;
 use discord_presence::DiscordPresenceManager;
 use ide::IdeDetector;
-use tauri::{Emitter, Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+#[cfg(any(not(debug_assertions), target_os = "macos"))]
+use tauri::Emitter;
+use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use terminal::{ManagedCommandManager, TerminalManager};
 
 fn setup_panic_hooks() {
@@ -43,6 +45,7 @@ fn setup_panic_hooks() {
     }));
 }
 
+#[cfg(any(not(debug_assertions), target_os = "macos"))]
 fn focus_main_window_and_notify(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -72,13 +75,23 @@ pub fn run() {
     let launch_directory =
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     open_file_manager.enqueue_candidates(std::env::args_os().skip(1), &launch_directory);
+    #[cfg(not(debug_assertions))]
     let single_instance_open_file_manager = open_file_manager.clone();
 
-    let app = tauri::Builder::default()
-        // This plugin must be registered first. A file opened while YzPzCode is
-        // already running launches a short-lived second process; the plugin
-        // forwards its arguments to this callback in the original process.
-        .plugin(tauri_plugin_single_instance::init(move |app, args, cwd| {
+    // This plugin must be registered first. A file opened while YzPzCode is
+    // already running launches a short-lived second process; the plugin
+    // forwards its arguments to this callback in the original process.
+    //
+    // It is release-only on purpose: the plugin guards a mutex named after the
+    // bundle identifier, which debug and release builds share. Registering it in
+    // `tauri dev` makes the dev build exit immediately whenever an installed
+    // YzPzCode is running (the plugin calls `process::exit(0)` on the duplicate),
+    // leaving an empty dev session. Disabling it in debug keeps file-association
+    // forwarding available in shipped builds while letting dev run alongside the
+    // installed app.
+    #[cfg(not(debug_assertions))]
+    let builder = tauri::Builder::default().plugin(tauri_plugin_single_instance::init(
+        move |app, args, cwd| {
             let added = single_instance_open_file_manager
                 .enqueue_candidates(args.into_iter().skip(1), std::path::Path::new(&cwd));
 
@@ -87,7 +100,13 @@ pub fn run() {
             }
 
             focus_main_window_and_notify(app);
-        }))
+        },
+    ));
+
+    #[cfg(debug_assertions)]
+    let builder = tauri::Builder::default();
+
+    let app = builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

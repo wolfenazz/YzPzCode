@@ -13,6 +13,7 @@ import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
 import clineLogo from '../../assets/cline.webp';
 import grokLogo from '../../assets/Grok.png';
+import { ADDITIONAL_AGENTS, ADDITIONAL_AGENT_TYPES, ADDITIONAL_AGENT_DESCRIPTIONS } from '../../data/additionalAgents';
 
 interface AgentOption {
   type: AgentType;
@@ -34,6 +35,7 @@ const AGENT_OPTIONS: AgentOption[] = [
   { type: 'commandcode', label: 'Command Code', description: 'Taste-Aware Coding Agent', logo: commandCodeLogo, color: '#FFFFFF' },
   { type: 'cline', label: 'Cline CLI', description: 'Agentic TUI with headless automation', logo: clineLogo, color: '#0EA5E9' },
   { type: 'grok', label: 'Grok CLI', description: 'xAI Agentic Coding Assistant', logo: grokLogo, color: '#A1A1AA' },
+  ...ADDITIONAL_AGENT_TYPES.map((type) => ({ type, ...ADDITIONAL_AGENTS[type] })),
 ];
 
 const AGENT_CAPABILITIES: Record<AgentType, string> = {
@@ -48,6 +50,7 @@ const AGENT_CAPABILITIES: Record<AgentType, string> = {
   commandcode: 'Agentic coding CLI that learns your preferences (package managers, libraries, structure) into a taste profile applied across all sessions.',
   cline: 'Agentic coding CLI with an interactive TUI and headless automation. Supports multiple model providers.',
   grok: 'xAI\'s agentic coding assistant. Interactive shell, headless single-prompt mode, streaming JSON output, and ACP for IDE/tool integration.',
+  ...ADDITIONAL_AGENT_DESCRIPTIONS,
 };
 
 const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; icon: string; color: string }[] = [

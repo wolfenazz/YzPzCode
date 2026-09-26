@@ -5,6 +5,7 @@ import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from '../stores/appStore';
 import { useFileEditor } from './useFileEditor';
 import type { AgentFleet, CliType, FileEntry, WorkspaceConfig } from '../types';
+import { ADDITIONAL_AGENT_ZEROS } from '../data/additionalAgents';
 
 const EMPTY_ALLOCATION: Record<CliType, number> = {
   claude: 0,
@@ -18,6 +19,7 @@ const EMPTY_ALLOCATION: Record<CliType, number> = {
   commandcode: 0,
   cline: 0,
   grok: 0,
+  ...ADDITIONAL_AGENT_ZEROS,
   gh: 0,
   stripe: 0,
   supabase: 0,

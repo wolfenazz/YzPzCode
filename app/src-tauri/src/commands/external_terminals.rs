@@ -189,7 +189,7 @@ fn launch_external_windows_separate(
 
     for (index, agent) in agent_queue.iter().enumerate() {
         let command_str = if let Some(a) = agent {
-            let binary = crate::agent_cli::CliLauncher::get_binary_name(*a);
+            let binary = crate::agent_cli::CliLauncher::get_launch_command(*a);
             format!(
                 "/k \"cd /d {} && timeout /t 2 /nobreak >nul && {}\"",
                 workspace_path, binary

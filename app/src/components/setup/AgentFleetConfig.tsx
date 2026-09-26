@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Icon } from '@iconify/react';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { motion } from 'framer-motion';
 import { CliType, AgentType, ToolCliType, AgentFleet } from '../../types';
 import { useAgentAllocation } from '../../hooks/useAgentAllocation';
@@ -22,6 +23,7 @@ import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
 import clineLogo from '../../assets/cline.webp';
 import grokLogo from '../../assets/Grok.png';
+import { ADDITIONAL_AGENTS, ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
 
 interface AgentFleetConfigProps {
   totalSlots: number;
@@ -43,6 +45,7 @@ const AGENT_INFO: Record<AgentType, { label: string; color: string; logo: string
   commandcode: { label: 'Command Code', color: 'bg-neutral-500', logo: commandCodeLogo },
   cline: { label: 'Cline', color: 'bg-sky-500', logo: clineLogo },
   grok: { label: 'Grok', color: 'bg-zinc-700', logo: grokLogo },
+  ...ADDITIONAL_AGENTS,
 };
 
 const TOOL_INFO: Record<ToolCliType, { label: string; icon: string; color: string }> = {
@@ -263,9 +266,13 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     isLaunchingRef.current = true;
     setInstallingCli(cli);
     try {
-      const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok'];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
       if (agentTypes.includes(cli as AgentType)) {
-        await openInstallTerminal(cli as AgentType);
+        if (cli === 'amp' && navigator.userAgent.includes('Windows')) {
+          await openUrl('https://ampcode.com/docs/cli');
+        } else {
+          await openInstallTerminal(cli as AgentType);
+        }
       } else {
         await openToolInstallTerminal(cli as ToolCliType);
       }
@@ -375,6 +382,7 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
                     cliInfo={cliStatuses[agent]}
                     onInstall={() => handleInstall(agent)}
                     installing={installingCli === agent}
+                    installLabel={agent === 'amp' && navigator.userAgent.includes('Windows') ? 'Docs' : 'Install'}
                   />
                 }
                 onToggle={() => toggleAgent(agent)}

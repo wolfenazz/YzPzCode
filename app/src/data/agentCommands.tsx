@@ -233,4 +233,7 @@ export const AGENT_COMMANDS: Record<AgentType, AgentCommand[]> = {
     { command: '/sessions', description: 'List and resume sessions' },
     { command: '/help', description: 'Show help' },
   ],
+  devin: [], trae: [], kimi: [], qoder: [], copilot: [], kiro: [],
+  mistralvibe: [], deepseektui: [], aider: [], antigravity: [],
+  reasonix: [], amp: [], dsh: [], codebuddy: [], mimo: [], atomcode: [],
 };

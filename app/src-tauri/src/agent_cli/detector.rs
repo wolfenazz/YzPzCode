@@ -107,6 +107,22 @@ impl AgentCliDetector {
             AgentType::CommandCode,
             AgentType::Cline,
             AgentType::Grok,
+            AgentType::Devin,
+            AgentType::Trae,
+            AgentType::Kimi,
+            AgentType::Qoder,
+            AgentType::Copilot,
+            AgentType::Kiro,
+            AgentType::MistralVibe,
+            AgentType::DeepseekTui,
+            AgentType::Aider,
+            AgentType::Antigravity,
+            AgentType::Reasonix,
+            AgentType::Amp,
+            AgentType::Dsh,
+            AgentType::Codebuddy,
+            AgentType::Mimo,
+            AgentType::Atomcode,
         ];
         agents
             .iter()

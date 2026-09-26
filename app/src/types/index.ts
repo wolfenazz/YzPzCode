@@ -1,4 +1,4 @@
-export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo" | "hermes" | "pi" | "commandcode" | "cline" | "grok";
+export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo" | "hermes" | "pi" | "commandcode" | "cline" | "grok" | "devin" | "trae" | "kimi" | "qoder" | "copilot" | "kiro" | "mistralvibe" | "deepseektui" | "aider" | "antigravity" | "reasonix" | "amp" | "dsh" | "codebuddy" | "mimo" | "atomcode";
 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 

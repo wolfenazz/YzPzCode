@@ -39,6 +39,27 @@ impl AuthDetector {
             AgentType::CommandCode => Self::check_commandcode_auth(),
             AgentType::Cline => Self::check_cline_auth(),
             AgentType::Grok => Self::check_grok_auth(),
+            AgentType::Devin
+            | AgentType::Trae
+            | AgentType::Kimi
+            | AgentType::Qoder
+            | AgentType::Copilot
+            | AgentType::Kiro
+            | AgentType::MistralVibe
+            | AgentType::DeepseekTui
+            | AgentType::Aider
+            | AgentType::Antigravity
+            | AgentType::Reasonix
+            | AgentType::Amp
+            | AgentType::Dsh
+            | AgentType::Codebuddy
+            | AgentType::Mimo
+            | AgentType::Atomcode => AuthInfo {
+                agent,
+                status: AuthStatus::Unknown,
+                error: None,
+                config_path: None,
+            },
             AgentType::Gh => Self::check_gh_auth(),
             AgentType::Stripe => Self::check_stripe_auth(),
             AgentType::Supabase => Self::check_supabase_auth(),
@@ -65,6 +86,22 @@ impl AuthDetector {
             AgentType::CommandCode,
             AgentType::Cline,
             AgentType::Grok,
+            AgentType::Devin,
+            AgentType::Trae,
+            AgentType::Kimi,
+            AgentType::Qoder,
+            AgentType::Copilot,
+            AgentType::Kiro,
+            AgentType::MistralVibe,
+            AgentType::DeepseekTui,
+            AgentType::Aider,
+            AgentType::Antigravity,
+            AgentType::Reasonix,
+            AgentType::Amp,
+            AgentType::Dsh,
+            AgentType::Codebuddy,
+            AgentType::Mimo,
+            AgentType::Atomcode,
         ]
         .iter()
         .map(|agent| Self::check_auth(*agent))
@@ -878,6 +915,25 @@ impl AuthDetector {
                 "export AGENTMAIL_API_KEY=\"am_us_xxx\"".to_string(),
             ],
             AgentType::Vercel => vec!["Run 'vercel login' in a terminal".to_string()],
+            AgentType::Devin
+            | AgentType::Trae
+            | AgentType::Kimi
+            | AgentType::Qoder
+            | AgentType::Copilot
+            | AgentType::Kiro
+            | AgentType::MistralVibe
+            | AgentType::DeepseekTui
+            | AgentType::Aider
+            | AgentType::Antigravity
+            | AgentType::Reasonix
+            | AgentType::Amp
+            | AgentType::Dsh
+            | AgentType::Codebuddy
+            | AgentType::Mimo
+            | AgentType::Atomcode => vec![format!(
+                "Run '{}' in a terminal and follow its sign-in or API key setup",
+                crate::agent_cli::get_provider(agent).binary_name()
+            )],
         }
     }
 }

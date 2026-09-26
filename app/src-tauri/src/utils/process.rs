@@ -390,3 +390,33 @@ impl ProcessRunner {
             .ok()?
     }
 }
+
+/// Whether the current process runs with an elevated (High integrity) token.
+///
+/// Codex 0.157+ auto-starts a shared Windows app-server daemon unless told
+/// otherwise, and that daemon refuses to start from an elevated process so
+/// that shared clients cannot inherit administrator privileges. Launch paths
+/// use this to opt out of the daemon when the host process is elevated.
+pub fn is_process_elevated() -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        static ELEVATED: LazyLock<bool> = LazyLock::new(|| {
+            ProcessRunner::run_hidden("whoami", &["/groups"])
+                .ok()
+                .filter(|output| output.status.success())
+                .map(|output| {
+                    let groups = String::from_utf8_lossy(&output.stdout);
+                    // High integrity (S-1-16-12288) or System (S-1-16-16384).
+                    groups.contains("S-1-16-12288") || groups.contains("S-1-16-16384")
+                })
+                .unwrap_or(false)
+        });
+
+        *ELEVATED
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        false
+    }
+}

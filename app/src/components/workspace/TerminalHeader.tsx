@@ -19,6 +19,7 @@ import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
 import clineLogo from '../../assets/cline.webp';
 import grokLogo from '../../assets/Grok.png';
+import { ADDITIONAL_AGENT_LOGOS } from '../../data/additionalAgents';
 
 export const AGENT_LOGOS: Record<AgentType, string> = {
   claude: claudeLogo,
@@ -32,6 +33,7 @@ export const AGENT_LOGOS: Record<AgentType, string> = {
   commandcode: commandCodeLogo,
   cline: clineLogo,
   grok: grokLogo,
+  ...ADDITIONAL_AGENT_LOGOS,
 };
 
 const TOOL_ICON_MAP: Record<ToolCliType, { icon: string; color: string }> = {

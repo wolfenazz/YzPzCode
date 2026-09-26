@@ -1,3 +1,4 @@
+mod additional;
 mod agentmail;
 mod claude;
 mod cline;
@@ -20,6 +21,7 @@ mod supabase;
 mod valyu;
 mod vercel;
 
+pub use additional::AdditionalCliProvider;
 pub use agentmail::AgentmailCliProvider;
 pub use claude::ClaudeCliProvider;
 pub use cline::ClineCliProvider;

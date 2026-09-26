@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { WorkspaceConfig, LayoutConfig, AgentFleet, CliType } from '../types';
 import { useAppStore } from '../stores/appStore';
+import { ADDITIONAL_AGENT_ZEROS } from '../data/additionalAgents';
 
 const ALL_TEMPLATES_KEY = 'yzpzcode-all-templates';
 
@@ -19,6 +20,7 @@ const DEFAULT_AGENT_FLEET: AgentFleet = {
     commandcode: 0,
     cline: 0,
     grok: 0,
+    ...ADDITIONAL_AGENT_ZEROS,
     gh: 0,
     stripe: 0,
     supabase: 0,
@@ -44,7 +46,7 @@ export interface WorkspaceTemplate {
 
 // Zero defaults for every non-codex/claude seed slot. `commandcode` lives here
 // (like the other agents) so template allocations spread from a fixed baseline.
-const TOOL_ZEROS = { gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0, commandcode: 0, cline: 0, grok: 0 };
+const TOOL_ZEROS = { gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0, commandcode: 0, cline: 0, grok: 0, ...ADDITIONAL_AGENT_ZEROS };
 
 export const SEED_TEMPLATES: WorkspaceTemplate[] = [
   {

@@ -47,11 +47,11 @@ pub trait AgentCliProvider: Send + Sync {
 
 pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
     use super::providers::{
-        AgentmailCliProvider, ClaudeCliProvider, ClineCliProvider, CodexCliProvider,
-        CommandCodeCliProvider, CursorCliProvider, ElevenlabsCliProvider, GeminiCliProvider,
-        GhCliProvider, GrokCliProvider, GwsCliProvider, HermesCliProvider, KiloCliProvider,
-        OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider, StripeCliProvider,
-        SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
+        AdditionalCliProvider, AgentmailCliProvider, ClaudeCliProvider, ClineCliProvider,
+        CodexCliProvider, CommandCodeCliProvider, CursorCliProvider, ElevenlabsCliProvider,
+        GeminiCliProvider, GhCliProvider, GrokCliProvider, GwsCliProvider, HermesCliProvider,
+        KiloCliProvider, OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider,
+        StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
     match agent {
         AgentType::Claude => Box::new(ClaudeCliProvider),
@@ -65,6 +65,22 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AgentType::CommandCode => Box::new(CommandCodeCliProvider),
         AgentType::Cline => Box::new(ClineCliProvider),
         AgentType::Grok => Box::new(GrokCliProvider),
+        AgentType::Devin
+        | AgentType::Trae
+        | AgentType::Kimi
+        | AgentType::Qoder
+        | AgentType::Copilot
+        | AgentType::Kiro
+        | AgentType::MistralVibe
+        | AgentType::DeepseekTui
+        | AgentType::Aider
+        | AgentType::Antigravity
+        | AgentType::Reasonix
+        | AgentType::Amp
+        | AgentType::Dsh
+        | AgentType::Codebuddy
+        | AgentType::Mimo
+        | AgentType::Atomcode => Box::new(AdditionalCliProvider(agent)),
         AgentType::Gh => Box::new(GhCliProvider),
         AgentType::Stripe => Box::new(StripeCliProvider),
         AgentType::Supabase => Box::new(SupabaseCliProvider),

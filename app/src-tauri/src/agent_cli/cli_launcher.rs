@@ -58,12 +58,7 @@ impl CliLauncher {
             }
         }
 
-        let binary_name = crate::agent_cli::CliLauncher::get_binary_name(agent);
-        let launch_command = if agent == AgentType::CommandCode {
-            format!("{} --yolo", binary_name)
-        } else {
-            binary_name.to_string()
-        };
+        let launch_command = Self::get_launch_command(agent);
 
         // The PTY session is spawned with a fully-populated PATH (see
         // terminal::session::PtySession::create), so the agent binary resolves
@@ -199,5 +194,24 @@ impl CliLauncher {
 
     pub fn get_binary_name(agent: AgentType) -> &'static str {
         get_provider(agent).binary_name()
+    }
+
+    /// Builds the full shell command used to launch an agent CLI in a terminal.
+    /// Agent-specific flags live here so every launch path (in-app PTY and
+    /// native external terminals) stays consistent.
+    pub fn get_launch_command(agent: AgentType) -> String {
+        let binary_name = Self::get_binary_name(agent);
+        match agent {
+            AgentType::Dsh => "dsh web --no-open".to_string(),
+            AgentType::CommandCode => format!("{} --yolo", binary_name),
+            // Codex 0.157+ auto-starts a shared Windows app-server daemon that
+            // refuses to run from an elevated process (shared clients would
+            // inherit administrator privileges). Inject --no-daemon so the
+            // launch still works when YzPzCode itself is elevated.
+            AgentType::Codex if crate::utils::process::is_process_elevated() => {
+                format!("{} --no-daemon", binary_name)
+            }
+            _ => binary_name.to_string(),
+        }
     }
 }
