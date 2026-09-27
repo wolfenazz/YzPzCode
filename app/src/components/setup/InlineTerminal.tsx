@@ -249,22 +249,20 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
             return false;
           }
 
-          if (isCtrl && event.key === 'v' && isKeydown) {
-            navigator.clipboard.readText().then(async (text) => {
-              if (!text) return;
-              try {
-                await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
-                const CHUNK = 512;
-                for (let i = 0; i < text.length; i += CHUNK) {
-                  const chunk = text.slice(i, i + CHUNK);
-                  await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
-                  if (i + CHUNK < text.length) {
-                    await new Promise((r) => setTimeout(r, 2));
-                  }
-                }
-                await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
-              } catch {}
-            }).catch(() => {});
+          // Let xterm's built-in paste handler consume the browser paste event,
+          // which reads the clipboard synchronously and applies bracketed paste
+          // when the shell enables it. The previous async
+          // navigator.clipboard.readText() path could run after a dictation tool
+          // (for example Handy) restored the previous clipboard and drop the
+          // transcript. Returning false only stops xterm from emitting a raw
+          // Ctrl+V byte; the browser default paste command still fires. Matching
+          // on `code` as well as `key` keeps this correct on non-Latin layouts
+          // and for Ctrl+Shift+V (key is "V" while Shift is held).
+          if (isCtrl && isKeydown && (event.key.toLowerCase() === 'v' || event.code === 'KeyV')) {
+            return false;
+          }
+
+          if (isKeydown && event.shiftKey && (event.key === 'Insert' || event.code === 'Insert')) {
             return false;
           }
 

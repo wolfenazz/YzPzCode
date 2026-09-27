@@ -814,9 +814,25 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       console.warn('Terminal WebGL renderer is unavailable; using the DOM renderer.', error);
     }
 
-    const handlePasteCapture = (e: Event) => {
+    // Paste is owned by the app so it can apply shell-aware bracketed paste and
+    // managed-command interception. The text is read synchronously from the
+    // clipboard data carried by the native paste event instead of
+    // navigator.clipboard.readText(): dictation/injection tools (for example
+    // Handy) publish the transcript, inject Ctrl+V, then restore the previous
+    // clipboard after only ~60 ms, so an async clipboard read can lose the race
+    // and return the old (often empty) clipboard — the paste then silently does
+    // nothing. The paste event's clipboardData is captured synchronously by the
+    // browser and needs no read permission, so it works for synthetic and real
+    // input alike. Running in the capture phase also swallows the event before
+    // xterm's own paste listeners (on the terminal element and helper textarea)
+    // can double-insert.
+    const handlePaste = (e: ClipboardEvent) => {
+      const text = e.clipboardData?.getData('text/plain') ?? '';
       e.preventDefault();
       e.stopPropagation();
+      if (text) {
+        void pasteClipboardText(text);
+      }
     };
 
     const handleMouseDownFocus = () => {
@@ -854,7 +870,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       void stopManagedCommand();
     };
 
-    terminalElement.addEventListener('paste', handlePasteCapture, { capture: true });
+    terminalElement.addEventListener('paste', handlePaste, { capture: true });
     terminalElement.addEventListener('keydown', handleManagedInterrupt, { capture: true });
     terminalElement.addEventListener('mousedown', handleMouseDownFocus);
     terminalElement.addEventListener('wheel', handleWheel, { passive: true });
@@ -1005,8 +1021,19 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         return false;
       }
 
-      if (isCtrl && event.key === 'v' && isKeydown) {
-        navigator.clipboard.readText().then((text) => pasteClipboardText(text)).catch(console.error);
+      // Do not consume the paste chord here — returning false only stops xterm
+      // from turning it into raw bytes. The browser still performs its default
+      // paste command, which fires the capture-phase paste handler above and
+      // reads the clipboard synchronously. Matching on `code` as well as `key`
+      // keeps this correct on non-Latin layouts (Handy injects VK_V, which is
+      // layout independent) and for Ctrl+Shift+V (the key is "V" while Shift is
+      // held). The Shift+Insert branch covers the alternate chord dictation
+      // tools use.
+      if (isCtrl && isKeydown && (event.key.toLowerCase() === 'v' || event.code === 'KeyV')) {
+        return false;
+      }
+
+      if (isKeydown && event.shiftKey && (event.key === 'Insert' || event.code === 'Insert')) {
         return false;
       }
 
@@ -1045,7 +1072,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       if (fontsApi) {
         fontsApi.removeEventListener('loadingdone', onFontsDone);
       }
-      terminalElement.removeEventListener('paste', handlePasteCapture, true);
+      terminalElement.removeEventListener('paste', handlePaste, true);
       terminalElement.removeEventListener('keydown', handleManagedInterrupt, true);
       terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
       terminalElement.removeEventListener('wheel', handleWheel);
