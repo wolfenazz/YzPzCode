@@ -204,6 +204,10 @@ impl CliLauncher {
         match agent {
             AgentType::Dsh => "dsh web --no-open".to_string(),
             AgentType::CommandCode => format!("{} --yolo", binary_name),
+            // Antigravity CLI gates every tool call behind a confirmation
+            // prompt. Launch it in YOLO mode so sessions started from
+            // YzPzCode run unattended.
+            AgentType::Antigravity => format!("{} --dangerously-skip-permissions", binary_name),
             // Codex 0.157+ auto-starts a shared Windows app-server daemon that
             // refuses to run from an elevated process (shared clients would
             // inherit administrator privileges). Inject --no-daemon so the
@@ -213,5 +217,23 @@ impl CliLauncher {
             }
             _ => binary_name.to_string(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn antigravity_launches_with_permission_bypass() {
+        assert_eq!(
+            CliLauncher::get_launch_command(AgentType::Antigravity),
+            "agy --dangerously-skip-permissions"
+        );
+    }
+
+    #[test]
+    fn plain_agents_launch_with_binary_name_only() {
+        assert_eq!(CliLauncher::get_launch_command(AgentType::Claude), "claude");
     }
 }

@@ -332,8 +332,8 @@ fn launch_external_macos(
 
     for (index, agent) in agent_queue.iter().enumerate() {
         let script = if let Some(a) = agent {
-            let binary = crate::agent_cli::CliLauncher::get_binary_name(*a);
-            format!("cd \"{}\" && {}", workspace_path, binary)
+            let launch_command = crate::agent_cli::CliLauncher::get_launch_command(*a);
+            format!("cd \"{}\" && {}", workspace_path, launch_command)
         } else {
             format!("cd \"{}\"", workspace_path)
         };
@@ -475,8 +475,8 @@ fn launch_external_linux(
 
     for (index, agent) in agent_queue.iter().enumerate() {
         let cmd = if let Some(a) = agent {
-            let binary = crate::agent_cli::CliLauncher::get_binary_name(*a);
-            format!("cd '{}' && {}; exec bash", workspace_path, binary)
+            let launch_command = crate::agent_cli::CliLauncher::get_launch_command(*a);
+            format!("cd '{}' && {}; exec bash", workspace_path, launch_command)
         } else {
             format!("cd '{}'; exec bash", workspace_path)
         };

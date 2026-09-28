@@ -22,7 +22,6 @@ cargo test test_name             # Run single test by name
 cargo test module_name::test     # Run tests in a specific module
 cargo test --test integration    # Run integration tests
 ```
-
 ### Frontend
 ```bash
 npm run dev                      # Vite dev server (standalone, from app/)
@@ -285,3 +284,6 @@ Appearance, Terminal, Editor, Agents, Workspace, IDE, Updates, Environment, Data
 - Tauri updater integration
 - Update channels: stable, beta, nightly
 - Download progress tracking with auto-install and relaunch
+
+
+
