@@ -208,13 +208,9 @@ impl CliLauncher {
             // prompt. Launch it in YOLO mode so sessions started from
             // YzPzCode run unattended.
             AgentType::Antigravity => format!("{} --dangerously-skip-permissions", binary_name),
-            // Codex 0.157+ auto-starts a shared Windows app-server daemon that
-            // refuses to run from an elevated process (shared clients would
-            // inherit administrator privileges). Inject --no-daemon so the
-            // launch still works when YzPzCode itself is elevated.
-            AgentType::Codex if crate::utils::process::is_process_elevated() => {
-                format!("{} --no-daemon", binary_name)
-            }
+            // Codex is launched with --no-daemon so it runs directly without
+            // spawning or relying on a background daemon.
+            AgentType::Codex => format!("{} --no-daemon", binary_name),
             _ => binary_name.to_string(),
         }
     }
@@ -223,6 +219,14 @@ impl CliLauncher {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn codex_launches_with_no_daemon() {
+        assert_eq!(
+            CliLauncher::get_launch_command(AgentType::Codex),
+            "codex --no-daemon"
+        );
+    }
 
     #[test]
     fn antigravity_launches_with_permission_bypass() {

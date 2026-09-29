@@ -397,6 +397,7 @@ impl ProcessRunner {
 /// otherwise, and that daemon refuses to start from an elevated process so
 /// that shared clients cannot inherit administrator privileges. Launch paths
 /// use this to opt out of the daemon when the host process is elevated.
+#[allow(dead_code)]
 pub fn is_process_elevated() -> bool {
     #[cfg(target_os = "windows")]
     {

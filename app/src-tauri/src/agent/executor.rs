@@ -205,9 +205,9 @@ impl AgentExecutor {
 
     fn run_cli(binary_path: &str, agent: AgentType, prompt: &str) -> Result<String, String> {
         let mut args: Vec<&str> = Vec::new();
-        // Codex 0.157+ refuses to start its shared Windows app-server daemon
-        // from an elevated process; opt out so command generation still runs.
-        if agent == AgentType::Codex && crate::utils::process::is_process_elevated() {
+        // Codex is run with --no-daemon so it executes directly without
+        // spawning or relying on a background daemon.
+        if agent == AgentType::Codex {
             args.push("--no-daemon");
         }
         args.push(prompt);
