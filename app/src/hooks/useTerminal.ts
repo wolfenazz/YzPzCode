@@ -16,13 +16,14 @@ export const useTerminal = () => {
   const isLoading = useAppStore((state) => state.isLoadingTerminals);
   const error = useAppStore((state) => state.terminalError);
   const setSessions = useAppStore((state) => state.setSessions);
+  const setSessionsForWorkspace = useAppStore((state) => state.setSessionsForWorkspace);
   const setIsLoading = useAppStore((state) => state.setIsLoadingTerminals);
   const setTerminalError = useAppStore((state) => state.setTerminalError);
 
   const createSessions = useCallback(async (params: CreateSessionsParams) => {
     setIsLoading(true);
     setTerminalError(null);
-    setSessions([]); // Clear old sessions immediately
+    setSessionsForWorkspace(params.workspaceId, []);
 
     try {
       const newSessions = await invoke<TerminalSession[]>('create_terminal_sessions', {
@@ -37,18 +38,22 @@ export const useTerminal = () => {
         },
       });
 
-      setSessions(newSessions);
+      // A workspace switch can happen while IPC creates the PTYs. Only update
+      // the owning workspace, so the active terminal grid is never replaced.
+      setSessionsForWorkspace(params.workspaceId, newSessions);
       return newSessions;
     } catch (err) {
       const variantMismatch = humanizeAgentVariantMismatch(err);
       const errorMsg = variantMismatch?.message ?? (err instanceof Error ? err.message : String(err));
       console.error('Failed to create terminal sessions:', err);
-      setTerminalError(errorMsg);
+      if (useAppStore.getState().activeWorkspaceId === params.workspaceId) {
+        setTerminalError(errorMsg);
+      }
       throw variantMismatch ?? err;
     } finally {
       setIsLoading(false);
     }
-  }, [setSessions, setIsLoading]);
+  }, [setSessionsForWorkspace, setIsLoading, setTerminalError]);
 
   const writeToTerminal = useCallback(async (sessionId: string, input: string) => {
     try {

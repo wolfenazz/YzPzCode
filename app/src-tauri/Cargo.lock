@@ -6513,7 +6513,7 @@ dependencies = [
 
 [[package]]
 name = "yzpzcode"
-version = "5.10.3"
+version = "5.11.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

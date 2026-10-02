@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
-import { ArrowLeft, GearSix, BookOpenText, Minus, Square, X } from '@phosphor-icons/react';
+import { ArrowLeft, GearSix, BookOpenText } from '@phosphor-icons/react';
 import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
 import { ThemeModeToggle } from './ThemeModeToggle';
+import { WindowControls } from './WindowControls';
 import logo from '../../assets/YzPzCodeLogo.png';
 
 interface ChromeActionProps {
@@ -70,11 +71,11 @@ export const AppChrome = ({
           <ChromeAction icon={<GearSix size={16} weight="regular" />} label="Settings" onClick={onSettings} />
         ) : null}
         {isWindows && onMinimize && onMaximize && onClose ? (
-          <div className="ml-1 flex h-full items-center gap-0.5 border-l border-[var(--border-primary)] pl-2">
-            <ChromeAction icon={<Minus size={14} />} label="Minimize" onClick={onMinimize} />
-            <ChromeAction icon={<Square size={11} />} label="Maximize" onClick={onMaximize} />
-            <ChromeAction icon={<X size={14} />} label="Close" onClick={onClose} />
-          </div>
+          <WindowControls
+            onMinimize={onMinimize}
+            onMaximize={onMaximize}
+            onClose={onClose}
+          />
         ) : null}
       </div>
     </header>

@@ -1,5 +1,21 @@
 import { invoke } from '@tauri-apps/api/core';
-import { FileEntry } from '../types';
+import type { FileEntry, ProjectRunTarget } from '../types';
+
+export async function detectRunTargets(cwd: string): Promise<ProjectRunTarget[]> {
+  const [native, project] = await Promise.all([
+    invoke<ProjectRunTarget[]>('get_project_run_targets', { cwd }),
+    detectProject(cwd),
+  ]);
+  const actionDirectory = project ? cwd : `${cwd}/app`;
+  const actions = project ?? await detectProject(actionDirectory);
+  if (actions) {
+    native.unshift({
+      id: `project:${actions.label}`, label: actions.label, language: actions.label,
+      cwd: actionDirectory, command: actions.devCmd ?? '', buildCommand: actions.buildCmd, unavailableReason: null,
+    });
+  }
+  return native;
+}
 
 export interface ProjectActions {
   devCmd: string | null;
@@ -73,24 +89,8 @@ async function doDetect(cwd: string): Promise<ProjectActions | null> {
   if (names.has('pubspec.yaml')) {
     return {
       devCmd: 'flutter run',
-      buildCmd: 'flutter build',
+      buildCmd: 'flutter build web',
       label: 'Flutter',
-    };
-  }
-
-  if (names.has('pyproject.toml') || names.has('requirements.txt')) {
-    return {
-      devCmd: 'python main.py',
-      buildCmd: null,
-      label: 'Python',
-    };
-  }
-
-  if (entries.some((e) => e.name.endsWith('.sln') || e.name.endsWith('.csproj'))) {
-    return {
-      devCmd: 'dotnet run',
-      buildCmd: 'dotnet build',
-      label: '.NET',
     };
   }
 
@@ -103,6 +103,7 @@ async function doDetect(cwd: string): Promise<ProjectActions | null> {
   }
 
   if (names.has('composer.json')) {
+    if (!names.has('artisan')) return null;
     return {
       devCmd: 'php artisan serve',
       buildCmd: null,
@@ -138,6 +139,7 @@ async function detectNodeProject(
   }
 
   const scripts = pkg.scripts || {};
+  const manager = names.has('pnpm-lock.yaml') ? 'pnpm' : names.has('yarn.lock') ? 'yarn' : names.has('bun.lock') || names.has('bun.lockb') ? 'bun' : 'npm';
   const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
 
   const hasDev =
@@ -149,12 +151,12 @@ async function detectNodeProject(
   if (!hasDev && !hasBuild) return null;
 
   let devCmd: string | null = null;
-  if ('dev' in scripts) devCmd = 'npm run dev';
-  else if ('serve' in scripts) devCmd = 'npm run serve';
-  else if ('start' in scripts) devCmd = 'npm start';
+  if ('dev' in scripts) devCmd = `${manager} run dev`;
+  else if ('serve' in scripts) devCmd = `${manager} run serve`;
+  else if ('start' in scripts) devCmd = `${manager} run start`;
 
   let buildCmd: string | null = null;
-  if (hasBuild) buildCmd = 'npm run build';
+  if (hasBuild) buildCmd = `${manager} run build`;
 
   const fileNames = new Set([...names, ...entries.map((e) => e.name)]);
   let label = 'Node';

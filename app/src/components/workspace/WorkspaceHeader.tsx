@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   BookOpenText,
   Code,
@@ -6,17 +6,16 @@ import {
   GitBranch,
   GlobeSimple,
   Keyboard,
-  Minus,
   Plus,
   SidebarSimple,
   Sparkle,
-  Square,
   TerminalWindow,
   X,
 } from '@phosphor-icons/react';
-import { WorkspaceConfig, WorkspaceView } from '../../types';
+import type { WorkspaceConfig, WorkspaceView } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
 import { ThemeModeToggle } from '../common/ThemeModeToggle';
+import { WindowControls } from '../common/WindowControls';
 import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
 import logo from '../../assets/YzPzCodeLogo.png';
 
@@ -126,6 +125,24 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 }) => {
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
   const titlebarRef = useTitlebarDrag<HTMLElement>();
+  const viewButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const activeViewIndex = viewOptions.findIndex((option) => option.view === activeView);
+
+  const handleViewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const focusedIndex = viewButtonRefs.current.findIndex((button) => button === event.target);
+    if (focusedIndex < 0) return;
+    let nextIndex: number;
+    switch (event.key) {
+      case 'ArrowRight': nextIndex = (focusedIndex + 1) % viewOptions.length; break;
+      case 'ArrowLeft': nextIndex = (focusedIndex - 1 + viewOptions.length) % viewOptions.length; break;
+      case 'Home': nextIndex = 0; break;
+      case 'End': nextIndex = viewOptions.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    viewButtonRefs.current[nextIndex]?.focus();
+    onViewChange(viewOptions[nextIndex].view);
+  };
 
   return (
     <>
@@ -180,20 +197,41 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           <ThemeModeToggle />
           <button onClick={onSettingsClick} className="workspace-chrome__tool app-icon-button" title="Settings (Ctrl+,)" type="button"><GearSix size={16} aria-hidden="true" /><span className="sr-only">Settings</span></button>
           <button onClick={() => setIsShortcutOpen(true)} className="workspace-chrome__tool app-icon-button" title="Keyboard shortcuts" type="button"><Keyboard size={16} aria-hidden="true" /><span className="sr-only">Keyboard shortcuts</span></button>
-          <div className="workspace-view-switcher flex h-7 items-center gap-px rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] p-0.5">
-            {viewOptions.map(({ view, label, icon: IconComponent }) => (
-              <button key={view} onClick={() => onViewChange(view)} className={`workspace-view-switcher__item flex h-6 items-center gap-1 rounded px-2 text-[11px] font-medium transition-colors cursor-pointer ${activeView === view ? 'is-active bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'}`} title={label} type="button">
-                <IconComponent size={14} weight="duotone" aria-hidden="true" />
+          <div
+            className="workspace-view-switcher"
+            role="group"
+            aria-label="Workspace view"
+            style={{ '--active-view-index': activeViewIndex } as React.CSSProperties}
+            onKeyDown={handleViewKeyDown}
+            onPointerMove={(event) => {
+              const bounds = event.currentTarget.getBoundingClientRect();
+              event.currentTarget.style.setProperty('--glass-pointer-x', `${event.clientX - bounds.left}px`);
+              event.currentTarget.style.setProperty('--glass-pointer-y', `${event.clientY - bounds.top}px`);
+            }}
+          >
+            <div className="workspace-view-switcher__lens" aria-hidden="true" />
+            {viewOptions.map(({ view, label, icon: IconComponent }, index) => (
+              <button
+                key={view}
+                ref={(button) => { viewButtonRefs.current[index] = button; }}
+                onClick={() => onViewChange(view)}
+                className={`workspace-view-switcher__item ${activeView === view ? 'is-active' : ''}`}
+                aria-label={label}
+                aria-pressed={activeView === view}
+                title={label}
+                type="button"
+              >
+                <IconComponent size={15} weight={activeView === view ? 'fill' : 'regular'} aria-hidden="true" />
                 <span>{label}</span>
               </button>
             ))}
           </div>
           {isWindows && (
-            <div className="workspace-window-controls ml-1 flex h-full border-l border-[var(--border-primary)]">
-              <button onClick={onMinimizeWindow} className="workspace-window-control grid h-full w-10 place-items-center text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer" title="Minimize" type="button"><Minus size={13} aria-hidden="true" /></button>
-              <button onClick={onMaximizeWindow} className="workspace-window-control grid h-full w-10 place-items-center text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer" title="Maximize" type="button"><Square size={12} aria-hidden="true" /></button>
-              <button onClick={onCloseWindow} className="workspace-window-control workspace-window-control--close grid h-full w-12 place-items-center text-[var(--text-secondary)] transition-colors hover:bg-[#c42b1c] hover:text-white cursor-pointer" title="Close" type="button"><X size={14} aria-hidden="true" /></button>
-            </div>
+            <WindowControls
+              onMinimize={onMinimizeWindow}
+              onMaximize={onMaximizeWindow}
+              onClose={onCloseWindow}
+            />
           )}
         </div>
       </header>

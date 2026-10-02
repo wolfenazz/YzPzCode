@@ -43,11 +43,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     closeWorkspace,
     switchWorkspace,
     setView,
-    setSessionsForWorkspace,
+    view,
     explorerOpen,
     sourceControlOpen,
-    setExplorerOpen,
-    setSourceControlOpen,
+    toggleSourceControl,
     activeView,
     toggleExplorer,
     setActiveView,
@@ -84,6 +83,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const showEmpty = !currentWorkspace && openWorkspaces.length === 0;
 
   useEffect(() => {
+    if (view !== 'workspace') return;
     if (currentWorkspace && !hasInitialized.current[currentWorkspace.id]) {
       detectAllClis();
       checkAllAuth();
@@ -97,8 +97,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
           workspacePath: currentWorkspace.path,
           count: currentWorkspace.layout.sessions,
           agentFleet: currentWorkspace.agentFleet
-        }).then((sessions) => {
-          setSessionsForWorkspace(currentWorkspace.id, sessions);
         }).catch((err) => {
           console.error('Failed to initialize sessions:', err);
           hasInitialized.current[currentWorkspace!.id] = false;
@@ -109,7 +107,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
 
       markWorkspaceOpened(currentWorkspace.id);
     }
-  }, [currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, setSessionsForWorkspace, markWorkspaceOpened]);
+  }, [view, currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, markWorkspaceOpened]);
 
   // ── Dev-server preview ─────────────────────────────────────────────
   // Opening the preview is always an explicit user action (the chip's "Open"
@@ -205,6 +203,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (useAppStore.getState().view !== 'workspace') return;
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'b') {
           e.preventDefault();
@@ -355,8 +354,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onMinimizeWindow={minimizeWindow}
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
-        onExplorerClick={() => setExplorerOpen(true)}
-        onSourceControlClick={() => setSourceControlOpen(true)}
+        onExplorerClick={toggleExplorer}
+        onSourceControlClick={toggleSourceControl}
         explorerOpen={explorerOpen}
         sourceControlOpen={sourceControlOpen}
         sourceControlChangeCount={gitStatuses.length}
@@ -449,20 +448,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
             </AnimatePresence>
             <div className="workspace-view flex-1 min-w-0 overflow-hidden relative">
               {/*
-                The terminal grid stays MOUNTED across view switches (hidden
-                via CSS instead of unmounted) so xterm instances, scrollback,
-                mouse-tracking state and running agents survive TTY<->Browser
-                <->Editor switching. Re-mounting terminals on every switch was
-                the root cause of mouse mode turning off and resize glitches.
+                Each open workspace owns a mounted terminal grid. Hidden grids
+                keep parsing PTY output, so screen and workspace switches retain
+                xterm state and mouse-mode changes from running CLIs.
               */}
-              <div
-                className={activeView === "terminal" ? "h-full w-full" : "hidden"}
-                aria-hidden={activeView !== "terminal"}
-              >
-                <div className="h-full w-full overflow-hidden">
-                  <TerminalGrid sessions={sessions} isLoading={isLoading} />
-                </div>
-              </div>
+              {openWorkspaces.map((workspace) => {
+                const isCurrent = workspace.id === activeWorkspaceId;
+                const isVisible = isCurrent && activeView === 'terminal';
+                return (
+                  <div
+                    key={workspace.id}
+                    className={isVisible ? 'h-full w-full overflow-hidden' : 'hidden'}
+                    aria-hidden={!isVisible}
+                  >
+                    <TerminalGrid
+                      workspace={workspace}
+                      sessions={isCurrent ? sessions : sessionsByWorkspace[workspace.id] ?? []}
+                      isLoading={isCurrent && isLoading && sessions.length === 0}
+                    />
+                  </div>
+                );
+              })}
 
               {/*
                 The agent grid stays MOUNTED across view switches (hidden via
@@ -479,7 +485,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               </div>
 
               <AnimatePresence initial={false}>
-                {activeView === "browser" && currentWorkspace && (
+                {view === 'workspace' && activeView === "browser" && currentWorkspace && (
                   <motion.div
                     key="browser"
                     initial={{ opacity: 0 }}

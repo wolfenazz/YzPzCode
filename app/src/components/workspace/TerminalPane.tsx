@@ -15,11 +15,14 @@ import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 import { useAppStore } from '../../stores/appStore';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
 import { registerTerminal } from '../../utils/terminalRegistry';
+import { observeTerminalLayout, refreshTerminalAtlases, registerTerminalRenderer } from '../../utils/terminalRendering';
 import { detectTerminalCwd } from '../../utils/terminalCwd';
+import { buildMouseModeSequence, DEFAULT_MOUSE_TRACKING_MODES, registerTerminalMouseModes } from '../../utils/terminalMouseModes';
 import { ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
 import '@xterm/xterm/css/xterm.css';
 
 import { TerminalHeader } from './TerminalHeader';
+import { ManagedCommandInput } from './ManagedCommandInput';
 import { CliStatusBadge } from './CliStatusBadge';
 import { AuthModal } from './AuthModal';
 import { QuickPromptChips } from '../common/QuickPromptChips';
@@ -79,39 +82,8 @@ const withOpacity = (color: string, opacityPercent: number): string => {
   return color;
 };
 
-const SUPPORTED_MOUSE_MODE_CODES = [1000, 1002, 1003, 1005, 1006, 1015] as const;
-const DEFAULT_MOUSE_TRACKING_MODES = [1000, 1002, 1006] as const;
 /** Local dev-server URLs printed by `npm run dev` / `vite` / `next dev` etc. */
 const DEV_SERVER_URL_RE = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])(?::\d+)?/gi;
-const MANAGED_COMMAND_PREFIXES = [
-  'npm run dev',
-  'npm run build',
-  'npm run tauri dev',
-  'npm run tauri build',
-  'npx tauri dev',
-  'npx tauri build',
-  'pnpm dev',
-  'pnpm build',
-  'pnpm tauri dev',
-  'pnpm tauri build',
-  'yarn dev',
-  'yarn build',
-  'yarn tauri dev',
-  'yarn tauri build',
-  'bun run dev',
-  'bun run build',
-  'cargo tauri dev',
-  'cargo tauri build',
-  'next dev',
-  'next build',
-  'vite',
-  'vite build',
-] as const;
-
-const normalizeMouseModes = (modes: Iterable<number>): number[] =>
-  Array.from(new Set(modes))
-    .filter((mode) => SUPPORTED_MOUSE_MODE_CODES.includes(mode as typeof SUPPORTED_MOUSE_MODE_CODES[number]))
-    .sort((a, b) => a - b);
 
 const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
   opencode: '/new',
@@ -123,21 +95,6 @@ const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
   pi: '/new',
   claude: '/clear',
   grok: '/new',
-};
-
-const buildMouseModeSequence = (modes: Iterable<number>, operation: 'h' | 'l'): string =>
-  normalizeMouseModes(modes)
-    .map((mode) => `\x1b[?${mode}${operation}`)
-    .join('');
-
-const normalizeManagedCommandCandidate = (value: string): string =>
-  value.trim().replace(/\s+/g, ' ').toLowerCase();
-
-const shouldInterceptManagedCommand = (value: string): boolean => {
-  const normalized = normalizeManagedCommandCandidate(value);
-  return MANAGED_COMMAND_PREFIXES.some((prefix) =>
-    normalized === prefix || normalized.startsWith(`${prefix} `)
-  );
 };
 
 // AI agent binary names a user may type to launch an agent manually inside a
@@ -279,7 +236,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [cliLaunched, setCliLaunched] = useState(false);
   const terminalReadyRef = useRef(false);
   const firstOutputFitDoneRef = useRef(false);
-  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const launchAttemptsRef = useRef(0);
   const launchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -302,6 +258,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const setManualAgent = useAppStore((state) => state.setManualAgent);
   const terminalPasteOnRightClick = useAppStore((state) => state.terminalPasteOnRightClick);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
+  const activeView = useAppStore((state) => state.activeView);
+  const view = useAppStore((state) => state.view);
+  const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const setActiveSession = useAppStore((state) => state.setActiveSession);
   const isActive = activeSessionId === session.id;
 
@@ -314,9 +273,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   // repeated ResizeObserver fires, mount-time fits) become no-ops instead of
   // resize storms that make running agents reflow "chunky".
   const lastSentSizeRef = useRef<{ cols: number; rows: number } | null>(null);
-  // Tracks whether the terminal container is currently zero-sized (hidden view
-  // switch). Used to force a full repaint when it becomes visible again.
-  const terminalHiddenRef = useRef(false);
+  const onResizeRef = useRef(onResize);
+  onResizeRef.current = onResize;
 
   // Refs mirroring store settings so the xterm lifecycle effect (which only
   // re-runs per session) can read the latest values without being re-created.
@@ -425,6 +383,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     if (rect.width < 2 || rect.height < 2) return;
 
     try {
+      const proposed = fitAddonRef.current.proposeDimensions();
+      if (!proposed || proposed.cols < 2 || proposed.rows < 2) return;
       fitAddonRef.current.fit();
       const xterm = xtermRef.current;
       const cols = xterm.cols;
@@ -443,7 +403,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         const pixelWidth = Math.max(1, Math.ceil(cols * cell.width));
         const pixelHeight = Math.max(1, Math.ceil(rows * cell.height));
 
-        onResize?.(cols, rows);
+        onResizeRef.current?.(cols, rows);
 
         resizePendingRef.current = { cols, rows, pixelWidth, pixelHeight };
         if (resizeTimerRef.current) {
@@ -467,15 +427,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       // again after a view switch) force a full repaint so the canvas never
       // shows stale rows from the previous size.
       if (sizeChanged || forceRepaint) {
-        requestAnimationFrame(() => {
-          const t = xtermRef.current;
-          if (t && t.rows > 0) t.refresh(0, t.rows - 1);
-        });
+        if (forceRepaint) refreshTerminalAtlases();
+        else xterm.refresh(0, xterm.rows - 1);
       }
     } catch (e) {
       console.error('Error fitting terminal:', e);
     }
-  }, [session.id, onResize, sendResize]);
+  }, [sendResize]);
 
   const handleSearch = useCallback((direction: 'next' | 'prev') => {
     if (!searchAddonRef.current || !searchQuery) return;
@@ -506,24 +464,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setSearchQuery('');
     setShowSearch(false);
   }, []);
-
-  const syncMouseModes = useCallback((modes: Iterable<number>) => {
-    const normalizedModes = normalizeMouseModes(modes);
-    const currentModes = normalizeMouseModes(mouseModesRef.current);
-    const changed =
-      normalizedModes.length !== currentModes.length ||
-      normalizedModes.some((mode, index) => mode !== currentModes[index]);
-
-    if (!changed) {
-      setMouseTrackingEnabled(normalizedModes.length > 0);
-      return normalizedModes;
-    }
-
-    mouseModesRef.current = new Set(normalizedModes);
-    setMouseTrackingEnabled(normalizedModes.length > 0);
-    setTerminalMouseModes(session.id, normalizedModes);
-    return normalizedModes;
-  }, [session.id, setTerminalMouseModes]);
 
   const handleRunCommand = useCallback(async (command: string) => {
     try {
@@ -577,63 +517,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }, 1000);
   }, [session.id, session.agent, isRefreshing, stopCli, launchCli, checkAuth]);
 
-  const parseMouseTrackingState = useCallback((output: string) => {
-    if (!output.includes('\x1b[') && !output.includes('\x9b')) return;
-
-    // Match CSI private mode set/reset such as: ESC[?1000h, ESC[?1002;1006l, CSI ? 1006 h
-    const regex = /(?:\x1b\[|\x9b)\?([0-9;]+)([hl])/g;
-    let match: RegExpExecArray | null = regex.exec(output);
-    while (match) {
-      const [, params, op] = match;
-      const codes = params.split(';').map((n) => Number(n)).filter((n) => !Number.isNaN(n));
-
-      for (const code of codes) {
-        if (SUPPORTED_MOUSE_MODE_CODES.includes(code as typeof SUPPORTED_MOUSE_MODE_CODES[number])) {
-          if (op === 'h') {
-            mouseModesRef.current.add(code);
-          } else {
-            mouseModesRef.current.delete(code);
-          }
-        }
-      }
-
-      match = regex.exec(output);
-    }
-
-    syncMouseModes(mouseModesRef.current);
-  }, [syncMouseModes]);
-
   const handleToggleMouseTracking = useCallback(() => {
-    const enableModes = normalizeMouseModes(DEFAULT_MOUSE_TRACKING_MODES);
-    const disableModes = normalizeMouseModes(mouseModesRef.current);
-    const enableSequence = buildMouseModeSequence(enableModes, 'h');
-    const disableSequence = buildMouseModeSequence(disableModes, 'l');
-
-    if (mouseTrackingEnabled) {
-      xtermRef.current?.write(disableSequence);
-      syncMouseModes([]);
-    } else {
-      xtermRef.current?.write(enableSequence);
-      syncMouseModes(enableModes);
-    }
-  }, [mouseTrackingEnabled, syncMouseModes]);
-
-  const startManagedCommand = useCallback(async (command: string) => {
-    managedCommandActiveRef.current = true;
-    try {
-      await invoke('run_managed_terminal_command', {
-        request: {
-          sessionId: session.id,
-          workspaceId: session.workspaceId,
-          cwd: currentCwdRef.current,
-          command,
-        },
-      });
-    } catch (error) {
-      managedCommandActiveRef.current = false;
-      throw error;
-    }
-  }, [session.id, session.workspaceId]);
+    const modes = mouseTrackingEnabled ? mouseModesRef.current : DEFAULT_MOUSE_TRACKING_MODES;
+    xtermRef.current?.write(buildMouseModeSequence(modes, mouseTrackingEnabled ? 'l' : 'h'));
+  }, [mouseTrackingEnabled]);
 
   const stopManagedCommand = useCallback(async () => {
     if (managedStopRequestedRef.current) return;
@@ -651,8 +538,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
    * Shell-aware paste. CMD (cmd.exe) does NOT support bracketed paste — the
    * \x1b[200~ markers would be typed literally and break multi-line pastes.
    * For CMD we normalize line endings and execute each line immediately, just
-   * like native CMD paste. PowerShell / Unix shells get bracketed paste with
-   * normalized \n endings.
+   * like native CMD paste. Other shells receive bracketed paste only when
+   * the foreground application has enabled it.
    */
   const pasteToTerminal = useCallback(async (text: string) => {
     if (!text || managedCommandActiveRef.current) return;
@@ -662,12 +549,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const isSingleLine = !pastedLine.includes('\n');
     if (lineTrackingReliableRef.current && isSingleLine) {
       const commandCandidate = lineBufferRef.current + pastedLine;
-      if (normalized.endsWith('\n') && shouldInterceptManagedCommand(commandCandidate)) {
-        lineBufferRef.current = '';
-        await invoke('write_to_terminal', { sessionId: session.id, input: '\x03\r' });
-        await startManagedCommand(commandCandidate.trim());
-        return;
-      }
       lineBufferRef.current = normalized.endsWith('\n') ? '' : commandCandidate;
     } else {
       lineBufferRef.current = '';
@@ -712,17 +593,22 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       return;
     }
 
-    // PowerShell / bash / zsh: bracketed paste keeps multi-line input safe.
-    await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
-    for (let i = 0; i < normalized.length; i += CHUNK_SIZE) {
-      const chunk = normalized.slice(i, i + CHUNK_SIZE);
+    const bracketedPaste = xtermRef.current?.modes.bracketedPasteMode === true;
+    const input = bracketedPaste ? normalized : normalized.replace(/\n/g, '\r');
+    if (bracketedPaste) {
+      await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[200~' });
+    }
+    for (let i = 0; i < input.length; i += CHUNK_SIZE) {
+      const chunk = input.slice(i, i + CHUNK_SIZE);
       await invoke('write_to_terminal', { sessionId: session.id, input: chunk });
-      if (i + CHUNK_SIZE < normalized.length) {
+      if (i + CHUNK_SIZE < input.length) {
         await new Promise((resolve) => setTimeout(resolve, DELAY));
       }
     }
-    await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
-  }, [session.id, setManualAgent, startManagedCommand]);
+    if (bracketedPaste) {
+      await invoke('write_to_terminal', { sessionId: session.id, input: '\x1b[201~' });
+    }
+  }, [session.id, session.shell, setManualAgent]);
 
   const pasteClipboardText = useCallback(
     (text: string) => {
@@ -853,25 +739,27 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       }).catch(console.error);
     };
 
-    // Managed development commands run outside the shell PTY so they can be
-    // tracked and stopped as a complete process tree. Their lifetime must not
-    // depend on PTY input: stdin is disabled while they run, which means
-    // xterm's normal Ctrl+C data event is intentionally suppressed. Capture
-    // the physical shortcut before xterm and route it to the managed stop API.
-    const handleManagedInterrupt = (event: KeyboardEvent) => {
+    // Deliver Ctrl+C before the webview's clipboard shortcut can consume it.
+    // Interactive commands stay in the shell PTY, where ETX signals the
+    // foreground process. Explicitly managed jobs still use their stop API.
+    const handleInterrupt = (event: KeyboardEvent) => {
       const isCtrlC = event.ctrlKey
         && !event.altKey
         && !event.shiftKey
-        && event.key.toLowerCase() === 'c';
-      if (!isCtrlC || !managedCommandActiveRef.current || xterm.hasSelection()) return;
+        && (event.key.toLowerCase() === 'c' || event.code === 'KeyC');
+      if (!isCtrlC || xterm.hasSelection()) return;
 
       event.preventDefault();
       event.stopPropagation();
-      void stopManagedCommand();
+      if (managedCommandActiveRef.current) {
+        void stopManagedCommand();
+      } else {
+        xterm.input('\x03', true);
+      }
     };
 
     terminalElement.addEventListener('paste', handlePaste, { capture: true });
-    terminalElement.addEventListener('keydown', handleManagedInterrupt, { capture: true });
+    terminalElement.addEventListener('keydown', handleInterrupt, { capture: true });
     terminalElement.addEventListener('mousedown', handleMouseDownFocus);
     terminalElement.addEventListener('wheel', handleWheel, { passive: true });
     terminalElement.addEventListener('contextmenu', handleContextMenu);
@@ -887,27 +775,39 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     fitAddonRef.current = fitAddon;
     searchAddonRef.current = searchAddon;
     terminalReadyRef.current = true;
+    const unregisterRenderer = registerTerminalRenderer(xterm);
+    let disposed = false;
+
+    const mouseSubscription = registerTerminalMouseModes(xterm, (modes, enabled) => {
+      mouseModesRef.current = new Set(modes);
+      setMouseTrackingEnabled(enabled);
+      setTerminalMouseModes(session.id, modes);
+    });
+    // The PTY can outlive the pane (for example when opening Settings). Restore
+    // its last parsed protocol and encoding before accepting further output.
+    const savedMouseModes = useAppStore.getState().terminalMouseModesBySession[session.id] ?? [];
+    mouseModesRef.current = new Set(savedMouseModes);
+    xterm.write(buildMouseModeSequence(savedMouseModes, 'h'));
 
     // Initial fit: wait for layout to settle (double rAF), then fit. The
     // ResizeObserver and font-ready fit handle any later size changes, and the
     // unchanged-dims guard makes redundant fits cheap no-ops.
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    let secondInitialFrame: number | null = null;
+    const firstInitialFrame = requestAnimationFrame(() => {
+      secondInitialFrame = requestAnimationFrame(() => {
         handleFitAndResize();
       });
     });
     // Fallback in case the pane is still inside a mount transition at rAF time.
-    setTimeout(() => {
+    const initialFitTimeout = setTimeout(() => {
       handleFitAndResize();
     }, 300);
 
     const fontsApi = (document as Document & { fonts?: FontFaceSet }).fonts;
     const onFontsDone = () => {
+      if (disposed) return;
       handleFitAndResize();
-      xterm.clearTextureAtlas();
-      if (xterm.rows > 0) {
-        xterm.refresh(0, xterm.rows - 1);
-      }
+      refreshTerminalAtlases();
     };
 
     if (fontsApi) {
@@ -932,27 +832,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         const commandCandidate = lineBufferRef.current;
         lineBufferRef.current = '';
         lineTrackingReliableRef.current = true;
-
-        if (shouldInterceptManagedCommand(commandCandidate)) {
-          inputBuffer = '';
-          if (inputFlushTimer) {
-            clearTimeout(inputFlushTimer);
-            inputFlushTimer = null;
-          }
-
-          void (async () => {
-            try {
-              await invoke('write_to_terminal', {
-                sessionId: session.id,
-                input: '\x03\r',
-              });
-              await startManagedCommand(commandCandidate.trim());
-            } catch (error) {
-              console.error('Failed to reroute managed terminal command:', error);
-            }
-          })();
-          return;
-        }
 
         const detectedAgent = detectAgentFromCommand(commandCandidate);
         if (detectedAgent && !effectiveAgentRef.current) {
@@ -1013,11 +892,15 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       const isCtrl = event.ctrlKey || event.metaKey;
       const isKeydown = event.type === 'keydown';
 
-      if (isCtrl && event.key === 'c' && xterm.hasSelection() && isKeydown) {
+      if (isCtrl && !event.altKey && !event.shiftKey
+        && (event.key.toLowerCase() === 'c' || event.code === 'KeyC')
+        && xterm.hasSelection() && isKeydown) {
+        event.preventDefault();
         const selection = xterm.getSelection();
         if (selection) {
           navigator.clipboard.writeText(selection).catch(console.error);
         }
+        xterm.clearSelection();
         return false;
       }
 
@@ -1059,6 +942,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     });
 
     return () => {
+      disposed = true;
+      cancelAnimationFrame(firstInitialFrame);
+      if (secondInitialFrame !== null) cancelAnimationFrame(secondInitialFrame);
+      clearTimeout(initialFitTimeout);
       if (inputFlushTimer) {
         clearTimeout(inputFlushTimer);
       }
@@ -1073,18 +960,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         fontsApi.removeEventListener('loadingdone', onFontsDone);
       }
       terminalElement.removeEventListener('paste', handlePaste, true);
-      terminalElement.removeEventListener('keydown', handleManagedInterrupt, true);
+      terminalElement.removeEventListener('keydown', handleInterrupt, true);
       terminalElement.removeEventListener('mousedown', handleMouseDownFocus);
       terminalElement.removeEventListener('wheel', handleWheel);
       terminalElement.removeEventListener('contextmenu', handleContextMenu);
       unregisterTerminal();
+      unregisterRenderer();
+      mouseSubscription.dispose();
       xterm.dispose();
       terminalReadyRef.current = false;
       xtermRef.current = null;
       fitAddonRef.current = null;
       searchAddonRef.current = null;
     };
-  }, [session.id, handleFitAndResize, startManagedCommand, stopManagedCommand, pasteToTerminal, pasteClipboardText]);
+  }, [session.id, handleFitAndResize, stopManagedCommand, pasteToTerminal, pasteClipboardText, setTerminalMouseModes]);
 
   useEffect(() => {
     if (!xtermRef.current) return;
@@ -1155,7 +1044,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const setupListener = async () => {
       const unlisten = await listen<string>(`terminal-output:${session.id}`, (event) => {
         if (!mounted) return;
-        parseMouseTrackingState(event.payload);
         cwdOutputBufferRef.current = `${cwdOutputBufferRef.current}${event.payload}`.slice(-8192);
         const detectedCwd = detectTerminalCwd(
           cwdOutputBufferRef.current,
@@ -1200,7 +1088,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       mounted = false;
       if (unlistenFn) unlistenFn();
     };
-  }, [session.id, session.shell, session.workspaceId, addDevServerUrl, parseMouseTrackingState, handleFitAndResize]);
+  }, [session.id, session.shell, session.workspaceId, addDevServerUrl, handleFitAndResize]);
 
   useEffect(() => {
     currentCwdRef.current = session.cwd;
@@ -1210,15 +1098,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     firstOutputFitDoneRef.current = false;
     launchAttemptsRef.current = 0;
     lastSentSizeRef.current = null;
-    terminalHiddenRef.current = false;
-    mouseModesRef.current = new Set();
-    setMouseTrackingEnabled(false);
-    setTerminalMouseModes(session.id, []);
     if (launchTimeoutRef.current) {
       clearTimeout(launchTimeoutRef.current);
       launchTimeoutRef.current = null;
     }
-  }, [session.cwd, session.id, setTerminalMouseModes]);
+  }, [session.cwd, session.id]);
 
   useEffect(() => {
     if (!session.agent) return;
@@ -1286,91 +1170,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [session.id, session.agent, launchState, cliLaunched, launchCli, checkAuth]);
 
   useEffect(() => {
-    const handleResize = () => {
-      const container = terminalRef.current;
-      const rect = container?.getBoundingClientRect();
-      const isHidden = !rect || rect.width < 2 || rect.height < 2;
-      // When the container comes back from display:none (view switch), force a
-      // full repaint even if the pixel size is unchanged — the canvas may have
-      // stale rows from before it was hidden.
-      const becameVisible = terminalHiddenRef.current && !isHidden;
-      terminalHiddenRef.current = isHidden;
-
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
-      resizeTimeoutRef.current = setTimeout(() => {
-        handleFitAndResize(becameVisible);
-      }, 100);
-    };
-
-    const resizeObserver = new ResizeObserver(handleResize);
-    if (terminalRef.current) {
-      resizeObserver.observe(terminalRef.current);
-    }
-
-    const handleWindowResize = () => handleResize();
-    window.addEventListener('resize', handleWindowResize);
-
-    // A macOS WebView does not reliably emit a ResizeObserver notification
-    // when an ancestor switches from `display: none` back to visible. The
-    // terminal canvas consequently keeps its zero-sized backing store until a
-    // native window resize (for example minimise/restore) happens. Observe
-    // visibility directly and refit after the browser has completed layout.
-    let firstFrame: number | null = null;
-    let secondFrame: number | null = null;
-    let visibleFitTimeout: ReturnType<typeof setTimeout> | null = null;
-    const scheduleVisibleFit = () => {
-      if (document.visibilityState === 'hidden') return;
-
-      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
-      if (visibleFitTimeout) clearTimeout(visibleFitTimeout);
-
-      const fitVisibleTerminal = () => {
-        const rect = terminalRef.current?.getBoundingClientRect();
-        if (rect && rect.width >= 2 && rect.height >= 2) {
-          terminalHiddenRef.current = false;
-          handleFitAndResize(true);
-        }
-      };
-
-      firstFrame = requestAnimationFrame(() => {
-        firstFrame = requestAnimationFrame(fitVisibleTerminal);
-      });
-      // WebKit can apply the final canvas dimensions after the next paint, so
-      // keep one short settled-layout pass in addition to the double rAF.
-      visibleFitTimeout = setTimeout(fitVisibleTerminal, 160);
-    };
-
-    const handleWindowFocus = () => scheduleVisibleFit();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') scheduleVisibleFit();
-    };
-    const visibilityObserver = typeof IntersectionObserver === 'undefined'
-      ? null
-      : new IntersectionObserver((entries) => {
-          if (entries.some((entry) => entry.isIntersecting)) scheduleVisibleFit();
-        });
-
-    if (terminalRef.current) visibilityObserver?.observe(terminalRef.current);
-    window.addEventListener('focus', handleWindowFocus);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      if (resizeTimeoutRef.current) {
-        clearTimeout(resizeTimeoutRef.current);
-      }
-      resizeObserver.disconnect();
-      window.removeEventListener('resize', handleWindowResize);
-      visibilityObserver?.disconnect();
-      window.removeEventListener('focus', handleWindowFocus);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (firstFrame !== null) cancelAnimationFrame(firstFrame);
-      if (secondFrame !== null) cancelAnimationFrame(secondFrame);
-      if (visibleFitTimeout) clearTimeout(visibleFitTimeout);
-    };
-  }, [handleFitAndResize]);
+    const element = terminalRef.current;
+    if (!element) return;
+    // Explicit view changes also schedule a repaint: some webviews miss the
+    // intersection/resize notification when display:none is toggled quickly.
+    return observeTerminalLayout(element, handleFitAndResize);
+  }, [view, activeView, activeWorkspaceId, handleFitAndResize]);
 
   useEffect(() => {
     if (installProgress && installProgress.agent === session.agent) {
@@ -1453,6 +1258,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         }
         dragListeners={dragListeners}
       />
+
+      {managedCommandState?.status === 'Running' && <ManagedCommandInput key={managedCommandState.pid} sessionId={session.id} />}
 
       {showQuickPrompts && effectiveAgent && (
         <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5 shrink-0">

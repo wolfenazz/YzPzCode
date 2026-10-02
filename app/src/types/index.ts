@@ -799,3 +799,21 @@ export interface AgentSettings {
   tools: AgentToolInfo[];
   providerConfigs: AgentProviderConfig[];
 }
+export interface ProjectRunTarget {
+  id: string;
+  label: string;
+  language: string;
+  cwd: string;
+  command: string;
+  buildCommand: string | null;
+  unavailableReason: string | null;
+}
+
+export interface ApplicationRunConfig {
+  id: string;
+  name: string;
+  projectPath: string;
+  workingDirectory: string;
+  command: string;
+  buildCommand: string;
+}

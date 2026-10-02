@@ -1,4 +1,5 @@
 mod managed;
+pub(crate) mod project_run;
 mod session;
 
 pub use managed::{ManagedCommandManager, ManagedCommandState};

@@ -52,9 +52,14 @@ function App() {
     animationsEnabled,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
+    openWorkspaces,
   } = useAppStore();
   const [isWindows, setIsWindows] = useState(false);
   const [startupReady, setStartupReady] = useState(false);
+  const [workspaceVisited, setWorkspaceVisited] = useState(false);
+  useEffect(() => {
+    if (view === 'workspace') setWorkspaceVisited(true);
+  }, [view]);
   const effectiveTheme = useEffectiveTheme();
   useDiscordPresence();
   useDesktopFileOpen(startupReady);
@@ -159,12 +164,12 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.key === ',') {
         e.preventDefault();
-        setView('settings');
+        setViewWithPrevious('settings');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setView]);
+  }, [setViewWithPrevious]);
 
   const handleDocsClick = () => {
     setViewWithPrevious('docs');
@@ -197,7 +202,23 @@ function App() {
   return (
     <TooltipProvider delayDuration={350}>
     <div className="app-shell min-h-screen overflow-hidden">
+      {/* Keep live terminals parsing output while Settings, Docs or Setup is open. */}
+      <div
+        className={view === 'workspace' ? 'h-screen w-screen overflow-hidden' : 'hidden'}
+        aria-hidden={view !== 'workspace'}
+      >
+        {(view === 'workspace' || (workspaceVisited && openWorkspaces.length > 0)) && (
+          <Suspense fallback={<LoadingFallback />}>
+            <Workspace
+              isWindows={isWindows}
+              onDocsClick={handleDocsClick}
+              onSettingsClick={handleSettingsClick}
+            />
+          </Suspense>
+        )}
+      </div>
       <AnimatePresence mode="wait" initial={false}>
+        {view !== 'workspace' && (
         <motion.div
           key={view}
           initial={{ opacity: 0 }}
@@ -215,15 +236,6 @@ function App() {
               onDocsClick={handleDocsClick}
               onSettingsClick={handleSettingsClick}
             />
-          )}
-          {view === 'workspace' && (
-            <Suspense fallback={<LoadingFallback />}>
-              <Workspace
-                isWindows={isWindows}
-                onDocsClick={handleDocsClick}
-                onSettingsClick={handleSettingsClick}
-              />
-            </Suspense>
           )}
           {view === 'docs' && (
             <Suspense fallback={<LoadingFallback />}>
@@ -245,6 +257,7 @@ function App() {
             </Suspense>
           )}
         </motion.div>
+        )}
       </AnimatePresence>
       <UpdateNotification />
       <ContextMenu

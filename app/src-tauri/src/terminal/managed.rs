@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::Read;
-use std::process::{Command, Stdio};
+use std::io::{Read, Write};
+use std::process::{ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, SyncSender, TrySendError};
 use std::sync::{Arc, Mutex};
@@ -16,7 +16,7 @@ use crate::utils::process::get_npm_global_prefix;
 const MANAGED_COMMAND_STATE_EVENT: &str = "managed-command-state-changed";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+// Variant names are part of the IPC contract and match ManagedCommandStatus in TypeScript.
 pub enum ManagedCommandStatus {
     Idle,
     Starting,
@@ -25,6 +25,29 @@ pub enum ManagedCommandStatus {
     Stopped,
     Completed,
     Failed,
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::ManagedCommandStatus;
+
+    #[test]
+    fn managed_statuses_match_frontend_ipc_contract() {
+        for (status, expected) in [
+            (ManagedCommandStatus::Idle, "Idle"),
+            (ManagedCommandStatus::Starting, "Starting"),
+            (ManagedCommandStatus::Running, "Running"),
+            (ManagedCommandStatus::Stopping, "Stopping"),
+            (ManagedCommandStatus::Stopped, "Stopped"),
+            (ManagedCommandStatus::Completed, "Completed"),
+            (ManagedCommandStatus::Failed, "Failed"),
+        ] {
+            assert_eq!(
+                serde_json::to_value(status).expect("serialized status"),
+                expected
+            );
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +66,7 @@ struct ManagedProcess {
     workspace_id: String,
     pid: u32,
     stop_requested: Arc<AtomicBool>,
+    stdin: Arc<Mutex<Option<ChildStdin>>>,
 }
 
 #[derive(Clone)]
@@ -119,6 +143,7 @@ impl ManagedCommandManager {
         };
 
         let pid = child.id();
+        let stdin = Arc::new(Mutex::new(child.stdin.take()));
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         let stop_requested = Arc::new(AtomicBool::new(false));
@@ -129,6 +154,7 @@ impl ManagedCommandManager {
                 workspace_id: workspace_id_owned.clone(),
                 pid,
                 stop_requested: stop_requested.clone(),
+                stdin,
             },
         );
         state.status = ManagedCommandStatus::Running;
@@ -241,6 +267,24 @@ impl ManagedCommandManager {
         Ok(())
     }
 
+    pub fn write_input(&self, session_id: &str, input: &str) -> Result<()> {
+        let stdin = self
+            .processes
+            .lock()
+            .unwrap()
+            .get(session_id)
+            .map(|process| process.stdin.clone())
+            .context("No application is running in this terminal")?;
+        let mut guard = stdin.lock().unwrap();
+        let writer = guard
+            .as_mut()
+            .context("This application does not accept input")?;
+        writer
+            .write_all(input.as_bytes())
+            .context("Failed to send application input")?;
+        writer.flush().context("Failed to flush application input")
+    }
+
     pub fn stop_command(&self, session_id: &str) -> Result<()> {
         let process = {
             let processes = self.processes.lock().unwrap();
@@ -248,6 +292,7 @@ impl ManagedCommandManager {
                 workspace_id: process.workspace_id.clone(),
                 pid: process.pid,
                 stop_requested: process.stop_requested.clone(),
+                stdin: process.stdin.clone(),
             })
         };
 
@@ -424,9 +469,10 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         let shell = std::env::var("COMSPEC")
             .unwrap_or_else(|_| "C:\\Windows\\System32\\cmd.exe".to_string());
         let mut cmd = Command::new(shell);
-        cmd.args(["/D", "/C", command])
+        cmd.args(["/D", "/S", "/C"])
+            .raw_arg(format!("\"{command}\""))
             .current_dir(&command_cwd)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .creation_flags(CREATE_NO_WINDOW);
@@ -456,7 +502,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         let mut cmd = Command::new(shell);
         cmd.args(["-lc", command])
             .current_dir(&command_cwd)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .process_group(0);
@@ -473,7 +519,7 @@ fn build_managed_command(cwd: &str, command: &str) -> Result<Command> {
         let mut cmd = Command::new(shell);
         cmd.args(["-lc", command])
             .current_dir(&command_cwd)
-            .stdin(Stdio::null())
+            .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .process_group(0);
@@ -599,11 +645,132 @@ fn terminate_process_tree(pid: u32) -> Result<()> {
 
 #[cfg(all(test, target_os = "windows"))]
 mod tests {
-    use super::terminate_process_tree;
+    use super::{build_managed_command, terminate_process_tree};
+    use std::io::Write;
     use std::os::windows::process::CommandExt;
     use std::process::{Command, Stdio};
     use std::thread;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn quoted_commands_preserve_paths_and_pipe_application_input() {
+        let root = std::env::temp_dir().join(format!("yzpz managed {}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("fixture directory");
+        let script = root.join("read input.cmd");
+        std::fs::write(
+            &script,
+            "@echo off\r\nset /p line=\r\necho received:%line%\r\n",
+        )
+        .expect("fixture script");
+        let command = format!("\"{}\"", script.display());
+        let mut child = build_managed_command(root.to_str().expect("path"), &command)
+            .expect("command")
+            .spawn()
+            .expect("spawn");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(b"hello world\n")
+            .expect("send input");
+        let output = child.wait_with_output().expect("output");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("received:hello world"));
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn failed_build_does_not_run_following_application() {
+        let output = build_managed_command(
+            std::env::temp_dir().to_str().expect("temp path"),
+            "cmd /c exit 7 && echo APPLICATION_STARTED",
+        )
+        .expect("command")
+        .output()
+        .expect("output");
+        assert!(!output.status.success());
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("APPLICATION_STARTED"));
+    }
+
+    #[test]
+    fn detected_python_command_runs_and_accepts_input() {
+        if which::which("python").is_err() {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!("yzpz python {}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("fixture directory");
+        std::fs::write(root.join("hello world.py"), "print('python:' + input())\n")
+            .expect("fixture script");
+        let targets = crate::terminal::project_run::detect_targets(root.to_str().expect("path"))
+            .expect("targets");
+        let target = targets.first().expect("Python target");
+        let mut child = build_managed_command(&target.cwd, &target.command)
+            .expect("command")
+            .spawn()
+            .expect("spawn");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(b"console input\n")
+            .expect("send input");
+        let output = child.wait_with_output().expect("output");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("python:console input"));
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
+
+    #[test]
+    fn detected_dotnet_project_runs_and_accepts_input() {
+        if which::which("dotnet").is_err() {
+            return;
+        }
+        let root = std::env::temp_dir().join(format!("yzpz dotnet {}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&root).expect("fixture directory");
+        std::fs::write(root.join("App.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework></PropertyGroup></Project>").expect("fixture project");
+        std::fs::write(
+            root.join("Program.cs"),
+            "System.Console.WriteLine(\"csharp:\" + System.Console.ReadLine());",
+        )
+        .expect("fixture source");
+        std::fs::write(
+            root.join("NuGet.Config"),
+            "<configuration><packageSources><clear /></packageSources></configuration>",
+        )
+        .expect("offline restore config");
+        let targets = crate::terminal::project_run::detect_targets(root.to_str().expect("path"))
+            .expect("targets");
+        let target = targets.first().expect("C# target");
+        let mut command = build_managed_command(&target.cwd, &target.command).expect("command");
+        command
+            .env("DOTNET_CLI_HOME", &root)
+            .env("DOTNET_CLI_TELEMETRY_OPTOUT", "1")
+            .env("DOTNET_SKIP_FIRST_TIME_EXPERIENCE", "1");
+        let mut child = command.spawn().expect("spawn");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(b"console input\n")
+            .expect("send input");
+        let output = child.wait_with_output().expect("output");
+        assert!(
+            output.status.success(),
+            "{}\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("csharp:console input"));
+        std::fs::remove_dir_all(root).expect("cleanup");
+    }
 
     #[test]
     fn terminate_process_tree_stops_a_long_running_command() {

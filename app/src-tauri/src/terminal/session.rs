@@ -283,6 +283,25 @@ impl PtySession {
             cmd.arg("-NoLogo");
         }
 
+        #[cfg(target_os = "windows")]
+        {
+            // Windows children inherit their parent's "ignore Ctrl+C" flag.
+            // npm/dev launchers can set it on the app, making ConPTY's ETX
+            // input ineffective even though it reaches the console. Restore
+            // default handling before spawning the interactive shell, as
+            // node-pty does. A GUI process without a console simply returns
+            // false here and has no console handler to reset.
+            #[link(name = "kernel32")]
+            extern "system" {
+                fn SetConsoleCtrlHandler(
+                    handler: Option<unsafe extern "system" fn(u32) -> i32>,
+                    add: i32,
+                ) -> i32;
+            }
+            // SAFETY: null handler and FALSE are the documented operation
+            // for restoring Ctrl+C handling; no pointers are dereferenced.
+            unsafe { SetConsoleCtrlHandler(None, 0) };
+        }
         let child = pair.slave.spawn_command(cmd)?;
         let child_pid = child.process_id();
 
@@ -450,5 +469,87 @@ mod tests {
             String::from_utf8_lossy(&output).contains("__YZPZ_PTY_INPUT_OK__"),
             "the PTY did not execute the split command and Enter input"
         );
+    }
+}
+
+#[cfg(all(test, target_os = "windows"))]
+mod windows_tests {
+    use super::PtySession;
+    use anyhow::{Context, Result};
+    use base64::{engine::general_purpose::STANDARD, Engine};
+    use std::net::{TcpListener, TcpStream};
+    use std::sync::mpsc::Receiver;
+    use std::time::{Duration, Instant};
+
+    fn wait_for_output(output: &Receiver<Vec<u8>>, marker: &str) -> Result<()> {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        let mut collected = Vec::new();
+        while Instant::now() < deadline {
+            if let Ok(chunk) = output.recv_timeout(Duration::from_millis(100)) {
+                collected.extend(chunk);
+                if String::from_utf8_lossy(&collected).contains(marker) {
+                    return Ok(());
+                }
+            }
+        }
+        anyhow::bail!(
+            "Missing PTY output {marker}: {}",
+            String::from_utf8_lossy(&collected)
+        );
+    }
+
+    #[test]
+    fn powershell_ctrl_c_stops_foreground_server_and_keeps_shell_usable() {
+        let node =
+            which::which("node").expect("Node.js is required for the terminal integration test");
+        let listener = TcpListener::bind("127.0.0.1:0").expect("reserve test server port");
+        let port = listener.local_addr().expect("test server address").port();
+        drop(listener);
+        let script = format!(
+            "const server = require('net').createServer(s => s.end());\
+             server.listen({port}, '127.0.0.1', () => console.log('__PTY_SERVER_READY__'));\
+             process.on('SIGINT', () => server.close(() => {{\
+               console.log('__PTY_SERVER_INTERRUPTED__'); process.exit(0);\
+             }}));"
+        );
+        // Encoding keeps the expected output markers out of PowerShell's
+        // echoed command, so the test can only pass on real process output.
+        let command = format!(
+            "& '{}' -e \"eval(Buffer.from('{}','base64').toString())\"",
+            node.to_string_lossy().replace('\'', "''"),
+            STANDARD.encode(script),
+        );
+        let (mut session, output) = PtySession::create(
+            "ctrl-c-test".to_string(),
+            0,
+            env!("CARGO_MANIFEST_DIR").to_string(),
+            None,
+            Some("powershell.exe".to_string()),
+        )
+        .expect("create PowerShell PTY");
+
+        let result = (|| -> Result<()> {
+            session.write(command.as_bytes())?;
+            std::thread::sleep(Duration::from_millis(120));
+            session.write(b"\r")?;
+            wait_for_output(&output, "__PTY_SERVER_READY__")?;
+            TcpStream::connect(("127.0.0.1", port)).context("server should accept connections")?;
+
+            session.write(b"\x03")?;
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while Instant::now() < deadline && TcpStream::connect(("127.0.0.1", port)).is_ok() {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            anyhow::ensure!(
+                TcpStream::connect(("127.0.0.1", port)).is_err(),
+                "server port is still open after Ctrl+C"
+            );
+            session.write(b"Write-Output ([string]::Concat('__PTY_', 'SHELL_REUSABLE__'))")?;
+            std::thread::sleep(Duration::from_millis(120));
+            session.write(b"\r")?;
+            wait_for_output(&output, "__PTY_SHELL_REUSABLE__")
+        })();
+        session.kill();
+        result.expect("Ctrl+C must stop the foreground server without killing PowerShell");
     }
 }

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Terminal rendering regression checks</title>
+<style>
+  body { background: #262626; color: #faf8f1; font: 14px monospace; }
+  #grid { display: flex; gap: 12px; overflow: auto; width: 100%; }
+  .pane { width: 600px; height: 300px; flex-shrink: 0; }
+  pre { white-space: pre-wrap; }
+</style>
+<h1>Terminal rendering regression checks</h1>
+<p>Run with the Vite dev server, then open /scripts/terminal-rendering.browser.html.</p>
+<pre id="results">Running real xterm/WebGL checks…</pre>
+<div id="grid"><div id="a" class="pane"></div><div id="b" class="pane"></div></div>
+<script type="module">
+  import { Terminal } from '@xterm/xterm';
+  import { WebglAddon } from '@xterm/addon-webgl';
+  import '@xterm/xterm/css/xterm.css';
+  import { observeTerminalLayout, refreshTerminalAtlases, registerTerminalRenderer } from '../src/utils/terminalRendering.ts';
+
+  const results = document.querySelector('#results');
+  const messages = [];
+  const disposers = [];
+  const terminals = [];
+  const addons = [];
+  const log = (text) => { messages.push(text); results.textContent = messages.join('\n'); };
+  const check = (condition, description) => {
+    if (!condition) throw new Error(description);
+    log(`PASS: ${description}`);
+  };
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 220));
+  const pixels = (element) => {
+    const canvas = [...element.querySelectorAll('canvas')].find((node) => node.getContext('webgl2'));
+    if (!canvas) throw new Error('WebGL canvas was not created');
+    return canvas.toDataURL();
+  };
+  try {
+    const panes = [...document.querySelectorAll('.pane')];
+    for (let index = 0; index < panes.length; index++) {
+      const terminal = new Terminal({
+        cols: 60, rows: 15, fontFamily: 'monospace', fontSize: 14,
+        cursorBlink: false, allowProposedApi: true, scrollback: 200,
+        theme: { background: '#262626', foreground: '#faf8f1' },
+      });
+      terminal.open(panes[index]);
+      // Preserve pixels for deterministic comparisons; production uses the
+      // addon's default drawing-buffer behavior.
+      const addon = new WebglAddon(true);
+      terminal.loadAddon(addon);
+      terminals.push(terminal);
+      addons.push(addon);
+      disposers.push(registerTerminalRenderer(terminal));
+      const glyphs = index === 0 ? 'ABCDEFGHIJKLMN' : 'zyxwvutsrqponm';
+      const lines = Array.from({ length: 80 }, (_, row) => `${row}: ${glyphs} ┌──┐ │ █▓▒░ ▄▀ └──┘`).join('\r\n');
+      await new Promise((resolve) => terminal.write(`\x1b[?25l${lines}`, resolve));
+    }
+    await settle();
+    check(addons[0].textureAtlas === addons[1].textureAtlas, 'two terminals share the same glyph atlas');
+    const baseline = panes.map(pixels);
+
+    // Demonstrate the old failure using the installed dependency, then apply
+    // the production workaround without changing terminal dimensions.
+    terminals[0].clearTextureAtlas();
+    await settle();
+    terminals[1].refresh(0, terminals[1].rows - 1);
+    await settle();
+    check(pixels(panes[1]) !== baseline[1], 'old per-terminal cache clear reproduces corrupted sibling pixels');
+    refreshTerminalAtlases();
+    await settle();
+    check(panes.every((pane, index) => pixels(pane) === baseline[index]), 'batch invalidation restores exact baseline pixels without a resize');
+
+    for (let index = 0; index < panes.length; index++) {
+      disposers.push(observeTerminalLayout(panes[index], (force) => {
+        if (force) refreshTerminalAtlases();
+        else terminals[index].refresh(0, terminals[index].rows - 1);
+      }));
+    }
+    await settle();
+    for (let iteration = 0; iteration < 12; iteration++) {
+      panes[1].style.display = 'none';
+      terminals[0].scrollToTop();
+      await settle();
+      terminals[0].scrollToBottom();
+      panes[1].style.display = '';
+      await settle();
+      if (!panes.every((pane, index) => pixels(pane) === baseline[index])) {
+        throw new Error(`pixel corruption after scroll/view switch ${iteration + 1}`);
+      }
+    }
+    check(true, '12 scroll and hide/show cycles preserve exact pixels at unchanged dimensions');
+    check(terminals.every((terminal) => terminal.cols === 60 && terminal.rows === 15), 'terminal dimensions and scrollback survive all recovery passes');
+    log('ALL BROWSER CHECKS PASSED');
+    document.title = 'PASS — Terminal rendering regression checks';
+  } catch (error) {
+    log(`FAIL: ${error.stack || error}`);
+    document.title = 'FAIL — Terminal rendering regression checks';
+  }
+  window.addEventListener('pagehide', () => {
+    for (const dispose of disposers) dispose();
+    for (const terminal of terminals) terminal.dispose();
+  }, { once: true });
+</script>
+</html>

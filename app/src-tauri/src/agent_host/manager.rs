@@ -829,17 +829,19 @@ fn node_archive_from_manifest(
         let Some(filename) = fields.next() else {
             continue;
         };
-        if filename.starts_with("node-v") && filename.ends_with(&suffix) {
-            if checksum.len() == 64 && checksum.bytes().all(|c| c.is_ascii_hexdigit()) {
-                return Ok((
-                    NodeArchive {
-                        filename: filename.to_string(),
-                        executable: PathBuf::from(if is_zip { "node.exe" } else { "bin/node" }),
-                        is_zip,
-                    },
-                    checksum.to_ascii_lowercase(),
-                ));
-            }
+        if filename.starts_with("node-v")
+            && filename.ends_with(&suffix)
+            && checksum.len() == 64
+            && checksum.bytes().all(|c| c.is_ascii_hexdigit())
+        {
+            return Ok((
+                NodeArchive {
+                    filename: filename.to_string(),
+                    executable: PathBuf::from(if is_zip { "node.exe" } else { "bin/node" }),
+                    is_zip,
+                },
+                checksum.to_ascii_lowercase(),
+            ));
         }
     }
 

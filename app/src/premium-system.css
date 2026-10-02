@@ -1416,13 +1416,190 @@ html.animations-disabled .browser-inspect__beam::after {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent);
 }
 
-.workspace-window-control {
-  transition: color 140ms ease, background-color 140ms ease !important;
+/* ── Bespoke Window Controls Dock ────────────────────────────────────
+   Hardware-machined tactile floating island with precision micro-actions,
+   multi-layered glassmorphism, refined specular rim lighting, and responsive feedback. */
+
+.workspace-window-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.875rem;
+  margin-left: 0.5rem;
+  margin-right: 0.375rem;
+  padding: 0.1875rem 0.25rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.012) 100%),
+    color-mix(in srgb, var(--bg-secondary) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.2),
+    0 2px 6px -1px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  position: relative;
+  z-index: 10;
+  transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
 }
 
+.workspace-window-controls:hover {
+  border-color: color-mix(in srgb, var(--border-primary) 95%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.25),
+    0 3px 10px -2px rgba(0, 0, 0, 0.35);
+}
+
+.workspace-window-controls__divider {
+  width: 1px;
+  height: 0.75rem;
+  background: color-mix(in srgb, var(--border-primary) 70%, transparent);
+  margin: 0 0.0625rem;
+  opacity: 0.55;
+  border-radius: 9999px;
+}
+
+.workspace-window-control {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--text-secondary) 85%, transparent);
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.workspace-window-control > svg {
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease;
+  opacity: 0.8;
+}
+
+.workspace-window-control:hover > svg {
+  opacity: 1;
+}
+
+/* Minimize hover: crisp slate/platinum luminous lift */
+.workspace-window-control--minimize:hover {
+  color: var(--text-primary) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.04) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 85%, transparent) !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    0 2px 6px -1px rgba(0, 0, 0, 0.3);
+  transform: translateY(-0.5px);
+}
+
+/* Maximize hover: refined radiant accent jewel */
+.workspace-window-control--maximize:hover {
+  color: var(--accent) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent) 0%, color-mix(in srgb, var(--accent) 10%, transparent) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 80%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.16),
+    0 0 12px -1px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 2px 6px -1px rgba(0, 0, 0, 0.3);
+  transform: translateY(-0.5px);
+}
+
+/* Close hover: exquisite crimson glass jewel with atmospheric bloom */
 .workspace-window-control--close:hover {
-  color: #fff8f7 !important;
-  background: var(--destructive) !important;
+  color: #fff1f2 !important;
+  background:
+    linear-gradient(135deg, rgba(244, 63, 94, 0.32) 0%, rgba(225, 29, 72, 0.22) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 60%, transparent) !important;
+  border-color: rgba(251, 113, 133, 0.5) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    0 0 14px 0 rgba(244, 63, 94, 0.4),
+    0 2px 6px -1px rgba(0, 0, 0, 0.35);
+  transform: translateY(-0.5px);
+}
+
+/* Tactile micro-depression on active click */
+.workspace-window-control:active {
+  transform: translateY(0.5px) scale(0.92) !important;
+  transition-duration: 50ms !important;
+}
+
+/* Focus visibility for accessibility */
+.workspace-window-control:focus-visible {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+/* ── Light Theme Adaptations ──────────────────────────────────────── */
+.light-theme .workspace-window-controls {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.75) 100%),
+    color-mix(in srgb, var(--bg-secondary) 30%, transparent);
+  border-color: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.12));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.04),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .workspace-window-controls:hover {
+  border-color: color-mix(in srgb, var(--border-primary) 65%, rgba(0, 0, 0, 0.18));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 1),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.light-theme .workspace-window-controls__divider {
+  background: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.15));
+}
+
+.light-theme .workspace-window-control {
+  color: var(--text-secondary);
+}
+
+.light-theme .workspace-window-control--minimize:hover {
+  color: var(--text-primary) !important;
+  background: rgba(0, 0, 0, 0.06) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .workspace-window-control--maximize:hover {
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 14%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.light-theme .workspace-window-control--close:hover {
+  color: #e11d48 !important;
+  background: rgba(244, 63, 94, 0.14) !important;
+  border-color: rgba(244, 63, 94, 0.35) !important;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
+}
+
+/* Reduced motion accessibility */
+.animations-disabled .workspace-window-control,
+.animations-disabled .workspace-window-controls {
+  transition: none !important;
+  transform: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-window-control,
+  .workspace-window-controls {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 .workspace-main,

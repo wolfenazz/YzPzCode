@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession } from '../../types';
 import { useAppStore } from '../../stores/appStore';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
+import { refreshTerminalAtlases, registerTerminalRenderer } from '../../utils/terminalRendering';
 import '@xterm/xterm/css/xterm.css';
 
 interface InlineTerminalProps {
@@ -100,6 +101,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
     if (!terminalRef.current) return;
     const terminalElement = terminalRef.current;
     let mounted = true;
+    let unregisterRenderer: (() => void) | null = null;
 
     const init = async () => {
       try {
@@ -177,6 +179,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
         xtermRef.current = xterm;
         fitAddonRef.current = fitAddon;
+        unregisterRenderer = registerTerminalRenderer(xterm);
 
         setTimeout(() => {
           if (fitAddonRef.current) {
@@ -198,6 +201,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
         const fontsApi = (document as Document & { fonts?: FontFaceSet }).fonts;
         const onFontsDone = () => {
+          if (!mounted) return;
           if (!fitAddonRef.current || !xtermRef.current || !sessionIdRef.current) return;
           try {
             fitAddonRef.current.fit();
@@ -211,8 +215,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
               pixelWidth: Math.round(cols * cell.width),
               pixelHeight: Math.round(rows * cell.height),
             }).catch(() => {});
-            xtermRef.current.clearTextureAtlas();
-            xtermRef.current.refresh(0, Math.max(0, xtermRef.current.rows - 1));
+            refreshTerminalAtlases();
           } catch {}
         };
 
@@ -309,12 +312,15 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
 
     let cleanup: (() => void) | null = null;
     init().then((fn) => {
-      if (fn) cleanup = fn;
+      if (!fn) return;
+      if (mounted) cleanup = fn;
+      else fn();
     });
 
     return () => {
       mounted = false;
       if (cleanup) cleanup();
+      unregisterRenderer?.();
       if (xtermRef.current) {
         xtermRef.current.dispose();
       }

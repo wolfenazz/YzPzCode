@@ -24,8 +24,10 @@ import { TerminalLayoutContext } from './TerminalLayoutContext';
 import { DEFAULT_TERMINAL_ARRANGEMENT, useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { getTerminalLayoutRects } from '../../utils/terminalLayouts';
 import type { TerminalLayoutPreset } from '../../utils/terminalLayouts';
+import type { WorkspaceConfig } from '../../types';
 
 interface TerminalGridProps {
+  workspace: WorkspaceConfig;
   sessions: TerminalSession[];
   isLoading?: boolean;
 }
@@ -51,7 +53,7 @@ const MIN_SIZE = 12;
 const DIVIDER = 3;
 const GAP_PX = 8;
 
-export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading }) => {
+export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions, isLoading }) => {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [rowColSizes, setRowColSizes] = useState<number[][] | null>(null);
   const [colRowSizes, setColRowSizes] = useState<number[][] | null>(null);
@@ -71,9 +73,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
   const addSession = useAppStore((s) => s.addSession);
   const removeSession = useAppStore((s) => s.removeSession);
   const reorderSessions = useAppStore((s) => s.reorderSessions);
-  const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const independentGridResize = useAppStore((s) => s.independentGridResize);
-  const workspaceId = currentWorkspace?.id ?? sessions[0]?.workspaceId ?? '';
+  const workspaceId = workspace.id;
   const arrangement = useTerminalLayoutStore((s) => s.arrangements[workspaceId] ?? DEFAULT_TERMINAL_ARRANGEMENT);
   const setArrangement = useTerminalLayoutStore((s) => s.setArrangement);
   const setActiveSession = useAppStore((s) => s.setActiveSession);
@@ -172,13 +173,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
   }, [independentGridResize, activeColRowSizes, activeRowSizes, cols]);
 
   const handleAddTerminal = useCallback(async (agent: CliType | null, shell: string | null) => {
-    if (!currentWorkspace) return;
     setShowNewDialog(false);
     try {
       const newSession = await invoke<TerminalSession>('create_single_terminal_session', {
         request: {
-          workspaceId: currentWorkspace.id,
-          workspacePath: currentWorkspace.path,
+          workspaceId: workspace.id,
+          workspacePath: workspace.path,
           index: sessions.length,
           agent,
           shell,
@@ -192,7 +192,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ sessions, isLoading 
     } catch (err) {
       console.error('Failed to create terminal:', err);
     }
-  }, [currentWorkspace, sessions.length, addSession]);
+  }, [workspace.id, workspace.path, sessions.length, addSession]);
 
   const handleRemoveTerminal = useCallback(async (sessionId: string) => {
     try {

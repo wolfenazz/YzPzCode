@@ -217,6 +217,8 @@ pub fn run() {
             commands::kill_workspace_sessions,
             commands::get_all_sessions,
             commands::run_managed_terminal_command,
+            commands::get_project_run_targets,
+            commands::send_managed_terminal_input,
             commands::stop_managed_terminal_command,
             commands::get_managed_terminal_command_state,
             commands::ensure_browser_view,

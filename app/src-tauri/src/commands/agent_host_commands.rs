@@ -425,6 +425,7 @@ pub async fn get_agent_session_usage(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn update_agent_session_connection(
     manager: State<'_, AgentHostManager>,
     session_id: String,

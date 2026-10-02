@@ -10,6 +10,7 @@ import {
   Info,
   Keyboard,
   PaintBrushBroad,
+  Play,
   PlugsConnected,
   Robot,
   SquaresFour,
@@ -30,10 +31,12 @@ import { SettingsShortcuts } from './sections/SettingsShortcuts';
 import { SettingsTerminal } from './sections/SettingsTerminal';
 import { SettingsUpdates } from './sections/SettingsUpdates';
 import { SettingsWorkspace } from './sections/SettingsWorkspace';
+import { SettingsRuns } from './sections/SettingsRuns';
 
 type SettingsSection =
   | 'appearance'
   | 'terminal'
+  | 'runs'
   | 'editor'
   | 'workspace'
   | 'environment'
@@ -65,6 +68,7 @@ const ICON_SIZE = 17;
 const SECTIONS: SettingsNavItem[] = [
   { id: 'appearance', label: 'Appearance', icon: <PaintBrushBroad size={ICON_SIZE} /> },
   { id: 'terminal', label: 'Terminal', icon: <TerminalWindow size={ICON_SIZE} /> },
+  { id: 'runs', label: 'Application runs', icon: <Play size={ICON_SIZE} /> },
   { id: 'editor', label: 'Editor', icon: <Code size={ICON_SIZE} /> },
   { id: 'workspace', label: 'Workspace', icon: <SquaresFour size={ICON_SIZE} /> },
   { id: 'environment', label: 'Environment', icon: <Flask size={ICON_SIZE} /> },
@@ -103,6 +107,8 @@ export const SettingsScreen = ({
         return <SettingsAppearance />;
       case 'terminal':
         return <SettingsTerminal />;
+      case 'runs':
+        return <SettingsRuns />;
       case 'editor':
         return <SettingsEditor />;
       case 'workspace':

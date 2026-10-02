@@ -4,6 +4,16 @@ use tauri::State;
 use crate::terminal::{ManagedCommandManager, ManagedCommandState, TerminalManager};
 use crate::types::{AgentType, CreateSessionsRequest, TerminalSession};
 
+#[tauri::command]
+pub async fn get_project_run_targets(
+    cwd: String,
+) -> Result<Vec<crate::terminal::project_run::ProjectRunTarget>, String> {
+    tauri::async_runtime::spawn_blocking(move || crate::terminal::project_run::detect_targets(&cwd))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSingleSessionRequest {
@@ -139,6 +149,9 @@ pub async fn run_managed_terminal_command(
     manager: State<'_, ManagedCommandManager>,
     request: RunManagedTerminalCommandRequest,
 ) -> Result<(), String> {
+    if request.command.trim().is_empty() {
+        return Err("Enter a command to run".into());
+    }
     manager
         .run_command(
             &request.session_id,
@@ -147,6 +160,19 @@ pub async fn run_managed_terminal_command(
             &request.command,
         )
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn send_managed_terminal_input(
+    manager: State<'_, ManagedCommandManager>,
+    session_id: String,
+    input: String,
+) -> Result<(), String> {
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || manager.write_input(&session_id, &input))
+        .await
+        .map_err(|error| error.to_string())?
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

@@ -326,8 +326,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const previewShellRef = useRef<HTMLDivElement>(null);
   const previewViewportRef = useRef<HTMLDivElement>(null);
   const loadStartRef = useRef<number | null>(null);
-  const lastNavigatedTabRef = useRef<string | null>(null);
   const lastSyncedBoundsKeyRef = useRef<string | null>(null);
+  const browserSyncQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const pendingNavigationUrlRef = useRef<string | null>(null);
+  const browserDisposedRef = useRef(false);
   const inspectorPreviewQueueRef = useRef<Promise<void>>(Promise.resolve());
   const isPoppedOutRef = useRef(false);
   const browserStateByWorkspace = useAppStore((state) => state.browserStateByWorkspace);
@@ -560,11 +562,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   }, [isPoppedOut]);
 
   useEffect(() => {
-    lastNavigatedTabRef.current =
-      useAppStore.getState().browserStateByWorkspace[workspaceId]?.activeTabId ?? null;
-  }, [workspaceId]);
-
-  useEffect(() => {
     if (!browserState) return;
     if (browserState.currentUrl === 'about:blank' || browserState.draftUrl === 'about:blank') {
       setBrowserCurrentUrl(workspaceId, FALLBACK_URL);
@@ -601,49 +598,90 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     };
   }, [appZoom]);
 
-  const syncBrowserBounds = useCallback(async () => {
-    if (isPoppedOut) return;
+  const syncBrowserBounds = useCallback(() => {
+    // Serialize creation, resizing and tab navigation. Read the latest tab
+    // when this task runs so an earlier resize cannot reopen a stale URL.
+    const sync = async () => {
+      if (browserDisposedRef.current) return;
+      if (isPoppedOutRef.current) return;
 
-    const viewport = previewViewportRef.current;
-    if (!viewport) return;
+      const viewport = previewViewportRef.current;
+      if (!viewport) return;
 
-    const rect = viewport.getBoundingClientRect();
-    if (rect.width < 80 || rect.height < 80) return;
+      const rect = viewport.getBoundingClientRect();
+      if (rect.width < 80 || rect.height < 80) return;
 
-    // DOMRect values are CSS pixels inside the zoomed main webview, while
-    // Tauri positions child webviews in unzoomed logical pixels.
-    const appZoomFactor = appZoom / 100;
-    const bounds = {
-      x: rect.left * appZoomFactor,
-      y: rect.top * appZoomFactor,
-      width: rect.width * appZoomFactor,
-      height: rect.height * appZoomFactor,
+      // DOMRect values are CSS pixels inside the zoomed main webview, while
+      // Tauri positions child webviews in unzoomed logical pixels.
+      const appZoomFactor = appZoom / 100;
+      const bounds = {
+        x: rect.left * appZoomFactor,
+        y: rect.top * appZoomFactor,
+        width: rect.width * appZoomFactor,
+        height: rect.height * appZoomFactor,
+      };
+
+      const state = useAppStore.getState().browserStateByWorkspace[workspaceId];
+      const requestedTabId = state?.activeTabId;
+      const activeTab = state?.browserTabs.find((tab) => tab.id === requestedTabId);
+      const url = normalizeBrowserUrl(activeTab?.url || state?.currentUrl || FALLBACK_URL);
+      const boundsKey = JSON.stringify({
+        url,
+        tabId: activeTab?.id,
+        x: Math.round(bounds.x),
+        y: Math.round(bounds.y),
+        width: Math.round(bounds.width),
+        height: Math.round(bounds.height),
+      });
+
+      if (lastSyncedBoundsKeyRef.current === boundsKey) {
+        return;
+      }
+
+      try {
+        pendingNavigationUrlRef.current = url;
+        const view = await ensureBrowserView(workspaceId, url, bounds);
+        if (browserDisposedRef.current) {
+          const appState = useAppStore.getState();
+          if (appState.activeView !== 'browser' || appState.activeWorkspaceId !== workspaceId) {
+            await setBrowserViewVisibility(workspaceId, false);
+          }
+          return;
+        }
+        if (useAppStore.getState().browserStateByWorkspace[workspaceId]?.activeTabId !== requestedTabId) {
+          pendingNavigationUrlRef.current = null;
+          return;
+        }
+        // ensure only creates/shows the surface; an existing native webview
+        // deliberately keeps its previous page. Explicitly navigate it here.
+        if (!browserUrlsEqual(view.currentUrl, url)) {
+          await navigateBrowserView(workspaceId, url);
+        } else {
+          pendingNavigationUrlRef.current = null;
+        }
+        const latestState = useAppStore.getState().browserStateByWorkspace[workspaceId];
+        if (latestState?.activeTabId !== requestedTabId) return;
+        if (!browserUrlsEqual(latestState?.currentUrl ?? '', url)) {
+          setBrowserCurrentUrl(workspaceId, url);
+        }
+        lastSyncedBoundsKeyRef.current = boundsKey;
+        setNativeBrowserReady(true);
+        setError(null);
+      } catch (err) {
+        pendingNavigationUrlRef.current = null;
+        if (browserDisposedRef.current) return;
+        setNativeBrowserReady(false);
+        setError(err instanceof Error ? err.message : String(err));
+      }
     };
-
-    const url = resolvedCurrentUrl;
-    const boundsKey = JSON.stringify({
-      url,
-      x: Math.round(bounds.x),
-      y: Math.round(bounds.y),
-      width: Math.round(bounds.width),
-      height: Math.round(bounds.height),
-    });
-
-    if (lastSyncedBoundsKeyRef.current === boundsKey) {
-      return;
-    }
-
-    try {
-      await ensureBrowserView(workspaceId, url, bounds);
-      lastSyncedBoundsKeyRef.current = boundsKey;
-      setNativeBrowserReady(true);
-      setError(null);
-    } catch (err) {
-      setNativeBrowserReady(false);
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    const task = browserSyncQueueRef.current.then(sync);
+    browserSyncQueueRef.current = task.catch(() => undefined);
+    return task;
   }, [
     ensureBrowserView,
+    navigateBrowserView,
+    setBrowserCurrentUrl,
+    setBrowserViewVisibility,
     appZoom,
     isPoppedOut,
     resolvedCurrentUrl,
@@ -681,6 +719,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       }
     };
   }, [
+    effectiveState.activeTabId,
     effectiveState.deviceId,
     effectiveState.deviceOrientation,
     effectiveState.zoomFactor,
@@ -693,7 +732,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   ]);
 
   useEffect(() => {
+    browserDisposedRef.current = false;
     return () => {
+      browserDisposedRef.current = true;
       setNativeBrowserReady(false);
       if (!isPoppedOutRef.current) {
         void setBrowserViewVisibility(workspaceId, false).catch(() => undefined);
@@ -706,6 +747,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       listen<BrowserPageLoadPayload>('browser-page-load', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
         const context = browserEventContextRef.current;
+        const pendingUrl = pendingNavigationUrlRef.current;
+        // Ignore the previous page's late events while switching tabs. A
+        // matching start acknowledges the new navigation; redirects can then
+        // report their final URL normally.
+        if (pendingUrl && !browserUrlsEqual(pendingUrl, event.payload.url)) return;
+        if (event.payload.event === 'started') pendingNavigationUrlRef.current = null;
 
         if (event.payload.event === 'started') {
           loadStartRef.current = performance.now();
@@ -728,6 +775,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       }),
       listen<BrowserPageStatePayload>('browser-page-state', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
+        const pendingUrl = pendingNavigationUrlRef.current;
+        if (pendingUrl && !browserUrlsEqual(pendingUrl, event.payload.url)) return;
         const context = browserEventContextRef.current;
         setPageTitle(event.payload.title || '');
         setHistoryLength(event.payload.historyLength);
@@ -853,28 +902,6 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     nativeBrowserReady,
     isPoppedOut,
     setBrowserPreviewChrome,
-    workspaceId,
-  ]);
-
-  useEffect(() => {
-    if (!nativeBrowserReady) return;
-    const activeTabId = browserState?.activeTabId;
-    if (!activeTabId || activeTabId === lastNavigatedTabRef.current) return;
-
-    const activeTab = browserState?.browserTabs?.find((t) => t.id === activeTabId);
-    if (!activeTab) return;
-
-    lastNavigatedTabRef.current = activeTabId;
-
-    if (browserUrlsEqual(activeTab.url, browserState?.currentUrl ?? '')) return;
-
-    void navigateBrowserView(workspaceId, activeTab.url);
-    setBrowserDraftUrl(workspaceId, activeTab.url);
-  }, [
-    browserState?.activeTabId,
-    nativeBrowserReady,
-    navigateBrowserView,
-    setBrowserDraftUrl,
     workspaceId,
   ]);
 
