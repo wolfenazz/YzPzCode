@@ -90,19 +90,24 @@ export const AppFooter: React.FC = () => {
 
   return (
     <>
-      <footer className="h-8 flex-shrink-0 select-none border-t border-[var(--border-primary)] bg-[var(--bg-secondary)]">
-        <div className="flex h-full items-center justify-between px-3 text-[10px] text-[var(--text-secondary)]">
-          {/* Left: Sessions & Layout */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-              <span>Sessions</span>
-              <span className="tabular-nums font-medium text-[var(--text-primary)]">{sessions.length}</span>
+      <footer className="app-footer select-none">
+        <div className="flex h-full items-center justify-between px-3 text-[10px]">
+          {/* Left: Sessions & Layout Dock */}
+          <div className="app-footer__status-dock" role="status" aria-label="Workspace status">
+            <div className="flex items-center gap-1.5">
+              <span className={`app-footer__status-dot ${sessions.length > 0 ? 'is-active' : ''}`} aria-hidden="true" />
+              <span className="text-[var(--text-secondary)] font-medium">Sessions</span>
+              <span className="tabular-nums font-semibold text-[var(--text-primary)]">{sessions.length}</span>
             </div>
-            <div className="hidden items-center gap-3 text-[var(--text-secondary)] md:flex">
-              <span className="text-[var(--border-strong)]">/</span>
-              <span>Layout</span>
-              <span className="tabular-nums font-medium text-[var(--text-primary)]">{currentWorkspace ? `${cols} × ${rows}` : '—'}</span>
-            </div>
+            {currentWorkspace && (
+              <>
+                <div className="app-footer__divider hidden md:block" aria-hidden="true" />
+                <div className="hidden items-center gap-1.5 md:flex">
+                  <span className="text-[var(--text-secondary)] font-medium">Layout</span>
+                  <span className="tabular-nums font-semibold text-[var(--text-primary)]">{cols} × {rows}</span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Center: Branding & Authors (main page only) */}
@@ -201,51 +206,55 @@ export const AppFooter: React.FC = () => {
           {/* Right: Actions & Version */}
           <div className="flex items-center gap-2">
             <TerminalStatusBar />
-            <div className="flex items-center overflow-hidden rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]">
+            <div className="app-footer__action-dock" role="group" aria-label="Application utilities">
               {checking && (
-                <div className="flex items-center gap-1.5 px-2 py-1 text-[var(--text-secondary)]">
+                <div className="app-footer__action-item text-[var(--text-secondary)]">
                   <ArrowClockwise size={12} className="animate-spin-slow text-[var(--text-secondary)]" />
                   <span>Checking</span>
                 </div>
               )}
 
               {!checking && upToDate && (
-                <div className="flex items-center gap-1 px-2 py-1 text-emerald-600 dark:text-emerald-400">
-                  <CheckCircle size={12} weight="regular" />
+                <div className="app-footer__action-item app-footer__action-item--success">
+                  <CheckCircle size={12} weight="fill" />
                   <span>Up to date</span>
                 </div>
               )}
 
               {!checking && !downloading && updateAvailable && (
                 <button
+                  type="button"
                   onClick={downloadAndInstall}
-                  className="flex cursor-pointer items-center gap-1.5 px-2 py-1 text-amber-700 transition-colors duration-150 hover:bg-amber-500/10 dark:text-amber-400"
+                  className="app-footer__action-item app-footer__action-item--warning cursor-pointer"
                 >
-                  <DownloadSimple size={12} weight="regular" />
+                  <DownloadSimple size={12} weight="bold" />
                   <span>Update v{updateAvailable.version}</span>
                 </button>
               )}
 
               {downloading && (
-                <div className="flex items-center gap-2 px-2 py-1 text-emerald-600 dark:text-emerald-400">
+                <div className="app-footer__action-item app-footer__action-item--success">
                   <div className="h-1 w-12 overflow-hidden rounded-full bg-[var(--bg-tertiary)]">
                     <div
                       className="h-full bg-emerald-500 transition-all duration-200"
                       style={{ width: `${downloadProgress}%` }}
                     />
                   </div>
-                  <span>{downloadProgress}%</span>
+                  <span className="tabular-nums">{downloadProgress}%</span>
                 </div>
               )}
 
               {!checking && !downloading && !updateAvailable && !upToDate && (
                 <button
+                  type="button"
                   onClick={() => checkForUpdates(true)}
-                  className="cursor-pointer px-2 py-1 text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                  className="app-footer__action-item cursor-pointer"
                 >
                   Check for updates
                 </button>
               )}
+
+              <div className="app-footer__divider" aria-hidden="true" />
 
               <button
                 type="button"
@@ -254,21 +263,25 @@ export const AppFooter: React.FC = () => {
                     console.error('Failed to open GitHub Issues:', error);
                   });
                 }}
-                className="cursor-pointer border-l border-[var(--border-primary)] px-2 py-1 text-[var(--text-secondary)] transition-colors duration-150 hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]"
+                className="app-footer__action-item cursor-pointer"
                 title="Open GitHub Issues"
               >
                 Feedback
               </button>
 
+              <div className="app-footer__divider" aria-hidden="true" />
+
               <button
+                type="button"
                 onClick={() => setCustomCursor(!customCursor)}
-                className={`cursor-pointer border-l border-[var(--border-primary)] px-2 py-1 transition-colors duration-150 ${customCursor
-                  ? 'text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300'
-                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]'
-                  }`}
+                className={`app-footer__action-item app-footer__cursor-toggle cursor-pointer ${
+                  customCursor ? 'is-active' : ''
+                }`}
                 title={customCursor ? 'Disable custom cursor' : 'Enable custom cursor'}
+                aria-pressed={customCursor}
+                aria-label="Toggle custom cursor"
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
                   <line x1="12" y1="2" x2="12" y2="7" />
                   <line x1="12" y1="17" x2="12" y2="22" />
@@ -278,9 +291,9 @@ export const AppFooter: React.FC = () => {
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5 text-[var(--text-muted)]">
-              <span>v</span>
-              <span className="tabular-nums text-[var(--text-secondary)]">{appVersion || '—'}</span>
+            <div className="app-footer__version-badge" title={`YzPzCode version ${appVersion || 'development'}`}>
+              <span className="app-footer__version-prefix">v</span>
+              <span className="app-footer__version-num tabular-nums">{appVersion || '—'}</span>
             </div>
 
           </div>

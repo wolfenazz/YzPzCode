@@ -33,7 +33,14 @@ export const SortableTerminalPane: React.FC<SortableTerminalPaneProps> = ({ sess
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="h-full" {...attributes}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`h-full transition-all duration-200 ${
+        isDragging ? 'rounded-xl ring-2 ring-dashed ring-[var(--accent)]/50 bg-[var(--accent)]/5 shadow-inner' : ''
+      }`}
+      {...attributes}
+    >
       <TerminalPane
         session={session}
         onClose={onClose}

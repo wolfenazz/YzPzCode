@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   BookOpenText,
   Code,
@@ -199,8 +200,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           <button onClick={() => setIsShortcutOpen(true)} className="workspace-chrome__tool app-icon-button" title="Keyboard shortcuts" type="button"><Keyboard size={16} aria-hidden="true" /><span className="sr-only">Keyboard shortcuts</span></button>
           <div
             className="workspace-view-switcher"
-            role="group"
-            aria-label="Workspace view"
+            role="tablist"
+            aria-label="Workspace views"
             style={{ '--active-view-index': activeViewIndex } as React.CSSProperties}
             onKeyDown={handleViewKeyDown}
             onPointerMove={(event) => {
@@ -210,21 +211,39 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
             }}
           >
             <div className="workspace-view-switcher__lens" aria-hidden="true" />
-            {viewOptions.map(({ view, label, icon: IconComponent }, index) => (
-              <button
-                key={view}
-                ref={(button) => { viewButtonRefs.current[index] = button; }}
-                onClick={() => onViewChange(view)}
-                className={`workspace-view-switcher__item ${activeView === view ? 'is-active' : ''}`}
-                aria-label={label}
-                aria-pressed={activeView === view}
-                title={label}
-                type="button"
-              >
-                <IconComponent size={15} weight={activeView === view ? 'fill' : 'regular'} aria-hidden="true" />
-                <span>{label}</span>
-              </button>
-            ))}
+            {viewOptions.map(({ view, label, icon: IconComponent }, index) => {
+              const isActive = activeView === view;
+              return (
+                <button
+                  key={view}
+                  ref={(button) => { viewButtonRefs.current[index] = button; }}
+                  onClick={() => onViewChange(view)}
+                  className={`workspace-view-switcher__item ${isActive ? 'is-active' : ''}`}
+                  role="tab"
+                  aria-selected={isActive}
+                  aria-label={label}
+                  title={label}
+                  type="button"
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="workspace-view-active-pill"
+                      className="workspace-view-switcher__active-pill"
+                      transition={{ type: 'spring', bounce: 0.16, duration: 0.32 }}
+                    />
+                  )}
+                  <span className="workspace-view-switcher__content">
+                    <IconComponent
+                      size={13.5}
+                      weight={isActive ? 'fill' : 'regular'}
+                      className="workspace-view-switcher__icon shrink-0"
+                      aria-hidden="true"
+                    />
+                    <span className="workspace-view-switcher__label">{label}</span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
           {isWindows && (
             <WindowControls

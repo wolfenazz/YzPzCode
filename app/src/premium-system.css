@@ -1389,31 +1389,170 @@ html.animations-disabled .browser-inspect__beam::after {
   margin-left: 0.125rem;
 }
 
+/* ── Apple Liquid Glass Workspace View Switcher Dock ──────────────────
+   Floating frosted glass capsule navigation inspired by macOS/visionOS liquid glass,
+   featuring multi-layered specular highlights, fluid interactive sheen lens,
+   tactile pill items, and cohesive synergy with bespoke window controls. */
+
 .workspace-view-switcher {
-  height: 2rem !important;
-  gap: 0.125rem !important;
-  padding: 0.1875rem !important;
-  border-color: var(--border-primary) !important;
-  border-radius: 0.625rem !important;
-  background: var(--bg-primary) !important;
-  box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  height: 1.875rem;
+  margin-left: 0.375rem;
+  margin-right: 0.125rem;
+  padding: 0.15625rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.012) 100%),
+    color-mix(in srgb, var(--bg-secondary) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 70%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.2),
+    0 2px 6px -1px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  position: relative;
+  isolation: isolate;
+  z-index: 10;
+  transition: border-color 200ms ease, box-shadow 200ms ease, background-color 200ms ease;
 }
 
+.workspace-view-switcher:hover {
+  border-color: color-mix(in srgb, var(--border-primary) 95%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.25),
+    0 3px 10px -2px rgba(0, 0, 0, 0.35);
+}
+
+/* Liquid Glass Interactive Sheen Lens */
+.workspace-view-switcher__lens {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: hidden;
+  background: radial-gradient(
+    80px circle at var(--glass-pointer-x, -200px) var(--glass-pointer-y, -200px),
+    rgba(255, 255, 255, 0.12),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 220ms ease;
+}
+
+.workspace-view-switcher:hover .workspace-view-switcher__lens {
+  opacity: 1;
+}
+
+/* Segmented View Switcher Tab Item */
 .workspace-view-switcher__item {
-  height: 1.625rem !important;
-  border-radius: 0.375rem !important;
-  color: var(--text-secondary) !important;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--text-secondary) 85%, transparent);
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: color 180ms cubic-bezier(0.16, 1, 0.3, 1), background-color 180ms ease, transform 120ms ease !important;
 }
 
-.workspace-view-switcher__item:hover {
+.workspace-view-switcher__item:hover:not(.is-active) {
   color: var(--text-primary) !important;
-  background: var(--bg-tertiary) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 50%, transparent) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
 }
 
+.workspace-view-switcher__item:active {
+  transform: translateY(0.5px) scale(0.96) !important;
+  transition-duration: 50ms !important;
+}
+
+.workspace-view-switcher__item:focus-visible {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+/* Active State & Liquid Glass Active Pill */
 .workspace-view-switcher__item.is-active {
   color: var(--text-primary) !important;
-  background: var(--bg-tertiary) !important;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent);
+  font-weight: 550;
+}
+
+.workspace-view-switcher__active-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: 1;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.035) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 92%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.25),
+    0 2px 8px -1px rgba(0, 0, 0, 0.38),
+    0 0 12px -2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Fallback when motion.div is not rendered */
+.workspace-view-switcher__item.is-active:not(:has(.workspace-view-switcher__active-pill)) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.035) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 92%, transparent) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.25),
+    0 2px 8px -1px rgba(0, 0, 0, 0.38),
+    0 0 12px -2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+/* Content, Icon & Label */
+.workspace-view-switcher__content {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  line-height: 1;
+}
+
+.workspace-view-switcher__icon {
+  opacity: 0.82;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease, color 160ms ease, filter 160ms ease;
+}
+
+.workspace-view-switcher__item:hover .workspace-view-switcher__icon {
+  opacity: 1;
+  transform: translateY(-0.5px);
+}
+
+.workspace-view-switcher__item.is-active .workspace-view-switcher__icon {
+  opacity: 1;
+  color: var(--accent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 45%, transparent));
+}
+
+.workspace-view-switcher__label {
+  font-size: 0.6875rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
 }
 
 /* ── Bespoke Window Controls Dock ────────────────────────────────────
@@ -1539,6 +1678,595 @@ html.animations-disabled .browser-inspect__beam::after {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
 }
 
+
+/* ── Apple Liquid Glass Footer Architecture ──────────────────────────
+   Tactile floating frosted glass footer dock and status indicators,
+   mirroring the header titlebar liquid glass design language with
+   precision specular rim highlights, subtle blur, and responsive feedback. */
+
+.app-footer {
+  height: 2rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 40;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0.005) 100%),
+    color-mix(in srgb, var(--bg-secondary) 85%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--border-primary) 70%, transparent);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* Left Status Dock */
+.app-footer__status-dock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.01) 100%),
+    color-mix(in srgb, var(--bg-primary) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.06),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.15),
+    0 2px 5px -1px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  font-size: 0.65rem;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.app-footer__status-dock:hover {
+  border-color: color-mix(in srgb, var(--border-primary) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    0 3px 8px -1px rgba(0, 0, 0, 0.28);
+}
+
+.app-footer__status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--text-secondary) 50%, transparent);
+  transition: background-color 200ms ease, box-shadow 200ms ease;
+}
+
+.app-footer__status-dot.is-active {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+}
+
+/* Slim divider line between items inside docks */
+.app-footer__divider {
+  width: 1px;
+  height: 0.6875rem;
+  background: color-mix(in srgb, var(--border-primary) 70%, transparent);
+  opacity: 0.55;
+  border-radius: 9999px;
+}
+
+/* "New terminal" Liquid Glass Capsule Button */
+.app-footer__terminal-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.012) 100%),
+    color-mix(in srgb, var(--bg-primary) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.18),
+    0 2px 5px -1px rgba(0, 0, 0, 0.2);
+  color: color-mix(in srgb, var(--text-secondary) 90%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.app-footer__terminal-btn:hover {
+  color: var(--accent) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, transparent) 0%, color-mix(in srgb, var(--accent) 06%, transparent) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 80%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    0 0 10px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 2px 6px rgba(0, 0, 0, 0.25);
+  transform: translateY(-0.5px);
+}
+
+.app-footer__terminal-btn:active {
+  transform: translateY(0.5px) scale(0.96) !important;
+  transition-duration: 50ms !important;
+}
+
+.app-footer__terminal-btn:focus-visible {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+.app-footer__terminal-icon {
+  opacity: 0.82;
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), opacity 160ms ease;
+}
+
+.app-footer__terminal-btn:hover .app-footer__terminal-icon {
+  opacity: 1;
+  transform: translateY(-0.5px);
+}
+
+/* Right Action Dock (Updates / Feedback / Cursor) */
+.app-footer__action-dock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  height: 1.5rem;
+  padding: 0.125rem 0.1875rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.012) 100%),
+    color-mix(in srgb, var(--bg-primary) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.18),
+    0 2px 5px -1px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.app-footer__action-dock:hover {
+  border-color: color-mix(in srgb, var(--border-primary) 90%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+    0 3px 8px -1px rgba(0, 0, 0, 0.28);
+}
+
+.app-footer__action-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  height: 1.25rem;
+  padding: 0 0.55rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--text-secondary) 85%, transparent);
+  font-size: 0.65rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  outline: none;
+  user-select: none;
+  white-space: nowrap;
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+button.app-footer__action-item:hover {
+  color: var(--text-primary) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 50%, transparent) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+button.app-footer__action-item:active {
+  transform: translateY(0.5px) scale(0.96) !important;
+  transition-duration: 50ms !important;
+}
+
+button.app-footer__action-item:focus-visible {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+.app-footer__action-item--success {
+  color: #34d399 !important;
+}
+
+.app-footer__action-item--warning {
+  color: #fbbf24 !important;
+}
+
+button.app-footer__action-item--warning:hover {
+  background: color-mix(in srgb, #fbbf24 16%, transparent) !important;
+  border-color: color-mix(in srgb, #fbbf24 35%, transparent) !important;
+  box-shadow: 0 0 8px color-mix(in srgb, #fbbf24 25%, transparent) !important;
+}
+
+.app-footer__cursor-toggle {
+  width: 1.25rem !important;
+  height: 1.25rem !important;
+  padding: 0 !important;
+  border-radius: 9999px !important;
+}
+
+.app-footer__cursor-toggle.is-active {
+  color: #34d399 !important;
+  background:
+    linear-gradient(180deg, rgba(16, 185, 129, 0.28) 0%, rgba(16, 185, 129, 0.12) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 70%, transparent) !important;
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2),
+    0 0 8px rgba(16, 185, 129, 0.45) !important;
+}
+
+/* Version Badge */
+.app-footer__version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.55rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%),
+    color-mix(in srgb, var(--bg-primary) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 55%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.15),
+    0 2px 4px -1px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(12px) saturate(130%);
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  user-select: none;
+}
+
+.app-footer__version-prefix {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.app-footer__version-num {
+  font-family: var(--font-code);
+  font-size: 0.625rem;
+  font-weight: 550;
+  color: var(--text-secondary);
+}
+
+
+/* ── Apple Liquid Glass Spawn Session Window ─────────────────────────
+   Architectural modal dialog with multi-layered frosted glassmorphism,
+   specular highlights, fluid category switching, and refined cards. */
+
+.spawn-session-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  animation: spawn-backdrop-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes spawn-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.spawn-session-window {
+  position: relative;
+  width: 100%;
+  max-width: 42rem;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 1.25rem;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(28, 28, 36, 0.94) 0%, rgba(16, 16, 22, 0.98) 100%),
+    color-mix(in srgb, var(--bg-secondary) 85%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.3),
+    0 28px 70px -15px rgba(0, 0, 0, 0.8),
+    0 0 35px -5px color-mix(in srgb, var(--accent) 18%, transparent);
+  backdrop-filter: blur(32px) saturate(160%);
+  -webkit-backdrop-filter: blur(32px) saturate(160%);
+  animation: spawn-window-in 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes spawn-window-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.spawn-session-header {
+  padding: 1.125rem 1.25rem 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0) 100%);
+  flex-shrink: 0;
+}
+
+.spawn-session-filter-dock {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  height: 1.875rem;
+  padding: 0.15625rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.012) 100%),
+    color-mix(in srgb, var(--bg-primary) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.07),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.spawn-session-filter-item {
+  height: 1.5rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--text-secondary) 85%, transparent);
+  font-size: 0.6875rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 160ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.spawn-session-filter-item:hover:not(.is-active) {
+  color: var(--text-primary) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+.spawn-session-filter-item.is-active {
+  color: var(--text-primary) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.035) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 90%, transparent) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22),
+    0 2px 6px -1px rgba(0, 0, 0, 0.3),
+    0 0 10px -2px color-mix(in srgb, var(--accent) 30%, transparent) !important;
+}
+
+.spawn-session-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 1.875rem;
+  padding: 0 0.625rem;
+  border-radius: 9999px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%),
+    color-mix(in srgb, var(--bg-primary) 70%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 65%, transparent);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.spawn-session-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.spawn-session-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.875rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.008) 100%),
+    color-mix(in srgb, var(--bg-primary) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-primary) 60%, transparent);
+  border-left-width: 2.5px;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.05),
+    0 2px 6px -1px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  text-align: left;
+  transition: all 180ms cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.spawn-session-card:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 75%, transparent) !important;
+  border-color: rgba(255, 255, 255, 0.16) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12),
+    0 4px 14px -2px rgba(0, 0, 0, 0.35);
+  transform: translateY(-1px);
+}
+
+.spawn-session-card:active {
+  transform: translateY(0.5px) scale(0.98) !important;
+}
+
+.spawn-session-logo-tile {
+  width: 2.125rem;
+  height: 2.125rem;
+  display: grid;
+  place-items: center;
+  padding: 0.35rem;
+  border-radius: 0.625rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+  transition: transform 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.spawn-session-card:hover .spawn-session-logo-tile {
+  background: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.35);
+  transform: scale(1.06);
+}
+
+/* ── Apple Liquid Glass Terminal Drag Preview ─────────────────────────
+   Holographic translucent card floating under cursor while reordering
+   terminals in the grid, with specular rim lighting and spring drop. */
+
+.terminal-drag-preview {
+  width: 19rem;
+  border-radius: 0.875rem;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(28, 28, 36, 0.94) 0%, rgba(14, 14, 20, 0.98) 100%),
+    color-mix(in srgb, var(--bg-secondary) 85%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--accent) 70%, rgba(255, 255, 255, 0.3));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.25),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.4),
+    0 20px 50px -10px rgba(0, 0, 0, 0.8),
+    0 0 25px -2px color-mix(in srgb, var(--accent) 45%, transparent);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  cursor: grabbing;
+  transform: rotate(0.8deg) scale(1.02);
+  transition: transform 120ms ease;
+}
+
+.terminal-drag-preview__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%),
+    color-mix(in srgb, var(--bg-tertiary) 75%, transparent);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.terminal-drag-preview__icon-badge {
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 0.375rem;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.terminal-drag-preview__tty-badge {
+  font-size: 0.625rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.terminal-drag-preview__agent-badge {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.terminal-drag-preview__shell-badge {
+  font-size: 0.5625rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+}
+
+.terminal-drag-preview__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+
+.terminal-drag-preview__pulse-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.terminal-drag-preview__body {
+  padding: 0.75rem 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  font-family: var(--font-code);
+}
+
+.terminal-drag-preview__line {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+}
+
+.terminal-drag-preview__prompt {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.terminal-drag-preview__cursor {
+  color: var(--accent);
+}
+
+.terminal-drag-preview__hint {
+  font-family: var(--font-ui);
+  font-size: 0.5625rem;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
 /* ── Light Theme Adaptations ──────────────────────────────────────── */
 .light-theme .workspace-window-controls {
   background:
@@ -1587,16 +2315,196 @@ html.animations-disabled .browser-inspect__beam::after {
   box-shadow: 0 0 10px rgba(244, 63, 94, 0.25);
 }
 
+/* ── Light Theme Adaptations for View Switcher ────────────────────── */
+.light-theme .workspace-view-switcher {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.75) 100%),
+    color-mix(in srgb, var(--bg-secondary) 30%, transparent);
+  border-color: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.12));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.04),
+    0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .workspace-view-switcher:hover {
+  border-color: color-mix(in srgb, var(--border-primary) 65%, rgba(0, 0, 0, 0.18));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 1),
+    0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.light-theme .workspace-view-switcher__item {
+  color: var(--text-secondary);
+}
+
+.light-theme .workspace-view-switcher__item:hover:not(.is-active) {
+  color: var(--text-primary) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-theme .workspace-view-switcher__item.is-active {
+  color: var(--text-primary) !important;
+}
+
+.light-theme .workspace-view-switcher__active-pill {
+  background:
+    linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.92) 100%);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow:
+    inset 0 1px 0 0 #ffffff,
+    0 1px 3px rgba(0, 0, 0, 0.09),
+    0 2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.light-theme .workspace-view-switcher__lens {
+  background: radial-gradient(
+    70px circle at var(--glass-pointer-x, -200px) var(--glass-pointer-y, -200px),
+    rgba(255, 255, 255, 0.4),
+    transparent 70%
+  );
+}
+
+
+/* ── Light Theme Adaptations for Footer ───────────────────────────── */
+.light-theme .app-footer {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(255, 255, 255, 0.88) 100%),
+    color-mix(in srgb, var(--bg-secondary) 40%, transparent);
+  border-top-color: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.12));
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+}
+
+.light-theme .app-footer__status-dock,
+.light-theme .app-footer__action-dock,
+.light-theme .app-footer__terminal-btn,
+.light-theme .app-footer__version-badge {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.8) 100%),
+    color-mix(in srgb, var(--bg-secondary) 30%, transparent);
+  border-color: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.12));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 0 rgba(0, 0, 0, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .app-footer__terminal-btn {
+  color: var(--text-secondary);
+}
+
+.light-theme .app-footer__terminal-btn:hover {
+  color: var(--accent) !important;
+  background: color-mix(in srgb, var(--accent) 12%, transparent) !important;
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent) !important;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.light-theme .app-footer__action-item {
+  color: var(--text-secondary);
+}
+
+.light-theme button.app-footer__action-item:hover {
+  color: var(--text-primary) !important;
+  background: rgba(0, 0, 0, 0.05) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.light-theme .app-footer__status-dot.is-active {
+  background: #059669;
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.5);
+}
+
+.light-theme .app-footer__cursor-toggle.is-active {
+  color: #059669 !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(5, 150, 105, 0.35) !important;
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.3) !important;
+}
+
+.light-theme .app-footer__divider {
+  background: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.15));
+}
+
+
+/* Light Theme Adaptations for Spawn Window & Drag Preview */
+.light-theme .spawn-session-backdrop {
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.light-theme .spawn-session-window {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 245, 248, 0.96) 100%),
+    color-mix(in srgb, var(--bg-primary) 90%, transparent);
+  border-color: color-mix(in srgb, var(--border-primary) 50%, rgba(0, 0, 0, 0.15));
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 1),
+    0 24px 60px -12px rgba(0, 0, 0, 0.25);
+}
+
+.light-theme .spawn-session-filter-dock,
+.light-theme .spawn-session-search {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.8) 100%),
+    color-mix(in srgb, var(--bg-secondary) 30%, transparent);
+  border-color: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.12));
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+}
+
+.light-theme .spawn-session-filter-item.is-active {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+.light-theme .spawn-session-card {
+  background:
+    linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.85) 100%);
+  border-color: color-mix(in srgb, var(--border-primary) 45%, rgba(0, 0, 0, 0.12));
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.light-theme .spawn-session-card:hover {
+  background: #ffffff !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 0 10px color-mix(in srgb, var(--accent) 25%, transparent) !important;
+}
+
+.light-theme .terminal-drag-preview {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(245, 245, 248, 0.95) 100%);
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 0 #ffffff,
+    0 18px 40px -10px rgba(0, 0, 0, 0.25),
+    0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
 /* Reduced motion accessibility */
 .animations-disabled .workspace-window-control,
-.animations-disabled .workspace-window-controls {
+.animations-disabled .workspace-window-controls,
+.animations-disabled .workspace-view-switcher,
+.animations-disabled .workspace-view-switcher__item,
+.animations-disabled .workspace-view-switcher__active-pill,
+.animations-disabled .app-footer__status-dock,
+.animations-disabled .app-footer__action-dock,
+.animations-disabled .app-footer__terminal-btn,
+.animations-disabled .app-footer__action-item {
   transition: none !important;
   transform: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .workspace-window-control,
-  .workspace-window-controls {
+  .workspace-window-controls,
+  .workspace-view-switcher,
+  .workspace-view-switcher__item,
+  .workspace-view-switcher__active-pill,
+  .app-footer__status-dock,
+  .app-footer__action-dock,
+  .app-footer__terminal-btn,
+  .app-footer__action-item {
     transition: none !important;
     transform: none !important;
   }
@@ -1961,12 +2869,12 @@ html.animations-disabled .browser-inspect__beam::after {
   }
 
   .workspace-chrome__product > span:last-child,
-  .workspace-view-switcher__item > span {
+  .workspace-view-switcher__label {
     display: none;
   }
 
   .workspace-view-switcher__item {
-    width: 1.75rem;
+    width: 1.5rem;
     justify-content: center;
     padding-inline: 0 !important;
   }

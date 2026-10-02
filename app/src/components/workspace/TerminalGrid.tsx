@@ -594,21 +594,48 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
         </div>
       </SortableContext>
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay
+        dropAnimation={{
+          duration: 240,
+          easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
+        }}
+      >
         {activeSession ? (
-          <div className="border border-zinc-700 overflow-hidden bg-zinc-950/90 border-zinc-700">
-            <div className="flex items-center gap-3 px-3 py-2 bg-zinc-900/90">
-              <span className="text-[10px] font-black tracking-[0.2em] uppercase text-zinc-400">
-                TTY:{activeSession.index + 1}
-              </span>
-              {activeSession.agent && (
-                <span className="text-[9px] uppercase font-bold tracking-widest px-2 py-0.5 border bg-zinc-950 border-zinc-800 text-zinc-400">
-                  {activeSession.agent}
+          <div className="terminal-drag-preview select-none pointer-events-none">
+            <div className="terminal-drag-preview__header">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="terminal-drag-preview__icon-badge">
+                  <TerminalWindow size={13} weight="bold" />
+                </div>
+                <span className="terminal-drag-preview__tty-badge">
+                  TTY:{activeSession.index + 1}
                 </span>
-              )}
+                {activeSession.agent ? (
+                  <span className="terminal-drag-preview__agent-badge">
+                    {activeSession.agent}
+                  </span>
+                ) : (
+                  <span className="terminal-drag-preview__shell-badge">
+                    {activeSession.shell ? activeSession.shell.split(/[\\/]/).pop() : 'Shell'}
+                  </span>
+                )}
+              </div>
+              <div className="terminal-drag-preview__status">
+                <span className="terminal-drag-preview__pulse-dot" />
+                <span>Moving</span>
+              </div>
             </div>
-            <div className="h-24 flex items-center justify-center bg-zinc-950/80 text-zinc-700">
-              <span className="text-[10px] uppercase tracking-widest font-bold">Moving...</span>
+            <div className="terminal-drag-preview__body">
+              <div className="terminal-drag-preview__line">
+                <span className="terminal-drag-preview__prompt">&gt;</span>
+                <span className="text-[var(--text-secondary)] truncate">
+                  {activeSession.agent ? `${activeSession.agent} session` : (activeSession.shell ? activeSession.shell.split(/[\\/]/).pop() : 'terminal')}
+                </span>
+                <span className="terminal-drag-preview__cursor">_</span>
+              </div>
+              <div className="terminal-drag-preview__hint">
+                Drag to swap or reposition in grid
+              </div>
             </div>
           </div>
         ) : null}

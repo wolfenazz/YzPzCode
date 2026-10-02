@@ -1,6 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { Icon } from '@iconify/react';
+import {
+  CaretDown,
+  Check,
+  Info,
+  MagnifyingGlass,
+  Sparkle,
+  TerminalWindow,
+  Wrench,
+  X,
+} from '@phosphor-icons/react';
 import { AgentType, ToolCliType, CliType } from '../../types';
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
@@ -66,6 +77,8 @@ const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; ico
   { type: 'agentmail', label: 'AgentMail CLI', description: 'Email for AI agents', icon: 'simple-icons:mailgun', color: '#EC4899' },
 ];
 
+type CategoryFilter = 'all' | 'agents' | 'tools' | 'shell';
+
 interface ShellOption {
   name: string;
   path: string;
@@ -78,11 +91,12 @@ interface NewTerminalDialogProps {
 }
 
 export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, onSelect }) => {
-  const [hovered, setHovered] = useState<string | null>(null);
   const [expandedAgent, setExpandedAgent] = useState<AgentType | null>(null);
   const [availableShells, setAvailableShells] = useState<ShellOption[]>([]);
   const [selectedShell, setSelectedShell] = useState<string | null>(null);
   const [showShellPicker, setShowShellPicker] = useState(false);
+  const [category, setCategory] = useState<CategoryFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -110,282 +124,370 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
     onSelect(agent, selectedShell);
   };
 
+  const filteredAgents = useMemo(() => {
+    if (category === 'tools' || category === 'shell') return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return AGENT_OPTIONS;
+    return AGENT_OPTIONS.filter((a) =>
+      a.label.toLowerCase().includes(q) ||
+      a.description.toLowerCase().includes(q) ||
+      a.type.toLowerCase().includes(q)
+    );
+  }, [category, searchQuery]);
+
+  const filteredTools = useMemo(() => {
+    if (category === 'agents' || category === 'shell') return [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return TOOL_OPTIONS;
+    return TOOL_OPTIONS.filter((t) =>
+      t.label.toLowerCase().includes(q) ||
+      t.description.toLowerCase().includes(q) ||
+      t.type.toLowerCase().includes(q)
+    );
+  }, [category, searchQuery]);
+
+  const showShellSection = category === 'all' || category === 'shell';
   const availableShellCount = availableShells.filter((s) => s.isAvailable).length;
+  const currentShellName = availableShells.find((s) => s.path === selectedShell)?.name || 'Default Shell';
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-md animate-fade-in"
-        onClick={onClose}
-      />
-
+  const modalContent = (
+    <div
+      className="spawn-session-backdrop"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Spawn new terminal session"
-        className="relative w-full max-w-[620px] animate-popover-in font-mono bg-zinc-950/80 border border-white/[0.08] backdrop-blur-3xl"
+        className="spawn-session-window"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
       >
         {/* Header */}
-        <div className="px-6 pt-6 pb-3 relative flex flex-col items-center shrink-0">
-          <h2 className="text-sm font-bold tracking-tight text-zinc-100">
-            Spawn New Session
-          </h2>
-          <p className="text-[10px] text-zinc-500 uppercase tracking-[0.2em] mt-1 opacity-60">
-            Terminal Orchestration
-          </p>
+        <div className="spawn-session-header">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-sm">
+              <TerminalWindow size={18} weight="bold" className="text-[var(--accent)]" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
+                Spawn New Session
+              </h2>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Select an AI agent, tool CLI, or system shell
+              </p>
+            </div>
+          </div>
 
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 p-2 transition-all duration-200 cursor-pointer hover:bg-white/10 text-zinc-500 hover:text-rose-500"
+            className="workspace-window-control workspace-window-control--close"
+            title="Close dialog (Esc)"
+            aria-label="Close dialog"
+            type="button"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={13} weight="bold" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Scrollable content */}
+        {/* Toolbar: Category Switcher & Search Bar */}
+        <div className="flex flex-col gap-2.5 px-4 pt-3 pb-2 shrink-0 border-b border-[var(--border-primary)]/50">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="spawn-session-filter-dock" role="tablist" aria-label="Filter categories">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={category === 'all'}
+                onClick={() => setCategory('all')}
+                className={`spawn-session-filter-item ${category === 'all' ? 'is-active' : ''}`}
+              >
+                All ({AGENT_OPTIONS.length + TOOL_OPTIONS.length + 1})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={category === 'agents'}
+                onClick={() => setCategory('agents')}
+                className={`spawn-session-filter-item flex items-center gap-1 ${category === 'agents' ? 'is-active' : ''}`}
+              >
+                <Sparkle size={12} weight={category === 'agents' ? 'fill' : 'regular'} aria-hidden="true" />
+                Agents ({AGENT_OPTIONS.length})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={category === 'tools'}
+                onClick={() => setCategory('tools')}
+                className={`spawn-session-filter-item flex items-center gap-1 ${category === 'tools' ? 'is-active' : ''}`}
+              >
+                <Wrench size={12} weight="regular" aria-hidden="true" />
+                Tools ({TOOL_OPTIONS.length})
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={category === 'shell'}
+                onClick={() => setCategory('shell')}
+                className={`spawn-session-filter-item flex items-center gap-1 ${category === 'shell' ? 'is-active' : ''}`}
+              >
+                <TerminalWindow size={12} weight="regular" aria-hidden="true" />
+                Shell
+              </button>
+            </div>
+
+            {/* Quick search input */}
+            <div className="spawn-session-search flex-1 min-w-[160px] max-w-[240px]">
+              <MagnifyingGlass size={13} className="text-[var(--text-muted)] shrink-0 mr-1.5" aria-hidden="true" />
+              <input
+                type="text"
+                placeholder="Search fleet..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-transparent text-[11px] text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  <X size={11} weight="bold" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Scrollable Content */}
         <div
-          className="overflow-y-auto flex-1 min-h-0 px-3"
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#51504a transparent',
-          }}
+          className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4"
+          style={{ scrollbarWidth: 'thin' }}
         >
-          {/* System Shell */}
-          <button
-            onClick={() => handleSelect(null)}
-            onMouseEnter={() => setHovered('shell')}
-            onMouseLeave={() => setHovered(null)}
-            className={`w-full group relative flex items-center gap-4 px-4 py-3 transition-all duration-200 cursor-pointer ${
-              hovered === 'shell'
-                ? 'bg-white/5 shadow-sm'
-                : 'hover:bg-white/5 text-zinc-400'
-            }`}
-          >
-            <div className={`w-9 h-9 flex items-center justify-center transition-all duration-200 ${
-              hovered === 'shell'
-                ? 'bg-white/20'
-                : 'bg-white/5'
-            }`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <div className="text-left flex-1">
-              <div className="text-[11px] font-bold tracking-wider uppercase">System Shell</div>
-              <div className="text-[9px] tracking-wide mt-0.5 opacity-60">
-                Launch standard tty environment
-              </div>
-            </div>
-            <svg className={`w-4 h-4 opacity-0 group-hover:opacity-50 transition-opacity ${
-              hovered === 'shell' ? 'opacity-50' : ''
-            }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
-
-          {/* Shell picker */}
-          <div className="relative mt-1">
-            <button
-              onClick={() => setShowShellPicker(!showShellPicker)}
-              onMouseEnter={() => setHovered('shell-picker')}
-              onMouseLeave={() => setHovered(null)}
-              className={`w-full flex items-center gap-3 px-4 py-2 transition-all duration-200 cursor-pointer ${
-                hovered === 'shell-picker'
-                  ? 'bg-white/5'
-                  : 'bg-transparent'
-              }`}
-            >
-              <svg className="w-3 h-3 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-zinc-500">
-                Shell: {availableShells.find((s) => s.path === selectedShell)?.name || 'Default'}
-              </span>
-              <span className="text-[8px] px-1.5 py-0.5 border border-zinc-800 text-zinc-600">
-                {availableShellCount}
-              </span>
-              <svg className={`w-3 h-3 ml-auto transition-transform ${showShellPicker ? 'rotate-180' : ''} text-zinc-600`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-
-            {showShellPicker && (
-              <div className="absolute left-0 right-0 z-50 mt-1 border shadow-xl overflow-hidden bg-zinc-900 border-zinc-800">
-                {availableShells.map((shell) => (
+          {/* System Shell Section */}
+          {showShellSection && !searchQuery && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  System Environment
+                </span>
+                {/* Shell selector dropdown pill */}
+                <div className="relative">
                   <button
-                    key={shell.path}
-                    onClick={() => {
-                      if (shell.isAvailable) {
-                        setSelectedShell(shell.path);
-                        setShowShellPicker(false);
-                      }
-                    }}
-                    className={`w-full flex items-center justify-between px-4 py-2 text-left transition-colors cursor-pointer ${
-                      shell.isAvailable
-                        ? 'hover:bg-white/5 text-zinc-400'
-                        : 'opacity-40 cursor-not-allowed text-zinc-600'
-                    } ${selectedShell === shell.path ? 'bg-white/5' : ''}`}
-                    disabled={!shell.isAvailable}
+                    type="button"
+                    onClick={() => setShowShellPicker(!showShellPicker)}
+                    className="flex h-6 items-center gap-1.5 rounded-full border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 text-[10px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)]"
                   >
-                    <span className="text-[10px] font-bold tracking-wider">{shell.name}</span>
-                    {selectedShell === shell.path && (
-                      <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Agent Fleet Section Header */}
-          <div className="pt-3 pb-1.5 flex items-center gap-4 px-4">
-            <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-[0.3em] whitespace-nowrap">Agent Fleet</span>
-            <div className="h-px w-full bg-current opacity-[0.08]" />
-            <span className="text-[8px] text-zinc-600 tabular-nums">{AGENT_OPTIONS.length}</span>
-          </div>
-
-          {/* Agent Fleet Grid — 2 columns for compact layout */}
-          <div className="grid grid-cols-2 gap-1">
-            {AGENT_OPTIONS.map((agent) => {
-              const isExpanded = expandedAgent === agent.type;
-              const isHovered = hovered === agent.type;
-              return (
-                <div key={agent.type} className={agent.type === 'hermes' ? 'col-span-2' : undefined}>
-                  <button
-                    onClick={() => handleSelect(agent.type)}
-                    onMouseEnter={() => setHovered(agent.type)}
-                    onMouseLeave={() => setHovered(null)}
-                    className={`group relative w-full flex items-center gap-3 px-3 py-2.5 transition-all duration-200 cursor-pointer text-left ${
-                      isHovered
-                        ? 'bg-white/5 shadow-sm'
-                        : 'bg-transparent'
-                    }`}
-                  >
-                    {isHovered && (
-                      <div
-                        className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5"
-                        style={{ backgroundColor: agent.color }}
-                      />
-                    )}
-
-                    <div className={`w-8 h-8 flex items-center justify-center transition-all duration-200 shrink-0 p-1.5 ${
-                      isHovered
-                        ? 'bg-white shadow-sm scale-105'
-                        : 'bg-white/10 opacity-50'
-                    }`}>
-                      <img
-                        src={agent.logo}
-                        alt={agent.label}
-                        className={`w-full h-full object-contain transition-all ${
-                          isHovered ? 'brightness-100' : 'brightness-75'
-                        }`}
-                      />
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-[10px] font-bold tracking-wider uppercase truncate ${
-                          isHovered ? 'text-zinc-100' : 'text-zinc-400'
-                        }`}>
-                          {agent.label}
-                        </span>
-                      </div>
-                      <div className="text-[8px] text-zinc-500 tracking-wide mt-0.5 opacity-60 truncate">
-                        {agent.description}
-                      </div>
-                    </div>
-
-                    {/* Info toggle */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setExpandedAgent(isExpanded ? null : agent.type);
-                      }}
-                      className={`shrink-0 p-1 transition-all cursor-pointer ${
-                        isExpanded
-                          ? 'bg-white/10 text-zinc-300'
-                          : 'opacity-0 group-hover:opacity-50 hover:!opacity-80 text-zinc-500'
-                      }`}
-                    >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </button>
+                    <span>{currentShellName}</span>
+                    <span className="rounded-full bg-[var(--bg-tertiary)] px-1 py-0.2 text-[8px] font-mono text-[var(--text-muted)]">
+                      {availableShellCount}
+                    </span>
+                    <CaretDown size={10} weight="bold" className={`transition-transform ${showShellPicker ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* Expanded capabilities — inline within the grid */}
-                  {isExpanded && (
-                    <div className="mx-3 mb-1 px-3 py-2 text-[9px] leading-relaxed animate-fade-in bg-zinc-900/80 text-zinc-500 border border-zinc-800/50">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <div className="w-1.5 h-1.5" style={{ backgroundColor: agent.color }} />
-                        <span className="font-bold uppercase tracking-wider text-zinc-300">{agent.label}</span>
-                      </div>
-                      {AGENT_CAPABILITIES[agent.type]}
+                  {showShellPicker && (
+                    <div className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-xl backdrop-blur-2xl">
+                      {availableShells.map((shell) => (
+                        <button
+                          key={shell.path}
+                          type="button"
+                          onClick={() => {
+                            if (shell.isAvailable) {
+                              setSelectedShell(shell.path);
+                              setShowShellPicker(false);
+                            }
+                          }}
+                          className={`flex w-full items-center justify-between px-3 py-2 text-left text-[11px] transition-colors ${
+                            shell.isAvailable
+                              ? 'cursor-pointer hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+                              : 'cursor-not-allowed opacity-40 text-[var(--text-muted)]'
+                          } ${selectedShell === shell.path ? 'bg-[var(--bg-tertiary)] font-semibold' : ''}`}
+                          disabled={!shell.isAvailable}
+                        >
+                          <span className="truncate">{shell.name}</span>
+                          {selectedShell === shell.path && (
+                            <Check size={12} weight="bold" className="text-emerald-500 shrink-0" />
+                          )}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
+              </div>
 
-          {/* Tool CLIs Section Header */}
-          <div className="pt-3 pb-1.5 flex items-center gap-4 px-4">
-            <span className="text-[9px] font-bold text-zinc-600 uppercase tracking-[0.3em] whitespace-nowrap">Tool CLIs</span>
-            <div className="h-px w-full bg-current opacity-[0.06]" />
-            <span className="text-[8px] text-zinc-600 tabular-nums">{TOOL_OPTIONS.length}</span>
-          </div>
-
-          {/* Tool CLIs Grid — 2 columns */}
-          <div className="grid grid-cols-2 gap-1 px-1 pb-2">
-            {TOOL_OPTIONS.map((tool) => (
-              <button
-                key={tool.type}
-                onClick={() => handleSelect(tool.type)}
-                onMouseEnter={() => setHovered(`tool-${tool.type}`)}
-                onMouseLeave={() => setHovered(null)}
-                className={`group relative flex items-center gap-2.5 px-3 py-2 transition-all duration-200 cursor-pointer ${
-                  hovered === `tool-${tool.type}`
-                    ? 'bg-white/5'
-                    : 'bg-transparent'
-                }`}
+              <div
+                onClick={() => handleSelect(null)}
+                className="spawn-session-card group"
               >
-                <div className={`w-6 h-6 flex items-center justify-center transition-all duration-200 shrink-0 ${
-                  hovered === `tool-${tool.type}` ? 'scale-110' : 'opacity-50'
-                }`}>
-                  <Icon icon={tool.icon} style={{ color: tool.color }} className="w-3 h-3" />
+                <div className="spawn-session-logo-tile">
+                  <TerminalWindow size={18} weight="bold" className="text-[var(--accent)]" />
                 </div>
-                <div className="text-left min-w-0 flex-1">
-                  <span className={`text-[9px] font-bold tracking-wider uppercase block truncate ${
-                    hovered === `tool-${tool.type}` ? 'text-zinc-200' : 'text-zinc-500'
-                  }`}>
-                    {tool.label}
-                  </span>
-                  <span className="text-[8px] text-zinc-600 tracking-wide truncate block">{tool.description}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-[var(--text-primary)]">System Shell</span>
+                    <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[8px] font-semibold text-emerald-400">
+                      Standard
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5">
+                    Launch standard system tty terminal using {currentShellName}
+                  </p>
                 </div>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+                  <span>Launch</span>
+                  <span className="text-xs">→</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Agent Fleet Grid */}
+          {filteredAgents.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  AI Agent Fleet
+                </span>
+                <span className="text-[9px] font-mono text-[var(--text-muted)]">
+                  {filteredAgents.length} {filteredAgents.length === 1 ? 'agent' : 'agents'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {filteredAgents.map((agent) => {
+                  const isExpanded = expandedAgent === agent.type;
+                  return (
+                    <div key={agent.type} className="flex flex-col">
+                      <div
+                        onClick={() => handleSelect(agent.type)}
+                        className="spawn-session-card group"
+                        style={{
+                          borderLeftColor: agent.color ? `color-mix(in srgb, ${agent.color} 50%, var(--border-primary))` : undefined,
+                        }}
+                      >
+                        <div className="spawn-session-logo-tile">
+                          <img
+                            src={agent.logo}
+                            alt={agent.label}
+                            className="h-full w-full object-contain"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                              {agent.label}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5">
+                            {agent.description}
+                          </p>
+                        </div>
+
+                        {/* Info trigger */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedAgent(isExpanded ? null : agent.type);
+                          }}
+                          className={`p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors ${
+                            isExpanded ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : ''
+                          }`}
+                          title="View capabilities"
+                        >
+                          <Info size={14} weight={isExpanded ? 'fill' : 'regular'} />
+                        </button>
+                      </div>
+
+                      {/* Capabilities dropdown */}
+                      {isExpanded && (
+                        <div className="mt-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2.5 text-[10px] text-[var(--text-secondary)] shadow-sm animate-fade-in">
+                          <div className="flex items-center gap-1.5 mb-1 font-semibold text-[var(--text-primary)]">
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: agent.color }} />
+                            <span>{agent.label} Capabilities</span>
+                          </div>
+                          <p className="leading-relaxed">{AGENT_CAPABILITIES[agent.type]}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Tool CLIs Grid */}
+          {filteredTools.length > 0 && (
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                  Developer &amp; SaaS Tools
+                </span>
+                <span className="text-[9px] font-mono text-[var(--text-muted)]">
+                  {filteredTools.length} {filteredTools.length === 1 ? 'tool' : 'tools'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {filteredTools.map((tool) => (
+                  <div
+                    key={tool.type}
+                    onClick={() => handleSelect(tool.type)}
+                    className="spawn-session-card group"
+                  >
+                    <div className="spawn-session-logo-tile">
+                      <Icon icon={tool.icon} style={{ color: tool.color }} className="w-4 h-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
+                          {tool.label}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5">
+                        {tool.description}
+                      </p>
+                    </div>
+                    <div className="text-[11px] font-semibold text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity pr-1">
+                      →
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty search state */}
+          {filteredAgents.length === 0 && filteredTools.length === 0 && !showShellSection && (
+            <div className="py-12 text-center text-[var(--text-muted)]">
+              <p className="text-xs">No matching agents or tools found for &quot;{searchQuery}&quot;</p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="mt-2 text-[11px] font-medium text-[var(--accent)] hover:underline"
+              >
+                Clear search query
               </button>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 flex items-center justify-between border-t shrink-0 border-white/[0.04] bg-white/[0.02]">
+        {/* Footer Bar */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border-primary)] bg-[var(--bg-primary)]/40 shrink-0 text-[10px] text-[var(--text-secondary)]">
           <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 bg-emerald-500 animate-pulse" />
-            <span className="text-[8px] text-zinc-500 uppercase tracking-widest font-bold">session_ready</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Ready to spawn session</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-[8px] text-zinc-600 uppercase tracking-widest">dismiss</span>
-            <kbd className="px-1.5 py-0.5 text-[8px] font-bold border bg-zinc-900 border-zinc-800 text-zinc-500">ESC</kbd>
+          <div className="flex items-center gap-1 text-[var(--text-muted)]">
+            <span>Press</span>
+            <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[var(--text-secondary)]">
+              ESC
+            </kbd>
+            <span>to dismiss</span>
           </div>
         </div>
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };

@@ -38,12 +38,13 @@ export const TerminalStatusBar: React.FC = () => {
     <>
       <button
         onClick={() => setShowNewDialog(true)}
-        className="flex h-6 flex-shrink-0 items-center gap-1.5 rounded border border-[var(--border-primary)] px-1.5 text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent)]/10 hover:text-[var(--accent)]"
+        className="app-footer__terminal-btn"
         title="Open a new terminal"
         aria-label="Create terminal"
+        type="button"
       >
-        <TerminalWindow size={13} weight="regular" />
-        <span className="text-[10px] font-medium leading-none">New terminal</span>
+        <TerminalWindow size={13} weight="bold" className="app-footer__terminal-icon" />
+        <span>New terminal</span>
       </button>
 
       {showNewDialog && (
