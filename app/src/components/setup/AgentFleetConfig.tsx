@@ -14,7 +14,7 @@ import { AgentCliStatusBadge } from './AgentCliStatusBadge';
 
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
-import geminiLogo from '../../assets/gemini-cli-logo.svg';
+import antigravityLogo from '../../assets/antigravity.png';
 import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
@@ -36,7 +36,7 @@ interface AgentFleetConfigProps {
 const AGENT_INFO: Record<AgentType, { label: string; color: string; logo: string }> = {
   claude: { label: 'Claude', color: 'bg-orange-500', logo: claudeLogo },
   codex: { label: 'Codex', color: 'bg-green-500', logo: codexLogo },
-  gemini: { label: 'Gemini', color: 'bg-blue-500', logo: geminiLogo },
+  antigravity: { label: 'Antigravity CLI', color: 'bg-blue-600', logo: antigravityLogo },
   opencode: { label: 'OpenCode', color: 'bg-purple-500', logo: opencodeLogo },
   cursor: { label: 'Cursor', color: 'bg-pink-500', logo: cursorLogo },
   kilo: { label: 'Kilo', color: 'bg-teal-500', logo: kiloLogo },
@@ -266,7 +266,7 @@ export const AgentFleetConfig: React.FC<AgentFleetConfigProps> = ({
     isLaunchingRef.current = true;
     setInstallingCli(cli);
     try {
-    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
       if (agentTypes.includes(cli as AgentType)) {
         if (cli === 'amp' && navigator.userAgent.includes('Windows')) {
           await openUrl('https://ampcode.com/docs/cli');

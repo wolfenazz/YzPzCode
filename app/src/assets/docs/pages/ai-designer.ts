@@ -42,7 +42,7 @@ Design skills are persistent preference lines that influence future generations,
 
 ## Dispatching to Agents
 
-An agent selector (Codex, Claude, Gemini, and others) lets you send the generated design to an agent session for further implementation work in your actual project.
+An agent selector (Codex, Claude, Antigravity, and others) lets you send the generated design to an agent session for further implementation work in your actual project.
 
 > **Tip:** Combine the AI Designer with the browser's Copy UI mode: capture a component you like from any webpage, then use it as the reference for your next design generation.
 `;

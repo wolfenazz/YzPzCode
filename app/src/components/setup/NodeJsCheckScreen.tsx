@@ -160,7 +160,7 @@ export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady })
               <div className="text-center">
                 <h1 className="text-lg font-mono font-bold tracking-tight text-theme-main/90 mb-2">Node.js Required</h1>
                 <p className="text-[var(--text-secondary)] text-xs font-mono leading-relaxed max-w-sm">
-                  YzPzCode CLI agents (Claude Code, Codex, Gemini CLI, OpenCode, Kilo) require{' '}
+                  YzPzCode CLI agents (Claude Code, Codex, Antigravity CLI, OpenCode, Kilo) require{' '}
                   <span className="text-theme-main">Node.js v18+</span> to run.
                 </p>
               </div>

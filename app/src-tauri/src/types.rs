@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum AgentType {
     Claude,
     Codex,
-    Gemini,
+    Antigravity,
     Opencode,
     Cursor,
     Kilo,
@@ -23,7 +23,6 @@ pub enum AgentType {
     MistralVibe,
     DeepseekTui,
     Aider,
-    Antigravity,
     Reasonix,
     Amp,
     Dsh,

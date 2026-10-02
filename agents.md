@@ -1,6 +1,6 @@
 # YzPzCode - AI Agent Development Guide
 
-Tauri v2 desktop app for managing AI CLI tools (Claude, Gemini, Codex, Kilo, OpenCode, Cursor, Hermes, Pi, Command Code)
+Tauri v2 desktop app for managing AI CLI tools (Claude, Codex, Antigravity, Kilo, OpenCode, Cursor, Hermes, Pi, Command Code)
 and SaaS tool CLIs (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, GWS, AgentMail, Vercel).
 Rust backend + React 19 frontend. Borderless window, custom titlebar, PTY-based terminal grid,
 in-app browser with visual design inspector, AI-powered designer, and multi-workspace management.
@@ -198,7 +198,7 @@ export const useAppStore = create<AppStore>()(
 ## Feature Reference
 
 ### AI Agent CLIs (9)
-Claude, Codex, Gemini, Opencode, Cursor, Kilo, Hermes, Pi, Command Code — each gets a PTY session
+Claude, Codex, Antigravity, Opencode, Cursor, Kilo, Hermes, Pi, Command Code — each gets a PTY session
 
 ### Tool CLIs (10)
 GitHub CLI (`gh`), Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google Workspace (`gws`), AgentMail, Vercel — detected and auth-checked

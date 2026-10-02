@@ -47,17 +47,17 @@ pub trait AgentCliProvider: Send + Sync {
 
 pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
     use super::providers::{
-        AdditionalCliProvider, AgentmailCliProvider, ClaudeCliProvider, ClineCliProvider,
-        CodexCliProvider, CommandCodeCliProvider, CursorCliProvider, ElevenlabsCliProvider,
-        GeminiCliProvider, GhCliProvider, GrokCliProvider, GwsCliProvider, HermesCliProvider,
+        AdditionalCliProvider, AgentmailCliProvider, AntigravityCliProvider, ClaudeCliProvider,
+        ClineCliProvider, CodexCliProvider, CommandCodeCliProvider, CursorCliProvider,
+        ElevenlabsCliProvider, GhCliProvider, GrokCliProvider, GwsCliProvider, HermesCliProvider,
         KiloCliProvider, OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider,
         StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
     match agent {
         AgentType::Claude => Box::new(ClaudeCliProvider),
-        AgentType::Opencode => Box::new(OpenCodeCliProvider),
         AgentType::Codex => Box::new(CodexCliProvider),
-        AgentType::Gemini => Box::new(GeminiCliProvider),
+        AgentType::Antigravity => Box::new(AntigravityCliProvider),
+        AgentType::Opencode => Box::new(OpenCodeCliProvider),
         AgentType::Cursor => Box::new(CursorCliProvider),
         AgentType::Kilo => Box::new(KiloCliProvider),
         AgentType::Hermes => Box::new(HermesCliProvider),
@@ -74,7 +74,6 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         | AgentType::MistralVibe
         | AgentType::DeepseekTui
         | AgentType::Aider
-        | AgentType::Antigravity
         | AgentType::Reasonix
         | AgentType::Amp
         | AgentType::Dsh

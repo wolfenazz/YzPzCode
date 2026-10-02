@@ -149,8 +149,8 @@
 <br><br><b>Claude</b><br><code>claude</code><br><sub>Razonamiento profundo, explicaciones pacientes</sub>
 </td>
 <td align="center" width="120">
-<img src="app/src/assets/gemini-cli-logo.svg" width="48" height="48" style="border-radius:12px"/>
-<br><br><b>Gemini</b><br><code>gemini</code><br><sub>Rápido, multimodal, lo mejor de Google</sub>
+<img src="app/src/assets/antigravity.png" width="48" height="48" style="border-radius:12px"/>
+<br><br><b>Antigravity</b><br><code>agy</code><br><sub>Agente terminal de Google</sub>
 </td>
 <td align="center" width="120">
 <img src="app/src/assets/codex.png" width="48" height="48" style="border-radius:12px"/>

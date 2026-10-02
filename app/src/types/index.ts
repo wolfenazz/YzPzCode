@@ -1,10 +1,34 @@
-export type AgentType = "claude" | "codex" | "gemini" | "opencode" | "cursor" | "kilo" | "hermes" | "pi" | "commandcode" | "cline" | "grok" | "devin" | "trae" | "kimi" | "qoder" | "copilot" | "kiro" | "mistralvibe" | "deepseektui" | "aider" | "antigravity" | "reasonix" | "amp" | "dsh" | "codebuddy" | "mimo" | "atomcode";
+export type AgentType = "claude" | "codex" | "antigravity" | "opencode" | "cursor" | "kilo" | "hermes" | "pi" | "commandcode" | "cline" | "grok" | "devin" | "trae" | "kimi" | "qoder" | "copilot" | "kiro" | "mistralvibe" | "deepseektui" | "aider" | "reasonix" | "amp" | "dsh" | "codebuddy" | "mimo" | "atomcode";
 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
 export type WorkspaceView = "terminal" | "agent" | "editor" | "browser";
 export type ThemeMode = "light" | "dark" | "claude" | "yzpz" | "system";
+
+export interface ExtensionInfo {
+  id: string;
+  name: string;
+  publisher: string;
+  description: string;
+  installedVersion: string | null;
+  registryUrl: string;
+}
+
+export interface ExtensionInstallProgress {
+  extensionId: string;
+  stage: string;
+  message: string;
+  downloadedBytes: number;
+  totalBytes: number | null;
+}
+
+export interface WorkspaceExtensionPanel {
+  id: string;
+  workspaceId: string;
+  extensionId: string;
+  name: string;
+}
 export type WorkspaceAuroraPalette = 'gemini' | 'sage' | 'accent' | 'custom';
 
 export interface ImageEditorWorkspaceState {

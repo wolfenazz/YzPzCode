@@ -439,7 +439,7 @@ interface AppState {
 const initialCliStatuses: Record<CliType, AgentCliInfo | null> = {
   claude: null,
   codex: null,
-  gemini: null,
+  antigravity: null,
   opencode: null,
   cursor: null,
   kilo: null,
@@ -457,7 +457,6 @@ const initialCliStatuses: Record<CliType, AgentCliInfo | null> = {
   mistralvibe: null,
   deepseektui: null,
   aider: null,
-  antigravity: null,
   reasonix: null,
   amp: null,
   dsh: null,

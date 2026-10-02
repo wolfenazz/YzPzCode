@@ -48,7 +48,7 @@ YzPzCode (identifier: `com.yzpzcode.desktop`) is a cross-platform desktop applic
 
 The Software provides the following functionality:
 
-- **AI CLI Tool Orchestration** — Detection, installation, launching, and management of third-party AI CLI tools, including but not limited to Claude Code (Anthropic), Codex CLI (OpenAI), Gemini CLI (Google), OpenCode (AnomalyCo), Cursor CLI (Cursor), and Kilo CLI (Kilo). YzPzCode does not provide AI capabilities itself; it acts solely as a management and integration layer.
+- **AI CLI Tool Orchestration** — Detection, installation, launching, and management of third-party AI CLI tools, including but not limited to Claude Code (Anthropic), Codex CLI (OpenAI), Antigravity CLI (Google), OpenCode (AnomalyCo), Cursor CLI (Cursor), and Kilo CLI (Kilo). YzPzCode does not provide AI capabilities itself; it acts solely as a management and integration layer.
 - **Terminal Management** — Creation of pseudo-terminal (PTY) sessions with configurable grid layouts, enabling simultaneous terminal operations. All terminal I/O is local to your machine.
 - **File System Access** — Full file operations including read, write, create, delete, rename, move, duplicate, and import, subject to your operating system's permission model.
 - **Git Integration** — Local Git operations including status checks, diffs, staging, and file content retrieval.
@@ -99,7 +99,7 @@ YzPzCode integrates with and manages the following third-party AI CLI tools, eac
 |------|----------|----------|
 | Claude Code | Anthropic | https://www.anthropic.com/policies |
 | Codex CLI | OpenAI | https://openai.com/policies |
-| Gemini CLI | Google | https://policies.google.com |
+| Antigravity CLI | Google | https://policies.google.com |
 | OpenCode | AnomalyCo | https://opencode.ai/docs |
 | Cursor CLI | Cursor | https://cursor.com/terms |
 | Kilo CLI | Kilo | https://kilocode.ai/docs |

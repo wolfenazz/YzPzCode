@@ -15,21 +15,30 @@ import {
 } from '@dnd-kit/sortable';
 import { TerminalSession, CliType } from '../../types';
 import { SortableTerminalPane } from './SortableTerminalPane';
+import { ExtensionPane } from './ExtensionPane';
 import { NewTerminalDialog } from './NewTerminalDialog';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
+import { EMPTY_EXTENSION_PANELS, useExtensionStore } from '../../stores/extensionStore';
 import { BoxLoader } from '../common/BoxLoader';
 import { Plus, TerminalWindow } from '@phosphor-icons/react';
 import { TerminalLayoutContext } from './TerminalLayoutContext';
 import { DEFAULT_TERMINAL_ARRANGEMENT, useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { getTerminalLayoutRects } from '../../utils/terminalLayouts';
 import type { TerminalLayoutPreset } from '../../utils/terminalLayouts';
-import type { WorkspaceConfig } from '../../types';
+import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
 
 interface TerminalGridProps {
   workspace: WorkspaceConfig;
   sessions: TerminalSession[];
   isLoading?: boolean;
+  visible?: boolean;
+}
+
+interface WorkspacePane {
+  id: string;
+  terminal: TerminalSession | null;
+  extension: WorkspaceExtensionPanel | null;
 }
 
 function getGridDimensions(count: number): { cols: number; rows: number } {
@@ -53,7 +62,7 @@ const MIN_SIZE = 12;
 const DIVIDER = 3;
 const GAP_PX = 8;
 
-export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions, isLoading }) => {
+export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions, isLoading, visible = true }) => {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [rowColSizes, setRowColSizes] = useState<number[][] | null>(null);
   const [colRowSizes, setColRowSizes] = useState<number[][] | null>(null);
@@ -75,11 +84,22 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
   const reorderSessions = useAppStore((s) => s.reorderSessions);
   const independentGridResize = useAppStore((s) => s.independentGridResize);
   const workspaceId = workspace.id;
+  const extensionPanels = useExtensionStore((state) => state.panelsByWorkspace[workspaceId] ?? EMPTY_EXTENSION_PANELS);
+  const paneOrder = useExtensionStore((state) => state.paneOrderByWorkspace[workspaceId]);
+  const setPaneOrder = useExtensionStore((state) => state.setPaneOrder);
   const arrangement = useTerminalLayoutStore((s) => s.arrangements[workspaceId] ?? DEFAULT_TERMINAL_ARRANGEMENT);
   const setArrangement = useTerminalLayoutStore((s) => s.setArrangement);
   const setActiveSession = useAppStore((s) => s.setActiveSession);
 
-  const sorted = useMemo(() => [...sessions].sort((a, b) => a.index - b.index), [sessions]);
+  const sorted = useMemo(() => {
+    const panes: WorkspacePane[] = [
+      ...[...sessions].sort((a, b) => a.index - b.index).map((terminal) => ({ id: terminal.id, terminal, extension: null })),
+      ...extensionPanels.map((extension) => ({ id: extension.id, terminal: null, extension })),
+    ];
+    if (!paneOrder?.length) return panes;
+    const order = new Map(paneOrder.map((id, index) => [id, index]));
+    return panes.sort((a, b) => (order.get(a.id) ?? paneOrder.length) - (order.get(b.id) ?? paneOrder.length));
+  }, [sessions, extensionPanels, paneOrder]);
   const { cols, rows } = getGridDimensions(sorted.length);
   const preset = arrangement.preset;
   const customLayout = preset !== 'grid';
@@ -91,12 +111,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
   );
   const selectPreset = useCallback((next: TerminalLayoutPreset, sessionId: string) => {
     setArrangement(workspaceId, next, sessionId);
-    setActiveSession(sessionId);
+    if (sessions.some((session) => session.id === sessionId)) setActiveSession(sessionId);
     setRowColSizes(null);
     setColRowSizes(null);
     setColSizes(null);
     setRowSizes(null);
-  }, [workspaceId, setArrangement, setActiveSession]);
+  }, [workspaceId, setArrangement, setActiveSession, sessions]);
   const layoutControls = useMemo(() => ({ preset, focusedSessionId, selectPreset }), [preset, focusedSessionId, selectPreset]);
   // Scroll when a preset would otherwise make the smaller terminals unusable.
   const focusBeside = preset === 'focus-left' || preset === 'focus-right';
@@ -221,12 +241,16 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     const toIndex = sorted.findIndex((s) => s.id === over.id);
 
     if (fromIndex !== -1 && toIndex !== -1) {
-      reorderSessions(fromIndex, toIndex);
+      const order = sorted.map((pane) => pane.id);
+      const [moved] = order.splice(fromIndex, 1);
+      order.splice(toIndex, 0, moved);
+      setPaneOrder(workspaceId, order);
+      if (extensionPanels.length === 0) reorderSessions(fromIndex, toIndex);
     }
-  }, [sorted, reorderSessions]);
+  }, [sorted, reorderSessions, setPaneOrder, workspaceId, extensionPanels.length]);
 
   const activeSession = useMemo(
-    () => (activeId ? sorted.find((s) => s.id === activeId) ?? null : null),
+    () => (activeId ? sorted.find((s) => s.id === activeId)?.terminal ?? null : null),
     [activeId, sorted]
   );
 
@@ -353,7 +377,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     }
   }, [independentGridResize, rows, cols]);
 
-  if (isLoading) {
+  if (isLoading && extensionPanels.length === 0) {
     return (
       <div className="h-full flex items-center justify-center font-mono text-zinc-500">
         <div className="flex flex-col items-center gap-4">
@@ -366,7 +390,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     );
   }
 
-  if (sessions.length === 0) {
+  if (sorted.length === 0) {
     return (
       <div className="h-full flex flex-col items-center justify-center font-mono text-[var(--text-secondary)]">
         <div className="text-center space-y-4">
@@ -444,10 +468,19 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
                   } : {}),
                 }}
               >
-                <SortableTerminalPane
-                  session={session}
-                  onClose={() => handleRemoveTerminal(session.id)}
-                />
+                {session.terminal ? (
+                  <SortableTerminalPane
+                    session={session.terminal}
+                    onClose={() => handleRemoveTerminal(session.id)}
+                  />
+                ) : session.extension ? (
+                  <ExtensionPane
+                    panel={session.extension}
+                    workspace={workspace}
+                    visible={visible}
+                    suspended={activeId !== null || showNewDialog}
+                  />
+                ) : null}
               </div>
             );
           })}

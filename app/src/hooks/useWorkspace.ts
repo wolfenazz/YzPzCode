@@ -11,7 +11,7 @@ const DEFAULT_AGENT_FLEET: AgentFleet = {
   allocation: {
     claude: 0,
     codex: 0,
-    gemini: 0,
+    antigravity: 0,
     opencode: 0,
     cursor: 0,
     kilo: 0,
@@ -56,7 +56,7 @@ export const SEED_TEMPLATES: WorkspaceTemplate[] = [
     icon: 'react',
     iconColor: '#61DAFB',
     layout: { type: 'grid', sessions: 4 },
-    allocation: { claude: 2, codex: 1, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
+    allocation: { claude: 2, codex: 1, antigravity: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
   },
   {
     id: 'rust',
@@ -65,7 +65,7 @@ export const SEED_TEMPLATES: WorkspaceTemplate[] = [
     icon: 'rust',
     iconColor: '#CE422B',
     layout: { type: 'grid', sessions: 4 },
-    allocation: { claude: 2, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
+    allocation: { claude: 2, codex: 0, antigravity: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
   },
   {
     id: 'python',
@@ -74,7 +74,7 @@ export const SEED_TEMPLATES: WorkspaceTemplate[] = [
     icon: 'python',
     iconColor: '#3776AB',
     layout: { type: 'grid', sessions: 4 },
-    allocation: { claude: 1, codex: 0, gemini: 2, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
+    allocation: { claude: 1, codex: 0, antigravity: 2, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
   },
   {
     id: 'fullstack',
@@ -83,7 +83,7 @@ export const SEED_TEMPLATES: WorkspaceTemplate[] = [
     icon: 'fullstack',
     iconColor: '#A855F7',
     layout: { type: 'grid', sessions: 6 },
-    allocation: { claude: 2, codex: 1, gemini: 1, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
+    allocation: { claude: 2, codex: 1, antigravity: 1, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
   },
   {
     id: 'quick',
@@ -92,7 +92,7 @@ export const SEED_TEMPLATES: WorkspaceTemplate[] = [
     icon: 'quick',
     iconColor: '#10B981',
     layout: { type: 'grid', sessions: 1 },
-    allocation: { claude: 1, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
+    allocation: { claude: 1, codex: 0, antigravity: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
   },
   {
     id: 'custom',
@@ -101,7 +101,7 @@ export const SEED_TEMPLATES: WorkspaceTemplate[] = [
     icon: 'custom',
     iconColor: '#71717A',
     layout: { type: 'grid', sessions: 4 },
-    allocation: { claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
+    allocation: { claude: 0, codex: 0, antigravity: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, ...TOOL_ZEROS },
   },
 ];
 

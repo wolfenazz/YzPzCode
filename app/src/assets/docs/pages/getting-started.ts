@@ -60,7 +60,7 @@ There is also an **Open Terminals Externally** toggle. It opens the terminals as
 
 ### Step 5: Assign Agents
 
-The Agent Fleet section lists every supported AI agent (Claude, Codex, Gemini, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, Cline, Grok) and every tool CLI (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google WS, AgentMail, Vercel).
+The Agent Fleet section lists every supported AI agent (Claude, Codex, Antigravity, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, Cline, Grok) and every tool CLI (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google WS, AgentMail, Vercel).
 
 - Toggle an agent on to assign it to a terminal slot
 - Use the \`+\` and \`-\` buttons to give an agent multiple slots

@@ -97,9 +97,9 @@ impl AgentCliDetector {
     pub fn detect_all(&self) -> HashMap<AgentType, AgentCliInfo> {
         let agents = [
             AgentType::Claude,
-            AgentType::Opencode,
             AgentType::Codex,
-            AgentType::Gemini,
+            AgentType::Antigravity,
+            AgentType::Opencode,
             AgentType::Cursor,
             AgentType::Kilo,
             AgentType::Hermes,
@@ -116,7 +116,6 @@ impl AgentCliDetector {
             AgentType::MistralVibe,
             AgentType::DeepseekTui,
             AgentType::Aider,
-            AgentType::Antigravity,
             AgentType::Reasonix,
             AgentType::Amp,
             AgentType::Dsh,

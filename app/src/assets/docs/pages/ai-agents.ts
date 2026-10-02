@@ -8,7 +8,7 @@ YzPzCode detects, installs, authenticates, and launches AI coding agents into te
 |-------|-------------|-------------|
 | **Claude Code** | \`claude\` | Anthropic's advanced AI coding assistant |
 | **Codex CLI** | \`codex\` | OpenAI's code generation and development CLI |
-| **Gemini CLI** | \`gemini\` | Google's Gemini assistant for terminal-based development |
+| **Antigravity CLI** | \`agy\` | Google Antigravity terminal coding agent with autonomous workflows |
 | **OpenCode** | \`opencode\` | Open-source AI command-line coding assistant |
 | **Cursor CLI** | \`agent\` | Cursor's AI-enhanced development agent |
 | **Kilo CLI** | \`kilo\` | Agentic coding CLI with TUI and autonomous mode |

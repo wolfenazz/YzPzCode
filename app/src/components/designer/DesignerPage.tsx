@@ -116,7 +116,7 @@ interface SaveState {
 const AGENT_OPTIONS: Array<{ id: AgentType; label: string }> = [
   { id: 'codex', label: 'Codex' },
   { id: 'claude', label: 'Claude' },
-  { id: 'gemini', label: 'Gemini' },
+  { id: 'antigravity', label: 'Antigravity CLI' },
   { id: 'opencode', label: 'OpenCode' },
   { id: 'kilo', label: 'Kilo' },
   { id: 'cursor', label: 'Cursor' },
@@ -815,7 +815,7 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
         sessionId: targetId,
         input: '\x1b[201~',
       });
-      // Submit separately: Pi, Command Code, and Claude/Gemini-style TUIs
+      // Submit separately: Pi, Command Code, and Claude/Antigravity-style TUIs
       // can consume an adjacent CR while they finish their paste callback.
       await new Promise<void>((resolve) => window.setTimeout(resolve, TERMINAL_SUBMIT_DELAY_MS));
       await invoke<void>('write_to_terminal', {
@@ -1079,7 +1079,7 @@ export const DesignerPage: React.FC<DesignerPageProps> = ({ isWindows, onBack })
               <SectionHeader title="Integrations" subtitle="Local CLI, BYOK proxy, MCP, and workspace handoff surfaces." />
               <div className="od-integration-grid">
                 {[
-                  ['Local CLI', 'Claude Code, Codex, Gemini, OpenCode, Kilo, Cursor, and more on PATH.'],
+                  ['Local CLI', 'Claude Code, Codex, Antigravity, OpenCode, Kilo, Cursor, and more on PATH.'],
                   ['BYOK proxy', 'OpenAI-compatible, Anthropic, Google, Azure, Ollama, and media providers.'],
                   ['MCP server', 'Expose skills, design systems, projects, and artifacts to external coding agents.'],
                   ['Workspace handoff', 'Persist prompts and briefs into the active YzPzCode Design folder.'],

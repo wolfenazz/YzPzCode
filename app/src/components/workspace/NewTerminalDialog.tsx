@@ -15,7 +15,7 @@ import {
 import { AgentType, ToolCliType, CliType } from '../../types';
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
-import geminiLogo from '../../assets/gemini-cli-logo.svg';
+import antigravityLogo from '../../assets/antigravity.png';
 import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
@@ -37,7 +37,7 @@ interface AgentOption {
 const AGENT_OPTIONS: AgentOption[] = [
   { type: 'claude', label: 'Claude Code', description: 'Anthropic CLI Orchestrator', logo: claudeLogo, color: '#D97757' },
   { type: 'codex', label: 'Codex CLI', description: 'OpenAI Intelligence Engine', logo: codexLogo, color: '#10A37F' },
-  { type: 'gemini', label: 'Gemini CLI', description: 'Google Multimodal Assistant', logo: geminiLogo, color: '#4285F4' },
+  { type: 'antigravity', label: 'Antigravity CLI', description: 'Google Antigravity Agent', logo: antigravityLogo, color: '#557FF0' },
   { type: 'opencode', label: 'OpenCode', description: 'Open Source Autonomy', logo: opencodeLogo, color: '#FFFFFF' },
   { type: 'cursor', label: 'Cursor Agent', description: 'Contextual AI Environment', logo: cursorLogo, color: '#3178C6' },
   { type: 'kilo', label: 'Kilo Code', description: 'Lightweight AI Developer', logo: kiloLogo, color: '#8B5CF6' },
@@ -52,12 +52,12 @@ const AGENT_OPTIONS: AgentOption[] = [
 const AGENT_CAPABILITIES: Record<AgentType, string> = {
   claude: 'Code generation, refactoring, debugging, and complex task orchestration via Anthropic Claude models.',
   codex: 'OpenAI-powered coding assistant with deep code understanding. Specializes in code completion and generation.',
-  gemini: 'Google\'s multimodal AI with support for code, images, and documents. Strong at cross-modal reasoning.',
+  antigravity: "Google's AI-first agentic coding CLI with autonomous workflows, subagent leasing, and deep context management.",
   opencode: 'Fully open-source AI coding agent. Transparent, customizable. Supports multiple model backends.',
   cursor: 'IDE-integrated AI agent with deep codebase awareness. Context-aware suggestions and multi-file edits.',
   kilo: 'Lightweight, fast AI coding assistant optimized for quick tasks. Lower resource usage.',
   hermes: 'NousResearch autonomous AI agent with tool use, messaging integration, and browser automation.',
-  pi: 'Minimal terminal coding harness with TypeScript extensions, skills, prompt templates, and pi packages. Supports Claude, OpenAI, Gemini, and 20+ providers.',
+  pi: 'Minimal terminal coding harness with TypeScript extensions, skills, prompt templates, and pi packages. Supports Claude, OpenAI, Google, and 20+ providers.',
   commandcode: 'Agentic coding CLI that learns your preferences (package managers, libraries, structure) into a taste profile applied across all sessions.',
   cline: 'Agentic coding CLI with an interactive TUI and headless automation. Supports multiple model providers.',
   grok: 'xAI\'s agentic coding assistant. Interactive shell, headless single-prompt mode, streaming JSON output, and ACP for IDE/tool integration.',

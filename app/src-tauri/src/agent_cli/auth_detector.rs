@@ -31,7 +31,7 @@ impl AuthDetector {
             AgentType::Claude => Self::check_claude_auth(),
             AgentType::Opencode => Self::check_opencode_auth(),
             AgentType::Codex => Self::check_codex_auth(),
-            AgentType::Gemini => Self::check_gemini_auth(),
+            AgentType::Antigravity => Self::check_antigravity_auth(),
             AgentType::Cursor => Self::check_cursor_auth(),
             AgentType::Kilo => Self::check_kilo_auth(),
             AgentType::Hermes => Self::check_hermes_auth(),
@@ -48,7 +48,6 @@ impl AuthDetector {
             | AgentType::MistralVibe
             | AgentType::DeepseekTui
             | AgentType::Aider
-            | AgentType::Antigravity
             | AgentType::Reasonix
             | AgentType::Amp
             | AgentType::Dsh
@@ -76,9 +75,9 @@ impl AuthDetector {
     pub fn check_all() -> Vec<AuthInfo> {
         [
             AgentType::Claude,
-            AgentType::Opencode,
             AgentType::Codex,
-            AgentType::Gemini,
+            AgentType::Antigravity,
+            AgentType::Opencode,
             AgentType::Cursor,
             AgentType::Kilo,
             AgentType::Hermes,
@@ -95,7 +94,6 @@ impl AuthDetector {
             AgentType::MistralVibe,
             AgentType::DeepseekTui,
             AgentType::Aider,
-            AgentType::Antigravity,
             AgentType::Reasonix,
             AgentType::Amp,
             AgentType::Dsh,
@@ -230,10 +228,13 @@ impl AuthDetector {
         }
     }
 
-    fn check_gemini_auth() -> AuthInfo {
-        if env::var("GEMINI_API_KEY").is_ok() || env::var("GOOGLE_API_KEY").is_ok() {
+    fn check_antigravity_auth() -> AuthInfo {
+        if env::var("ANTIGRAVITY_API_KEY").is_ok()
+            || env::var("AGY_API_KEY").is_ok()
+            || env::var("GEMINI_API_KEY").is_ok()
+        {
             return AuthInfo {
-                agent: AgentType::Gemini,
+                agent: AgentType::Antigravity,
                 status: AuthStatus::Authenticated,
                 error: None,
                 config_path: None,
@@ -241,38 +242,29 @@ impl AuthDetector {
         }
 
         if let Some(home) = Self::get_home_dir() {
-            let config_path = home.join(".gemini");
-
-            if config_path.exists() {
-                let config_file = config_path.join("config.json");
-                let credentials_path = config_path.join("credentials.json");
-
-                if config_file.exists() || credentials_path.exists() {
-                    return AuthInfo {
-                        agent: AgentType::Gemini,
-                        status: AuthStatus::Authenticated,
-                        error: None,
-                        config_path: Some(config_path.to_string_lossy().to_string()),
-                    };
-                }
+            let agy_config_path = home.join(".gemini").join("antigravity-cli");
+            if agy_config_path.exists() {
+                return AuthInfo {
+                    agent: AgentType::Antigravity,
+                    status: AuthStatus::Authenticated,
+                    error: None,
+                    config_path: Some(agy_config_path.to_string_lossy().to_string()),
+                };
             }
 
-            let gcloud_path = home.join(".config").join("gcloud");
-            if gcloud_path.exists() {
-                let credentials = gcloud_path.join("application_default_credentials.json");
-                if credentials.exists() {
-                    return AuthInfo {
-                        agent: AgentType::Gemini,
-                        status: AuthStatus::Authenticated,
-                        error: None,
-                        config_path: Some(gcloud_path.to_string_lossy().to_string()),
-                    };
-                }
+            let alt_config_path = home.join(".antigravity");
+            if alt_config_path.exists() {
+                return AuthInfo {
+                    agent: AgentType::Antigravity,
+                    status: AuthStatus::Authenticated,
+                    error: None,
+                    config_path: Some(alt_config_path.to_string_lossy().to_string()),
+                };
             }
         }
 
         AuthInfo {
-            agent: AgentType::Gemini,
+            agent: AgentType::Antigravity,
             status: AuthStatus::NotAuthenticated,
             error: None,
             config_path: None,
@@ -838,9 +830,11 @@ impl AuthDetector {
                 "Run 'codex auth' in a terminal".to_string(),
                 "Or set OPENAI_API_KEY environment variable".to_string(),
             ],
-            AgentType::Gemini => vec![
-                "Run 'gemini auth' in a terminal".to_string(),
-                "Or set GEMINI_API_KEY or GOOGLE_API_KEY environment variable".to_string(),
+            AgentType::Antigravity => vec![
+                "Run 'agy' in a terminal and complete the sign-in prompt".to_string(),
+                "Or set ANTIGRAVITY_API_KEY, AGY_API_KEY, or GEMINI_API_KEY environment variable"
+                    .to_string(),
+                "Credentials are stored in ~/.gemini/antigravity-cli".to_string(),
             ],
             AgentType::Cursor => vec![
                 "Run 'agent login' in a terminal".to_string(),
@@ -924,7 +918,6 @@ impl AuthDetector {
             | AgentType::MistralVibe
             | AgentType::DeepseekTui
             | AgentType::Aider
-            | AgentType::Antigravity
             | AgentType::Reasonix
             | AgentType::Amp
             | AgentType::Dsh

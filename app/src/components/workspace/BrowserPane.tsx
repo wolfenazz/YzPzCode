@@ -2271,7 +2271,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                           />
                           <p className="mt-1.5 text-[9px] leading-4 text-[var(--text-secondary)]/50">
                             {targetableSessions.length === 0 && yzpzSessions.length === 0
-                              ? 'open an agent terminal tab (claude, codex, gemini…) or a YZPZ Agent to enable rebuild'
+                              ? 'open an agent terminal tab (claude, codex, antigravity…) or a YZPZ Agent to enable rebuild'
                               : 'handoff goes directly into the chosen agent context'}
                           </p>
                         </div>

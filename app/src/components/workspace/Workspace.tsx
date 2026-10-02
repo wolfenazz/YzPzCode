@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { listen } from '@tauri-apps/api/event';
 import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceAurora } from './WorkspaceAurora';
 import { WorkspaceHeader } from './WorkspaceHeader';
+import { ExtensionsPanel } from './ExtensionsPanel';
 import { BrowserPane } from './BrowserPane';
 import { AgentGrid } from '../agent/AgentGrid';
 import { AppFooter } from '../common/AppFooter';
@@ -17,6 +19,8 @@ import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useAgentHost } from '../../hooks/useAgentHost';
 import { useAppStore } from '../../stores/appStore';
+import { useExtensionStore } from '../../stores/extensionStore';
+import type { ExtensionInfo, ExtensionInstallProgress } from '../../types';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { FileEntry, WorkspaceView } from '../../types';
 
@@ -78,10 +82,38 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const [sidebarWidth, setSidebarWidth] = useState(250);
   const [isResizing, setIsResizing] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
+  const [extensionsOpen, setExtensionsOpen] = useState(false);
   const isDragging = useRef(false);
   const rafIdRef = useRef<number | null>(null);
 
   const showEmpty = !currentWorkspace && openWorkspaces.length === 0;
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen<ExtensionInstallProgress>('extension-install-progress', (event) => {
+      useExtensionStore.getState().setProgress(event.payload);
+    }).then((stop) => {
+      if (disposed) stop(); else unlisten = stop;
+    }).catch((error: unknown) => console.error('Could not subscribe to extension installation:', error));
+    return () => { disposed = true; unlisten?.(); };
+  }, []);
+
+  const handleOpenExtension = useCallback((extension: ExtensionInfo): void => {
+    if (!currentWorkspace) return;
+    useExtensionStore.getState().openPanel(currentWorkspace.id, extension);
+    setActiveView('terminal');
+  }, [currentWorkspace, setActiveView]);
+
+  const handleExplorerClick = useCallback((): void => {
+    setExtensionsOpen(false);
+    toggleExplorer();
+  }, [toggleExplorer]);
+
+  const handleSourceControlClick = useCallback((): void => {
+    setExtensionsOpen(false);
+    toggleSourceControl();
+  }, [toggleSourceControl]);
 
   useEffect(() => {
     if (view !== 'workspace') return;
@@ -206,8 +238,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     const handleKeyDown = (e: KeyboardEvent) => {
       if (useAppStore.getState().view !== 'workspace') return;
       if (e.ctrlKey || e.metaKey) {
-        if (e.key === 'b') {
+        if (e.shiftKey && e.key.toLowerCase() === 'x') {
           e.preventDefault();
+          setExtensionsOpen((open) => !open);
+        } else if (e.key === 'b') {
+          e.preventDefault();
+          setExtensionsOpen(false);
           toggleExplorer();
         } else if (e.key === 'e') {
           e.preventDefault();
@@ -257,6 +293,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   }, [switchWorkspace]);
 
   const handleWorkspaceClose = useCallback(async (workspaceId: string) => {
+    await useExtensionStore.getState().closeWorkspace(workspaceId).catch((error: unknown) => {
+      console.error('Could not close workspace extensions:', error);
+    });
     closeWorkspace(workspaceId);
     delete hasInitialized.current[workspaceId];
     closeBrowserView(workspaceId).catch((err) => {
@@ -335,10 +374,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onMinimizeWindow={minimizeWindow}
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
-        onExplorerClick={toggleExplorer}
-        onSourceControlClick={toggleSourceControl}
-        explorerOpen={explorerOpen}
-        sourceControlOpen={sourceControlOpen}
+        onExplorerClick={handleExplorerClick}
+        onExtensionsClick={() => setExtensionsOpen((open) => !open)}
+        extensionsOpen={extensionsOpen}
+        onSourceControlClick={handleSourceControlClick}
+        explorerOpen={explorerOpen && !extensionsOpen}
+        sourceControlOpen={sourceControlOpen && !extensionsOpen}
         sourceControlChangeCount={gitStatuses.length}
         onViewChange={handleViewChange}
         activeView={activeView}
@@ -387,7 +428,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         {currentWorkspace ? (
           <div className="workspace-stage h-full flex items-stretch">
             <AnimatePresence initial={false}>
-              {(explorerOpen || sourceControlOpen) && (
+              {(extensionsOpen || explorerOpen || sourceControlOpen) && (
                 <motion.div
                   key="sidebar"
                   initial={{ width: 0, opacity: 0 }}
@@ -400,7 +441,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                     style={{ width: `${sidebarWidth}px`, minWidth: '180px' }}
                     className="workspace-sidebar__content h-full shrink-0 overflow-hidden"
                   >
-                    {sourceControlOpen ? (
+                    {extensionsOpen ? (
+                      <ExtensionsPanel
+                        workspaceId={currentWorkspace.id}
+                        onOpen={handleOpenExtension}
+                        onClose={() => setExtensionsOpen(false)}
+                      />
+                    ) : sourceControlOpen ? (
                       <SourceControlPanel
                         key={currentWorkspace.path}
                         gitStatuses={gitStatuses}
@@ -447,6 +494,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                       workspace={workspace}
                       sessions={isCurrent ? sessions : sessionsByWorkspace[workspace.id] ?? []}
                       isLoading={isCurrent && isLoading && sessions.length === 0}
+                      visible={isVisible && view === 'workspace' && !showQuickOpen}
                     />
                   </div>
                 );

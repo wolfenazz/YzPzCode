@@ -89,7 +89,7 @@ const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
   opencode: '/new',
   kilo: '/new',
   codex: '/new',
-  gemini: '/new',
+  antigravity: '/clear',
   cursor: '/new',
   hermes: '/new',
   pi: '/new',
@@ -103,7 +103,7 @@ const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
 const AGENT_BINARY_NAMES: Record<string, AgentType> = {
   claude: 'claude',
   codex: 'codex',
-  gemini: 'gemini',
+  antigravity: 'antigravity',
   opencode: 'opencode',
   kilo: 'kilo',
   hermes: 'hermes',
@@ -1187,7 +1187,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleRetryInstall = async () => {
     if (!session.agent) return;
-    const agentTypes: AgentType[] = ['claude', 'codex', 'gemini', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
     if (!agentTypes.includes(session.agent as AgentType)) return;
     if (session.agent === 'amp' && navigator.userAgent.includes('Windows')) {
       await openUrl('https://ampcode.com/docs/cli');

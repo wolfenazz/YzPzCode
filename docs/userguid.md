@@ -6,7 +6,7 @@ YzPzCode is a multi-terminal AI development environment. It is a desktop app tha
 
 ## Why YzPzCode?
 
-- **Parallel AI workflows**: Run Claude, Codex, Gemini, and more at the same time, each in its own terminal
+- **Parallel AI workflows**: Run Claude, Codex, Antigravity, and more at the same time, each in its own terminal
 - **Smart terminal grid**: Resizable, draggable panes with per-pane color customization
 - **Local agent harness**: An app-managed agent runtime with ask, act, plan, and orchestrator modes
 - **Built-in file explorer**: Browse, search, and manage project files with Git status badges
@@ -27,7 +27,7 @@ YzPzCode detects, installs, authenticates, and launches these AI coding CLIs:
 |-------|-------------|----------|
 | Claude Code | `claude` | Anthropic |
 | Codex CLI | `codex` | OpenAI |
-| Gemini CLI | `gemini` | Google |
+| Antigravity CLI | `agy` | Google |
 | OpenCode | `opencode` | Open source |
 | Cursor CLI | `agent` | Cursor |
 | Kilo CLI | `kilo` | Kilo Code |
@@ -115,7 +115,7 @@ There is also an **Open Terminals Externally** toggle. It opens the terminals as
 
 ### Step 5: Assign Agents
 
-The Agent Fleet section lists every supported AI agent (Claude, Codex, Gemini, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, Cline, Grok) and every tool CLI (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google WS, AgentMail, Vercel).
+The Agent Fleet section lists every supported AI agent (Claude, Codex, Antigravity, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, Cline, Grok) and every tool CLI (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google WS, AgentMail, Vercel).
 
 - Toggle an agent on to assign it to a terminal slot
 - Use the `+` and `-` buttons to give an agent multiple slots
@@ -152,7 +152,7 @@ YzPzCode detects, installs, authenticates, and launches AI coding agents into te
 |-------|-------------|-------------|
 | **Claude Code** | `claude` | Anthropic's advanced AI coding assistant |
 | **Codex CLI** | `codex` | OpenAI's code generation and development CLI |
-| **Gemini CLI** | `gemini` | Google's Gemini assistant for terminal-based development |
+| **Antigravity CLI** | `agy` | Google Antigravity terminal agent |
 | **OpenCode** | `opencode` | Open-source AI command-line coding assistant |
 | **Cursor CLI** | `agent` | Cursor's AI-enhanced development agent |
 | **Kilo CLI** | `kilo` | Agentic coding CLI with TUI and autonomous mode |
@@ -556,7 +556,7 @@ Design skills are persistent preference lines that influence future generations,
 
 ## Dispatching to Agents
 
-An agent selector (Codex, Claude, Gemini, and others) lets you send the generated design to an agent session for further implementation work in your actual project.
+An agent selector (Codex, Claude, Antigravity, and others) lets you send the generated design to an agent session for further implementation work in your actual project.
 
 > **Tip:** Combine the AI Designer with the browser's Copy UI mode: capture a component you like from any webpage, then use it as the reference for your next design generation.
 

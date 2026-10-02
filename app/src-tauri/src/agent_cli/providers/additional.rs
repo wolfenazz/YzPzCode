@@ -119,17 +119,6 @@ impl AdditionalCliProvider {
                 windows_install: "irm https://aider.chat/install.ps1 | iex",
                 unix_install: "curl -LsSf https://aider.chat/install.sh | sh",
             },
-            Antigravity => Spec {
-                binary: "agy",
-                name: "Antigravity CLI",
-                description: "Google Antigravity terminal agent",
-                vendor: "Google",
-                docs: "https://antigravity.google/docs/getting-started?tab=cli",
-                icon: "/assets/antigravity-cli.png",
-                npm: None,
-                windows_install: "irm https://antigravity.google/cli/install.ps1 | iex",
-                unix_install: "curl -fsSL https://antigravity.google/cli/install.sh | bash",
-            },
             Reasonix => Spec {
                 binary: "reasonix",
                 name: "DeepSeek Reasonix",
@@ -287,7 +276,6 @@ mod tests {
             AgentType::MistralVibe,
             AgentType::DeepseekTui,
             AgentType::Aider,
-            AgentType::Antigravity,
             AgentType::Reasonix,
             AgentType::Amp,
             AgentType::Dsh,
@@ -312,10 +300,6 @@ mod tests {
         assert_eq!(
             AdditionalCliProvider(AgentType::MistralVibe).binary_name(),
             "vibe"
-        );
-        assert_eq!(
-            AdditionalCliProvider(AgentType::Antigravity).binary_name(),
-            "agy"
         );
     }
 }

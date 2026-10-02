@@ -19,7 +19,11 @@ function LayoutThumbnail({ preset }: { preset: TerminalLayoutPreset }): React.JS
   );
 }
 
-export function TerminalLayoutPicker({ session }: { session: TerminalSession }): React.JSX.Element | null {
+type LayoutPickerProps = { session: TerminalSession } | { panelId: string; panelName: string };
+
+export function TerminalLayoutPicker(props: LayoutPickerProps): React.JSX.Element | null {
+  const paneId = 'session' in props ? props.session.id : props.panelId;
+  const paneLabel = 'session' in props ? `TTY:${props.session.index + 1}` : props.panelName;
   const layout = useContext(TerminalLayoutContext);
   const [open, setOpen] = useState(false);
   if (!layout) return null;
@@ -30,24 +34,24 @@ export function TerminalLayoutPicker({ session }: { session: TerminalSession }):
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger asChild>
           <button type="button" className="app-icon-button h-5 w-5 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] data-[state=open]:text-[var(--accent)]"
-            title="Organize terminals" aria-label={`Organize terminals from TTY:${session.index + 1}`}>
+            title="Organize workspace panes" aria-label={`Organize workspace panes from ${paneLabel}`}>
             <SquaresFour size={13} aria-hidden="true" />
           </button>
         </Popover.Trigger>
         <Popover.Portal>
           <Popover.Content side="bottom" align="end" sideOffset={8} collisionPadding={12}
-            aria-label="Terminal organization presets"
+            aria-label="Workspace pane organization presets"
             className="z-[100] w-[368px] max-w-[calc(100vw-24px)] rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-3 text-[var(--text-primary)] shadow-[var(--shadow-float)] outline-none">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-xs font-medium">Organize terminals</span>
-              <span className="font-mono text-[10px] text-[var(--text-secondary)]">TTY:{session.index + 1}</span>
+              <span className="text-xs font-medium">Organize workspace panes</span>
+              <span className="font-mono text-[10px] text-[var(--text-secondary)]">{paneLabel}</span>
             </div>
             <div className="grid grid-cols-3 gap-2" role="group" aria-label="Layout presets">
               {TERMINAL_LAYOUT_PRESETS.map(({ id, label }) => {
-                const selected = layout.preset === id && (!id.startsWith('focus-') || layout.focusedSessionId === session.id);
+                const selected = layout.preset === id && (!id.startsWith('focus-') || layout.focusedSessionId === paneId);
                 return (
                   <button key={id} type="button" aria-pressed={selected}
-                    onClick={() => { layout.selectPreset(id, session.id); setOpen(false); }}
+                    onClick={() => { layout.selectPreset(id, paneId); setOpen(false); }}
                     className={`relative flex cursor-pointer flex-col gap-1 rounded-md border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${selected
                       ? 'border-[var(--accent)] bg-[var(--accent-light)] text-[var(--accent)]'
                       : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--accent-border)] hover:text-[var(--text-primary)]'}`}>
@@ -59,7 +63,7 @@ export function TerminalLayoutPicker({ session }: { session: TerminalSession }):
               })}
             </div>
             <p className="mb-0 mt-3 text-[11px] leading-relaxed text-[var(--text-secondary)]">
-              Focus presets enlarge TTY:{session.index + 1} and keep the other terminals in a smaller strip. Choose Balanced to restore the grid.
+              Focus presets enlarge {paneLabel} and keep the other panes in a smaller strip. Choose Balanced to restore the grid.
             </p>
           </Popover.Content>
         </Popover.Portal>

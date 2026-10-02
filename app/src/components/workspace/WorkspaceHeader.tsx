@@ -8,6 +8,7 @@ import {
   GlobeSimple,
   Keyboard,
   Plus,
+  PuzzlePiece,
   SidebarSimple,
   Sparkle,
   TerminalWindow,
@@ -34,6 +35,8 @@ interface WorkspaceHeaderProps {
   onMaximizeWindow: () => void;
   onCloseWindow: () => void;
   onExplorerClick: () => void;
+  onExtensionsClick: () => void;
+  extensionsOpen: boolean;
   onSourceControlClick: () => void;
   explorerOpen: boolean;
   sourceControlOpen: boolean;
@@ -117,6 +120,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onMaximizeWindow,
   onCloseWindow,
   onExplorerClick,
+  onExtensionsClick,
+  extensionsOpen,
   onSourceControlClick,
   explorerOpen,
   sourceControlOpen,
@@ -181,6 +186,17 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
             >
               <SidebarSimple size={16} aria-hidden="true" />
               <span className="sr-only">Explorer</span>
+            </button>
+            <button
+              onClick={onExtensionsClick}
+              className={`workspace-chrome__tool app-icon-button ${extensionsOpen ? 'text-[var(--accent)]' : ''}`}
+              title="Extensions (Ctrl+Shift+X)"
+              aria-label="Extensions"
+              aria-pressed={extensionsOpen}
+              type="button"
+            >
+              <PuzzlePiece size={16} aria-hidden="true" />
+              <span className="sr-only">Extensions</span>
             </button>
           </div>
         </div>

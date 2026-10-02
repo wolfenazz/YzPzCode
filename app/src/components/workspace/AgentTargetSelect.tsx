@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CliType } from '../../types';
 import claudeLogo from '../../assets/claude.png';
 import codexLogo from '../../assets/codex.png';
-import geminiLogo from '../../assets/gemini-cli-logo.svg';
+import antigravityLogo from '../../assets/antigravity.png';
 import opencodeLogo from '../../assets/opencode.png';
 import cursorLogo from '../../assets/cursor-ai.png';
 import kiloLogo from '../../assets/kiloCode.gif';
@@ -25,7 +25,7 @@ export interface AgentTargetOption {
 const AGENT_LOGO: Record<string, string> = {
   claude: claudeLogo,
   codex: codexLogo,
-  gemini: geminiLogo,
+  antigravity: antigravityLogo,
   opencode: opencodeLogo,
   cursor: cursorLogo,
   kilo: kiloLogo,

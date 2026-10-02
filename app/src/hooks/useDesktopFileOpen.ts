@@ -10,7 +10,7 @@ import { ADDITIONAL_AGENT_ZEROS } from '../data/additionalAgents';
 const EMPTY_ALLOCATION: Record<CliType, number> = {
   claude: 0,
   codex: 0,
-  gemini: 0,
+  antigravity: 0,
   opencode: 0,
   cursor: 0,
   kilo: 0,

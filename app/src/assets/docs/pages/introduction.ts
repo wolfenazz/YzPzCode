@@ -4,7 +4,7 @@ YzPzCode is a multi-terminal AI development environment. It is a desktop app tha
 
 ## Why YzPzCode?
 
-- **Parallel AI workflows**: Run Claude, Codex, Gemini, and more at the same time, each in its own terminal
+- **Parallel AI workflows**: Run Claude, Codex, Antigravity, and more at the same time, each in its own terminal
 - **Smart terminal grid**: Resizable, draggable panes with per-pane color customization
 - **Local agent harness**: An app-managed agent runtime with ask, act, plan, and orchestrator modes
 - **Built-in file explorer**: Browse, search, and manage project files with Git status badges
@@ -25,7 +25,7 @@ YzPzCode detects, installs, authenticates, and launches these AI coding CLIs:
 |-------|-------------|----------|
 | Claude Code | \`claude\` | Anthropic |
 | Codex CLI | \`codex\` | OpenAI |
-| Gemini CLI | \`gemini\` | Google |
+| Antigravity CLI | \`agy\` | Google |
 | OpenCode | \`opencode\` | Open source |
 | Cursor CLI | \`agent\` | Cursor |
 | Kilo CLI | \`kilo\` | Kilo Code |

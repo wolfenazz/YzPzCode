@@ -1,7 +1,7 @@
 import type { AgentType } from '../types';
 
 export type AdditionalAgentType = Exclude<AgentType,
-  'claude' | 'codex' | 'gemini' | 'opencode' | 'cursor' | 'kilo' |
+  'claude' | 'codex' | 'antigravity' | 'opencode' | 'cursor' | 'kilo' |
   'hermes' | 'pi' | 'commandcode' | 'cline' | 'grok'>;
 
 export const ADDITIONAL_AGENTS: Record<AdditionalAgentType, {
@@ -19,7 +19,6 @@ export const ADDITIONAL_AGENTS: Record<AdditionalAgentType, {
   mistralvibe: { label: 'Mistral Vibe', description: 'Mistral terminal coding agent', color: '#F7A52C', logo: '/assets/mistralvibe.png' },
   deepseektui: { label: 'DeepSeek TUI', description: 'Community DeepSeek coding TUI', color: '#496FDB', logo: '/assets/deepseektui.png' },
   aider: { label: 'Aider', description: 'Open source AI pair programmer', color: '#54A64F', logo: '/assets/aider.png' },
-  antigravity: { label: 'Antigravity CLI', description: 'Google terminal coding agent', color: '#557FF0', logo: '/assets/antigravity-cli.png' },
   reasonix: { label: 'DeepSeek Reasonix', description: 'DeepSeek native coding CLI', color: '#5079D8', logo: '/assets/reasonix.png' },
   amp: { label: 'Amp', description: 'Amp terminal coding agent', color: '#EA6F47', logo: '/assets/amp.png' },
   dsh: { label: 'DeepSeek Harness', description: 'DeepSeek agent harness with Web UI', color: '#4D71D8', logo: '/assets/dsh.png' },

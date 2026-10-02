@@ -9,7 +9,7 @@ import { AgentCliInfo, AgentType, ToolCliType } from '../../../types';
 import { SettingsSlider } from '../../common/SettingsSlider';
 import claudeLogo from '../../../assets/claude.png';
 import codexLogo from '../../../assets/codex.png';
-import geminiLogo from '../../../assets/gemini-cli-logo.svg';
+import antigravityLogo from '../../../assets/antigravity.png';
 import opencodeLogo from '../../../assets/opencode.png';
 import cursorLogo from '../../../assets/cursor-ai.png';
 import kiloLogo from '../../../assets/kiloCode.gif';
@@ -23,7 +23,7 @@ import { ADDITIONAL_AGENT_LOGOS } from '../../../data/additionalAgents';
 const AGENT_ICONS: Record<string, string> = {
   claude: claudeLogo,
   codex: codexLogo,
-  gemini: geminiLogo,
+  antigravity: antigravityLogo,
   opencode: opencodeLogo,
   cursor: cursorLogo,
   kilo: kiloLogo,

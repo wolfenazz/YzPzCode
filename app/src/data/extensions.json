@@ -1,0 +1,12 @@
+[
+  { "id": "kilocode.Kilo-Code", "name": "Kilo Code", "publisher": "Kilo", "description": "Code, plan, and debug with Kilo's original extension panel." },
+  { "id": "saoudrizwan.claude-dev", "name": "Cline", "publisher": "Cline", "description": "Use Cline's original chat, plan and act modes, and tool approvals." },
+  { "id": "openai.chatgpt", "name": "Codex", "publisher": "OpenAI", "description": "OpenAI's coding extension with ChatGPT sign-in and code assistance." },
+  { "id": "Anthropic.claude-code", "name": "Claude Code", "publisher": "Anthropic", "description": "Anthropic's graphical coding assistant and conversation panel." },
+  { "id": "Continue.continue", "name": "Continue", "publisher": "Continue", "description": "Open-source agent and code chat with configurable cloud or local models." },
+  { "id": "Google.google-antigravity", "name": "Antigravity", "publisher": "Google", "description": "Google's official agentic coding assistant with chat, plans, and code changes. Requires Google sign-in." },
+  { "id": "amazonwebservices.amazon-q-vscode", "name": "Amazon Q Developer", "publisher": "Amazon Web Services", "description": "Chat about your code and build features with Amazon Q. Requires AWS sign-in." },
+  { "id": "TabbyML.vscode-tabby", "name": "Tabby", "publisher": "TabbyML", "description": "Chat about code with a self-hosted Tabby server. Requires a Tabby endpoint." },
+  { "id": "Codeium.codeium", "name": "Windsurf Plugin", "publisher": "Windsurf", "description": "The Codeium extension with AI code chat and assistance. Requires Windsurf sign-in." },
+  { "id": "mistralai.mistral-vibe-code", "name": "Mistral Vibe", "publisher": "Mistral AI", "description": "Mistral's graphical coding agent with code context, conversations, and tool use." }
+]

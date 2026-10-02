@@ -47,7 +47,7 @@ const ICON_OPTIONS = [
 const AGENT_LABELS: Record<AgentType, string> = {
   claude: 'Claude',
   codex: 'Codex',
-  gemini: 'Gemini',
+  antigravity: 'Antigravity CLI',
   opencode: 'OpenCode',
   cursor: 'Cursor',
   kilo: 'Kilo',
@@ -62,7 +62,7 @@ const AGENT_LABELS: Record<AgentType, string> = {
 const AGENT_COLORS: Record<AgentType, string> = {
   claude: '#F97316',
   codex: '#22C55E',
-  gemini: '#3B82F6',
+  antigravity: '#557FF0',
   opencode: '#A855F7',
   cursor: '#EC4899',
   kilo: '#14B8A6',
@@ -75,7 +75,7 @@ const AGENT_COLORS: Record<AgentType, string> = {
 };
 
 const EMPTY_ALLOCATION: Record<CliType, number> = {
-  claude: 0, codex: 0, gemini: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, commandcode: 0, cline: 0, grok: 0,
+  claude: 0, codex: 0, antigravity: 0, opencode: 0, cursor: 0, kilo: 0, hermes: 0, pi: 0, commandcode: 0, cline: 0, grok: 0,
   ...ADDITIONAL_AGENT_ZEROS,
   gh: 0, stripe: 0, supabase: 0, valyu: 0, posthog: 0, elevenlabs: 0, ramp: 0, gws: 0, agentmail: 0, vercel: 0,
 };

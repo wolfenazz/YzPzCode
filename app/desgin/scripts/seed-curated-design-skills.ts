@@ -840,7 +840,7 @@ const CATALOGUE: CuratedSkill[] = [
   {
     id: 'hand-drawn-diagrams',
     description:
-      'Generate hand-drawn Excalidraw diagrams from a prompt — animated SVG, hosted edit link, and PNG export. Works with Claude Code, Codex, Gemini CLI, and any agent supporting standard skill paths.',
+      'Generate hand-drawn Excalidraw diagrams from a prompt — animated SVG, hosted edit link, and PNG export. Works with Claude Code, Codex, Antigravity CLI, and any agent supporting standard skill paths.',
     triggers: ['excalidraw', 'hand drawn diagram', 'sketch diagram', 'whiteboard diagram'],
     mode: 'prototype',
     category: 'diagrams',
