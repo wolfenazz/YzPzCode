@@ -10,6 +10,7 @@ import '@fontsource/fira-code/latin-400.css';
 import '@fontsource/fira-code/latin-700.css';
 import './styles.css';
 import './premium-system.css';
+import './workspace-aurora.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');

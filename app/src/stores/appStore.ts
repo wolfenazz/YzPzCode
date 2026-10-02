@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
-import type { FileContent } from '../types';
+import type { FileContent, WorkspaceAuroraPalette } from '../types';
 import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
@@ -192,6 +192,14 @@ interface AppState {
   /** Global UI scale for the app chrome and workspace surfaces, stored as a percentage. */
   appZoom: number;
   animationsEnabled: boolean;
+  workspaceAuroraEnabled: boolean;
+  workspaceAuroraPalette: WorkspaceAuroraPalette;
+  workspaceAuroraColors: [string, string, string];
+  workspaceAuroraIntensity: number;
+  workspaceAuroraBlend: number;
+  workspaceAuroraAmplitude: number;
+  workspaceAuroraSpeed: number;
+  workspaceAuroraMotion: boolean;
   /** Accessibility preferences for the built-in YZPZ Agent workspace. */
   agentSessionFontSize: number;
   agentInterfaceScale: number;
@@ -257,6 +265,14 @@ interface AppState {
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
   setAppZoom: (zoom: number) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
+  setWorkspaceAuroraEnabled: (enabled: boolean) => void;
+  setWorkspaceAuroraPalette: (palette: WorkspaceAuroraPalette) => void;
+  setWorkspaceAuroraColor: (index: 0 | 1 | 2, color: string) => void;
+  setWorkspaceAuroraIntensity: (intensity: number) => void;
+  setWorkspaceAuroraBlend: (blend: number) => void;
+  setWorkspaceAuroraAmplitude: (amplitude: number) => void;
+  setWorkspaceAuroraSpeed: (speed: number) => void;
+  setWorkspaceAuroraMotion: (enabled: boolean) => void;
   setThemeMode: (mode: ThemeMode) => void;
   setAgentSessionFontSize: (size: number) => void;
   setAgentInterfaceScale: (scale: number) => void;
@@ -496,6 +512,14 @@ export const useAppStore = create<AppState>()(
       uiDensity: "comfortable",
       appZoom: 100,
       animationsEnabled: true,
+      workspaceAuroraEnabled: true,
+      workspaceAuroraPalette: 'gemini',
+      workspaceAuroraColors: ['#fb19da', '#00b6f2', '#2b27ff'],
+      workspaceAuroraIntensity: 35,
+      workspaceAuroraBlend: 0.81,
+      workspaceAuroraAmplitude: 1.0,
+      workspaceAuroraSpeed: 0.5,
+      workspaceAuroraMotion: true,
       agentSessionFontSize: 14,
       agentInterfaceScale: 100,
       agentConversationWidth: 860,
@@ -707,6 +731,27 @@ export const useAppStore = create<AppState>()(
       setUiDensity: (density) => set({ uiDensity: density }),
       setAppZoom: (zoom) => set({ appZoom: Math.min(140, Math.max(80, Math.round(zoom / 10) * 10)) }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
+      setWorkspaceAuroraEnabled: (enabled) => set({ workspaceAuroraEnabled: enabled }),
+      setWorkspaceAuroraPalette: (palette) => set({ workspaceAuroraPalette: palette }),
+      setWorkspaceAuroraColor: (index, color) => set((state) => {
+        if (!/^#[\da-f]{6}$/i.test(color)) return state;
+        const workspaceAuroraColors = [...state.workspaceAuroraColors] as [string, string, string];
+        workspaceAuroraColors[index] = color;
+        return { workspaceAuroraColors, workspaceAuroraPalette: 'custom' };
+      }),
+      setWorkspaceAuroraIntensity: (intensity) => set({
+        workspaceAuroraIntensity: Number.isFinite(intensity) ? Math.min(100, Math.max(0, Math.round(intensity))) : 35,
+      }),
+      setWorkspaceAuroraBlend: (blend) => set({
+        workspaceAuroraBlend: Number.isFinite(blend) ? Math.min(1, Math.max(0.1, blend)) : 0.81,
+      }),
+      setWorkspaceAuroraAmplitude: (amplitude) => set({
+        workspaceAuroraAmplitude: Number.isFinite(amplitude) ? Math.min(2, Math.max(0.1, amplitude)) : 1,
+      }),
+      setWorkspaceAuroraSpeed: (speed) => set({
+        workspaceAuroraSpeed: Number.isFinite(speed) ? Math.min(2, Math.max(0, speed)) : 0.5,
+      }),
+      setWorkspaceAuroraMotion: (enabled) => set({ workspaceAuroraMotion: enabled }),
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
       setAgentInterfaceScale: (scale) => set({ agentInterfaceScale: scale }),
@@ -1873,6 +1918,14 @@ export const useAppStore = create<AppState>()(
           uiDensity: state.uiDensity,
           appZoom: state.appZoom,
           animationsEnabled: state.animationsEnabled,
+          workspaceAuroraEnabled: state.workspaceAuroraEnabled,
+          workspaceAuroraPalette: state.workspaceAuroraPalette,
+          workspaceAuroraColors: state.workspaceAuroraColors,
+          workspaceAuroraIntensity: state.workspaceAuroraIntensity,
+          workspaceAuroraBlend: state.workspaceAuroraBlend,
+          workspaceAuroraAmplitude: state.workspaceAuroraAmplitude,
+          workspaceAuroraSpeed: state.workspaceAuroraSpeed,
+          workspaceAuroraMotion: state.workspaceAuroraMotion,
           themeMode: state.themeMode,
           agentSessionFontSize: state.agentSessionFontSize,
           agentInterfaceScale: state.agentInterfaceScale,

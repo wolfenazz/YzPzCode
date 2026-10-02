@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { Desktop, Minus, Moon, Plus, Sun } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
 import { SettingsToggle } from '../../common/SettingsToggle';
+import { SettingsWorkspaceAurora } from './SettingsWorkspaceAurora';
 import type { ThemeMode } from '../../../types';
 import claudeLogo from '../../../assets/claude.png';
 import yzpzLogo from '../../../assets/YzPzCodeLogo.png';
@@ -203,6 +204,8 @@ export const SettingsAppearance: React.FC = () => {
           ))}
         </div>
       </div>
+
+      <SettingsWorkspaceAurora />
 
       <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
         <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">

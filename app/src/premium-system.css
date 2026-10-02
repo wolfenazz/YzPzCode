@@ -1396,7 +1396,9 @@ html.animations-disabled .browser-inspect__beam::after {
 
 .workspace-view-switcher {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
+  flex-shrink: 0;
   gap: 0.1875rem;
   height: 1.875rem;
   margin-left: 0.375rem;
@@ -1452,8 +1454,10 @@ html.animations-disabled .browser-inspect__beam::after {
 .workspace-view-switcher__item {
   position: relative;
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   height: 1.5rem;
   padding: 0 0.625rem;
   border-radius: 9999px;
@@ -1526,9 +1530,12 @@ html.animations-disabled .browser-inspect__beam::after {
   position: relative;
   z-index: 2;
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
+  flex-shrink: 0;
   gap: 0.35rem;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .workspace-view-switcher__icon {
@@ -1553,6 +1560,7 @@ html.animations-disabled .browser-inspect__beam::after {
   letter-spacing: -0.01em;
   line-height: 1;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ── Bespoke Window Controls Dock ────────────────────────────────────

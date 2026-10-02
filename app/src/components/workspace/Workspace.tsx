@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { TerminalGrid } from './TerminalGrid';
+import { WorkspaceAurora } from './WorkspaceAurora';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { BrowserPane } from './BrowserPane';
 import { AgentGrid } from '../agent/AgentGrid';
@@ -426,7 +427,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                 </motion.div>
               )}
             </AnimatePresence>
-            <div className="workspace-view flex-1 min-w-0 overflow-hidden relative">
+            <div className="workspace-view flex-1 min-w-0 overflow-hidden relative isolate">
+              {activeView === 'terminal' && <WorkspaceAurora />}
               {/*
                 Each open workspace owns a mounted terminal grid. Hidden grids
                 keep parsing PTY output, so screen and workspace switches retain

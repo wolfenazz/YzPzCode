@@ -1,0 +1,20 @@
+/* The WebGL aurora canvas is confined to the workspace background layer. */
+.workspace-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: var(--aurora-opacity, 0.35);
+  contain: strict;
+}
+
+.workspace-aurora canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.light-theme .workspace-aurora {
+  opacity: calc(var(--aurora-opacity, 0.35) * 0.68);
+}

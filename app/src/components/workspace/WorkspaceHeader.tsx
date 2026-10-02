@@ -199,7 +199,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
           <button onClick={onSettingsClick} className="workspace-chrome__tool app-icon-button" title="Settings (Ctrl+,)" type="button"><GearSix size={16} aria-hidden="true" /><span className="sr-only">Settings</span></button>
           <button onClick={() => setIsShortcutOpen(true)} className="workspace-chrome__tool app-icon-button" title="Keyboard shortcuts" type="button"><Keyboard size={16} aria-hidden="true" /><span className="sr-only">Keyboard shortcuts</span></button>
           <div
-            className="workspace-view-switcher"
+            className="workspace-view-switcher flex shrink-0 items-center"
             role="tablist"
             aria-label="Workspace views"
             style={{ '--active-view-index': activeViewIndex } as React.CSSProperties}
@@ -218,7 +218,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                   key={view}
                   ref={(button) => { viewButtonRefs.current[index] = button; }}
                   onClick={() => onViewChange(view)}
-                  className={`workspace-view-switcher__item ${isActive ? 'is-active' : ''}`}
+                  className={`workspace-view-switcher__item inline-flex shrink-0 items-center justify-center ${isActive ? 'is-active' : ''}`}
                   role="tab"
                   aria-selected={isActive}
                   aria-label={label}
@@ -232,14 +232,14 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
                       transition={{ type: 'spring', bounce: 0.16, duration: 0.32 }}
                     />
                   )}
-                  <span className="workspace-view-switcher__content">
+                  <span className="workspace-view-switcher__content inline-flex shrink-0 items-center">
                     <IconComponent
                       size={13.5}
                       weight={isActive ? 'fill' : 'regular'}
                       className="workspace-view-switcher__icon shrink-0"
                       aria-hidden="true"
                     />
-                    <span className="workspace-view-switcher__label">{label}</span>
+                    <span className="workspace-view-switcher__label shrink-0 whitespace-nowrap">{label}</span>
                   </span>
                 </button>
               );

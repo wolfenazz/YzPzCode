@@ -429,7 +429,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
             return (
               <div
                 key={session.id}
-                className="absolute overflow-hidden"
+                className="absolute overflow-hidden bg-theme-main"
                 data-terminal-session={session.id}
                 style={{
                   left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
@@ -645,7 +645,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
 
   return (
     <TerminalLayoutContext.Provider value={layoutControls}>
-    <div className="h-full w-full flex flex-col bg-theme-main relative overflow-hidden">
+    <div className="h-full w-full flex flex-col relative overflow-hidden">
       <div
         ref={containerRef}
         className="flex-1 min-h-0 relative overflow-auto"
