@@ -1,119 +1,151 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useAppStore } from '../stores/appStore';
-import type { GitDiffStat, GitFileStatus } from '../types';
+import { normalizeFilePath, pathAffectedByChanges } from '../utils/fileSync';
+import type { FileSystemChangedPayload } from '../utils/fileSync';
+import type { FileContent, GitDiffStat, GitFileStatus } from '../types';
 
 interface FileWatcherState {
   refreshGitStatus: () => Promise<void>;
   isRefreshingGit: boolean;
   gitRefreshError: string | null;
+  fileSyncError: string | null;
 }
 
+// Order start/stop across async effect setup, workspace switches and StrictMode.
+let watcherLifecycle: Promise<unknown> = Promise.resolve();
+function scheduleWatcherOperation(operation: () => Promise<unknown>): Promise<unknown> {
+  const next = watcherLifecycle.then(operation, operation);
+  watcherLifecycle = next.catch(() => undefined);
+  return next;
+}
+
+const PREVIEW_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif', 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt']);
+
 export const useFileWatcher = (workspacePath: string | null): FileWatcherState => {
-  const setGitStatuses = useAppStore((s) => s.setGitStatuses);
-  const setGitDiffStats = useAppStore((s) => s.setGitDiffStats);
   const [isRefreshingGit, setIsRefreshingGit] = useState(false);
   const [gitRefreshError, setGitRefreshError] = useState<string | null>(null);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const refreshInFlightRef = useRef(false);
-  const refreshQueuedRef = useRef(false);
-  const activeWorkspacePathRef = useRef(workspacePath);
-  activeWorkspacePathRef.current = workspacePath;
+  const [fileSyncError, setFileSyncError] = useState<string | null>(null);
+  const gitRunRef = useRef<{ path: string | null; pending: boolean; promise: Promise<void> | null }>({ path: workspacePath, pending: false, promise: null });
+  if (gitRunRef.current.path !== workspacePath) gitRunRef.current = { path: workspacePath, pending: false, promise: null };
 
-  const refreshGitStatus = useCallback(async () => {
+  const refreshGitStatus = useCallback(async (): Promise<void> => {
     if (!workspacePath) return;
-    if (refreshInFlightRef.current) {
-      refreshQueuedRef.current = true;
-      return;
-    }
-
-    refreshInFlightRef.current = true;
+    const run = gitRunRef.current;
+    if (run.promise) { run.pending = true; return run.promise; }
     setIsRefreshingGit(true);
-    setGitRefreshError(null);
-
-    try {
+    run.promise = (async () => {
       do {
-        refreshQueuedRef.current = false;
-
-        const [statuses, diffStats] = await Promise.all([
-          invoke<GitFileStatus[]>('get_git_status', { workspacePath }),
-          invoke<GitDiffStat[]>('get_git_diff_stats', { workspacePath }),
-        ]);
-
-        if (activeWorkspacePathRef.current !== workspacePath) return;
-        setGitStatuses(statuses);
-        setGitDiffStats(diffStats);
-      } while (refreshQueuedRef.current);
-    } catch (error) {
-      if (activeWorkspacePathRef.current === workspacePath) {
-        setGitRefreshError(error instanceof Error ? error.message : String(error));
-      }
-    } finally {
-      refreshInFlightRef.current = false;
-      if (activeWorkspacePathRef.current === workspacePath) {
-        setIsRefreshingGit(false);
-      }
-    }
-  }, [workspacePath, setGitStatuses, setGitDiffStats]);
-
-  const debouncedRefresh = useCallback(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    debounceTimerRef.current = setTimeout(() => {
-      refreshGitStatus();
-    }, 300);
-  }, [refreshGitStatus]);
+        run.pending = false;
+        try {
+          const [statuses, stats] = await Promise.all([
+            invoke<GitFileStatus[]>('get_git_status', { workspacePath }),
+            invoke<GitDiffStat[]>('get_git_diff_stats', { workspacePath }),
+          ]);
+          if (gitRunRef.current !== run) return;
+          const state = useAppStore.getState();
+          if (!state.currentWorkspace || normalizeFilePath(state.currentWorkspace.path) !== normalizeFilePath(workspacePath)) return;
+          if (statuses.length !== state.gitStatuses.length || statuses.some((status, index) => status.path !== state.gitStatuses[index]?.path || status.change !== state.gitStatuses[index]?.change)) {
+            state.setGitStatuses(statuses);
+          }
+          if (stats.length !== state.gitDiffStats.length || stats.some((stat, index) => stat.path !== state.gitDiffStats[index]?.path || stat.linesAdded !== state.gitDiffStats[index]?.linesAdded || stat.linesDeleted !== state.gitDiffStats[index]?.linesDeleted)) {
+            state.setGitDiffStats(stats);
+          }
+          setGitRefreshError(null);
+        } catch (error) {
+          if (gitRunRef.current === run) setGitRefreshError(String(error));
+        }
+      } while (run.pending && gitRunRef.current === run);
+    })().finally(() => {
+      run.promise = null;
+      if (gitRunRef.current === run) setIsRefreshingGit(false);
+    });
+    return run.promise;
+  }, [workspacePath]);
 
   useEffect(() => {
-    refreshInFlightRef.current = false;
-    refreshQueuedRef.current = false;
-
-    if (!workspacePath) {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      return;
-    }
-
-    let unlisten: UnlistenFn | null = null;
+    if (!workspacePath) return;
     let disposed = false;
+    let unlisten: UnlistenFn | null = null;
+    let gitTimer: ReturnType<typeof setTimeout> | null = null;
+    let syncing = false;
+    const pendingPaths = new Set<string>();
+    setFileSyncError(null);
+    useAppStore.getState().setGitStatuses([]);
+    useAppStore.getState().setGitDiffStats([]);
 
-    const setupListener = async () => {
+    const drainFiles = async (): Promise<void> => {
+      if (syncing || disposed) return;
+      syncing = true;
       try {
-        const stopListening = await listen('file-system-changed', debouncedRefresh);
-        if (disposed) {
-          stopListening();
-          return;
+        while (pendingPaths.size > 0 && !disposed) {
+          const paths = [...pendingPaths];
+          pendingPaths.clear();
+          const state = useAppStore.getState();
+          const workspace = state.currentWorkspace;
+          if (!workspace || normalizeFilePath(workspace.path) !== normalizeFilePath(workspacePath)) return;
+          const workspaceId = workspace.id;
+          const files = (state.filesByWorkspace[workspaceId] ?? []).filter((file) =>
+            !PREVIEW_EXTENSIONS.has(file.name.split('.').pop()?.toLowerCase() ?? '') && pathAffectedByChanges(file.path, paths));
+          const results = await Promise.allSettled(files.map(async (file) => {
+            let disk: FileContent | null;
+            try {
+              disk = await invoke<FileContent>('read_file_content', { path: file.path });
+            } catch (error) {
+              if (!String(error).startsWith('File does not exist:')) throw error;
+              disk = null;
+            }
+            if (!disposed) useAppStore.getState().reconcileFileDisk(workspaceId, file.path, disk);
+          }));
+          if (!disposed) {
+            const failure = results.find((result) => result.status === 'rejected');
+            setFileSyncError(failure?.status === 'rejected' ? `Could not refresh an open file: ${String(failure.reason)}` : null);
+          }
         }
+      } finally { syncing = false; }
+    };
+    const queueFiles = (paths: string[]): void => {
+      for (const path of paths.length ? paths : [workspacePath]) pendingPaths.add(path);
+      void drainFiles();
+    };
+    const queueGit = (): void => {
+      // A fixed deadline cannot be starved by continuous agent output.
+      if (gitTimer !== null) return;
+      gitTimer = setTimeout(() => { gitTimer = null; void refreshGitStatus(); }, 150);
+    };
+    const refresh = (): void => { queueFiles([workspacePath]); queueGit(); };
+    const setup = async (): Promise<void> => {
+      try {
+        const stopListening = await listen<FileSystemChangedPayload>('file-system-changed', (event) => {
+          if (disposed || normalizeFilePath(event.payload.workspacePath) !== normalizeFilePath(workspacePath)) return;
+          queueFiles(event.payload.paths);
+          queueGit();
+        });
+        if (disposed) { stopListening(); return; }
         unlisten = stopListening;
-        await invoke('start_fs_watcher', { workspacePath });
-        if (!disposed) {
-          await refreshGitStatus();
-        }
+        await scheduleWatcherOperation(async () => {
+          if (!disposed) await invoke('start_fs_watcher', { workspacePath });
+        });
+        if (!disposed) refresh();
       } catch (error) {
-        if (!disposed) {
-          console.error('Failed to start file watcher:', error);
-          setGitRefreshError(error instanceof Error ? error.message : String(error));
-        }
+        if (!disposed) { setFileSyncError(`File watching failed: ${String(error)}`); refresh(); }
       }
     };
-    void setupListener();
-
+    void setup();
+    // Recover missed OS notifications and edits made while the app was unfocused.
+    const fallback = window.setInterval(refresh, 3000);
+    window.addEventListener('focus', refresh);
     return () => {
       disposed = true;
-      invoke('stop_fs_watcher').catch((err) => {
-        console.error('Failed to stop file watcher:', err);
-      });
-      if (unlisten) unlisten();
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      refreshInFlightRef.current = false;
-      refreshQueuedRef.current = false;
+      if (gitTimer !== null) clearTimeout(gitTimer);
+      window.clearInterval(fallback);
+      window.removeEventListener('focus', refresh);
+      unlisten?.();
+      void scheduleWatcherOperation(() => invoke('stop_fs_watcher', { workspacePath })).catch(console.error);
     };
-  }, [workspacePath, debouncedRefresh, refreshGitStatus]);
+  }, [workspacePath, refreshGitStatus]);
 
-  return { refreshGitStatus, isRefreshingGit, gitRefreshError };
+  return { refreshGitStatus, isRefreshingGit, gitRefreshError, fileSyncError };
 };

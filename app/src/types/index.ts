@@ -476,11 +476,15 @@ export interface GitCommitInfo {
 export interface GitBranchInfo {
   current: string;
   branches: string[];
+  repositoryPath: string;
 }
 
 export interface GitRemoteInfo {
   name: string;
   url: string;
+  currentBranch: string;
+  remoteBranch: string;
+  hasUpstream: boolean;
   /** Commits the local branch is ahead of its upstream (pushable). */
   ahead: number;
   /** Commits the local branch is behind its upstream (pullable). */
@@ -513,6 +517,9 @@ export interface FileTab {
   content: string;
   originalContent: string;
   isDirty: boolean;
+  /** Latest conflicting disk content; null means the file was deleted. */
+  diskContent?: string | null;
+  recreateOnSave?: boolean;
   gitChange?: 'added' | 'modified' | 'deleted' | 'untracked';
 }
 

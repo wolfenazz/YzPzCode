@@ -4,6 +4,7 @@ import { DiffEditor } from '@monaco-editor/react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowBendUpLeft, ArrowsLeftRight, ArrowClockwise, ClockCounterClockwise, FileText, Warning, X } from '@phosphor-icons/react';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
+import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
 import { toMonacoLanguage } from '../../utils/monacoLanguage';
 import type { FileBackupInfo, GitFileDiff } from '../../types';
 
@@ -31,6 +32,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
   const [showHistory, setShowHistory] = useState(false);
   const [backups, setBackups] = useState<FileBackupInfo[]>([]);
   const effectiveTheme = useEffectiveTheme();
+  const { refreshKey } = usePreviewRefresh(filePath);
   const language = useMemo(() => {
     const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
     return toMonacoLanguage(ext);
@@ -51,7 +53,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({ workspacePath, filePath,
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const handleDiscard = useCallback(async () => {
     if (!diff || busy) return;

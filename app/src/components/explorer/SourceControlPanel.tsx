@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useState } from 'react';
+import React, { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -12,12 +12,12 @@ import {
   FunnelSimple,
   GitCommit,
   MagnifyingGlass,
-  Plus,
-  Minus,
   X,
 } from '@phosphor-icons/react';
-import { loadGitRemote, gitFetch, gitPush, gitPull } from '../../utils/gitRemote';
-import { GitFileStatus, GitDiffStat, GitBranchInfo, GitCommitInfo, GitRemoteInfo } from '../../types';
+import { gitFetch, gitPush, gitPull } from '../../utils/gitRemote';
+import type { GitFileStatus, GitDiffStat } from '../../types';
+import { useGitRepository } from '../../hooks/useGitRepository';
+import { normalizeFilePath } from '../../utils/fileSync';
 import { FileIcon } from './FileIcon';
 import { useAppStore } from '../../stores/appStore';
 
@@ -25,8 +25,6 @@ interface SourceControlPanelProps {
   gitStatuses: GitFileStatus[];
   gitDiffStats: GitDiffStat[];
   workspacePath: string;
-  onStageFile: (filePath: string) => void;
-  onUnstageFile: (filePath: string) => void;
   onOpenDiff: (file: { path: string; name: string }) => void;
   onRefresh: () => Promise<void>;
   isRefreshing: boolean;
@@ -50,8 +48,6 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
   gitStatuses,
   gitDiffStats,
   workspacePath,
-  onStageFile,
-  onUnstageFile,
   onOpenDiff,
   onRefresh,
   isRefreshing,
@@ -67,85 +63,72 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [commitNotice, setCommitNotice] = useState<string | null>(null);
-  const [branches, setBranches] = useState<GitBranchInfo | null>(null);
-  const [commits, setCommits] = useState<GitCommitInfo[]>([]);
+  const { branches, remote: remoteInfo, commits, error: repositoryError, refresh: refreshRepository } = useGitRepository(workspacePath, gitStatuses, tab === 'history');
+  const operationRef = useRef(false);
+  const [checkingOut, setCheckingOut] = useState(false);
+  const [excludedFiles, setExcludedFiles] = useState<Set<string>>(() => new Set());
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [showOnlyUntracked, setShowOnlyUntracked] = useState(false);
 
   // ── Remote sync state ─────────────────────────────────────────────
-  const [remoteInfo, setRemoteInfo] = useState<GitRemoteInfo | null>(null);
   const [syncBusy, setSyncBusy] = useState<'fetch' | 'push' | 'pull' | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const repositoryPath = branches?.repositoryPath ?? workspacePath;
 
   const getRelativePath = useCallback((fullPath: string): string => {
-    if (fullPath.startsWith(workspacePath)) {
-      return fullPath.slice(workspacePath.length).replace(/^[\\/]/, '');
+    if (normalizeFilePath(fullPath).startsWith(`${normalizeFilePath(repositoryPath)}/`)) {
+      return fullPath.slice(repositoryPath.length).replace(/^[\\/]/, '');
     }
     return fullPath.split(/[/\\]/).pop() || fullPath;
-  }, [workspacePath]);
+  }, [repositoryPath]);
 
-  // Load branch info + recent commits once when the panel mounts / workspace changes.
+  const busy = committing || checkingOut || syncBusy !== null;
+  const canCommit = branches !== null && branches.current !== 'HEAD';
+  const target = remoteInfo ? `${remoteInfo.name}/${remoteInfo.remoteBranch}` : '';
+  const repositoryUrl = remoteInfo?.url.replace(/^git@([^:]+):/, 'https://$1/').replace(/^ssh:\/\/git@([^/]+)\//, 'https://$1/').replace(/\.git$/, '');
+  const webRepositoryUrl = repositoryUrl?.startsWith('https://') || repositoryUrl?.startsWith('http://') ? repositoryUrl : null;
+  const commitFiles = gitStatuses.filter((file) => !excludedFiles.has(file.path)).map((file) => file.path);
+
   useEffect(() => {
-    let cancelled = false;
-    void invoke<GitBranchInfo>('git_branches', { workspacePath })
-      .then((b) => { if (!cancelled) setBranches(b); })
-      .catch(() => undefined);
-    return () => { cancelled = true; };
-  }, [workspacePath]);
+    const current = new Set(gitStatuses.map((file) => file.path));
+    setExcludedFiles((previous) => new Set([...previous].filter((path) => current.has(path))));
+  }, [gitStatuses]);
 
-  const refreshCommitLog = useCallback(async () => {
+  const refreshAll = useCallback(async (): Promise<void> => {
+    const results = await Promise.allSettled([onRefresh(), refreshRepository()]);
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') setSyncError(`Could not refresh source control: ${String(failure.reason)}`);
+  }, [onRefresh, refreshRepository]);
+
+  const handleSync = useCallback(async (op: 'fetch' | 'push' | 'pull') => {
+    if (operationRef.current || !remoteInfo || !branches) return;
+    operationRef.current = true;
+    setSyncBusy(op);
+    setSyncError(null);
+    setSyncNotice(null);
+    setCommitError(null);
+    setCommitNotice(null);
+    const destination = `${remoteInfo.name}/${remoteInfo.remoteBranch}`;
     try {
-      const log = await invoke<GitCommitInfo[]>('git_log', { workspacePath, limit: 20 });
-      setCommits(Array.isArray(log) ? log : []);
-    } catch (err) {
-      setCommitError(err instanceof Error ? err.message : String(err));
-    }
-  }, [workspacePath]);
-
-  useEffect(() => {
-    if (tab === 'history') void refreshCommitLog();
-  }, [tab, refreshCommitLog]);
-
-  const loadRemote = useCallback(async () => {
-    try {
-      const remote = await loadGitRemote(workspacePath);
-      setRemoteInfo(remote);
-    } catch {
-      setRemoteInfo(null);
-    }
-  }, [workspacePath]);
-
-  useEffect(() => {
-    void loadRemote();
-  }, [loadRemote]);
-
-  const handleSync = useCallback(
-    async (op: 'fetch' | 'push' | 'pull') => {
-      if (syncBusy) return;
-      setSyncBusy(op);
-      setSyncError(null);
-      setSyncNotice(null);
-      try {
-        if (op === 'fetch') {
-          await gitFetch(workspacePath);
-          setSyncNotice('Fetched from origin.');
-        } else if (op === 'push') {
-          await gitPush(workspacePath);
-          setSyncNotice('Pushed to origin.');
-        } else {
-          await gitPull(workspacePath);
-          setSyncNotice('Pulled from origin.');
-        }
-        await loadRemote();
-      } catch (err) {
-        setSyncError(err instanceof Error ? err.message : String(err));
-      } finally {
-        setSyncBusy(null);
+      if (op === 'fetch') {
+        await gitFetch(workspacePath);
+        setSyncNotice(`Fetched from ${remoteInfo.name}.`);
+      } else if (op === 'push') {
+        await gitPush(workspacePath, branches.current, remoteInfo);
+        setSyncNotice(`Pushed ${branches.current} to ${destination}.`);
+      } else {
+        await gitPull(workspacePath, branches.current, remoteInfo);
+        setSyncNotice(`Pulled ${destination} into ${branches.current}.`);
       }
-    },
-    [syncBusy, workspacePath, loadRemote]
-  );
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : String(err));
+    } finally {
+      await refreshAll();
+      operationRef.current = false;
+      setSyncBusy(null);
+    }
+  }, [workspacePath, remoteInfo, branches, refreshAll]);
 
   const changedFiles = useMemo(() => {
     const statsMap = new Map<string, GitDiffStat>();
@@ -178,20 +161,16 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
       return a.path.localeCompare(b.path);
     });
 
-    const query = filterQuery.trim().toLowerCase();
-    if (query) {
-      return files.filter((f) =>
-        f.name.toLowerCase().includes(query) ||
-        getRelativePath(f.path).toLowerCase().includes(query)
-      );
-    }
     return files;
-  }, [gitStatuses, gitDiffStats, filterQuery, getRelativePath]);
+  }, [gitStatuses, gitDiffStats]);
 
   const filteredFiles = useMemo(() => {
-    if (!showOnlyUntracked) return changedFiles;
-    return changedFiles.filter((f) => f.change === 'untracked');
-  }, [changedFiles, showOnlyUntracked]);
+    const query = filterQuery.trim().toLowerCase();
+    return changedFiles.filter((file) =>
+      (!showOnlyUntracked || file.change === 'untracked') &&
+      (!query || file.name.toLowerCase().includes(query) || getRelativePath(file.path).toLowerCase().includes(query))
+    );
+  }, [changedFiles, filterQuery, showOnlyUntracked, getRelativePath]);
 
   const handleFileClick = useCallback(
     (file: ChangedFile) => {
@@ -203,64 +182,84 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
 
   const handleDiscard = useCallback(
     async (file: ChangedFile) => {
+      if (operationRef.current) return;
       const confirmed = window.confirm(
         `Discard all changes to ${file.name}?\n\nThis restores the file to its last committed version (or deletes it if untracked). This cannot be undone.`
       );
       if (!confirmed) return;
+      operationRef.current = true;
+      setCheckingOut(true);
+      setCommitError(null);
+      setCommitNotice(null);
+      setSyncError(null);
+      setSyncNotice(null);
       try {
         await invoke('git_discard_file', { workspacePath, filePath: file.path });
         setGitDiffFile(null);
-        await onRefresh();
       } catch (err) {
         setCommitError(err instanceof Error ? err.message : String(err));
+      } finally {
+        await refreshAll();
+        operationRef.current = false;
+        setCheckingOut(false);
       }
     },
-    [workspacePath, setGitDiffFile, onRefresh]
+    [workspacePath, setGitDiffFile, refreshAll]
   );
 
   const handleCommit = useCallback(async () => {
     const summary = commitMessage.trim();
-    if (!summary || committing) return;
+    if (!summary || operationRef.current || !canCommit || !branches || commitFiles.length === 0) return;
     const description = commitDescription.trim();
-    // GitHub-style: subject line + blank line + body.
     const message = description ? `${summary}\n\n${description}` : summary;
+    operationRef.current = true;
     setCommitting(true);
     setCommitError(null);
     setCommitNotice(null);
+    setSyncError(null);
+    setSyncNotice(null);
+    let committed = false;
     try {
-      await invoke('git_commit', { workspacePath, message });
-      await onRefresh();
+      await invoke('git_commit', { workspacePath, message, expectedBranch: branches.current, files: commitFiles });
+      committed = true;
       setCommitMessage('');
       setCommitDescription('');
-      setCommitNotice(`Committed: ${summary.slice(0, 60)}`);
-      void refreshCommitLog();
-      void loadRemote();
+      setCommitNotice(`Committed to ${branches.current}: ${summary.slice(0, 60)}`);
       if (pushAfterCommit && remoteInfo) {
-        await gitPush(workspacePath);
-        setCommitNotice(`Committed and pushed to ${remoteInfo.name}.`);
-        void loadRemote();
+        await gitPush(workspacePath, branches.current, remoteInfo);
+        setCommitNotice(`Committed to ${branches.current} and pushed to ${remoteInfo.name}/${remoteInfo.remoteBranch}.`);
       }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      setCommitError(committed ? `Commit saved on ${branches.current}. Push failed: ${error}` : error);
+    } finally {
+      await refreshAll();
+      operationRef.current = false;
+      setCommitting(false);
+    }
+  }, [commitMessage, commitDescription, canCommit, branches, commitFiles, workspacePath, pushAfterCommit, remoteInfo, refreshAll]);
+
+  const handleCheckout = useCallback(async (branch: string) => {
+    if (!branches || branch === branches.current || operationRef.current) return;
+    operationRef.current = true;
+    setCheckingOut(true);
+    setCommitError(null);
+    setCommitNotice(null);
+    setSyncError(null);
+    setSyncNotice(null);
+    try {
+      await invoke('git_checkout', { workspacePath, branch, expectedBranch: branches.current });
+      setTab('changes');
+      setSelectedFile(null);
+      setGitDiffFile(null);
     } catch (err) {
       setCommitError(err instanceof Error ? err.message : String(err));
     } finally {
-      setCommitting(false);
+      await refreshAll();
+      operationRef.current = false;
+      setCheckingOut(false);
     }
-  }, [commitMessage, commitDescription, committing, workspacePath, refreshCommitLog, loadRemote, pushAfterCommit, remoteInfo, onRefresh]);
-
-  const handleCheckout = useCallback(
-    async (branch: string) => {
-      if (!branch) return;
-      try {
-        await invoke('git_checkout', { workspacePath, branch });
-        const b = await invoke<GitBranchInfo>('git_branches', { workspacePath });
-        setBranches(b);
-        setTab('changes');
-      } catch (err) {
-        setCommitError(err instanceof Error ? err.message : String(err));
-      }
-    },
-    [workspacePath]
-  );
+  }, [branches, workspacePath, refreshAll, setGitDiffFile]);
 
   const nothingToShow = tab === 'changes' && filteredFiles.length === 0;
 
@@ -305,15 +304,26 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
 
       {/* Branch + sync controls (GitHub Desktop style) */}
       <div className="shrink-0 border-b border-[var(--border-primary)] px-2 py-2">
+        <p className="mb-1 truncate text-[10px] text-[var(--text-secondary)]" title={repositoryPath}>
+          Repository: {repositoryPath.split(/[/\\]/).pop()}
+        </p>
         <div className="flex items-center gap-1.5">
           <div className="flex min-w-0 flex-1 items-center gap-1.5">
             <GitCommit size={14} className="shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
             <div className="min-w-0">
-              <span className="block truncate font-mono text-[10.5px] font-bold text-[var(--text-primary)]">
-                {branches?.current ?? 'main'}
-              </span>
+              <select
+                aria-label="Current branch"
+                value={branches?.current ?? ''}
+                disabled={busy || !branches}
+                onChange={(event) => void handleCheckout(event.target.value)}
+                className="block w-full min-w-0 bg-[var(--bg-secondary)] text-[11px] font-bold text-[var(--text-primary)] outline-none"
+              >
+                {!branches && <option value="">Loading branch…</option>}
+                {branches?.current === 'HEAD' && <option value="HEAD">Detached HEAD</option>}
+                {branches?.branches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+              </select>
               <span className="block truncate font-mono text-[8px] text-[var(--text-secondary)]/55">
-                {remoteInfo?.url ?? 'No remote configured'}
+                {repositoryError ? 'Repository status unavailable' : remoteInfo ? `${branches?.current} → ${target}` : 'No remote configured'}
               </span>
             </div>
           </div>
@@ -329,12 +339,12 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
           )}
           <div className="flex shrink-0 items-center gap-0.5">
             <a
-              href="https://github.com/wolfenazz/YzPzCode"
+              href={webRepositoryUrl ?? undefined}
               target="_blank"
               rel="noopener noreferrer"
-              title="Open GitHub repository"
-              aria-label="Open GitHub repository"
-              className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
+              title="Open repository in browser"
+              aria-label="Open repository in browser"
+              className={`flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] ${webRepositoryUrl ? '' : 'hidden'}`}
             >
               <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
@@ -343,8 +353,8 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
             {/* Fetch */}
             <button
               onClick={() => void handleSync('fetch')}
-              disabled={syncBusy !== null}
-              title="Fetch from origin"
+              disabled={busy || !remoteInfo || !branches}
+              title={`Fetch ${remoteInfo?.name ?? 'remote'}`}
               className={`flex h-6 w-6 items-center justify-center rounded-md transition-colors cursor-pointer disabled:cursor-default disabled:opacity-40 ${
                 syncBusy === 'fetch'
                   ? 'bg-[var(--accent-light)]/20 text-[var(--accent)]'
@@ -356,8 +366,8 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
             {/* Pull */}
             <button
               onClick={() => void handleSync('pull')}
-              disabled={syncBusy !== null || !remoteInfo}
-              title="Pull from origin"
+              disabled={busy || !canCommit || !remoteInfo || !remoteInfo.hasUpstream}
+              title={`Pull ${target}`}
               className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer disabled:cursor-default disabled:opacity-40"
             >
               {syncBusy === 'pull' ? <CircleNotch size={13} className="animate-spin" /> : <CloudArrowDown size={13} aria-hidden="true" />}
@@ -365,17 +375,17 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
             {/* Push */}
             <button
               onClick={() => void handleSync('push')}
-              disabled={syncBusy !== null || !remoteInfo}
-              title="Push to origin"
+              disabled={busy || !canCommit || !remoteInfo}
+              title={remoteInfo?.hasUpstream ? `Push ${branches?.current} to ${target}` : `Publish ${branches?.current} to ${target}`}
               className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] cursor-pointer disabled:cursor-default disabled:opacity-40"
             >
               {syncBusy === 'push' ? <CircleNotch size={13} className="animate-spin" /> : <CloudArrowUp size={13} aria-hidden="true" />}
             </button>
           </div>
         </div>
-        {(syncError || syncNotice) && (
-          <p className={`mt-1.5 truncate font-mono text-[8.5px] ${syncError ? 'text-rose-400' : 'text-emerald-400'}`}>
-            {syncError ?? syncNotice}
+        {(repositoryError || syncError || syncNotice || commitError || commitNotice) && (
+          <p className={`mt-1.5 whitespace-pre-wrap break-words font-mono text-[10px] ${repositoryError || syncError || commitError ? 'text-rose-400' : 'text-emerald-400'}`}>
+            {repositoryError ?? syncError ?? commitError ?? syncNotice ?? commitNotice}
           </p>
         )}
       </div>
@@ -418,13 +428,21 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
 
             {/* Count line */}
             <div className="mt-2 flex items-center gap-1.5 px-0.5">
+              <input
+                type="checkbox"
+                aria-label="Include all changed files in commit"
+                checked={gitStatuses.length > 0 && commitFiles.length === gitStatuses.length}
+                disabled={busy || gitStatuses.length === 0}
+                onChange={(event) => setExcludedFiles(event.target.checked ? new Set() : new Set(gitStatuses.map((file) => file.path)))}
+                className="accent-[var(--accent)]"
+              />
               <span className="min-w-0 flex-1 font-mono text-[10px] font-bold text-[var(--text-primary)]">
                 {changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}
               </span>
               <button
                 type="button"
-                onClick={() => void onRefresh()}
-                disabled={isRefreshing}
+                onClick={() => void refreshAll()}
+                disabled={busy || isRefreshing}
                 title="Refresh local changes"
                 aria-label="Refresh local changes"
                 className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:cursor-default disabled:opacity-50"
@@ -445,7 +463,7 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
               <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
                 <GitCommit size={22} className="text-[var(--text-secondary)]/40" aria-hidden="true" />
                 <p className="font-mono text-[10px] text-[var(--text-secondary)]">
-                  No changes yet — everything is committed.
+                  {gitStatuses.length === 0 ? 'No local changes. Everything is committed.' : 'No changes match the filter.'}
                 </p>
               </div>
             ) : (
@@ -466,6 +484,19 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
                           : 'border-transparent hover:border-[var(--border-primary)] hover:bg-[var(--bg-hover)]'
                       }`}
                     >
+                      <input
+                        type="checkbox"
+                        aria-label={`Include ${getRelativePath(file.path)} in commit`}
+                        checked={!excludedFiles.has(file.path)}
+                        disabled={busy}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => setExcludedFiles((previous) => {
+                          const next = new Set(previous);
+                          if (event.target.checked) next.delete(file.path); else next.add(file.path);
+                          return next;
+                        })}
+                        className="shrink-0 accent-[var(--accent)]"
+                      />
                       <FileIcon
                         extension={file.name.includes('.') ? file.name.split('.').pop() || null : null}
                         isDir={false}
@@ -492,7 +523,7 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
                           )}
                           {!hasChanges && (
                             <span className={`text-[8px] font-black uppercase ${file.change === 'deleted' ? 'text-rose-500/60' : file.change === 'added' ? 'text-emerald-500/60' : file.change === 'untracked' ? 'text-sky-500/60' : 'text-amber-500/60'}`}>
-                              {file.change === 'deleted' ? 'del' : 'new'}
+                              {file.change === 'deleted' ? 'del' : file.change === 'modified' ? 'mod' : 'new'}
                             </span>
                           )}
                         </div>
@@ -507,33 +538,13 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
                         >
                           <ArrowsLeftRight size={13} aria-hidden="true" />
                         </button>
-                        {file.change !== 'deleted' && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); void handleDiscard(file); }}
-                            title="Discard changes"
-                            className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer transition-colors"
-                          >
-                            <ArrowBendUpLeft size={13} aria-hidden="true" />
-                          </button>
-                        )}
-                        {(file.change === 'untracked' || file.change === 'modified') && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onStageFile(file.path); }}
-                            title="Stage file"
-                            className="p-0.5 rounded hover:bg-emerald-500/20 text-zinc-500 hover:text-emerald-400 cursor-pointer transition-colors"
-                          >
-                            <Plus size={13} aria-hidden="true" />
-                          </button>
-                        )}
-                        {(file.change === 'added' || file.change === 'modified') && (
-                          <button
-                            onClick={(e) => { e.stopPropagation(); onUnstageFile(file.path); }}
-                            title="Unstage file"
-                            className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer transition-colors"
-                          >
-                            <Minus size={13} aria-hidden="true" />
-                          </button>
-                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); void handleDiscard(file); }}
+                          title="Discard changes"
+                          className="p-0.5 rounded hover:bg-rose-500/20 text-zinc-500 hover:text-rose-400 cursor-pointer transition-colors"
+                        >
+                          <ArrowBendUpLeft size={13} aria-hidden="true" />
+                        </button>
                       </div>
                     </motion.div>
                   );
@@ -543,74 +554,63 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
           </div>
 
           {/* Commit bar */}
-          {filteredFiles.length > 0 && (
-            <div className="shrink-0 border-t border-[var(--border-primary)]/70 bg-[var(--bg-secondary)]/30 px-2.5 py-2">
-              <div className="flex items-center gap-1.5">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--border-primary)] text-[var(--text-secondary)]">
-                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </div>
-                <input
-                  value={commitMessage}
-                  onChange={(e) => setCommitMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void handleCommit();
-                    }
-                  }}
-                  placeholder="Summary (required)"
-                  className="min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-[10px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/50"
-                />
+          <div className="shrink-0 border-t border-[var(--border-primary)]/70 bg-[var(--bg-secondary)]/30 px-2.5 py-2">
+            <div className="flex items-center gap-1.5">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[var(--border-primary)] text-[var(--text-secondary)]">
+                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
               </div>
-              <textarea
-                value={commitDescription}
-                onChange={(e) => setCommitDescription(e.target.value)}
-                placeholder="Description"
-                rows={3}
-                className="mt-1.5 w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1.5 font-mono text-[10px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/50 custom-scrollbar"
+              <input
+                value={commitMessage}
+                onChange={(e) => setCommitMessage(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleCommit();
+                  }
+                }}
+                placeholder="Summary (required)"
+                className="min-w-0 flex-1 rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-[10px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/50"
               />
-              <div className="hidden" aria-hidden="true">
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-              </div>
-              {remoteInfo && (
-                <label className="mt-1 flex items-center gap-1.5 select-none cursor-pointer group/push">
-                  <button
-                    type="button"
-                    role="checkbox"
-                    aria-checked={pushAfterCommit}
-                    onClick={() => setPushAfterCommit((v) => !v)}
-                    className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors cursor-pointer ${
-                      pushAfterCommit ? 'border-blue-500 bg-blue-600 text-white' : 'border-zinc-600 bg-transparent'
-                    }`}
-                  >
-                    {pushAfterCommit && <Check size={9} weight="bold" aria-hidden="true" />}
-                  </button>
-                  <span className="font-mono text-[8.5px] text-[var(--text-secondary)] group-hover/push:text-[var(--text-primary)] transition-colors">
-                    Push to {remoteInfo.name} after commit
-                  </span>
-                </label>
-              )}
-              <button
-                type="button"
-                onClick={() => void handleCommit()}
-                disabled={committing || !commitMessage.trim()}
-                className="mt-1.5 flex h-7 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-blue-600 font-mono text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-blue-500 disabled:cursor-default disabled:opacity-40"
-              >
-                {committing ? <CircleNotch size={13} className="animate-spin" /> : <GitCommit size={13} />}
-                Commit {changedFiles.length} file{changedFiles.length !== 1 ? 's' : ''} to {branches?.current ?? 'main'}
-              </button>
-              {(commitError || commitNotice) && (
-                <p className={`mt-1.5 font-mono text-[9px] ${commitError ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {commitError ?? commitNotice}
-                </p>
-              )}
             </div>
-          )}
+            <textarea
+              value={commitDescription}
+              onChange={(e) => setCommitDescription(e.target.value)}
+              placeholder="Description"
+              rows={3}
+              className="mt-1.5 w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1.5 font-mono text-[10px] text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-blue-500/50 custom-scrollbar"
+            />
+            {remoteInfo && (
+              <label className="mt-1 flex items-center gap-1.5 select-none cursor-pointer group/push">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={pushAfterCommit}
+                  disabled={busy}
+                  aria-label={`Push to ${target} after commit`}
+                  onClick={() => setPushAfterCommit((v) => !v)}
+                  className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors cursor-pointer ${
+                    pushAfterCommit ? 'border-blue-500 bg-blue-600 text-white' : 'border-zinc-600 bg-transparent'
+                  }`}
+                >
+                  {pushAfterCommit && <Check size={9} weight="bold" aria-hidden="true" />}
+                </button>
+                <span className="font-mono text-[8.5px] text-[var(--text-secondary)] group-hover/push:text-[var(--text-primary)] transition-colors">
+                  Push to {target} after commit
+                </span>
+              </label>
+            )}
+            <button
+              type="button"
+              onClick={() => void handleCommit()}
+              disabled={busy || !canCommit || !commitMessage.trim() || commitFiles.length === 0}
+              className="mt-1.5 flex h-7 w-full cursor-pointer items-center justify-center gap-1.5 rounded-md bg-blue-600 font-mono text-[10px] font-bold uppercase tracking-wider text-white transition-colors hover:bg-blue-500 disabled:cursor-default disabled:opacity-40"
+            >
+              {committing ? <CircleNotch size={13} className="animate-spin" /> : <GitCommit size={13} />}
+              Commit {commitFiles.length} file{commitFiles.length !== 1 ? 's' : ''} to {branches?.current === 'HEAD' ? 'Detached HEAD' : branches?.current ?? 'Loading branch…'}
+            </button>
+          </div>
         </>
       )}
 
@@ -630,6 +630,7 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
                   {branches.branches.map((branch) => (
                     <button
                       key={branch}
+                      disabled={busy || branch === branches.current}
                       onClick={() => void handleCheckout(branch)}
                       className={`flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left font-mono text-[9.5px] transition-colors cursor-pointer ${
                         branch === branches.current

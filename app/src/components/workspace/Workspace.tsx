@@ -15,7 +15,6 @@ import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useAgentHost } from '../../hooks/useAgentHost';
-import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { FileEntry, WorkspaceView } from '../../types';
@@ -71,6 +70,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     refreshGitStatus,
     isRefreshingGit,
     gitRefreshError,
+    fileSyncError,
   } = useFileWatcher(currentWorkspace?.path ?? null);
   const hasInitialized = useRef<Record<string, boolean>>({});
   const sidebarWidthRef = useRef(250);
@@ -238,26 +238,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     setActiveView('editor');
   }, [setGitDiffFile, setActiveView]);
 
-  const handleStageFile = useCallback(async (filePath: string) => {
-    if (!currentWorkspace) return;
-    try {
-      await invoke('git_stage_file', { workspacePath: currentWorkspace.path, filePath });
-      void refreshGitStatus();
-    } catch (err) {
-      console.error('Failed to stage file:', err);
-    }
-  }, [currentWorkspace, refreshGitStatus]);
-
-  const handleUnstageFile = useCallback(async (filePath: string) => {
-    if (!currentWorkspace) return;
-    try {
-      await invoke('git_unstage_file', { workspacePath: currentWorkspace.path, filePath });
-      void refreshGitStatus();
-    } catch (err) {
-      console.error('Failed to unstage file:', err);
-    }
-  }, [currentWorkspace, refreshGitStatus]);
-
   const handleQuickOpenSelect = useCallback((entry: FileEntry) => {
     openFile(entry);
   }, [openFile]);
@@ -421,11 +401,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                   >
                     {sourceControlOpen ? (
                       <SourceControlPanel
+                        key={currentWorkspace.path}
                         gitStatuses={gitStatuses}
                         gitDiffStats={gitDiffStats}
                         workspacePath={currentWorkspace.path}
-                        onStageFile={handleStageFile}
-                        onUnstageFile={handleUnstageFile}
                         onOpenDiff={handleOpenDiff}
                         onRefresh={refreshGitStatus}
                         isRefreshing={isRefreshingGit}
@@ -433,6 +412,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                       />
                     ) : (
                       <FileExplorer
+                        key={currentWorkspace.path}
                         workspacePath={currentWorkspace.path}
                         workspaceName={currentWorkspace.name}
                         onFileClick={handleFileClick}
@@ -506,7 +486,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                     transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
                     className="absolute inset-0"
                   >
-                    <FileEditor />
+                    <FileEditor diskSyncError={fileSyncError} />
                   </motion.div>
                 )}
               </AnimatePresence>

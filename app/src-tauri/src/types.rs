@@ -226,6 +226,7 @@ pub struct GitCommitInfo {
 pub struct GitBranchInfo {
     pub current: String,
     pub branches: Vec<String>,
+    pub repository_path: String,
 }
 
 /// Info about the git remote (origin) for a repo.
@@ -234,6 +235,9 @@ pub struct GitBranchInfo {
 pub struct GitRemoteInfo {
     pub name: String,
     pub url: String,
+    pub current_branch: String,
+    pub remote_branch: String,
+    pub has_upstream: bool,
     /// How many commits the local branch is ahead of its upstream (push), or
     /// behind (pull). Computed against the last fetched state.
     pub ahead: i64,

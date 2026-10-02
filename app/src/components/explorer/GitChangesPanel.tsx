@@ -11,10 +11,11 @@ import {
   Minus,
   Plus,
 } from '@phosphor-icons/react';
-import { GitFileStatus, GitDiffStat, FileEntry, GitBranchInfo, GitCommitInfo } from '../../types';
+import type { GitFileStatus, GitDiffStat, FileEntry } from '../../types';
 import { GitStatusBadge } from './GitStatusBadge';
 import { FileIcon } from './FileIcon';
 import { useAppStore } from '../../stores/appStore';
+import { useGitRepository } from '../../hooks/useGitRepository';
 
 interface GitChangesPanelProps {
   gitStatuses: GitFileStatus[];
@@ -56,9 +57,10 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [commitNotice, setCommitNotice] = useState<string | null>(null);
-  const [branches, setBranches] = useState<GitBranchInfo | null>(null);
-  const [commits, setCommits] = useState<GitCommitInfo[]>([]);
   const [showCommitLog, setShowCommitLog] = useState(false);
+  const { branches, commits, error: repositoryError, refresh: refreshRepository } = useGitRepository(workspacePath, gitStatuses, showCommitLog);
+  const operationRef = useRef(false);
+  const [checkingOut, setCheckingOut] = useState(false);
 
   const changedFiles = useMemo(() => {
     const statsMap = new Map<string, GitDiffStat>();
@@ -114,27 +116,6 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
     const max = Math.max(...changedFiles.map((f) => f.linesAdded + f.linesDeleted), 0);
     return max || 1;
   }, [changedFiles]);
-
-  // Load branch info + recent commits once when the panel mounts or the
-  // workspace changes, so the header shows the current branch.
-  useEffect(() => {
-    let cancelled = false;
-    void invoke<GitBranchInfo>('git_branches', { workspacePath })
-      .then((b) => { if (!cancelled) setBranches(b); })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [workspacePath]);
-
-  const refreshCommitLog = useCallback(async () => {
-    try {
-      const log = await invoke<GitCommitInfo[]>('git_log', { workspacePath, limit: 15 });
-      setCommits(Array.isArray(log) ? log : []);
-    } catch (err) {
-      setCommitError(err instanceof Error ? err.message : String(err));
-    }
-  }, [workspacePath]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -198,32 +179,39 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
 
   const handleCommit = useCallback(async () => {
     const message = commitMessage.trim();
-    if (!message || committing) return;
+    if (!message || operationRef.current || !branches || branches.current === 'HEAD') return;
+    operationRef.current = true;
     setCommitting(true);
     setCommitError(null);
     setCommitNotice(null);
     try {
-      await invoke('git_commit', { workspacePath, message });
+      await invoke('git_commit', { workspacePath, message, expectedBranch: branches.current });
       setCommitMessage('');
       setCommitNotice(`Committed: ${message.slice(0, 60)}`);
-      void refreshCommitLog();
+
     } catch (err) {
       setCommitError(err instanceof Error ? err.message : String(err));
     } finally {
+      await refreshRepository();
+      operationRef.current = false;
       setCommitting(false);
     }
-  }, [commitMessage, committing, workspacePath, refreshCommitLog]);
+  }, [commitMessage, branches, workspacePath, refreshRepository]);
 
   const handleCheckout = useCallback(async (branch: string) => {
-    if (!branch) return;
+    if (!branches || branch === branches.current || operationRef.current) return;
+    operationRef.current = true;
+    setCheckingOut(true);
     try {
-      await invoke('git_checkout', { workspacePath, branch });
-      const b = await invoke<GitBranchInfo>('git_branches', { workspacePath });
-      setBranches(b);
+      await invoke('git_checkout', { workspacePath, branch, expectedBranch: branches.current });
     } catch (err) {
       setCommitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      await refreshRepository();
+      operationRef.current = false;
+      setCheckingOut(false);
     }
-  }, [workspacePath]);
+  }, [workspacePath, branches, refreshRepository]);
 
   const getRelativePath = useCallback((fullPath: string) => {
     if (fullPath.startsWith(workspacePath)) {
@@ -281,7 +269,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowCommitLog((v) => !v);
-                  if (!showCommitLog) void refreshCommitLog();
+                  if (!showCommitLog) void refreshRepository();
                 }}
                 title="Recent commits & branches"
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-black uppercase tracking-widest text-violet-400 hover:bg-violet-500/10 border border-transparent hover:border-violet-500/30 transition-colors cursor-pointer"
@@ -307,6 +295,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                         <button
                           key={branch}
                           type="button"
+                          disabled={committing || checkingOut}
                           onClick={() => void handleCheckout(branch)}
                           className={`flex w-full items-center gap-1.5 px-2 py-1 text-left font-mono text-[9px] transition-colors hover:bg-zinc-800/60 cursor-pointer ${
                             branch === branches.current ? 'text-violet-400' : 'text-zinc-300'
@@ -533,7 +522,7 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => void handleCommit()}
-                  disabled={committing || !commitMessage.trim()}
+                  disabled={committing || checkingOut || !branches || branches.current === 'HEAD' || !commitMessage.trim()}
                   title="Stage all changes and commit"
                   className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-blue-500/40 bg-blue-500/10 px-2 font-mono text-[8.5px] font-bold uppercase tracking-widest text-blue-400 transition-colors hover:bg-blue-500/20 disabled:cursor-default disabled:opacity-40"
                 >
@@ -541,9 +530,9 @@ export const GitChangesPanel: React.FC<GitChangesPanelProps> = ({
                   Commit
                 </button>
               </div>
-              {(commitError || commitNotice) && (
-                <p className={`mt-1 font-mono text-[8.5px] ${commitError ? 'text-rose-400' : 'text-emerald-400'}`}>
-                  {commitError ?? commitNotice}
+              {(repositoryError || commitError || commitNotice) && (
+                <p className={`mt-1 font-mono text-[8.5px] ${repositoryError || commitError ? 'text-rose-400' : 'text-emerald-400'}`}>
+                  {repositoryError ?? commitError ?? commitNotice}
                 </p>
               )}
             </div>

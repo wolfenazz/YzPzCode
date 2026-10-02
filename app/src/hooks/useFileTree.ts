@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { TreeApi } from 'react-arborist';
 import type { FileEntry } from '../types';
+import { normalizeFilePath } from '../utils/fileSync';
 
 export interface TreeNodeData {
   id: string;
@@ -32,25 +33,6 @@ function entryToNode(entry: FileEntry): TreeNodeData {
     extension: entry.extension,
     isDir: false,
   };
-}
-
-function updateNodeInTree(
-  data: TreeNodeData[],
-  nodeId: string,
-  updates: Partial<TreeNodeData>,
-): TreeNodeData[] {
-  return data.map((node) => {
-    if (node.id === nodeId) {
-      return { ...node, ...updates };
-    }
-    if (node.children) {
-      return {
-        ...node,
-        children: updateNodeInTree(node.children, nodeId, updates),
-      };
-    }
-    return node;
-  });
 }
 
 function updateNodeInTreeWithCallback(
@@ -113,7 +95,7 @@ export function mergePreservingLoaded(
   const merge = (nodes: TreeNodeData[]): TreeNodeData[] =>
     nodes.map((entry) => {
       const previousNode = previousByPath.get(entry.path);
-      if (previousNode?.isDir && previousNode.loaded && previousNode.children) {
+      if (entry.isDir && previousNode?.isDir && previousNode.loaded && previousNode.children) {
         return {
           ...entry,
           loaded: true,
@@ -262,47 +244,75 @@ export function useFileTree(workspacePath: string | null) {
 
   const nodeMap = useMemo(() => buildNodeMap(treeData), [treeData]);
 
-  const loadRoot = useCallback(async () => {
-    if (!workspacePath) return;
-    setIsLoading(true);
+  const dataRef = useRef(treeData);
+  dataRef.current = treeData;
+  const generationRef = useRef({ path: workspacePath, requests: new Map<string, number>() });
+  if (generationRef.current.path !== workspacePath) generationRef.current = { path: workspacePath, requests: new Map() };
+
+  const refreshPath = useCallback(async (dirPath: string | null): Promise<void> => {
+    const target = dirPath ?? workspacePath;
+    if (!target) return;
+    const generation = generationRef.current;
+    const request = (generation.requests.get(target) ?? 0) + 1;
+    generation.requests.set(target, request);
     try {
-      const entries = await invoke<FileEntry[]>('list_directory_entries', {
-        path: workspacePath,
-      });
-      setTreeData((previous) =>
-        mergePreservingLoaded(previous, entries.map(entryToNode))
-      );
-    } catch (err) {
-      console.error('Failed to load directory:', err);
+      const entries = await invoke<FileEntry[]>('list_directory_entries', { path: target });
+      if (generationRef.current !== generation || generation.requests.get(target) !== request) return;
+      const children = entries.map(entryToNode);
+      setTreeData((previous) => target === workspacePath
+        ? mergePreservingLoaded(previous, children)
+        : updateNodeInTreeWithCallback(previous, target, (node) => ({
+            children: mergePreservingLoaded(node.children ?? [], children), loaded: true,
+          })));
+    } catch (error) {
+      if (generationRef.current === generation) console.error('Failed to refresh directory:', error);
     }
-    setIsLoading(false);
   }, [workspacePath]);
 
+  const refreshChangedPaths = useCallback(async (paths: string[] = []): Promise<void> => {
+    if (!workspacePath) return;
+    const root = normalizeFilePath(workspacePath);
+    const loaded = [...buildNodeMap(dataRef.current).values()].filter((node) => node.isDir && node.loaded);
+    const targets = new Set<string>();
+    // A full refresh reconciles every loaded folder, not only the root listing.
+    if (paths.length === 0 || paths.some((path) => normalizeFilePath(path) === root)) {
+      targets.add(workspacePath);
+      loaded.forEach((node) => targets.add(node.path));
+    } else {
+      for (const path of paths) {
+        const normalized = normalizeFilePath(path);
+        if (!normalized.startsWith(`${root}/`)) continue;
+        const parents = loaded.filter((node) => normalized.startsWith(`${normalizeFilePath(node.path)}/`))
+          .sort((a, b) => b.path.length - a.path.length);
+        targets.add(parents[0]?.path ?? workspacePath);
+        // A replaced directory needs to reconcile any already loaded descendants.
+        loaded.filter((node) => normalizeFilePath(node.path) === normalized || normalizeFilePath(node.path).startsWith(`${normalized}/`))
+          .forEach((node) => targets.add(node.path));
+      }
+    }
+    await Promise.all([...targets].map(refreshPath));
+  }, [workspacePath, refreshPath]);
+
+  const loadRoot = useCallback(async (): Promise<void> => {
+    const generation = generationRef.current;
+    await refreshChangedPaths();
+    if (generationRef.current === generation) setIsLoading(false);
+  }, [refreshChangedPaths]);
+
   useEffect(() => {
-    loadRoot();
+    generationRef.current = { path: workspacePath, requests: new Map() };
+    dataRef.current = [];
+    setTreeData([]);
+    setIsLoading(true);
+    undoLogRef.current = [];
+    void loadRoot();
+    return () => { generationRef.current = { path: null, requests: new Map() }; };
   }, [loadRoot]);
 
-  const handleToggle = useCallback(
-    async (id: string) => {
-      const found = nodeMap.get(id);
-      if (!found || !found.isDir || found.loaded) return;
-
-      try {
-        const entries = await invoke<FileEntry[]>('list_directory_entries', {
-          path: found.path,
-        });
-        setTreeData((prev) =>
-          updateNodeInTree(prev, id, {
-            children: entries.map(entryToNode),
-            loaded: true,
-          })
-        );
-      } catch (err) {
-        console.error('Failed to load directory:', err);
-      }
-    },
-    [nodeMap]
-  );
+  const handleToggle = useCallback(async (id: string): Promise<void> => {
+    const found = buildNodeMap(dataRef.current).get(id);
+    if (found?.isDir && !found.loaded) await refreshPath(found.path);
+  }, [refreshPath]);
 
   const moveEntries = useCallback(
     async (dragIds: string[], destDir: string) => {
@@ -592,32 +602,6 @@ export function useFileTree(workspacePath: string | null) {
     [loadRoot]
   );
 
-  /** Reload the children of a single (already loaded) directory in place. */
-  const refreshPath = useCallback(
-    async (dirPath: string | null) => {
-      const target = dirPath ?? workspacePath;
-      if (!target) return;
-      try {
-        const entries = await invoke<FileEntry[]>('list_directory_entries', {
-          path: target,
-        });
-        const children = entries.map(entryToNode);
-        setTreeData((prev) => {
-          if (target === workspacePath) {
-            return mergePreservingLoaded(prev, children);
-          }
-          return updateNodeInTree(prev, target, {
-            children: mergePreservingLoaded(prev, children),
-            loaded: true,
-          });
-        });
-      } catch (err) {
-        console.error('Failed to refresh path:', err);
-      }
-    },
-    [workspacePath]
-  );
-
   // ---- Undo log -----------------------------------------------------------
   const undoExplorerOp = useCallback(async () => {
     const op = undoLogRef.current.pop();
@@ -699,6 +683,7 @@ export function useFileTree(workspacePath: string | null) {
     revealInFileManager,
     refreshRoot: loadRoot,
     refreshPath,
+    refreshChangedPaths,
     importExternalFiles,
     registerExternalRefresh,
     undoExplorerOp,

@@ -30,10 +30,23 @@ export const useFileEditor = () => {
 
   const openFile = useCallback(async (entry: FileEntry, change?: string) => {
     const state = useAppStore.getState();
+    const workspaceId = state.currentWorkspace?.id;
     const openFiles = state.openFiles;
+    const openTab = (tab: FileTab): void => {
+      if (useAppStore.getState().currentWorkspace?.id === workspaceId) openFileTab(tab);
+    };
     const existing = openFiles.find((f) => f.path === entry.path);
     if (existing) {
-      openFileTab(existing);
+      openTab(existing);
+      if (workspaceId && !isLikelyBinary(entry)) {
+        try {
+          const disk = await invoke<FileContent>('read_file_content', { path: entry.path });
+          useAppStore.getState().reconcileFileDisk(workspaceId, entry.path, disk);
+        } catch (error) {
+          if (String(error).startsWith('File does not exist:')) useAppStore.getState().reconcileFileDisk(workspaceId, entry.path, null);
+          else setOpenError(`Could not refresh file: ${String(error)}`);
+        }
+      }
       return;
     }
 
@@ -57,7 +70,7 @@ export const useFileEditor = () => {
               isDirty: false,
               gitChange: 'deleted',
             };
-            openFileTab(tab);
+            openTab(tab);
           } catch {
             const tab: FileTab = {
               path: entry.path,
@@ -68,7 +81,7 @@ export const useFileEditor = () => {
               isDirty: false,
               gitChange: 'deleted',
             };
-            openFileTab(tab);
+            openTab(tab);
           }
         }
       } else if (isLikelyBinary(entry)) {
@@ -80,7 +93,7 @@ export const useFileEditor = () => {
           originalContent: '',
           isDirty: false,
         };
-        openFileTab(tab);
+        openTab(tab);
       } else {
         if (entry.size > LARGE_FILE_THRESHOLD) {
           const confirmed = window.confirm(
@@ -100,7 +113,7 @@ export const useFileEditor = () => {
           originalContent: result.content,
           isDirty: false,
         };
-        openFileTab(tab);
+        openTab(tab);
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

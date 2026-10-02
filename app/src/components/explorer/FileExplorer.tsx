@@ -13,6 +13,9 @@ import { DbPanel } from './DbPanel';
 import { ExplorerContextMenu } from './ExplorerContextMenu';
 import { useAppStore } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { normalizeFilePath } from '../../utils/fileSync';
+import type { FileSystemChangedPayload } from '../../utils/fileSync';
 
 interface FileExplorerProps {
   workspacePath: string;
@@ -75,7 +78,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     deleteEntry,
     revealInFileManager,
     refreshRoot,
-    refreshPath,
+    refreshChangedPaths,
     importExternalFiles,
     undoExplorerOp,
     pushUndoOp,
@@ -85,6 +88,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FileEntry[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [filesystemRevision, setFilesystemRevision] = useState(0);
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -149,7 +153,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [debouncedSearchQuery, workspacePath]);
+  }, [debouncedSearchQuery, workspacePath, filesystemRevision]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -166,48 +170,44 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Let the FS watcher refresh the tree when files change on disk.
+  // Batch reconciliation while IPC is in flight; every burst gets a final pass.
   useEffect(() => {
+    let disposed = false;
     let unlisten: (() => void) | null = null;
-    let cancelled = false;
-
-    (async () => {
-      const { listen } = await import('@tauri-apps/api/event');
-      if (cancelled) return;
-      unlisten = await listen<{ workspacePath: string; paths: string[] }>(
-        'file-system-changed',
-        (event) => {
-          if (event.payload?.workspacePath !== workspacePath) return;
-          const paths = event.payload?.paths;
-          if (!paths || paths.length === 0) {
-            refreshRoot();
-            return;
-          }
-          // Refresh affected loaded parents (or the root for unknown paths).
-          const dirsToRefresh = new Set<string>();
-          for (const p of paths) {
-            const parent = findParentPath(p);
-            if (parent && parent !== workspacePath) {
-              dirsToRefresh.add(parent);
-            }
-          }
-          if (dirsToRefresh.size === 0) {
-            refreshRoot();
-          } else {
-            refreshRoot();
-            for (const dir of dirsToRefresh) {
-              refreshPath(dir);
-            }
-          }
+    let running = false;
+    const pending = new Set<string>();
+    const drain = async (): Promise<void> => {
+      if (running || disposed) return;
+      running = true;
+      try {
+        while (pending.size && !disposed) {
+          const paths = [...pending];
+          pending.clear();
+          await refreshChangedPaths(paths);
+          if (!disposed) setFilesystemRevision((value) => value + 1);
         }
-      );
-    })();
-
-    return () => {
-      cancelled = true;
-      unlisten?.();
+      } finally { running = false; }
     };
-  }, [refreshRoot, refreshPath, workspacePath]);
+    const queue = (paths: string[]): void => {
+      for (const path of paths.length ? paths : [workspacePath]) pending.add(path);
+      void drain();
+    };
+    const refresh = (): void => queue([workspacePath]);
+    void listen<FileSystemChangedPayload>('file-system-changed', (event) => {
+      if (!disposed && normalizeFilePath(event.payload.workspacePath) === normalizeFilePath(workspacePath)) queue(event.payload.paths);
+    }).then((stopListening) => {
+      if (disposed) stopListening(); else unlisten = stopListening;
+    }).catch(console.error);
+    // Also refresh expanded descendants when coming back to the app.
+    window.addEventListener('focus', refresh);
+    const fallback = window.setInterval(refresh, 3000);
+    return () => {
+      disposed = true;
+      unlisten?.();
+      window.removeEventListener('focus', refresh);
+      window.clearInterval(fallback);
+    };
+  }, [refreshChangedPaths, workspacePath]);
 
   useEffect(() => {
     if (!pendingDelete) return;

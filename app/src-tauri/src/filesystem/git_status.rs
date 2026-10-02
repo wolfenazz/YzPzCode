@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::run_git_hidden;
+use super::{git_repository_root, run_git_hidden};
 use crate::types::{GitFileChange, GitFileStatus};
 
 pub fn get_git_status(workspace_path: &str) -> Result<Vec<GitFileStatus>, String> {
@@ -9,10 +9,12 @@ pub fn get_git_status(workspace_path: &str) -> Result<Vec<GitFileStatus>, String
         return Err(format!("Path does not exist: {}", workspace_path));
     }
 
-    let git_dir = root.join(".git");
-    if !git_dir.exists() {
-        return Ok(Vec::new());
-    }
+    let repository = match git_repository_root(workspace_path) {
+        Ok(repository) => repository,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let workspace_path = repository.as_str();
+    let root = Path::new(workspace_path);
 
     let stdout = run_git_hidden(
         &[
@@ -66,6 +68,38 @@ fn parse_git_xy(xy: &str) -> GitFileChange {
     }
 }
 
+pub fn git_stage_file(workspace_path: &str, file_path: &str) -> Result<(), String> {
+    let root = std::path::Path::new(workspace_path);
+    if !root.exists() {
+        return Err(format!("Path does not exist: {}", workspace_path));
+    }
+
+    let rel_path = if let Some(rel) = file_path.strip_prefix(workspace_path) {
+        rel.trim_start_matches('/').trim_start_matches('\\')
+    } else {
+        file_path
+    };
+
+    super::run_git_hidden(&["add", "--", rel_path], workspace_path)?;
+    Ok(())
+}
+
+pub fn git_unstage_file(workspace_path: &str, file_path: &str) -> Result<(), String> {
+    let root = std::path::Path::new(workspace_path);
+    if !root.exists() {
+        return Err(format!("Path does not exist: {}", workspace_path));
+    }
+
+    let rel_path = if let Some(rel) = file_path.strip_prefix(workspace_path) {
+        rel.trim_start_matches('/').trim_start_matches('\\')
+    } else {
+        file_path
+    };
+
+    super::run_git_hidden(&["reset", "--", rel_path], workspace_path)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,36 +136,4 @@ mod tests {
         );
         assert_eq!(statuses[0].change, GitFileChange::Untracked);
     }
-}
-
-pub fn git_stage_file(workspace_path: &str, file_path: &str) -> Result<(), String> {
-    let root = std::path::Path::new(workspace_path);
-    if !root.exists() {
-        return Err(format!("Path does not exist: {}", workspace_path));
-    }
-
-    let rel_path = if let Some(rel) = file_path.strip_prefix(workspace_path) {
-        rel.trim_start_matches('/').trim_start_matches('\\')
-    } else {
-        file_path
-    };
-
-    super::run_git_hidden(&["add", "--", rel_path], workspace_path)?;
-    Ok(())
-}
-
-pub fn git_unstage_file(workspace_path: &str, file_path: &str) -> Result<(), String> {
-    let root = std::path::Path::new(workspace_path);
-    if !root.exists() {
-        return Err(format!("Path does not exist: {}", workspace_path));
-    }
-
-    let rel_path = if let Some(rel) = file_path.strip_prefix(workspace_path) {
-        rel.trim_start_matches('/').trim_start_matches('\\')
-    } else {
-        file_path
-    };
-
-    super::run_git_hidden(&["reset", "--", rel_path], workspace_path)?;
-    Ok(())
 }

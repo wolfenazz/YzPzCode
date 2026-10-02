@@ -22,6 +22,7 @@ import { PptxPreview } from './PptxPreview';
 import { DrawioPreview } from './DrawioPreview';
 import { invoke } from '@tauri-apps/api/core';
 import { toMonacoLanguage } from '../../utils/monacoLanguage';
+import type { FileContent } from '../../types';
 
 type MonacoEditor = Parameters<OnMount>[0];
 
@@ -55,14 +56,14 @@ const getBreadcrumb = (filePath: string): string => {
   return parts.slice(-4).join(" / ");
 };
 
-export const FileEditor: React.FC = () => {
+export const FileEditor: React.FC<{ diskSyncError?: string | null }> = ({ diskSyncError }) => {
   const editorRef = useRef<MonacoEditor | null>(null);
   const currentFileRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isApplyingExternalRef = useRef(false);
   const callbacksRef = useRef<{
     updateFileContent: (path: string, content: string) => void;
-    handleSave: () => void;
+    handleSave: (expectedPath?: string, expectedWorkspaceId?: string) => void;
   }>({ updateFileContent: () => {}, handleSave: () => {} });
 
   const openFiles = useAppStore((s) => s.openFiles);
@@ -95,6 +96,7 @@ export const FileEditor: React.FC = () => {
   const editorTrimWhitespace = useAppStore((s) => s.editorTrimWhitespace);
 
   const [mdPreview, setMdPreview] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [cursorStatus, setCursorStatus] = useState<CursorStatus>({
     line: 1,
     column: 1,
@@ -114,6 +116,7 @@ export const FileEditor: React.FC = () => {
   const isDrawio = fileExt === "drawio" || fileExt === "dio";
   const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet || isPptx || isDrawio;
   const showEditor = Boolean(activeFile && !isPreviewable && !(isMarkdown && mdPreview));
+  currentFileRef.current = showEditor ? activeFilePath : null;
 
   const dotIndex = activeFile ? activeFile.name.lastIndexOf(".") : -1;
   const fileNameBase = activeFile && dotIndex > 0 ? activeFile.name.slice(0, dotIndex) : activeFile?.name ?? "";
@@ -136,11 +139,17 @@ export const FileEditor: React.FC = () => {
     });
   }, []);
 
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (expectedPath?: string, expectedWorkspaceId?: string) => {
     const state = useAppStore.getState();
+    const workspaceId = state.activeWorkspaceId;
     const path = currentFileRef.current;
+    if ((expectedPath && expectedPath !== path) || (expectedWorkspaceId && expectedWorkspaceId !== workspaceId)) return;
     let file = state.openFiles.find((entry) => entry.path === path);
-    if (!file || !file.isDirty) return;
+    if (!file || !file.isDirty || !workspaceId) return;
+    if (file.diskContent !== undefined) {
+      setSaveError('Resolve the disk change before saving. Your edits are preserved.');
+      return;
+    }
 
     let contentToSave = file.content;
 
@@ -160,21 +169,49 @@ export const FileEditor: React.FC = () => {
     }
 
     contentToSave = normalizeContentForSave(contentToSave, editorTrimWhitespace);
-    file = state.openFiles.find((entry) => entry.path === path) ?? file;
+    const latest = useAppStore.getState();
+    if (latest.activeWorkspaceId !== workspaceId || currentFileRef.current !== path) return;
+    file = latest.openFiles.find((entry) => entry.path === path) ?? file;
 
     if (contentToSave !== file.content) {
       state.updateFileContent(file.path, contentToSave);
     }
 
     try {
+      // Detect a disk edit even if its OS notification has not arrived yet.
+      let disk: FileContent | null;
+      try {
+        disk = await invoke<FileContent>('read_file_content', { path: file.path });
+      } catch (error) {
+        if (!String(error).startsWith('File does not exist:')) throw error;
+        disk = null;
+      }
+      if (disk?.content !== file.originalContent && !(disk === null && file.recreateOnSave)) {
+        useAppStore.getState().reconcileFileDisk(workspaceId, file.path, disk);
+        setSaveError('The file changed on disk. Resolve the disk change before saving.');
+        return;
+      }
+      const current = useAppStore.getState().filesByWorkspace[workspaceId]?.find((entry) => entry.path === file.path);
+      if (!current || current.diskContent !== undefined || current.originalContent !== file.originalContent) return;
       await invoke("write_file_content", { path: file.path, content: contentToSave });
-      state.markFileSaved(file.path);
+      useAppStore.getState().markFileSaved(file.path, contentToSave, workspaceId);
+      setSaveError(null);
     } catch (err) {
-      console.error("Failed to save file:", err);
+      setSaveError(`Could not save file: ${String(err)}`);
     }
   }, [editorFormatOnSave, editorTrimWhitespace]);
 
   callbacksRef.current = { updateFileContent, handleSave };
+
+  useEffect(() => {
+    setSaveError(null);
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = null;
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = null;
+    };
+  }, [activeFilePath, workspacePath, activeFile?.diskContent]);
 
   const handleMonacoChange = useCallback<OnChange>((value) => {
     if (isApplyingExternalRef.current) return;
@@ -187,12 +224,12 @@ export const FileEditor: React.FC = () => {
 
     callbacksRef.current.updateFileContent(path, next);
 
-    if (state.autoSave) {
+    if (state.autoSave && file.diskContent === undefined) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       const delay = state.autoSaveDelay > 0 ? state.autoSaveDelay : 2000;
       autoSaveTimerRef.current = setTimeout(() => {
         autoSaveTimerRef.current = null;
-        callbacksRef.current.handleSave();
+        callbacksRef.current.handleSave(path, state.activeWorkspaceId ?? undefined);
       }, delay);
     }
   }, []);
@@ -277,10 +314,7 @@ export const FileEditor: React.FC = () => {
   // Track the active file so save/change handlers always target the right tab.
   useEffect(() => {
     if (!activeFilePath || isPreviewable) {
-      currentFileRef.current = null;
       setCursorStatus({ line: 1, column: 1, selection: 0, lineCount: 0, characterCount: 0 });
-    } else {
-      currentFileRef.current = activeFilePath;
     }
   }, [activeFilePath, isPreviewable]);
 
@@ -298,9 +332,17 @@ export const FileEditor: React.FC = () => {
     if (!editor || !activeFile) return;
     if (currentFileRef.current !== activeFile.path) return;
     if (editor.getValue() !== activeFile.content) {
+      const viewState = editor.saveViewState();
       isApplyingExternalRef.current = true;
-      editor.setValue(activeFile.content);
-      isApplyingExternalRef.current = false;
+      try {
+        const model = editor.getModel();
+        if (model) {
+          editor.pushUndoStop();
+          editor.executeEdits('disk-sync', [{ range: model.getFullModelRange(), text: activeFile.content }]);
+          editor.pushUndoStop();
+        }
+        if (viewState) editor.restoreViewState(viewState);
+      } finally { isApplyingExternalRef.current = false; }
       updateMonacoStatus(editor);
     }
   }, [activeFile?.content, activeFile?.path, updateMonacoStatus]);
@@ -353,6 +395,28 @@ export const FileEditor: React.FC = () => {
         onCloseSaved={closeSavedFiles}
         onReorder={reorderOpenFiles}
       />
+
+      {(diskSyncError || saveError) && (
+        <p role="alert" className="shrink-0 border-b border-[var(--border-primary)] px-4 py-2 text-xs text-rose-400">{diskSyncError ?? saveError}</p>
+      )}
+      {activeFile?.diskContent !== undefined && (
+        <div role="status" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-4 py-2 text-xs text-[var(--text-primary)]">
+          <span className="flex-1">{activeFile.diskContent === null ? 'This file was deleted on disk. The open contents are preserved.' : 'This file changed on disk. Your unsaved edits are preserved.'}</span>
+          <button type="button" className="rounded border border-[var(--border-primary)] px-2 py-1 cursor-pointer" onClick={() => {
+            const state = useAppStore.getState();
+            if (!state.activeWorkspaceId) return;
+            state.resolveFileDiskChange(state.activeWorkspaceId, activeFile.path, true);
+            setSaveError(null);
+          }}>{activeFile.diskContent === null ? 'Restore with my edits' : 'Keep my edits'}</button>
+          <button type="button" className="rounded border border-[var(--border-primary)] px-2 py-1 cursor-pointer" onClick={() => {
+            if (activeFile.isDirty && !window.confirm('Discard your unsaved edits and use the current disk version?')) return;
+            const state = useAppStore.getState();
+            if (activeFile.diskContent === null) state.closeFileTab(activeFile.path);
+            else if (state.activeWorkspaceId) state.resolveFileDiskChange(state.activeWorkspaceId, activeFile.path, false);
+            setSaveError(null);
+          }}>{activeFile.diskContent === null ? 'Close tab' : 'Reload from disk'}</button>
+        </div>
+      )}
 
       <div className="flex-1 min-h-0">
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -447,7 +511,7 @@ export const FileEditor: React.FC = () => {
                         Auto
                       </button>
                       <button
-                        onClick={handleSave}
+                        onClick={() => void handleSave()}
                         className={toolbarBtnClass(false)}
                         title="Save"
                         aria-label="Save file"

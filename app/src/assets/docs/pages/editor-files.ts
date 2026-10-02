@@ -16,6 +16,7 @@ The file explorer opens on the left side of the workspace.
 - **Context menu**: Right-click a file for Copy, Cut, Paste, Rename, Delete, Duplicate, Reveal in File Manager, and Git Stage / Unstage
 - **Drag and drop**: Move files by dragging
 - **Import**: Import files into the workspace
+- **Live updates**: External file creation, edits, renames, and deletions refresh loaded folders automatically
 
 ### Quick Open
 
@@ -33,6 +34,10 @@ Files open as tabs in the editor view.
 - **Auto-save** with a configurable delay
 - **Dirty indicator**: A dot on unsaved tabs
 - **Tab context menu**: Close, Close Others, Close to the Right, Close Saved
+
+### Changes from agents and other editors
+
+Open text files reload automatically when their disk contents change. If you have unsaved edits, the editor preserves them and shows **Reload from disk** and **Keep my edits**. Reload discards your buffer after confirmation; keeping your edits lets you save them over the new disk version. Auto-save pauses while a disk conflict needs your decision. If a file is deleted, its open contents remain available to restore.
 
 ## File Previews
 

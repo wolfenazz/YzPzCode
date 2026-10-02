@@ -13,27 +13,27 @@ pub async fn path_exists(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn list_directory_entries(path: String) -> Result<Vec<FileEntry>, String> {
-    filesystem::explorer::list_directory_entries(&path)
+    run_blocking_operation(move || filesystem::explorer::list_directory_entries(&path)).await
 }
 
 #[tauri::command]
 pub async fn list_all_files(path: String) -> Result<Vec<FileEntry>, String> {
-    filesystem::explorer::list_all_files_recursive(&path)
+    run_blocking_operation(move || filesystem::explorer::list_all_files_recursive(&path)).await
 }
 
 #[tauri::command]
 pub async fn list_all_entries(path: String) -> Result<Vec<FileEntry>, String> {
-    filesystem::explorer::list_all_entries_recursive(&path)
+    run_blocking_operation(move || filesystem::explorer::list_all_entries_recursive(&path)).await
 }
 
 #[tauri::command]
 pub async fn read_file_content(path: String) -> Result<FileContent, String> {
-    filesystem::reader::read_file_content(&path)
+    run_blocking_operation(move || filesystem::reader::read_file_content(&path)).await
 }
 
 #[tauri::command]
 pub async fn write_file_content(path: String, content: String) -> Result<(), String> {
-    filesystem::reader::write_file_content(&path, &content)
+    run_blocking_operation(move || filesystem::reader::write_file_content(&path, &content)).await
 }
 
 #[tauri::command]
@@ -43,12 +43,13 @@ pub async fn write_file_bytes(path: String, base64_data: String) -> Result<(), S
 
 #[tauri::command]
 pub async fn get_git_status(workspace_path: String) -> Result<Vec<GitFileStatus>, String> {
-    filesystem::git_status::get_git_status(&workspace_path)
+    run_blocking_operation(move || filesystem::git_status::get_git_status(&workspace_path)).await
 }
 
 #[tauri::command]
 pub async fn get_git_diff_stats(workspace_path: String) -> Result<Vec<GitDiffStat>, String> {
-    filesystem::git_diff_stats::get_git_diff_stats(&workspace_path)
+    run_blocking_operation(move || filesystem::git_diff_stats::get_git_diff_stats(&workspace_path))
+        .await
 }
 
 #[tauri::command]
@@ -61,17 +62,17 @@ pub async fn get_git_file_content(
 
 #[tauri::command]
 pub async fn start_fs_watcher(app: tauri::AppHandle, workspace_path: String) -> Result<(), String> {
-    filesystem::watcher::start_fs_watcher(app, workspace_path)
+    run_blocking_operation(move || filesystem::watcher::start_fs_watcher(app, workspace_path)).await
 }
 
 #[tauri::command]
-pub async fn stop_fs_watcher() -> Result<(), String> {
-    filesystem::watcher::stop_fs_watcher()
+pub async fn stop_fs_watcher(workspace_path: String) -> Result<(), String> {
+    run_blocking_operation(move || filesystem::watcher::stop_fs_watcher(&workspace_path)).await
 }
 
 #[tauri::command]
 pub async fn read_file_as_base64(path: String) -> Result<String, String> {
-    filesystem::reader::read_file_as_base64(&path)
+    run_blocking_operation(move || filesystem::reader::read_file_as_base64(&path)).await
 }
 
 #[tauri::command]
@@ -134,27 +135,44 @@ pub async fn git_file_diff(
     workspace_path: String,
     file_path: String,
 ) -> Result<GitFileDiff, String> {
-    filesystem::git_ops::git_file_diff(&workspace_path, &file_path)
+    run_blocking_operation(move || filesystem::git_ops::git_file_diff(&workspace_path, &file_path))
+        .await
 }
 
 #[tauri::command]
-pub async fn git_commit(workspace_path: String, message: String) -> Result<(), String> {
-    filesystem::git_ops::git_commit(&workspace_path, &message)
+pub async fn git_commit(
+    workspace_path: String,
+    message: String,
+    expected_branch: String,
+    files: Option<Vec<String>>,
+) -> Result<(), String> {
+    run_blocking_operation(move || {
+        filesystem::git_ops::git_commit(
+            &workspace_path,
+            &message,
+            &expected_branch,
+            files.as_deref(),
+        )
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn git_discard_file(workspace_path: String, file_path: String) -> Result<(), String> {
-    filesystem::git_ops::git_discard_file(&workspace_path, &file_path)
+    run_blocking_operation(move || {
+        filesystem::git_ops::git_discard_file(&workspace_path, &file_path)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn git_log(workspace_path: String, limit: usize) -> Result<Vec<GitCommitInfo>, String> {
-    filesystem::git_ops::git_log(&workspace_path, limit)
+    run_blocking_operation(move || filesystem::git_ops::git_log(&workspace_path, limit)).await
 }
 
 #[tauri::command]
 pub async fn git_branches(workspace_path: String) -> Result<GitBranchInfo, String> {
-    filesystem::git_ops::git_branches(&workspace_path)
+    run_blocking_operation(move || filesystem::git_ops::git_branches(&workspace_path)).await
 }
 
 #[tauri::command]
@@ -201,28 +219,69 @@ pub async fn search_files(
 }
 
 #[tauri::command]
-pub async fn git_checkout(workspace_path: String, branch: String) -> Result<(), String> {
-    filesystem::git_ops::git_checkout(&workspace_path, &branch)
+pub async fn git_checkout(
+    workspace_path: String,
+    branch: String,
+    expected_branch: String,
+) -> Result<(), String> {
+    run_blocking_operation(move || {
+        filesystem::git_ops::git_checkout(&workspace_path, &branch, &expected_branch)
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn git_remote_info(workspace_path: String) -> Result<Option<GitRemoteInfo>, String> {
-    filesystem::git_ops::git_remote_info(&workspace_path)
+    run_blocking_operation(move || filesystem::git_ops::git_remote_info(&workspace_path)).await
 }
 
 #[tauri::command]
 pub async fn git_fetch(workspace_path: String) -> Result<(), String> {
-    filesystem::git_ops::git_fetch(&workspace_path)
+    run_blocking_operation(move || filesystem::git_ops::git_fetch(&workspace_path)).await
 }
 
 #[tauri::command]
-pub async fn git_push(workspace_path: String) -> Result<(), String> {
-    filesystem::git_ops::git_push(&workspace_path)
+pub async fn git_push(
+    workspace_path: String,
+    expected_branch: String,
+    expected_remote: String,
+    expected_remote_branch: String,
+) -> Result<(), String> {
+    run_blocking_operation(move || {
+        filesystem::git_ops::git_push(
+            &workspace_path,
+            &expected_branch,
+            &expected_remote,
+            &expected_remote_branch,
+        )
+    })
+    .await
 }
 
 #[tauri::command]
-pub async fn git_pull(workspace_path: String) -> Result<(), String> {
-    filesystem::git_ops::git_pull(&workspace_path)
+pub async fn git_pull(
+    workspace_path: String,
+    expected_branch: String,
+    expected_remote: String,
+    expected_remote_branch: String,
+) -> Result<(), String> {
+    run_blocking_operation(move || {
+        filesystem::git_ops::git_pull(
+            &workspace_path,
+            &expected_branch,
+            &expected_remote,
+            &expected_remote_branch,
+        )
+    })
+    .await
+}
+
+async fn run_blocking_operation<T: Send + 'static>(
+    operation: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(operation)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

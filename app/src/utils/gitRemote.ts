@@ -15,7 +15,7 @@ export const initialGitRemoteState: GitRemoteState = {
   notice: null,
 };
 
-/** Fetch the remote metadata (origin url + ahead/behind vs upstream). */
+/** Fetch the resolved sync destination and divergence from its last fetched state. */
 export async function loadGitRemote(workspacePath: string): Promise<GitRemoteInfo | null> {
   const remote = await invoke<GitRemoteInfo | null>('git_remote_info', { workspacePath });
   return remote;
@@ -27,11 +27,11 @@ export async function gitFetch(workspacePath: string): Promise<void> {
 }
 
 /** Push the current branch to its upstream. */
-export async function gitPush(workspacePath: string): Promise<void> {
-  await invoke('git_push', { workspacePath });
+export async function gitPush(workspacePath: string, expectedBranch: string, remote: GitRemoteInfo): Promise<void> {
+  await invoke('git_push', { workspacePath, expectedBranch, expectedRemote: remote.name, expectedRemoteBranch: remote.remoteBranch });
 }
 
 /** Pull the current branch from its upstream (fetch + fast-forward merge). */
-export async function gitPull(workspacePath: string): Promise<void> {
-  await invoke('git_pull', { workspacePath });
+export async function gitPull(workspacePath: string, expectedBranch: string, remote: GitRemoteInfo): Promise<void> {
+  await invoke('git_pull', { workspacePath, expectedBranch, expectedRemote: remote.name, expectedRemoteBranch: remote.remoteBranch });
 }

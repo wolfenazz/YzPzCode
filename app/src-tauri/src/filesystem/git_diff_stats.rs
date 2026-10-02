@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use super::run_git_hidden;
+use super::{git_repository_root, run_git_hidden};
 use crate::types::GitDiffStat;
 
 pub fn get_git_diff_stats(workspace_path: &str) -> Result<Vec<GitDiffStat>, String> {
@@ -10,10 +10,12 @@ pub fn get_git_diff_stats(workspace_path: &str) -> Result<Vec<GitDiffStat>, Stri
         return Err(format!("Path does not exist: {}", workspace_path));
     }
 
-    let git_dir = root.join(".git");
-    if !git_dir.exists() {
-        return Ok(Vec::new());
-    }
+    let repository = match git_repository_root(workspace_path) {
+        Ok(repository) => repository,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let workspace_path = repository.as_str();
+    let root = Path::new(workspace_path);
 
     let mut stats_map: HashMap<String, (u32, u32)> = HashMap::new();
 
@@ -160,6 +162,8 @@ fn count_file_lines_capped(path: &Path, cap_bytes: u64) -> u32 {
 }
 
 pub fn get_git_file_content(workspace_path: &str, file_path: &str) -> Result<String, String> {
+    let repository = git_repository_root(workspace_path)?;
+    let workspace_path = repository.as_str();
     let root = Path::new(workspace_path);
     if !root.exists() {
         return Err(format!("Path does not exist: {}", workspace_path));
@@ -170,17 +174,14 @@ pub fn get_git_file_content(workspace_path: &str, file_path: &str) -> Result<Str
         return Err("Not a git repository".to_string());
     }
 
-    let rel_path = if let Some(rel) = file_path.strip_prefix(workspace_path) {
-        rel.trim_start_matches('/').trim_start_matches('\\')
-    } else {
-        file_path
-    };
+    let file = Path::new(file_path);
+    let rel_path = file
+        .strip_prefix(workspace_path)
+        .unwrap_or(file)
+        .to_string_lossy()
+        .replace('\\', "/");
 
     let stdout = run_git_hidden(&["show", &format!("HEAD:{}", rel_path)], workspace_path)?;
-
-    if stdout.is_empty() {
-        return Err(format!("File not found in git history: {}", rel_path));
-    }
 
     Ok(stdout)
 }

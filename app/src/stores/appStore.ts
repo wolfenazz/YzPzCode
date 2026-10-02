@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
+import type { FileContent } from '../types';
+import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
@@ -402,7 +404,9 @@ interface AppState {
   closeFileTab: (path: string) => void;
   setActiveFile: (path: string | null) => void;
   updateFileContent: (path: string, content: string) => void;
-  markFileSaved: (path: string) => void;
+  markFileSaved: (path: string, savedContent?: string, workspaceId?: string) => void;
+  reconcileFileDisk: (workspaceId: string, path: string, disk: FileContent | null) => void;
+  resolveFileDiskChange: (workspaceId: string, path: string, keepEdits: boolean) => void;
   setGitStatuses: (statuses: GitFileStatus[]) => void;
   setGitDiffStats: (stats: GitDiffStat[]) => void;
   setGitDiffFile: (file: { path: string; name: string } | null) => void;
@@ -1649,18 +1653,42 @@ export const useAppStore = create<AppState>()(
           };
         }),
 
-      markFileSaved: (path) =>
+      reconcileFileDisk: (workspaceId, path, disk) => {
+        const file = get().filesByWorkspace[workspaceId]?.find((entry) => entry.path === path);
+        // Unchanged fallback reads should not rerender or rewrite persisted settings.
+        if (!file || reconcileFileFromDisk(file, disk) === file) return;
         set((state) => {
-          const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
+          const files = state.filesByWorkspace[workspaceId] ?? [];
+          const next = files.map((file) => file.path === path ? reconcileFileFromDisk(file, disk) : file);
+          if (next.every((file, index) => file === files[index])) return state;
+          return {
+            filesByWorkspace: { ...state.filesByWorkspace, [workspaceId]: next },
+            ...(state.activeWorkspaceId === workspaceId ? { openFiles: next } : {}),
+          };
+        });
+      },
+
+      resolveFileDiskChange: (workspaceId, path, keepEdits) =>
+        set((state) => {
+          const next = (state.filesByWorkspace[workspaceId] ?? []).map((file) => file.path === path ? resolveDiskChange(file, keepEdits) : file);
+          return {
+            filesByWorkspace: { ...state.filesByWorkspace, [workspaceId]: next },
+            ...(state.activeWorkspaceId === workspaceId ? { openFiles: next } : {}),
+          };
+        }),
+
+      markFileSaved: (path, savedContent, workspaceId) =>
+        set((state) => {
+          const wsId = workspaceId ?? state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return state;
           const currentFiles = state.filesByWorkspace[wsId] || [];
           const newFiles = currentFiles.map((f) =>
             f.path === path
-              ? { ...f, originalContent: f.content, isDirty: false }
+              ? markSavedContent(f, savedContent ?? f.content)
               : f
           );
           return {
-            openFiles: newFiles,
+            ...(state.activeWorkspaceId === wsId ? { openFiles: newFiles } : {}),
             filesByWorkspace: {
               ...state.filesByWorkspace,
               [wsId]: newFiles,

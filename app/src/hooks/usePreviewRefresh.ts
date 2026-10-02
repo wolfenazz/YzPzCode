@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-
-interface FileSystemChangedPayload {
-  workspacePath: string;
-  paths: string[];
-}
+import { pathAffectedByChanges } from '../utils/fileSync';
+import type { FileSystemChangedPayload } from '../utils/fileSync';
 
 /**
  * Returns a monotonically increasing `refreshKey` (that increments whenever
@@ -26,23 +23,24 @@ export const usePreviewRefresh = (filePath: string): { refreshKey: number; refre
     let cancelled = false;
 
     const setupListener = async () => {
-      unlisten = await listen<FileSystemChangedPayload>('file-system-changed', (event) => {
+      const stopListening = await listen<FileSystemChangedPayload>('file-system-changed', (event) => {
         if (cancelled) return;
         const changed = event.payload?.paths ?? [];
-        const normalized = filePath.replace(/\\/g, '/').toLowerCase();
-        const matches = changed.some((p) => p.replace(/\\/g, '/').toLowerCase() === normalized);
-        if (matches) {
+        if (pathAffectedByChanges(filePath, changed)) {
           setRefreshKey((k) => k + 1);
         }
       });
+      if (cancelled) stopListening(); else unlisten = stopListening;
     };
-    void setupListener();
+    void setupListener().catch(console.error);
+    window.addEventListener('focus', refresh);
 
     return () => {
       cancelled = true;
       if (unlisten) unlisten();
+      window.removeEventListener('focus', refresh);
     };
-  }, [filePath]);
+  }, [filePath, refresh]);
 
   return { refreshKey, refresh };
 };
