@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -36,9 +39,6 @@ jobs:
     needs: create-release
     strategy:
       fail-fast: false
-      # Each tauri-action build updates the same latest.json release asset.
-      # Serialize uploads so parallel matrix jobs cannot race to create it.
-      max-parallel: 1
       matrix:
         include:
           - platform: 'macos-latest'
@@ -96,10 +96,31 @@ jobs:
           releaseBody: 'See the release notes'
           releaseDraft: true
           prerelease: false
+          # Each build uploads its bundles and .sig files in parallel. The updater
+          # manifest is generated once by the updater-json job afterwards, so no two
+          # jobs race to create the shared latest.json asset.
+          includeUpdaterJson: false
           args: --target ${{ matrix.target }} --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
-  publish-release:
+  updater-json:
     needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Generate and upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: node .github/scripts/generate-latest-json.mjs
+
+  publish-release:
+    needs: updater-json
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

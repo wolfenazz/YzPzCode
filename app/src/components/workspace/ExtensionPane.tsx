@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { DotsSixVertical, PuzzlePiece, X } from '@phosphor-icons/react';
 import { useSortable } from '@dnd-kit/sortable';
+import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
 import { getExtensionIcon } from '../../data/extensionIcons';
 import { TerminalLayoutPicker } from './TerminalLayoutPicker';
@@ -21,6 +22,7 @@ interface PanelSync {
 }
 
 export function ExtensionPane({ panel, workspace, visible, suspended }: ExtensionPaneProps): React.JSX.Element {
+  const appZoom = useAppStore((state) => state.appZoom);
   const closePanel = useExtensionStore((state) => state.closePanel);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,7 +79,19 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
       const y = Math.max(rect.y, viewport?.top ?? 0);
       const right = Math.min(rect.right, viewport?.right ?? window.innerWidth);
       const bottom = Math.min(rect.bottom, viewport?.bottom ?? window.innerHeight);
-      const request: PanelSync = { panelId: panel.id, bounds: { x, y, width: Math.max(0, right - x), height: Math.max(0, bottom - y) }, visible: shown };
+      // DOM bounds are CSS pixels in the zoomed main webview. Tauri child
+      // webviews use unzoomed logical pixels, just like the browser panel.
+      const appZoomFactor = appZoom / 100;
+      const request: PanelSync = {
+        panelId: panel.id,
+        bounds: {
+          x: x * appZoomFactor,
+          y: y * appZoomFactor,
+          width: Math.max(0, right - x) * appZoomFactor,
+          height: Math.max(0, bottom - y) * appZoomFactor,
+        },
+        visible: shown,
+      };
       const key = JSON.stringify(request);
       if (key === previous) return;
       previous = key;
@@ -103,7 +117,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
       // Queue hiding behind any outstanding bounds update to prevent stale shows.
       void syncPanel({ panelId: panel.id, bounds: { x: 0, y: 0, width: 0, height: 0 }, visible: false }).catch(() => undefined);
     };
-  }, [panel.id, ready, visible, suspended, isDragging, error, closing, syncPanel]);
+  }, [panel.id, ready, visible, suspended, isDragging, error, closing, syncPanel, appZoom]);
 
   const handleClose = useCallback(async (): Promise<void> => {
     setClosing(true);
