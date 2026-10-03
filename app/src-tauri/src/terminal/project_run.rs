@@ -211,6 +211,7 @@ fn files(root: &Path, depth: usize, output: &mut Vec<PathBuf>) -> Result<()> {
 
 pub fn detect_targets(cwd: &str) -> Result<Vec<ProjectRunTarget>> {
     let root = std::fs::canonicalize(cwd).context("Project directory does not exist")?;
+    let root = normalize_shell_path(&root);
     let mut paths = Vec::new();
     files(&root, 2, &mut paths)?;
     let mut targets = Vec::new();
@@ -463,6 +464,22 @@ pub fn detect_targets(cwd: &str) -> Result<Vec<ProjectRunTarget>> {
         (!target.id.ends_with(":server"), !main, target.id.clone())
     });
     Ok(targets)
+}
+
+/// Rust canonicalization adds a verbatim prefix on Windows. CMD treats
+/// verbatim drive paths as UNC directories and silently switches to Windows.
+pub(super) fn normalize_shell_path(path: &Path) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        let text = path.to_string_lossy();
+        if let Some(unc) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{unc}"));
+        }
+        if let Some(drive) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(drive);
+        }
+    }
+    path.to_path_buf()
 }
 
 #[cfg(test)]

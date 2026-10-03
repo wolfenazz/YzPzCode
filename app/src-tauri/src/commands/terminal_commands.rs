@@ -78,17 +78,28 @@ pub async fn create_terminal_sessions(
 #[tauri::command]
 pub async fn write_to_terminal(
     manager: State<'_, TerminalManager>,
+    managed_manager: State<'_, ManagedCommandManager>,
     session_id: String,
     input: String,
 ) -> Result<(), String> {
-    manager
-        .write_to_session(&session_id, &input)
-        .map_err(|e| e.to_string())
+    let manager = manager.inner().clone();
+    let managed_manager = managed_manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        if managed_manager.is_active(&session_id) {
+            managed_manager.write_input(&session_id, &input)
+        } else {
+            manager.write_to_session(&session_id, &input)
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn resize_terminal(
     manager: State<'_, TerminalManager>,
+    managed_manager: State<'_, ManagedCommandManager>,
     session_id: String,
     cols: u16,
     rows: u16,
@@ -99,6 +110,17 @@ pub async fn resize_terminal(
     let ph = pixel_height.unwrap_or(0);
     manager
         .resize_session(&session_id, cols, rows, pw, ph)
+        .map_err(|e| e.to_string())?;
+    managed_manager
+        .resize(
+            &session_id,
+            portable_pty::PtySize {
+                cols: cols.max(2),
+                rows: rows.max(2),
+                pixel_width: pw.max(1),
+                pixel_height: ph.max(1),
+            },
+        )
         .map_err(|e| e.to_string())
 }
 
@@ -147,19 +169,28 @@ pub struct RunManagedTerminalCommandRequest {
 #[tauri::command]
 pub async fn run_managed_terminal_command(
     manager: State<'_, ManagedCommandManager>,
+    terminal_manager: State<'_, TerminalManager>,
     request: RunManagedTerminalCommandRequest,
 ) -> Result<(), String> {
     if request.command.trim().is_empty() {
         return Err("Enter a command to run".into());
     }
-    manager
-        .run_command(
+    let size = terminal_manager
+        .session_size(&request.session_id)
+        .map_err(|e| e.to_string())?;
+    let manager = manager.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        manager.run_command(
             &request.session_id,
             &request.workspace_id,
             &request.cwd,
             &request.command,
+            size,
         )
-        .map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

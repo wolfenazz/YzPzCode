@@ -36,6 +36,9 @@ jobs:
     needs: create-release
     strategy:
       fail-fast: false
+      # Each tauri-action build updates the same latest.json release asset.
+      # Serialize uploads so parallel matrix jobs cannot race to create it.
+      max-parallel: 1
       matrix:
         include:
           - platform: 'macos-latest'

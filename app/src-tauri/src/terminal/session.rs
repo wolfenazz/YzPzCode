@@ -3,7 +3,7 @@ use portable_pty::{native_pty_system, CommandBuilder, PtyPair, PtySize};
 use std::io::{Read, Write};
 
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Receiver, TrySendError};
+use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
 use std::thread;
 use uuid::Uuid;
@@ -283,25 +283,7 @@ impl PtySession {
             cmd.arg("-NoLogo");
         }
 
-        #[cfg(target_os = "windows")]
-        {
-            // Windows children inherit their parent's "ignore Ctrl+C" flag.
-            // npm/dev launchers can set it on the app, making ConPTY's ETX
-            // input ineffective even though it reaches the console. Restore
-            // default handling before spawning the interactive shell, as
-            // node-pty does. A GUI process without a console simply returns
-            // false here and has no console handler to reset.
-            #[link(name = "kernel32")]
-            extern "system" {
-                fn SetConsoleCtrlHandler(
-                    handler: Option<unsafe extern "system" fn(u32) -> i32>,
-                    add: i32,
-                ) -> i32;
-            }
-            // SAFETY: null handler and FALSE are the documented operation
-            // for restoring Ctrl+C handling; no pointers are dereferenced.
-            unsafe { SetConsoleCtrlHandler(None, 0) };
-        }
+        reset_ctrl_c_handling();
         let child = pair.slave.spawn_command(cmd)?;
         let child_pid = child.process_id();
 
@@ -323,12 +305,10 @@ impl PtySession {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
                     Ok(n) => {
-                        match output_tx_clone.try_send(buf[..n].to_vec()) {
-                            Ok(()) => {}
-                            Err(TrySendError::Full(_)) => {
-                                // Drop excess output instead of letting the queue grow without bound.
-                            }
-                            Err(TrySendError::Disconnected(_)) => break,
+                        // Apply backpressure rather than discarding text or
+                        // partial escape sequences when the UI falls behind.
+                        if output_tx_clone.send(buf[..n].to_vec()).is_err() {
+                            break;
                         }
                     }
                     Err(e) => {
@@ -356,6 +336,8 @@ impl PtySession {
     }
 
     pub fn write(&mut self, data: &[u8]) -> Result<()> {
+        let encoded = encode_terminal_input(data);
+        let data = encoded.as_ref();
         const CHUNK_SIZE: usize = 2048;
         if data.len() <= CHUNK_SIZE {
             self.writer.write_all(data)?;
@@ -551,5 +533,47 @@ mod windows_tests {
         })();
         session.kill();
         result.expect("Ctrl+C must stop the foreground server without killing PowerShell");
+    }
+}
+
+/// Preserve Windows console semantics for xterm's control-key bytes.
+pub(super) fn encode_terminal_input(data: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    #[cfg(target_os = "windows")]
+    if data.iter().any(|byte| matches!(byte, 3 | 127)) {
+        let mut encoded = Vec::with_capacity(data.len());
+        for byte in data {
+            match byte {
+                // Send real console keys rather than ConPTY's VT fallback,
+                // which can treat ETX as text and DEL as Ctrl+Backspace.
+                3 => encoded.extend_from_slice(b"\x1b[67;46;3;1;8;1_\x1b[67;46;3;0;8;1_"),
+                127 => encoded.extend_from_slice(b"\x1b[8;14;8;1;0;1_\x1b[8;14;8;0;0;1_"),
+                _ => encoded.push(*byte),
+            }
+        }
+        return std::borrow::Cow::Owned(encoded);
+    }
+    std::borrow::Cow::Borrowed(data)
+}
+
+/// Restore the console control handler inherited by ConPTY children.
+pub(super) fn reset_ctrl_c_handling() {
+    #[cfg(target_os = "windows")]
+    {
+        // Windows children inherit their parent's "ignore Ctrl+C" flag.
+        // npm/dev launchers can set it on the app, making ConPTY's ETX
+        // input ineffective even though it reaches the console. Restore
+        // default handling before spawning the interactive shell, as
+        // node-pty does. A GUI process without a console simply returns
+        // false here and has no console handler to reset.
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetConsoleCtrlHandler(
+                handler: Option<unsafe extern "system" fn(u32) -> i32>,
+                add: i32,
+            ) -> i32;
+        }
+        // SAFETY: null handler and FALSE are the documented operation
+        // for restoring Ctrl+C handling; no pointers are dereferenced.
+        unsafe { SetConsoleCtrlHandler(None, 0) };
     }
 }

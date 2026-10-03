@@ -22,7 +22,6 @@ import { ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
 import '@xterm/xterm/css/xterm.css';
 
 import { TerminalHeader } from './TerminalHeader';
-import { ManagedCommandInput } from './ManagedCommandInput';
 import { CliStatusBadge } from './CliStatusBadge';
 import { AuthModal } from './AuthModal';
 import { QuickPromptChips } from '../common/QuickPromptChips';
@@ -542,7 +541,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
    * the foreground application has enabled it.
    */
   const pasteToTerminal = useCallback(async (text: string) => {
-    if (!text || managedCommandActiveRef.current) return;
+    if (!text) return;
+    if (managedCommandActiveRef.current) {
+      // Let xterm honor the foreground application's bracketed-paste mode.
+      xtermRef.current?.paste(text);
+      return;
+    }
 
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const pastedLine = normalized.replace(/\n$/, '');
@@ -740,8 +744,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     };
 
     // Deliver Ctrl+C before the webview's clipboard shortcut can consume it.
-    // Interactive commands stay in the shell PTY, where ETX signals the
-    // foreground process. Explicitly managed jobs still use their stop API.
+    // ETX goes to the foreground PTY so programs can handle Ctrl+C normally.
+    // The header's Stop button remains available for forced termination.
     const handleInterrupt = (event: KeyboardEvent) => {
       const isCtrlC = event.ctrlKey
         && !event.altKey
@@ -751,11 +755,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
       event.preventDefault();
       event.stopPropagation();
-      if (managedCommandActiveRef.current) {
-        void stopManagedCommand();
-      } else {
-        xterm.input('\x03', true);
-      }
+      xterm.input('\x03', true);
     };
 
     terminalElement.addEventListener('paste', handlePaste, { capture: true });
@@ -819,10 +819,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       fontsApi.addEventListener('loadingdone', onFontsDone);
     }
 
-    // Non-blocking input pipeline with write buffer for TUI mouse/scroll support.
-    // Fire-and-forget prevents mouse events from queue-blocking.
+    // Batch input without blocking rendering, and serialize IPC writes so
+    // fast typing, Enter, and control sequences arrive in their original order.
     let inputBuffer = '';
     let inputFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    let inputWrites: Promise<unknown> = Promise.resolve();
 
     xterm.onData((data) => {
       // xterm normally reports Enter as CR, but some shells/keymaps emit LF.
@@ -881,9 +882,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           const toSend = inputBuffer;
           inputBuffer = '';
           inputFlushTimer = null;
-          invoke('write_to_terminal', { sessionId: session.id, input: toSend }).catch((error) => {
-            console.error('Failed to write to terminal:', error);
-          });
+          inputWrites = inputWrites
+            .then(() => invoke('write_to_terminal', { sessionId: session.id, input: toSend }))
+            .catch((error: unknown) => {
+              console.error('Failed to write to terminal:', error);
+            });
         }, 0);
       }
     });
@@ -1014,6 +1017,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       const unlisten = await listen<ManagedTerminalCommandState>('managed-command-state-changed', (event) => {
         if (!mounted || event.payload.sessionId !== session.id) return;
         receivedEvent = true;
+        managedCommandActiveRef.current = ['Starting', 'Running', 'Stopping'].includes(event.payload.status);
         setManagedCommandState(event.payload);
       });
       if (!mounted) {
@@ -1034,9 +1038,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   }, [session.id]);
 
   useEffect(() => {
-    if (!xtermRef.current) return;
-    xtermRef.current.options.disableStdin = managedCommandActive;
-  }, [managedCommandActive]);
+    if (managedCommandState?.status === 'Running' && terminalRef.current?.getClientRects().length) {
+      xtermRef.current?.focus();
+    }
+  }, [managedCommandState?.status]);
 
   useEffect(() => {
     let mounted = true;
@@ -1258,8 +1263,6 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         }
         dragListeners={dragListeners}
       />
-
-      {managedCommandState?.status === 'Running' && <ManagedCommandInput key={managedCommandState.pid} sessionId={session.id} />}
 
       {showQuickPrompts && effectiveAgent && (
         <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5 shrink-0">

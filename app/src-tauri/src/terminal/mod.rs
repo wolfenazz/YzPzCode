@@ -11,7 +11,7 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::types::{AgentType, TerminalSession};
 
@@ -22,7 +22,20 @@ pub(crate) fn spawn_output_reader(
     app_clone: AppHandle,
     sid: String,
     output_rx: mpsc::Receiver<Vec<u8>>,
-) {
+) -> thread::JoinHandle<()> {
+    spawn_filtered_output_reader(output_rx, move |output| {
+        if let Some(manager) = app_clone.try_state::<ManagedCommandManager>() {
+            manager.emit_shell_output(&app_clone, &sid, output);
+        } else {
+            let _ = app_clone.emit(&format!("terminal-output:{}", sid), output);
+        }
+    })
+}
+
+pub(crate) fn spawn_filtered_output_reader(
+    output_rx: mpsc::Receiver<Vec<u8>>,
+    emit_output: impl Fn(&str) + Send + 'static,
+) -> thread::JoinHandle<()> {
     thread::spawn(move || {
         let mut buffer = Vec::with_capacity(MAX_BATCH_SIZE);
         // Carries the trailing bytes of a multi-byte UTF-8 sequence that were
@@ -36,7 +49,7 @@ pub(crate) fn spawn_output_reader(
         // Emits `buffer` to the frontend, first carrying any incomplete
         // trailing UTF-8 sequence into `utf8_carry` so the next batch can
         // complete it instead of mangling it into replacement glyphs.
-        let flush = |buffer: &mut Vec<u8>, utf8_carry: &mut Vec<u8>, sid: &str| {
+        let flush = |buffer: &mut Vec<u8>, utf8_carry: &mut Vec<u8>| {
             if buffer.is_empty() && utf8_carry.is_empty() {
                 return;
             }
@@ -75,7 +88,7 @@ pub(crate) fn spawn_output_reader(
             };
 
             let output = String::from_utf8_lossy(&combined[..valid_len]).into_owned();
-            let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
+            emit_output(&output);
             buffer.clear();
         };
 
@@ -88,30 +101,30 @@ pub(crate) fn spawn_output_reader(
                         || last_emit.elapsed().as_millis() >= EMIT_BATCH_INTERVAL_MS as u128)
                         && !buffer.is_empty()
                     {
-                        flush(&mut buffer, &mut utf8_carry, &sid);
+                        flush(&mut buffer, &mut utf8_carry);
                         last_emit = Instant::now();
                     }
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     if !buffer.is_empty() {
-                        flush(&mut buffer, &mut utf8_carry, &sid);
+                        flush(&mut buffer, &mut utf8_carry);
                         last_emit = Instant::now();
                     }
                 }
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     if !buffer.is_empty() {
-                        flush(&mut buffer, &mut utf8_carry, &sid);
+                        flush(&mut buffer, &mut utf8_carry);
                     }
                     // Flush any final incomplete sequence lossily.
                     if !utf8_carry.is_empty() {
                         let output = String::from_utf8_lossy(&utf8_carry).into_owned();
-                        let _ = app_clone.emit(&format!("terminal-output:{}", sid), &output);
+                        emit_output(&output);
                     }
                     break;
                 }
             }
         }
-    });
+    })
 }
 
 #[derive(Clone)]
@@ -218,6 +231,17 @@ impl TerminalManager {
             return Err(anyhow::anyhow!("Session not found: {}", session_id));
         }
         Ok(())
+    }
+
+    pub fn session_size(&self, session_id: &str) -> Result<portable_pty::PtySize> {
+        self.sessions
+            .lock()
+            .unwrap()
+            .get(session_id)
+            .ok_or_else(|| anyhow::anyhow!("Session not found: {}", session_id))?
+            .pair
+            .master
+            .get_size()
     }
 
     pub fn kill_session(&self, session_id: &str) -> Result<()> {
