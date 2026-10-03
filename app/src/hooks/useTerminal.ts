@@ -21,6 +21,7 @@ export const useTerminal = () => {
   const setTerminalError = useAppStore((state) => state.setTerminalError);
 
   const createSessions = useCallback(async (params: CreateSessionsParams) => {
+    if (params.count === 0) return [];
     setIsLoading(true);
     setTerminalError(null);
     setSessionsForWorkspace(params.workspaceId, []);

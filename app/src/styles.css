@@ -412,29 +412,47 @@ html.animations-disabled *::after {
 .markdown-dark {
   --md-text: #c3c1ba;
   --md-h1: #faf8f1;
-  --md-h1-border: #3e3e38;
+  --md-h1-border: rgba(81, 80, 74, 0.55);
   --md-h2: #faf8f1;
-  --md-h2-border: #3e3e38;
+  --md-h2-border: rgba(81, 80, 74, 0.45);
   --md-h3: #dcd8cc;
   --md-h4: #b7b5a6;
   --md-link: #d87757;
   --md-link-hover: #faf8f1;
+  --md-link-border: rgba(216, 119, 87, 0.35);
   --md-strong: #faf8f1;
   --md-bq-border: #51504a;
   --md-bq-text: #b7b5a6;
+  --md-bq-bg: linear-gradient(90deg, rgba(216, 119, 87, 0.09), transparent 72%);
   --md-code-bg: #303030;
   --md-code-border: #3e3e38;
   --md-code-text: #c3c1ba;
   --md-pre-bg: #1f1f1f;
   --md-pre-border: #3e3e38;
-  --md-th-bg: #303030;
+  --md-th-bg: rgba(255, 255, 255, 0.03);
   --md-th-text: #dcd8cc;
   --md-td-border: #3e3e38;
   --md-hr-border: #3e3e38;
   --md-heading: #faf8f1;
   --md-em: #b7b5a6;
   --md-inline-code: #f0a48c;
+  --md-inline-code-bg: rgba(216, 119, 87, 0.1);
+  --md-inline-code-border: rgba(216, 119, 87, 0.18);
   --md-code-lang: #8f8b80;
+  --md-selection-bg: rgba(216, 119, 87, 0.28);
+  --md-selection-text: #faf8f1;
+  --md-img-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  --md-placeholder-bg: #1f1f1f;
+  --md-shimmer: linear-gradient(100deg, rgba(255, 255, 255, 0.03) 40%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.03) 60%);
+  --md-code-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.28);
+  --md-code-head-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  --md-copy: #8f8b80;
+  --md-copy-hover: #faf8f1;
+  --md-copy-hover-bg: rgba(255, 255, 255, 0.07);
+  --md-row-hover-bg: rgba(255, 255, 255, 0.025);
+  --md-preview-glow-a: rgba(216, 119, 87, 0.055);
+  --md-preview-glow-b: rgba(96, 165, 250, 0.035);
+  --md-target-bg: rgba(216, 119, 87, 0.14);
   --hljs-text: #c3c1ba;
   --hljs-keyword: #c084fc;
   --hljs-string: #34d399;
@@ -464,6 +482,136 @@ html.animations-disabled *::after {
   --bkq-error-bg: rgba(239, 68, 68, 0.1);
   --bkq-info: #3b82f6;
   --bkq-info-bg: rgba(59, 130, 246, 0.1);
+}
+
+/* The preview markup always carries `.markdown-dark`, so light themes remap
+   the whole preview palette here instead of swapping the class in the DOM. */
+.light-theme .markdown-dark {
+  --md-text: #3d3d39;
+  --md-h1: #1b1b18;
+  --md-h1-border: rgba(32, 31, 29, 0.16);
+  --md-h2: #1b1b18;
+  --md-h2-border: rgba(32, 31, 29, 0.13);
+  --md-h3: #2d2d29;
+  --md-h4: #55554f;
+  --md-link: #a8451f;
+  --md-link-hover: #7c3013;
+  --md-link-border: rgba(168, 69, 31, 0.35);
+  --md-strong: #141412;
+  --md-bq-text: #56554e;
+  --md-bq-bg: linear-gradient(90deg, rgba(168, 69, 31, 0.07), transparent 72%);
+  --md-code-bg: #f1f0ec;
+  --md-code-border: #dedcd5;
+  --md-code-text: #3a3936;
+  --md-pre-bg: #f7f6f3;
+  --md-pre-border: #dfddd6;
+  --md-th-bg: rgba(32, 31, 29, 0.035);
+  --md-th-text: #45443e;
+  --md-td-border: #dfddd6;
+  --md-hr-border: #dcdad3;
+  --md-heading: #1b1b18;
+  --md-em: #5b5952;
+  --md-inline-code: #a03d1c;
+  --md-inline-code-bg: rgba(168, 69, 31, 0.08);
+  --md-inline-code-border: rgba(168, 69, 31, 0.2);
+  --md-code-lang: #8a857a;
+  --md-selection-bg: rgba(168, 69, 31, 0.18);
+  --md-selection-text: #1b1a17;
+  --md-img-shadow: 0 10px 28px rgba(45, 40, 34, 0.16);
+  --md-placeholder-bg: #ecebe6;
+  --md-shimmer: linear-gradient(100deg, rgba(32, 31, 29, 0.04) 40%, rgba(32, 31, 29, 0.09) 50%, rgba(32, 31, 29, 0.04) 60%);
+  --md-code-shadow: 0 1px 0 rgba(255, 255, 255, 0.75) inset, 0 6px 18px rgba(45, 40, 34, 0.08);
+  --md-code-head-bg: linear-gradient(180deg, rgba(32, 31, 29, 0.04), transparent);
+  --md-copy: #837e73;
+  --md-copy-hover: #33312c;
+  --md-copy-hover-bg: rgba(32, 31, 29, 0.06);
+  --md-row-hover-bg: rgba(32, 31, 29, 0.03);
+  --md-preview-glow-a: rgba(168, 69, 31, 0.045);
+  --md-preview-glow-b: rgba(73, 120, 190, 0.03);
+  --md-target-bg: rgba(168, 69, 31, 0.14);
+
+  --hljs-text: #24292f;
+  --hljs-keyword: #cf222e;
+  --hljs-string: #0a3069;
+  --hljs-number: #0550ae;
+  --hljs-comment: #6e7781;
+  --hljs-function: #8250df;
+  --hljs-title: #8250df;
+  --hljs-params: #24292f;
+  --hljs-built_in: #953800;
+  --hljs-literal: #0550ae;
+  --hljs-type: #953800;
+  --hljs-attr: #0550ae;
+  --hljs-selector-tag: #cf222e;
+  --hljs-selector-class: #953800;
+  --hljs-selector-id: #0550ae;
+  --hljs-variable: #24292f;
+  --hljs-meta: #6e7781;
+}
+
+/* Claude theme is also a light surface (Pampas), so it needs the same remap
+   with the warm editorial palette. */
+.claude-theme .markdown-dark {
+  --md-text: #4b453d;
+  --md-h1: #2b2621;
+  --md-h1-border: rgba(113, 106, 96, 0.28);
+  --md-h2: #2b2621;
+  --md-h2-border: rgba(113, 106, 96, 0.22);
+  --md-h3: #3a342d;
+  --md-h4: #5f584f;
+  --md-link: #a64d31;
+  --md-link-hover: #7d3a22;
+  --md-link-border: rgba(166, 77, 49, 0.36);
+  --md-strong: #2d2a26;
+  --md-bq-text: #6b655c;
+  --md-bq-bg: linear-gradient(90deg, rgba(193, 95, 60, 0.08), transparent 72%);
+  --md-code-bg: #f2efe7;
+  --md-code-border: #e3ded2;
+  --md-code-text: #433d35;
+  --md-pre-bg: #fbfaf7;
+  --md-pre-border: #e4dfd4;
+  --md-th-bg: rgba(113, 106, 96, 0.07);
+  --md-th-text: #57504a;
+  --md-td-border: #e4dfd4;
+  --md-hr-border: #e0dbcf;
+  --md-heading: #2b2621;
+  --md-em: #6f6a62;
+  --md-inline-code: #a64d31;
+  --md-inline-code-bg: rgba(193, 95, 60, 0.09);
+  --md-inline-code-border: rgba(193, 95, 60, 0.22);
+  --md-code-lang: #98917f;
+  --md-selection-bg: rgba(193, 95, 60, 0.18);
+  --md-selection-text: #2d2a26;
+  --md-img-shadow: 0 10px 28px rgba(69, 59, 48, 0.18);
+  --md-placeholder-bg: #efece5;
+  --md-shimmer: linear-gradient(100deg, rgba(69, 59, 48, 0.05) 40%, rgba(69, 59, 48, 0.1) 50%, rgba(69, 59, 48, 0.05) 60%);
+  --md-code-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 6px 18px rgba(69, 59, 48, 0.1);
+  --md-code-head-bg: linear-gradient(180deg, rgba(69, 59, 48, 0.045), transparent);
+  --md-copy: #8d8779;
+  --md-copy-hover: #2d2a26;
+  --md-copy-hover-bg: rgba(69, 59, 48, 0.08);
+  --md-row-hover-bg: rgba(69, 59, 48, 0.035);
+  --md-preview-glow-a: rgba(193, 95, 60, 0.05);
+  --md-preview-glow-b: rgba(84, 107, 243, 0.02);
+  --md-target-bg: rgba(193, 95, 60, 0.14);
+
+  --hljs-text: #3a342d;
+  --hljs-keyword: #a4491f;
+  --hljs-string: #386a4e;
+  --hljs-number: #8a5a15;
+  --hljs-comment: #918a7b;
+  --hljs-function: #7d5bb0;
+  --hljs-title: #7d5bb0;
+  --hljs-params: #4b453d;
+  --hljs-built_in: #8a5a15;
+  --hljs-literal: #a4491f;
+  --hljs-type: #8a5a15;
+  --hljs-attr: #44618f;
+  --hljs-selector-tag: #a4491f;
+  --hljs-selector-class: #8a5a15;
+  --hljs-selector-id: #44618f;
+  --hljs-variable: #4b453d;
+  --hljs-meta: #918a7b;
 }
 
 .docx-preview-dark,
@@ -501,8 +649,8 @@ html.animations-disabled *::after {
 }
 
 .md-content ::selection {
-  background: rgba(216, 119, 87, 0.28);
-  color: #faf8f1;
+  background: var(--md-selection-bg, rgba(216, 119, 87, 0.28));
+  color: var(--md-selection-text, #faf8f1);
 }
 
 /* Headings — editorial type scale */
@@ -524,7 +672,7 @@ html.animations-disabled *::after {
   line-height: 1.25;
   margin: 0 0 1.6em;
   padding-bottom: 0.5em;
-  border-bottom: 1px solid rgba(81, 80, 74, 0.55);
+  border-bottom: 1px solid var(--md-h1-border, rgba(81, 80, 74, 0.55));
 }
 
 .markdown-dark .md-content h1::after {
@@ -542,7 +690,7 @@ html.animations-disabled *::after {
   font-size: 1.35em;
   margin: 2.1em 0 0.85em;
   padding-bottom: 0.35em;
-  border-bottom: 1px solid rgba(81, 80, 74, 0.45);
+  border-bottom: 1px solid var(--md-h2-border, rgba(81, 80, 74, 0.45));
 }
 
 .markdown-dark .md-content h3 {
@@ -589,7 +737,7 @@ html.animations-disabled *::after {
 .markdown-dark .md-content a.md-link {
   color: var(--md-link);
   text-decoration: none;
-  border-bottom: 1px solid rgba(216, 119, 87, 0.35);
+  border-bottom: 1px solid var(--md-link-border, rgba(216, 119, 87, 0.35));
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 
@@ -605,7 +753,7 @@ html.animations-disabled *::after {
   padding: 1.1em 1.4em 1.1em 1.5em;
   border-left: 3px solid var(--accent);
   border-radius: 0 10px 10px 0;
-  background: linear-gradient(90deg, rgba(216, 119, 87, 0.09), transparent 72%);
+  background: var(--md-bq-bg, linear-gradient(90deg, rgba(216, 119, 87, 0.09), transparent 72%));
   color: var(--md-bq-text);
 }
 
@@ -643,8 +791,8 @@ html.animations-disabled *::after {
 
 /* Inline code — tinted pill */
 .markdown-dark .md-content :not(pre):not(.md-code-block) > code {
-  background: rgba(216, 119, 87, 0.1);
-  border: 1px solid rgba(216, 119, 87, 0.18);
+  background: var(--md-inline-code-bg, rgba(216, 119, 87, 0.1));
+  border: 1px solid var(--md-inline-code-border, rgba(216, 119, 87, 0.18));
   border-radius: 5px;
   padding: 0.12em 0.42em;
   font-size: 0.88em;
@@ -670,7 +818,7 @@ html.animations-disabled *::after {
   margin: 0 auto;
   border-radius: 12px;
   border: 1px solid var(--md-pre-border);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  box-shadow: var(--md-img-shadow, 0 12px 32px rgba(0, 0, 0, 0.35));
 }
 
 .markdown-dark .md-content .md-image figcaption {
@@ -689,9 +837,7 @@ html.animations-disabled *::after {
 
 .markdown-dark .md-content .md-image-loading img,
 .markdown-dark .md-content img.md-image-loading {
-  background:
-    linear-gradient(100deg, rgba(255, 255, 255, 0.03) 40%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.03) 60%)
-    #1f1f1f;
+  background: var(--md-shimmer) var(--md-placeholder-bg);
   background-size: 200% 100%;
   animation: md-image-shimmer 1.4s ease-in-out infinite;
   border-radius: 12px;
@@ -699,7 +845,7 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark .md-content img.md-image-error {
-  background: #1f1f1f;
+  background: var(--md-placeholder-bg, #1f1f1f);
   border: 1px dashed var(--md-code-border);
   opacity: 0.85;
   image-rendering: auto;
@@ -725,8 +871,7 @@ html.animations-disabled *::after {
 .markdown-dark .md-content .md-image.md-image-loading img,
 .markdown-dark .md-content img[data-md-image-src]:not([src]):not(.md-image-error) {
   min-height: 120px;
-  background:
-    linear-gradient(100deg, rgba(255, 255, 255, 0.03) 40%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0.03) 60%);
+  background: var(--md-shimmer);
   background-size: 200% 100%;
   animation: md-image-shimmer 1.4s ease-in-out infinite;
   border-radius: 12px;
@@ -785,7 +930,7 @@ html.animations-disabled *::after {
 }
 
 @keyframes md-target-pulse {
-  0% { background-color: rgba(216, 119, 87, 0.14); }
+  0% { background-color: var(--md-target-bg, rgba(216, 119, 87, 0.14)); }
   100% { background-color: transparent; }
 }
 
@@ -915,8 +1060,8 @@ html.animations-disabled *::after {
 /* Scroll container — soft depth glow behind the reading column */
 .markdown-preview {
   background:
-    radial-gradient(1100px 520px at 50% -8%, rgba(216, 119, 87, 0.055), transparent 60%),
-    radial-gradient(800px 480px at 100% 110%, rgba(96, 165, 250, 0.035), transparent 55%),
+    radial-gradient(1100px 520px at 50% -8%, var(--md-preview-glow-a), transparent 60%),
+    radial-gradient(800px 480px at 100% 110%, var(--md-preview-glow-b), transparent 55%),
     var(--bg-primary);
 }
 
@@ -927,7 +1072,7 @@ html.animations-disabled *::after {
   border: 1px solid var(--md-pre-border);
   border-radius: 10px;
   background: var(--md-pre-bg);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--md-code-shadow, 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.28));
   overflow: hidden;
 }
 
@@ -938,7 +1083,7 @@ html.animations-disabled *::after {
   gap: 0.75em;
   padding: 0.42em 0.85em;
   border-bottom: 1px solid var(--md-pre-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  background: var(--md-code-head-bg, linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent));
 }
 
 .md-code-lang {
@@ -959,7 +1104,7 @@ html.animations-disabled *::after {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #8f8b80;
+  color: var(--md-copy, #8f8b80);
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -974,8 +1119,8 @@ html.animations-disabled *::after {
 }
 
 .md-copy-btn:hover {
-  color: #faf8f1;
-  background: rgba(255, 255, 255, 0.07);
+  color: var(--md-copy-hover, #faf8f1);
+  background: var(--md-copy-hover-bg, rgba(255, 255, 255, 0.07));
 }
 
 .md-copy-icon {
@@ -1020,7 +1165,7 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark .md-table thead th {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--md-th-bg, rgba(255, 255, 255, 0.03));
   font-weight: 600;
   font-size: 0.8em;
   letter-spacing: 0.06em;
@@ -1033,7 +1178,7 @@ html.animations-disabled *::after {
 }
 
 .markdown-dark .md-table tbody tr:hover td {
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--md-row-hover-bg, rgba(255, 255, 255, 0.025));
 }
 
 .markdown-dark .md-table td {

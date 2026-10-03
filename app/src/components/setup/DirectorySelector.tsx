@@ -46,20 +46,20 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <label className="block text-xs font-medium text-zinc-400 font-mono uppercase tracking-[0.15em]">
-          Workspace Directory
-        </label>
-        <HelpTooltip text="The root folder for your project. All terminals will open with this as their working directory." />
+        <span className="block text-sm font-medium text-[var(--text-primary)]">
+          Project folder
+        </span>
+        <HelpTooltip text="The root folder for your project, terminals, and extensions." />
       </div>
       <div className="flex gap-2.5">
         <div
-          className={`flex-1 px-4 py-3 bg-theme-main border rounded-lg text-[var(--text-primary)] font-mono text-sm truncate cursor-default transition-colors duration-150 ${
+          className={`min-w-0 flex-1 px-3 py-2.5 bg-theme-main border rounded-lg text-[var(--text-primary)] text-sm truncate cursor-default transition-colors duration-150 ${
             errorMessage ? 'border-rose-500/40' : 'border-theme'
           }`}
           title={selectedPath || undefined}
         >
           {displayPath || (
-            <span className="text-[var(--text-secondary)]">~/No/directory/selected</span>
+            <span className="text-[var(--text-secondary)]">Choose a project folder</span>
           )}
         </div>
 
@@ -70,6 +70,8 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
               onClick={() => setShowRecent(!showRecent)}
               className="px-3.5 py-3 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-white font-mono text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5"
               title="Recent directories"
+              aria-label="Recent project folders"
+              aria-expanded={showRecent}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -134,10 +136,6 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
           </svg>
           <span className="text-[10px] text-rose-400/80 font-mono">{errorMessage}</span>
         </div>
-      ) : selectedPath ? (
-        <p className="mt-1.5 text-[10px] text-emerald-500/70 font-mono tracking-wide">
-          Valid directory selected
-        </p>
       ) : null}
     </div>
   );

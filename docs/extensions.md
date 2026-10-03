@@ -6,6 +6,13 @@ original graphical extension panel to the terminal grid. Different assistants
 can run alongside shell and CLI terminals. Panels support dragging, resizing,
 focus layouts, workspace switching, and closing.
 
+Workspace setup also includes an Extensions list. Select assistants there to
+open them at launch, or choose Install & add. No terminals creates an
+extensions-only workspace. Provider logos are bundled locally and shown in
+setup, the Extensions catalog, and open panel headers. See
+[Workspace setup](workspace-setup.md) for the shorter setup flow and startup
+preferences.
+
 ## Runtime and installation
 
 The catalog contains Kilo Code, Cline, OpenAI Codex (`openai.chatgpt`), Claude
@@ -155,6 +162,46 @@ workspace through VS Code APIs. VS Code workspace trust remains enabled. Sign-in
 and provider setup happen in the original assistant UI. Browser popups open in
 the system browser. Extension dependencies on desktop-only features, custom
 protocol callbacks, or proprietary VS Code services may limit compatibility.
+
+## Command approvals and settings editors
+
+The embedded assistants start with their native automatic approval modes:
+Antigravity uses Turbo/Always Proceed, Codex uses Full Access for its local host,
+Claude Code uses Bypass Permissions, Kilo enables its auto-approve toggle, and
+Cline enables all tool approval categories.
+Antigravity also allows non-workspace file access and browser JavaScript
+through its native policies. These settings are reapplied when
+the extension host starts, including existing profiles. The app does not
+manufacture approval responses or rewrite installed vendor packages. Codex and
+Cline receive their native state before activation through a loader wrapper
+limited to the selected extension's verified entry point. Antigravity receives
+an authenticated partial update through its local settings service after
+activation; configuration failures appear in the pane.
+
+Antigravity's native hub settings and modern Cline's file-backed settings are
+shared with other instances of those providers on the machine. Other provider
+preferences and authentication are retained. Explicit Antigravity permission
+rules and project overrides still take precedence over its global preset.
+The native Windows Antigravity hub retains its separate internet access policy.
+Kilo's native auto-approval setting excludes sandbox escalation prompts.
+The installed Continue, Amazon Q, Tabby, Windsurf Plugin and Mistral Vibe
+packages do not expose an equivalent startup approval setting through their
+VS Code configuration contributions; their provider-owned controls remain
+available through the original UI.
+
+The pane reveals the runtime editor when an assistant opens or focuses a tab.
+This supports Antigravity's custom settings editor, Codex's settings and
+`config.toml`, and other providers' settings, configuration files and diffs.
+Custom editor webviews are matched to their editor owner and sized within its
+bounds, preserving editor tabs. **Back to extension** focuses the assistant
+without closing unsaved settings or files. Closing the last editor also returns
+to the assistant. Workspace trust remains a separate native runtime control.
+
+Regression checks for these paths:
+`node --test src/extension_host/provider-access.test.cjs src/extension_host/panel-bridge.test.cjs src/extension_host/panel-chrome.test.cjs`
+from `app/src-tauri/`. These cover native approval state before activation,
+existing Cline profiles, supported configuration keys, authenticated
+Antigravity settings and failures, and chat/settings overlay transitions.
 
 ## Persistence and lifecycle
 

@@ -3,7 +3,9 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
-import type { FileContent, WorkspaceAuroraPalette } from '../types';
+import type { FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings } from '../types';
+import { DEFAULT_LIGHT_RAYS, migrateWorkspaceBackground, normalizeLightRays } from '../utils/workspaceBackground';
+import { DEFAULT_SETUP_GALAXY, normalizeSetupGalaxy } from '../utils/setupBackground';
 import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
@@ -192,7 +194,8 @@ interface AppState {
   /** Global UI scale for the app chrome and workspace surfaces, stored as a percentage. */
   appZoom: number;
   animationsEnabled: boolean;
-  workspaceAuroraEnabled: boolean;
+  workspaceBackground: WorkspaceBackground;
+  workspaceLightRays: WorkspaceLightRaysSettings;
   workspaceAuroraPalette: WorkspaceAuroraPalette;
   workspaceAuroraColors: [string, string, string];
   workspaceAuroraIntensity: number;
@@ -200,10 +203,14 @@ interface AppState {
   workspaceAuroraAmplitude: number;
   workspaceAuroraSpeed: number;
   workspaceAuroraMotion: boolean;
+  /** Backdrop for the "Configure workspace" start screen. */
+  setupBackground: SetupBackground;
+  setupGalaxy: SetupGalaxySettings;
   /** Accessibility preferences for the built-in YZPZ Agent workspace. */
   agentSessionFontSize: number;
   agentInterfaceScale: number;
   agentConversationWidth: number;
+  defaultTerminalCount: number;
   terminalFontFamily: string;
   terminalFontSize: number;
   terminalCursorStyle: "block" | "underline" | "bar";
@@ -265,7 +272,8 @@ interface AppState {
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
   setAppZoom: (zoom: number) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
-  setWorkspaceAuroraEnabled: (enabled: boolean) => void;
+  setWorkspaceBackground: (background: WorkspaceBackground) => void;
+  setWorkspaceLightRays: (settings: Partial<WorkspaceLightRaysSettings>) => void;
   setWorkspaceAuroraPalette: (palette: WorkspaceAuroraPalette) => void;
   setWorkspaceAuroraColor: (index: 0 | 1 | 2, color: string) => void;
   setWorkspaceAuroraIntensity: (intensity: number) => void;
@@ -273,11 +281,14 @@ interface AppState {
   setWorkspaceAuroraAmplitude: (amplitude: number) => void;
   setWorkspaceAuroraSpeed: (speed: number) => void;
   setWorkspaceAuroraMotion: (enabled: boolean) => void;
+  setSetupBackground: (background: SetupBackground) => void;
+  setSetupGalaxy: (settings: Partial<SetupGalaxySettings>) => void;
   setThemeMode: (mode: ThemeMode) => void;
   setAgentSessionFontSize: (size: number) => void;
   setAgentInterfaceScale: (scale: number) => void;
   setAgentConversationWidth: (width: number) => void;
   resetAgentDisplayPreferences: () => void;
+  setDefaultTerminalCount: (count: number) => void;
   setTerminalFontFamily: (font: string) => void;
   setTerminalFontSize: (size: number) => void;
   setTerminalCursorStyle: (style: "block" | "underline" | "bar") => void;
@@ -511,7 +522,8 @@ export const useAppStore = create<AppState>()(
       uiDensity: "comfortable",
       appZoom: 100,
       animationsEnabled: true,
-      workspaceAuroraEnabled: true,
+      workspaceBackground: 'aurora',
+      workspaceLightRays: { ...DEFAULT_LIGHT_RAYS },
       workspaceAuroraPalette: 'gemini',
       workspaceAuroraColors: ['#fb19da', '#00b6f2', '#2b27ff'],
       workspaceAuroraIntensity: 35,
@@ -519,9 +531,12 @@ export const useAppStore = create<AppState>()(
       workspaceAuroraAmplitude: 1.0,
       workspaceAuroraSpeed: 0.5,
       workspaceAuroraMotion: true,
+      setupBackground: 'galaxy' as const,
+      setupGalaxy: { ...DEFAULT_SETUP_GALAXY },
       agentSessionFontSize: 14,
       agentInterfaceScale: 100,
       agentConversationWidth: 860,
+      defaultTerminalCount: 1,
       terminalFontFamily: getPlatformDefaultTerminalFont(),
       terminalFontSize: 14,
       terminalCursorStyle: "block",
@@ -730,7 +745,10 @@ export const useAppStore = create<AppState>()(
       setUiDensity: (density) => set({ uiDensity: density }),
       setAppZoom: (zoom) => set({ appZoom: Math.min(140, Math.max(80, Math.round(zoom / 10) * 10)) }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
-      setWorkspaceAuroraEnabled: (enabled) => set({ workspaceAuroraEnabled: enabled }),
+      setWorkspaceBackground: (background) => set({ workspaceBackground: background }),
+      setWorkspaceLightRays: (settings) => set((state) => ({
+        workspaceLightRays: normalizeLightRays({ ...state.workspaceLightRays, ...settings }),
+      })),
       setWorkspaceAuroraPalette: (palette) => set({ workspaceAuroraPalette: palette }),
       setWorkspaceAuroraColor: (index, color) => set((state) => {
         if (!/^#[\da-f]{6}$/i.test(color)) return state;
@@ -751,6 +769,10 @@ export const useAppStore = create<AppState>()(
         workspaceAuroraSpeed: Number.isFinite(speed) ? Math.min(2, Math.max(0, speed)) : 0.5,
       }),
       setWorkspaceAuroraMotion: (enabled) => set({ workspaceAuroraMotion: enabled }),
+      setSetupBackground: (background) => set({ setupBackground: background }),
+      setSetupGalaxy: (settings) => set((state) => ({
+        setupGalaxy: normalizeSetupGalaxy({ ...state.setupGalaxy, ...settings }),
+      })),
       setThemeMode: (mode) => set({ themeMode: mode }),
       setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
       setAgentInterfaceScale: (scale) => set({ agentInterfaceScale: scale }),
@@ -761,6 +783,7 @@ export const useAppStore = create<AppState>()(
           agentInterfaceScale: 100,
           agentConversationWidth: 860,
         }),
+      setDefaultTerminalCount: (count) => set({ defaultTerminalCount: [0, 1, 2, 4, 6, 8].includes(count) ? count : 1 }),
       setTerminalFontFamily: (font) => set({ terminalFontFamily: font }),
       setTerminalFontSize: (size) => set({ terminalFontSize: size }),
       setTerminalCursorStyle: (style) => set({ terminalCursorStyle: style }),
@@ -1883,9 +1906,9 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
-      version: 5,
+      version: 7,
       migrate: (persistedState: unknown, version: number) => {
-        const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean; lightThemeEnabled?: boolean; themeMode?: ThemeMode };
+        const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean; lightThemeEnabled?: boolean; themeMode?: ThemeMode; workspaceAuroraEnabled?: boolean; workspaceBackground?: WorkspaceBackground; workspaceLightRays?: WorkspaceLightRaysSettings; setupBackground?: SetupBackground; setupGalaxy?: SetupGalaxySettings };
         if (version < 2) {
           const ua = navigator.userAgent.toLowerCase();
           if (state.terminalFontFamily === 'Cascadia Mono' && !ua.includes('windows')) {
@@ -1903,6 +1926,16 @@ export const useAppStore = create<AppState>()(
           // v5: the single "light theme" boolean became a three-way theme mode.
           state.themeMode = state.lightThemeEnabled ? 'light' : 'dark';
         }
+        if (version < 6) {
+          state.workspaceBackground = migrateWorkspaceBackground(state);
+          state.workspaceLightRays = normalizeLightRays(state.workspaceLightRays ?? {});
+          delete state.workspaceAuroraEnabled;
+        }
+        if (version < 7) {
+          // v7: the start screen gained an optional Galaxy backdrop with its own settings.
+          state.setupBackground = state.setupBackground === 'none' ? 'none' : 'galaxy';
+          state.setupGalaxy = normalizeSetupGalaxy(state.setupGalaxy ?? {});
+        }
         return state;
       },
       partialize: (state) => {
@@ -1917,7 +1950,8 @@ export const useAppStore = create<AppState>()(
           uiDensity: state.uiDensity,
           appZoom: state.appZoom,
           animationsEnabled: state.animationsEnabled,
-          workspaceAuroraEnabled: state.workspaceAuroraEnabled,
+          workspaceBackground: state.workspaceBackground,
+          workspaceLightRays: state.workspaceLightRays,
           workspaceAuroraPalette: state.workspaceAuroraPalette,
           workspaceAuroraColors: state.workspaceAuroraColors,
           workspaceAuroraIntensity: state.workspaceAuroraIntensity,
@@ -1925,10 +1959,13 @@ export const useAppStore = create<AppState>()(
           workspaceAuroraAmplitude: state.workspaceAuroraAmplitude,
           workspaceAuroraSpeed: state.workspaceAuroraSpeed,
           workspaceAuroraMotion: state.workspaceAuroraMotion,
+          setupBackground: state.setupBackground,
+          setupGalaxy: state.setupGalaxy,
           themeMode: state.themeMode,
           agentSessionFontSize: state.agentSessionFontSize,
           agentInterfaceScale: state.agentInterfaceScale,
           agentConversationWidth: state.agentConversationWidth,
+          defaultTerminalCount: state.defaultTerminalCount,
           terminalFontFamily: state.terminalFontFamily,
           terminalFontSize: state.terminalFontSize,
           terminalCursorStyle: state.terminalCursorStyle,

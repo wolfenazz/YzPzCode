@@ -24,7 +24,8 @@
     .monaco-workbench .part.statusbar,
     .monaco-workbench .part.banner { display: none !important; }
     .monaco-workbench .part.yzpz-assistant-part,
-    .yzpz-trust-mode .monaco-workbench .part.editor {
+    .yzpz-trust-mode .monaco-workbench .part.editor,
+    .yzpz-editor-mode .monaco-workbench .part.editor {
       visibility: visible !important; position: fixed !important;
       left: 0 !important; top: 0 !important;
       width: 100vw !important; height: 100vh !important;
@@ -59,8 +60,17 @@
       position-anchor: auto !important; z-index: 21 !important;
     }
     .yzpz-assistant-overlay iframe.webview { width: 100% !important; height: 100% !important; }
+    .yzpz-editor-overlay {
+      position: fixed !important; position-anchor: auto !important;
+      left: var(--yzpz-editor-left) !important; top: var(--yzpz-editor-top) !important;
+      width: var(--yzpz-editor-width) !important; height: var(--yzpz-editor-height) !important;
+      visibility: visible !important; pointer-events: auto !important; z-index: 22 !important;
+    }
+    .yzpz-editor-overlay iframe.webview { width: 100% !important; height: 100% !important; }
     .yzpz-trust-mode .part.editor .content,
-    .yzpz-trust-mode .part.editor .editor-group-container {
+    .yzpz-trust-mode .part.editor .editor-group-container,
+    .yzpz-editor-mode .part.editor .content,
+    .yzpz-editor-mode .part.editor .editor-group-container {
       width: 100% !important; height: 100% !important;
     }
     .monaco-dialog-box { max-width: calc(100vw - 24px) !important; box-sizing: border-box; }
@@ -130,6 +140,34 @@
       back.textContent = 'Back to extension'; back.onclick = () => void action('back');
       document.body.appendChild(back);
     }
+    const editorMode = state.stage === 'editor';
+    if (document.documentElement.classList.contains('yzpz-editor-mode') !== editorMode) {
+      document.documentElement.classList.toggle('yzpz-editor-mode', editorMode);
+      window.dispatchEvent(new Event('resize'));
+    }
+    const editor = document.querySelector('.part.editor');
+    const editorFrame = editorMode ? [...document.querySelectorAll('iframe.webview')].find(element => {
+      const content = element.closest('.webview-overlay-content');
+      const owner = document.getElementById(content?.dataset.parentFlowToElementId || '');
+      if (owner) return editor?.contains(owner) && owner.getBoundingClientRect().height > 0;
+      const anchor = anchorValue(content?.style, 'position-anchor');
+      return Boolean(anchor) && [...(editor?.querySelectorAll('[style]') || [])]
+        .some(element => anchorValue(element.style, 'anchor-name') === anchor && element.getBoundingClientRect().height > 0);
+    }) : undefined;
+    const editorOverlay = editorFrame?.closest('.webview-overlay-content');
+    document.querySelectorAll('.yzpz-editor-overlay').forEach(element => {
+      if (element !== editorOverlay) element.classList.remove('yzpz-editor-overlay');
+    });
+    if (editorOverlay) {
+      editorOverlay.classList.add('yzpz-editor-overlay');
+      const owner = document.getElementById(editorOverlay.dataset.parentFlowToElementId || '');
+      const rect = (owner || editor.querySelector('.editor-instance') || editor).getBoundingClientRect();
+      for (const [name, value] of Object.entries({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })) {
+        const pixels = `${value}px`;
+        if (editorOverlay.style.getPropertyValue(`--yzpz-editor-${name}`) !== pixels)
+          editorOverlay.style.setProperty(`--yzpz-editor-${name}`, pixels);
+      }
+    }
     const candidates = state.container ? [state.container, ...containers] : containers;
     const composite = candidates.map(id => document.getElementById(id))
       .find(element => element?.getBoundingClientRect().height > 0 && getComputedStyle(element).display !== 'none');
@@ -137,15 +175,15 @@
     const viewOpened = !bootError && state.stage === 'ready' && Boolean(part);
     const iframe = assistantFrame(composite);
     const webviewOverlay = iframe?.closest('.webview-overlay-content');
-    const overlayRoot = webviewOverlay?.parentElement;
+    const overlayRoot = editorMode ? editorOverlay?.parentElement : webviewOverlay?.parentElement;
     for (const [selector, selected, className] of [
       ['.yzpz-assistant-overlay', webviewOverlay, 'yzpz-assistant-overlay'],
       ['.yzpz-assistant-overlay-root', overlayRoot, 'yzpz-assistant-overlay-root'],
     ]) {
       document.querySelectorAll(selector).forEach(element => {
-        if (element !== selected || !viewOpened) element.classList.remove(className);
+        if (element !== selected || !(viewOpened || editorMode && className === 'yzpz-assistant-overlay-root')) element.classList.remove(className);
       });
-      if (viewOpened && selected && !selected.classList.contains(className)) selected.classList.add(className);
+      if ((viewOpened || editorMode && className === 'yzpz-assistant-overlay-root') && selected && !selected.classList.contains(className)) selected.classList.add(className);
     }
     const ready = viewOpened && Boolean(iframe?.classList.contains('ready'));
     if (ready || !viewOpened) waitingSince = undefined;
@@ -161,10 +199,10 @@
     const trustMode = state.stage === 'reviewingTrust';
     if (document.documentElement.classList.contains('yzpz-trust-mode') !== trustMode)
       document.documentElement.classList.toggle('yzpz-trust-mode', trustMode);
-    const shown = !ready && !trustMode;
+    const shown = !ready && !trustMode && !editorMode;
     const display = shown ? 'flex' : 'none';
     if (overlay.style.display !== display) overlay.style.display = display;
-    if (back.style.display !== (trustMode ? 'block' : 'none')) back.style.display = trustMode ? 'block' : 'none';
+    if (back.style.display !== (trustMode || editorMode ? 'block' : 'none')) back.style.display = trustMode || editorMode ? 'block' : 'none';
     const text = bootError || (state.stage === 'waitingTrust'
       ? `Trust this workspace to enable ${YZPZ_PANEL.name}. Review the workspace permissions before continuing.`
       : state.stage === 'error' ? (state.message || `Could not open ${YZPZ_PANEL.name}.`)
@@ -187,7 +225,7 @@
       if (!response.ok) throw new Error(`Host status ${response.status}`);
       state = await response.json();
     } catch { state = { stage: 'error', message: `The ${YZPZ_PANEL.name} host is unavailable. Close and reopen this pane.` }; }
-    schedule(); setTimeout(poll, state.stage === 'ready' ? 2000 : 500);
+    schedule(); setTimeout(poll, 500);
   }
   schedule(); void poll();
 })();

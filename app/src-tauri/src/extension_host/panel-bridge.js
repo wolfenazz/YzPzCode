@@ -2,6 +2,9 @@ const vscode = require('vscode');
 const fs = require('node:fs');
 const path = require('node:path');
 const { saveTrust } = require('./panel-storage.cjs');
+const { configureAssistant } = require('./provider-access.cjs');
+
+let panelState = { stage: 'starting' };
 
 function rememberTrust() {
   if (vscode.workspace.isTrusted && process.env.YZPZ_WORKSPACE_TRUST_FILE) {
@@ -19,8 +22,9 @@ function rememberTrust() {
 }
 
 function state(value) {
+  panelState = { ...panelState, ...value };
   if (process.env.YZPZ_PANEL_STATE_FILE) {
-    fs.writeFileSync(`${process.env.YZPZ_PANEL_STATE_FILE}.tmp`, JSON.stringify(value));
+    fs.writeFileSync(`${process.env.YZPZ_PANEL_STATE_FILE}.tmp`, JSON.stringify(panelState));
     fs.renameSync(`${process.env.YZPZ_PANEL_STATE_FILE}.tmp`, process.env.YZPZ_PANEL_STATE_FILE);
   }
 }
@@ -36,9 +40,14 @@ exports.activate = function (context) {
       if (action.action === 'review-trust') {
         state({ stage: 'reviewingTrust' });
         await vscode.commands.executeCommand('workbench.trust.manage');
-      } else if (action.action === 'back' && !vscode.workspace.isTrusted) {
-        await vscode.commands.executeCommand('workbench.action.closeAllEditors');
-        state({ stage: 'waitingTrust' });
+      } else if (action.action === 'back') {
+        if (!vscode.workspace.isTrusted) {
+          await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+          state({ stage: 'waitingTrust' });
+        } else if (panelState.container) {
+          await vscode.commands.executeCommand(panelState.container);
+          state({ stage: 'ready' });
+        }
       }
     } catch { /* No action has been submitted yet. */ }
   }, 250);
@@ -66,7 +75,10 @@ async function openAssistant(context, id) {
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     if (!extension) throw new Error(`${id} is not enabled in the workspace extension host.`);
-    await extension.activate();
+    await configureAssistant(vscode, extension);
+    const api = await extension.activate();
+    if (id.toLowerCase() === 'google.google-antigravity')
+      await configureAssistant(vscode, extension, api);
     const contributions = extension.packageJSON.contributes || {};
     const containers = contributions.viewsContainers || {};
     const commands = new Set(await vscode.commands.getCommands(true));
@@ -81,6 +93,14 @@ async function openAssistant(context, id) {
         const view = views.find(item => item.type === 'webview') || views[0];
         if (view && commands.has(`${view.id}.focus`)) await vscode.commands.executeCommand(`${view.id}.focus`);
         state({ stage: 'ready', container: command });
+        // Settings, config files, diffs and custom editors all use the editor
+        // part. Expose it when the provider opens/focuses a tab, across providers.
+        const tabs = vscode.window.tabGroups;
+        const showEditor = () => {
+          if (!['ready', 'editor'].includes(panelState.stage)) return;
+          state({ stage: tabs.activeTabGroup?.activeTab ? 'editor' : 'ready' });
+        };
+        context.subscriptions.push(tabs.onDidChangeTabs(showEditor), tabs.onDidChangeTabGroups(showEditor));
         return;
       } catch (error) { lastError = error; }
     }

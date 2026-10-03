@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { TerminalGrid } from './TerminalGrid';
-import { WorkspaceAurora } from './WorkspaceAurora';
+import { WorkspaceBackground } from './WorkspaceBackground';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { ExtensionsPanel } from './ExtensionsPanel';
 import { BrowserPane } from './BrowserPane';
@@ -118,6 +118,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   useEffect(() => {
     if (view !== 'workspace') return;
     if (currentWorkspace && !hasInitialized.current[currentWorkspace.id]) {
+      if (currentWorkspace.layout.sessions === 0) {
+        hasInitialized.current[currentWorkspace.id] = true;
+        markWorkspaceOpened(currentWorkspace.id);
+        return;
+      }
       detectAllClis();
       checkAllAuth();
 
@@ -475,7 +480,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               )}
             </AnimatePresence>
             <div className="workspace-view flex-1 min-w-0 overflow-hidden relative isolate">
-              {activeView === 'terminal' && <WorkspaceAurora />}
+              {activeView === 'terminal' && <WorkspaceBackground />}
               {/*
                 Each open workspace owns a mounted terminal grid. Hidden grids
                 keep parsing PTY output, so screen and workspace switches retain

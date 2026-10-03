@@ -109,6 +109,8 @@ const Divider = () => (
 
 export const SettingsTerminal: React.FC = () => {
   const {
+    defaultTerminalCount,
+    setDefaultTerminalCount,
     terminalFontFamily,
     setTerminalFontFamily,
     terminalFontSize,
@@ -152,6 +154,14 @@ export const SettingsTerminal: React.FC = () => {
       </div>
 
       <div className="space-y-4">
+        <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-5">
+          <label htmlFor="default-terminal-count" className="mb-2 block text-xs text-[var(--text-primary)]">Terminals in new workspaces</label>
+          <select id="default-terminal-count" value={defaultTerminalCount} onChange={(event) => setDefaultTerminalCount(Number(event.target.value))}
+            className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]">
+            {[0, 1, 2, 4, 6, 8].map((count) => <option key={count} value={count}>{count === 0 ? 'No terminals' : `${count} terminal${count === 1 ? '' : 's'}`}</option>)}
+          </select>
+          <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Choose the starting count for workspace setup. No terminals lets you use the editor and extensions without opening shells. Templates can override this choice.</p>
+        </div>
         <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
           <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
             Font

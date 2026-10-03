@@ -1,13 +1,15 @@
 import { useState, useCallback, useMemo } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { WorkspaceConfig, LayoutConfig, AgentFleet, CliType } from '../types';
+import type { WorkspaceConfig, LayoutConfig, AgentFleet, CliType } from '../types';
 import { useAppStore } from '../stores/appStore';
+import { useExtensionStore } from '../stores/extensionStore';
 import { ADDITIONAL_AGENT_ZEROS } from '../data/additionalAgents';
+import { fitFleetToLayout, workspaceNameFromPath } from '../utils/workspaceSetup';
 
 const ALL_TEMPLATES_KEY = 'yzpzcode-all-templates';
 
 const DEFAULT_AGENT_FLEET: AgentFleet = {
-  totalSlots: 4,
+  totalSlots: 1,
   allocation: {
     claude: 0,
     codex: 0,
@@ -42,6 +44,7 @@ export interface WorkspaceTemplate {
   iconColor: string;
   layout: LayoutConfig;
   allocation: Record<CliType, number>;
+  extensionIds?: string[];
 }
 
 // Zero defaults for every non-codex/claude seed slot. `commandcode` lives here
@@ -129,17 +132,38 @@ function saveAllTemplates(templates: WorkspaceTemplate[]) {
 }
 
 export const useWorkspace = () => {
-  const { openWorkspace, addRecentDirectory } = useAppStore();
+  const { openWorkspace, addRecentDirectory, defaultTerminalCount } = useAppStore();
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [workspaceName, setWorkspaceName] = useState<string>('');
-  const [selectedLayout, setSelectedLayout] = useState<LayoutConfig>({
+  const [selectedLayout, updateSelectedLayout] = useState<LayoutConfig>({
     type: 'grid',
-    sessions: 4,
+    sessions: defaultTerminalCount ?? 1,
     openExternally: false,
   });
-  const [agentFleet, setAgentFleet] = useState<AgentFleet>(DEFAULT_AGENT_FLEET);
+  const [agentFleet, setAgentFleet] = useState<AgentFleet>(() => ({ ...DEFAULT_AGENT_FLEET, totalSlots: defaultTerminalCount ?? 1 }));
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
   const [templates, setTemplates] = useState<WorkspaceTemplate[]>(loadAllTemplates);
+  const [selectedExtensionIds, setSelectedExtensionIds] = useState<string[]>([]);
+
+  const setSelectedLayout = useCallback((layout: LayoutConfig) => {
+    const next = { ...layout, openExternally: layout.sessions > 0 && selectedExtensionIds.length === 0 && layout.openExternally };
+    updateSelectedLayout(next);
+    setAgentFleet((fleet) => fitFleetToLayout(fleet, next));
+  }, [selectedExtensionIds.length]);
+
+  const toggleExtension = useCallback((id: string, selected?: boolean) => {
+    setSelectedExtensionIds((ids) => {
+      const shouldSelect = selected ?? !ids.includes(id);
+      if (shouldSelect) return ids.includes(id) ? ids : [...ids, id];
+      return ids.filter((value) => value !== id);
+    });
+    updateSelectedLayout((layout) => ({ ...layout, openExternally: false }));
+  }, []);
+
+  const selectRecentDirectory = useCallback((path: string) => {
+    setSelectedPath(path);
+    setWorkspaceName((name) => !name.trim() || name === workspaceNameFromPath(selectedPath) ? workspaceNameFromPath(path) : name);
+  }, [selectedPath]);
 
   const selectDirectory = useCallback(async () => {
     try {
@@ -150,32 +174,26 @@ export const useWorkspace = () => {
       });
       
       if (typeof path === 'string') {
-        setSelectedPath(path);
+        selectRecentDirectory(path);
       }
     } catch (error) {
       console.error('Failed to select directory:', error);
     }
-  }, []);
-
-  const selectRecentDirectory = useCallback((path: string) => {
-    setSelectedPath(path);
-  }, []);
+  }, [selectRecentDirectory]);
 
   const updateAgentFleet = useCallback((fleet: AgentFleet) => {
-    setAgentFleet(fleet);
-  }, []);
+    setAgentFleet(fitFleetToLayout(fleet, selectedLayout));
+  }, [selectedLayout]);
 
   const applyTemplate = useCallback((templateId: string) => {
     const allTemplates = loadAllTemplates();
     const template = allTemplates.find((t) => t.id === templateId);
     if (!template) return;
     setSelectedTemplateId(templateId);
-    setSelectedLayout(template.layout);
-    setAgentFleet((prev) => ({
-      ...prev,
-      totalSlots: template.layout.sessions,
-      allocation: { ...template.allocation },
-    }));
+    const extensionIds = (template.extensionIds ?? []).filter((id) => useExtensionStore.getState().catalog.some((extension) => extension.id === id));
+    setSelectedExtensionIds(extensionIds);
+    updateSelectedLayout({ ...template.layout, openExternally: template.layout.sessions > 0 && extensionIds.length === 0 && template.layout.openExternally });
+    setAgentFleet(fitFleetToLayout({ totalSlots: template.layout.sessions, allocation: { ...DEFAULT_AGENT_FLEET.allocation, ...template.allocation } }, template.layout));
     if (templateId !== 'custom') {
       setWorkspaceName(template.name);
     }
@@ -194,12 +212,13 @@ export const useWorkspace = () => {
       iconColor: colors[idx],
       layout: { ...selectedLayout },
       allocation: { ...agentFleet.allocation },
+      extensionIds: [...selectedExtensionIds],
     };
     const updated = [...loadAllTemplates(), newTemplate];
     saveAllTemplates(updated);
     setTemplates(updated);
     setSelectedTemplateId(id);
-  }, [selectedLayout, agentFleet]);
+  }, [selectedLayout, agentFleet, selectedExtensionIds]);
 
   const updateTemplate = useCallback((id: string, updates: Partial<Omit<WorkspaceTemplate, 'id'>>) => {
     const all = loadAllTemplates();
@@ -237,15 +256,21 @@ export const useWorkspace = () => {
   }, [selectedTemplateId]);
 
   const createWorkspace = useCallback(async () => {
-    if (!selectedPath || (!selectedLayout.openExternally && !workspaceName)) {
+    if (!selectedPath || (!selectedLayout.openExternally && !workspaceName.trim())) {
       throw new Error('Please select a directory and enter a workspace name');
+    }
+
+    const extensions = useExtensionStore.getState();
+    const selectedExtensions = selectedExtensionIds.map((id) => extensions.catalog.find((extension) => extension.id === id));
+    if (selectedExtensions.some((extension) => !extensions.backendReady || !extension?.installedVersion)) {
+      throw new Error('Install the selected extensions before opening this workspace.');
     }
 
     addRecentDirectory(selectedPath);
 
     const workspace: WorkspaceConfig = {
       id: crypto.randomUUID(),
-      name: workspaceName,
+      name: workspaceName.trim(),
       path: selectedPath,
       layout: selectedLayout,
       agentFleet: {
@@ -255,9 +280,15 @@ export const useWorkspace = () => {
       createdAt: Date.now(),
     };
 
+    for (const extension of selectedExtensions) {
+      if (extension) extensions.openPanel(workspace.id, extension);
+    }
     openWorkspace(workspace);
+    if (selectedLayout.sessions === 0 && selectedExtensionIds.length === 0) {
+      useAppStore.getState().setActiveView('editor');
+    }
     return workspace;
-  }, [selectedPath, workspaceName, selectedLayout, agentFleet, openWorkspace, addRecentDirectory]);
+  }, [selectedPath, workspaceName, selectedLayout, agentFleet, selectedExtensionIds, openWorkspace, addRecentDirectory]);
 
   const totalAllocated = useMemo(
     () => (agentFleet ? Object.values(agentFleet.allocation).reduce((sum, count) => sum + count, 0) : 0),
@@ -293,6 +324,8 @@ export const useWorkspace = () => {
     workspaceName,
     selectedLayout,
     agentFleet,
+    selectedExtensionIds,
+    toggleExtension,
     selectedTemplateId,
     templates,
     selectDirectory,

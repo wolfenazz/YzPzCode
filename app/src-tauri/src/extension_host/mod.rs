@@ -851,6 +851,10 @@ impl ExtensionHostManager {
             profile.join("antigravity-compat.cjs"),
             include_str!("antigravity-compat.cjs"),
         )?;
+        fs::write(
+            profile.join("provider-access.cjs"),
+            include_str!("provider-access.cjs"),
+        )?;
         let state_file = profile.join("panel-state.json");
         fs::write(&state_file, br#"{"stage":"starting"}"#)?;
         fs::write(profile.join("panel-action.json"), b"{}")?;
@@ -934,6 +938,9 @@ impl ExtensionHostManager {
             .stdout(log.try_clone()?)
             .stderr(log);
         configure_process(&mut command);
+        if let Some(main) = manifest["main"].as_str() {
+            command.env("YZPZ_EXTENSION_ENTRY", destination.join(main));
+        }
         if extension_id.eq_ignore_ascii_case("Google.google-antigravity") {
             let main = manifest["main"]
                 .as_str()
@@ -1252,6 +1259,10 @@ fn write_bridge(extensions: &Path) -> Result<()> {
         }))?,
     )?;
     fs::write(bridge.join("extension.js"), include_str!("panel-bridge.js"))?;
+    fs::write(
+        bridge.join("provider-access.cjs"),
+        include_str!("provider-access.cjs"),
+    )?;
     fs::write(
         bridge.join("panel-storage.cjs"),
         include_str!("panel-storage.cjs"),

@@ -62,8 +62,15 @@ function setup(context, activeWorkspaceId) {
   }
   renderToStaticMarkup(React.createElement(Probe));
   const request = { workspaceId: 'new', workspacePath: '/new', count: 1, agentFleet: { totalSlots: 1, allocation: {} } };
-  return { state, writes, resolve, reject, start: () => api.createSessions(request) };
+  return { state, writes, resolve, reject, start: (overrides = {}) => api.createSessions({ ...request, ...overrides }) };
 }
+
+test('no terminals skips IPC and leaves other workspace loading, errors, and sessions intact', async (context) => {
+  const fixture = setup(context, 'existing');
+  globalThis.terminalSessionFixture.invoke = () => { throw new Error('No PTY request should be made'); };
+  assert.deepEqual(await fixture.start({ count: 0 }), []);
+  assert.deepEqual(fixture.writes, []);
+});
 
 test('starting workspace setup leaves existing visible sessions intact', async (context) => {
   const fixture = setup(context, 'existing');

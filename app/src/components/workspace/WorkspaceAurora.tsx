@@ -2,6 +2,7 @@ import { Color, Mesh, Program, Renderer, Triangle } from 'ogl';
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
+import { useBackgroundMotion } from '../../hooks/useBackgroundMotion';
 import type { WorkspaceAuroraPalette } from '../../types';
 
 const PALETTE_STOPS: Record<Exclude<WorkspaceAuroraPalette, 'custom'>, [string, string, string]> = {
@@ -76,7 +77,6 @@ interface AuroraUniforms {
 
 /** WebGL aurora from the React Bits effect, isolated behind the terminal grid. */
 export function WorkspaceAurora(): ReactElement | null {
-  const enabled = useAppStore((s) => s.workspaceAuroraEnabled);
   const palette = useAppStore((s) => s.workspaceAuroraPalette);
   const customColors = useAppStore((s) => s.workspaceAuroraColors);
   const accentColor = useAppStore((s) => s.accentColor);
@@ -84,7 +84,9 @@ export function WorkspaceAurora(): ReactElement | null {
   const blend = useAppStore((s) => s.workspaceAuroraBlend);
   const amplitude = useAppStore((s) => s.workspaceAuroraAmplitude);
   const speed = useAppStore((s) => s.workspaceAuroraSpeed);
-  const motion = useAppStore((s) => s.workspaceAuroraMotion && s.animationsEnabled);
+  const motionEnabled = useAppStore((s) => s.workspaceAuroraMotion);
+  const motion = useBackgroundMotion(motionEnabled);
+  const enabled = intensity > 0;
   const effectiveTheme = useEffectiveTheme();
   const stops = useMemo((): [string, string, string] => {
     if (palette === 'custom') return customColors;
@@ -191,7 +193,7 @@ export function WorkspaceAurora(): ReactElement | null {
 
   useEffect(() => {
     if (enabled && intensity > 0 && !motion) renderOnceRef.current();
-  }, [enabled, intensity, blend, motion, stops]);
+  }, [enabled, intensity, blend, amplitude, motion, stops]);
 
   if (!enabled || intensity === 0) return null;
 

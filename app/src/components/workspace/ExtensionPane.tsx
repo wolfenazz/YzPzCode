@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { DotsSixVertical, PuzzlePiece, X } from '@phosphor-icons/react';
+import { DotsSixVertical, X } from '@phosphor-icons/react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
-import { getExtensionIcon } from '../../data/extensionIcons';
+import { ExtensionLogo } from '../common/ExtensionLogo';
 import { TerminalLayoutPicker } from './TerminalLayoutPicker';
 import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
 
@@ -129,7 +129,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
     <section ref={setNodeRef} className={`app-surface flex h-full min-h-0 flex-col overflow-hidden border border-[var(--border-primary)] bg-[var(--bg-primary)] ${isDragging ? 'opacity-40' : ''}`} aria-label={`${panel.name} extension panel`}>
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2">
         <button type="button" {...attributes} {...listeners} className="app-icon-button app-icon-button--compact cursor-grab" aria-label={`Move ${panel.name} panel`}><DotsSixVertical size={14} /></button>
-        {getExtensionIcon(panel.extensionId) ? <img src={getExtensionIcon(panel.extensionId)} alt="" className="h-4 w-4 shrink-0 object-contain" draggable={false} /> : <PuzzlePiece size={14} className="shrink-0 text-[var(--text-secondary)]" />}
+        <ExtensionLogo extensionId={panel.extensionId} name={panel.name} small />
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{panel.name}</span>
         <span className="text-[9px] text-[var(--text-secondary)]">Extension</span>
         <TerminalLayoutPicker panelId={panel.id} panelName={panel.name} />

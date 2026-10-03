@@ -7,6 +7,9 @@ const crypto = require('node:crypto');
 const { MAX_BYTES, rememberedTrust, saveTrust, readStorage, updateStorage, folderIsTrusted } = require('./panel-storage.cjs');
 const { createTunnel } = require('./panel-tunnel.cjs');
 const { installStartupCompatibility } = require('./antigravity-compat.cjs');
+const { installAccessCompatibility } = require('./provider-access.cjs');
+
+installAccessCompatibility(process.env.YZPZ_EXTENSION_ENTRY, process.env.YZPZ_EXTENSION_ID);
 
 if (process.env.YZPZ_EXTENSION_ID?.toLowerCase() === 'google.google-antigravity')
   installStartupCompatibility(process.env.YZPZ_ANTIGRAVITY_ENTRY);

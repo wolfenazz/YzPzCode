@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowClockwise, ArrowSquareOut, DownloadSimple, MagnifyingGlass, PuzzlePiece, X } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useExtensionStore } from '../../stores/extensionStore';
-import { getExtensionIcon } from '../../data/extensionIcons';
+import { ExtensionLogo } from '../common/ExtensionLogo';
 import type { ExtensionInfo } from '../../types';
 
 interface ExtensionsPanelProps {
@@ -54,7 +54,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
           return (
             <article key={extension.id} className="border-t border-[var(--border-primary)] px-3 py-4">
               <div className="flex items-start justify-between gap-2">
-                {getExtensionIcon(extension.id) && <img src={getExtensionIcon(extension.id)} alt="" className="mt-0.5 h-8 w-8 shrink-0 object-contain" draggable={false} />}
+                <ExtensionLogo extensionId={extension.id} name={extension.name} />
                 <div className="min-w-0 flex-1"><h3 className="text-sm font-medium">{extension.name}</h3><p className="mt-0.5 text-[10px] text-[var(--text-secondary)]">{extension.publisher}{extension.installedVersion ? ` · v${extension.installedVersion}` : ''}</p></div>
                 <button type="button" className="app-icon-button app-icon-button--compact shrink-0" onClick={() => void openUrl(extension.registryUrl)} title={`View ${extension.name} on Open VSX`} aria-label={`View ${extension.name} on Open VSX`}><ArrowSquareOut size={13} /></button>
               </div>

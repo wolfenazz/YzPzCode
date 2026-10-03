@@ -177,7 +177,7 @@ const TemplateCard: React.FC<{
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => onEditSessionsChange(Math.max(1, editSessions - 1))}
+              onClick={() => onEditSessionsChange(Math.max(0, editSessions - 1))}
               className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-700 rounded hover:border-zinc-500 text-zinc-400 text-xs font-mono cursor-pointer transition-colors duration-150"
             >
               -
@@ -478,7 +478,7 @@ const TemplateEditorModal: React.FC<{
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                onClick={() => setSessions(Math.max(1, sessions - 1))}
+                onClick={() => setSessions(Math.max(0, sessions - 1))}
                 className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-700 rounded-lg hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 cursor-pointer transition-colors duration-150"
               >
                 <span className="text-sm font-mono">-</span>

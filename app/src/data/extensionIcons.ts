@@ -19,5 +19,7 @@ const extensionIcons: Record<string, string> = {
 };
 
 export function getExtensionIcon(extensionId: string): string | undefined {
-  return extensionIcons[extensionId];
+  return iconsById.get(extensionId.toLowerCase());
 }
+
+const iconsById = new Map(Object.entries(extensionIcons).map(([id, icon]) => [id.toLowerCase(), icon]));

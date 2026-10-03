@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { WarningCircle, X } from '@phosphor-icons/react';
 import { WorkspaceConfigForm } from './WorkspaceConfigForm';
 import { SetupStepper } from './SetupStepper';
+import { SetupBackground } from './SetupBackground';
 import { useWorkspace } from '../../hooks/useWorkspace';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
@@ -10,6 +11,7 @@ import { activeAgentAllocation, humanizeAgentVariantMismatch } from '../../utils
 import { WorkspaceTab } from '../workspace/WorkspaceTab';
 import { AppFooter } from '../common/AppFooter';
 import { AppChrome } from '../common/AppChrome';
+import type { IdeInfo, IdeType } from '../../types';
 
 interface SetupScreenProps {
   isWindows: boolean;
@@ -18,12 +20,14 @@ interface SetupScreenProps {
 }
 
 export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
-  const { setView, openWorkspaces, switchWorkspace, sessionsByWorkspace, closeWorkspace, selectedIdes, ideStatuses, setupViewMode } = useAppStore();
+  const { setView, openWorkspaces, switchWorkspace, sessionsByWorkspace, closeWorkspace, selectedIdes, ideStatuses, setupViewMode, setupBackground } = useAppStore();
   const {
     selectedPath,
     workspaceName,
     selectedLayout,
     agentFleet,
+    selectedExtensionIds,
+    toggleExtension,
     selectedTemplateId,
     templates,
     selectDirectory,
@@ -40,7 +44,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     isValid,
     isAllocationValid,
     validationErrors,
-    currentTemplateAllocation,
   } = useWorkspace();
 
     const [createError, setCreateError] = React.useState<string | null>(null);
@@ -94,6 +97,11 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     setCreateError(null);
     setIsLaunching(true);
     try {
+      let launchIdeStatuses = ideStatuses;
+      if (selectedIdes.some((ide) => !launchIdeStatuses[ide])) {
+        launchIdeStatuses = await invoke<Record<IdeType, IdeInfo>>('detect_all_ides_cmd');
+        useAppStore.getState().setIdeStatuses(launchIdeStatuses);
+      }
       if (selectedLayout.openExternally) {
         await invoke('launch_external_terminals', {
           request: {
@@ -103,7 +111,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
           },
         });
         
-        const selectedInstalledIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed);
+        const selectedInstalledIdes = selectedIdes.filter((ide) => launchIdeStatuses[ide]?.installed);
         for (const ide of selectedInstalledIdes) {
           try {
             await invoke('launch_ide_cmd', { ide, directory: selectedPath });
@@ -114,7 +122,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
       } else {
         const workspace = await createWorkspace();
         
-        const selectedInstalledIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed);
+        const selectedInstalledIdes = selectedIdes.filter((ide) => launchIdeStatuses[ide]?.installed);
         for (const ide of selectedInstalledIdes) {
           try {
             await invoke('launch_ide_cmd', { ide, directory: workspace.path });
@@ -138,7 +146,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
   };
 
   return (
-    <div className="setup-shell flex h-screen flex-col overflow-hidden bg-theme-main text-theme-main">
+    <div className="setup-shell relative isolate flex h-screen flex-col overflow-hidden bg-theme-main text-theme-main" data-background={setupBackground}>
+      <SetupBackground />
       <AppChrome
         center={openWorkspaces.length > 0 ? (
           <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
@@ -171,11 +180,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
       {/* ── Main Content ─────────────────────────────────────────────────── */}
       <main className="setup-main flex-1 overflow-y-auto">
         <div className="setup-page app-page space-y-7">
-          <section className="setup-page__hero app-page__hero">
-            <h1>Start with the work, not the tooling.</h1>
-            <p>Choose a project, shape the agent team, and open a focused workspace for building, reviewing, and shipping.</p>
-          </section>
-
           {showWindows10Warning && !warningDismissed && (
             <div className="app-surface flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-3">
@@ -219,6 +223,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
                 selectedPath={selectedPath}
                 workspaceName={workspaceName}
                 selectedLayout={selectedLayout}
+                agentFleet={agentFleet}
+                selectedExtensionIds={selectedExtensionIds}
+                onToggleExtension={toggleExtension}
                 isAllocationValid={isAllocationValid}
                 hasOpenWorkspaces={openWorkspaces.length > 0}
                 onSelectDirectory={selectDirectory}
@@ -236,10 +243,10 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
                 onCreateWorkspace={handleCreateWorkspace}
                 onCancel={handleCancel}
                 isValid={isValid}
+                isLoading={isLaunching}
                 isExternalMode={selectedLayout.openExternally}
                 validationErrors={validationErrors}
                 selectedTemplateId={selectedTemplateId}
-                templateAllocation={currentTemplateAllocation}
               />
 
             </>
@@ -248,6 +255,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               selectedPath={selectedPath}
               workspaceName={workspaceName}
               selectedLayout={selectedLayout}
+              agentFleet={agentFleet}
+              selectedExtensionIds={selectedExtensionIds}
+              onToggleExtension={toggleExtension}
               isAllocationValid={isAllocationValid}
               hasOpenWorkspaces={openWorkspaces.length > 0}
               onSelectDirectory={selectDirectory}
@@ -270,7 +280,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               createError={createError}
               validationErrors={validationErrors}
               selectedTemplateId={selectedTemplateId}
-              templateAllocation={currentTemplateAllocation}
             />
           )}
         </div>

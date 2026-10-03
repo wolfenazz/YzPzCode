@@ -2708,6 +2708,11 @@ button.app-footer__action-item--warning:hover {
   background: var(--bg-primary);
 }
 
+/* The Galaxy backdrop lives on the shell, so the scroll container must let it show through. */
+.setup-shell[data-background='galaxy'] .setup-main {
+  background: transparent;
+}
+
 .setup-page {
   width: min(100%, 76rem);
   padding-top: clamp(2.75rem, 6vw, 5.75rem);

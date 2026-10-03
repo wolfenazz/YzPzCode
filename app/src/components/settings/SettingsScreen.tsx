@@ -167,7 +167,7 @@ export const SettingsScreen = ({
           </div>
         </nav>
 
-        <main className="min-w-0 flex-1 overflow-y-auto custom-scrollbar">
+        <main className="relative min-w-0 flex-1 overflow-y-auto custom-scrollbar">
           <div className="app-page app-page--narrow">
             <header className="mb-10 border-b border-[var(--border-primary)] pb-6">
               <h1 className="m-0 text-3xl leading-none">{activeLabel}</h1>

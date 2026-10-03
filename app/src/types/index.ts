@@ -30,6 +30,43 @@ export interface WorkspaceExtensionPanel {
   name: string;
 }
 export type WorkspaceAuroraPalette = 'gemini' | 'sage' | 'accent' | 'custom';
+export type WorkspaceBackground = 'none' | 'aurora' | 'light-rays';
+export type SetupBackground = 'none' | 'galaxy';
+export type RaysOrigin = 'top-center' | 'top-left' | 'top-right' | 'right' | 'left' | 'bottom-center' | 'bottom-right' | 'bottom-left';
+
+/** Backdrop tuning for the "Configure workspace" start screen. */
+export interface SetupGalaxySettings {
+  intensity: number;
+  density: number;
+  hueShift: number;
+  glowIntensity: number;
+  saturation: number;
+  starSpeed: number;
+  speed: number;
+  rotationSpeed: number;
+  twinkleIntensity: number;
+  repulsionStrength: number;
+  mouseInteraction: boolean;
+  mouseRepulsion: boolean;
+  motion: boolean;
+}
+
+export interface WorkspaceLightRaysSettings {
+  raysOrigin: RaysOrigin;
+  raysColor: string;
+  raysSpeed: number;
+  lightSpread: number;
+  rayLength: number;
+  pulsating: boolean;
+  fadeDistance: number;
+  saturation: number;
+  followMouse: boolean;
+  mouseInfluence: number;
+  noiseAmount: number;
+  distortion: number;
+  intensity: number;
+  motion: boolean;
+}
 
 export interface ImageEditorWorkspaceState {
   path: string | null;
