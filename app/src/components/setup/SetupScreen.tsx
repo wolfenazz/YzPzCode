@@ -179,7 +179,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
 
       {/* ── Main Content ─────────────────────────────────────────────────── */}
       <main className="setup-main flex-1 overflow-y-auto">
-        <div className="setup-page app-page space-y-7">
+        <div className="mx-auto w-full max-w-[82rem] space-y-7 px-4 pb-12 pt-8 sm:px-8 lg:px-10 lg:pt-10">
           {showWindows10Warning && !warningDismissed && (
             <div className="app-surface flex items-center justify-between gap-4 px-4 py-3">
               <div className="flex items-center gap-3">

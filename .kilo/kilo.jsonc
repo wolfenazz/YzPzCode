@@ -1,4 +1,15 @@
 {
   "$schema": "https://app.kilo.ai/config.json",
-  "snapshot": false
+  "snapshot": false,
+  "mcp": {
+    "shadcn": {
+      "type": "local",
+      "command": "npx",
+      "args": [
+        "shadcn@latest",
+        "mcp"
+      ],
+      "enabled": true
+    }
+  }
 }

@@ -53,14 +53,14 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
       </div>
       <div className="flex gap-2.5">
         <div
-          className={`min-w-0 flex-1 px-3 py-2.5 bg-theme-main border rounded-lg text-[var(--text-primary)] text-sm truncate cursor-default transition-colors duration-150 ${
+          className={`flex h-11 min-w-0 flex-1 items-center truncate rounded-lg border bg-[var(--bg-secondary)] px-3.5 text-sm text-[var(--text-primary)] ${
             errorMessage ? 'border-rose-500/40' : 'border-theme'
           }`}
           title={selectedPath || undefined}
         >
-          {displayPath || (
+          <span className="min-w-0 truncate">{displayPath || (
             <span className="text-[var(--text-secondary)]">Choose a project folder</span>
-          )}
+          )}</span>
         </div>
 
         {recentDirectories.length > 0 && (
@@ -68,7 +68,7 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
             <button
               type="button"
               onClick={() => setShowRecent(!showRecent)}
-              className="px-3.5 py-3 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-white font-mono text-xs transition-colors duration-150 cursor-pointer flex items-center gap-1.5"
+              className="flex h-11 items-center gap-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
               title="Recent directories"
               aria-label="Recent project folders"
               aria-expanded={showRecent}
@@ -81,9 +81,9 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
               </svg>
             </button>
             {showRecent && (
-              <div className="absolute right-0 top-full mt-1 w-80 bg-zinc-900 border border-zinc-700 rounded-md shadow-xl z-50 overflow-hidden">
-                <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
-                  <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-[0.15em]">Recent Directories</span>
+              <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-xl">
+                <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-3 py-2.5">
+                  <span className="text-xs font-medium text-[var(--text-secondary)]">Recent folders</span>
                   <button
                     type="button"
                     onClick={() => { clearRecentDirectories(); setShowRecent(false); }}
@@ -103,12 +103,12 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
                         key={path}
                         type="button"
                         onClick={() => handleSelectRecent(path)}
-                        className="w-full text-left px-3 py-2 hover:bg-zinc-800 transition-colors duration-100 cursor-pointer flex items-center gap-2 group"
+                        className="group flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)]"
                       >
                         <svg className="w-3.5 h-3.5 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
-                        <span className="text-xs font-mono text-zinc-400 group-hover:text-zinc-200 truncate" title={path}>
+                        <span className="truncate font-mono text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]" title={path}>
                           {shortPath}
                         </span>
                       </button>
@@ -123,7 +123,7 @@ export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
         <button
           type="button"
           onClick={onSelectDirectory}
-          className="px-6 py-3 bg-zinc-800 text-zinc-300 border border-zinc-700 rounded-lg hover:bg-zinc-700 hover:text-white font-mono text-xs transition-colors duration-150 uppercase tracking-[0.1em] cursor-pointer"
+          className="h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-4 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--text-secondary)]"
         >
           Browse
         </button>
