@@ -1,177 +1,275 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import type { RegisteredTerminal } from '../../utils/terminalRegistry';
-import { getTerminalForTarget } from '../../utils/terminalRegistry';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ContextMenu as Menu } from 'radix-ui';
+import {
+  BookOpenText,
+  CaretRight,
+  Check,
+  ClipboardText,
+  Copy,
+  Eraser,
+  GearSix,
+  Palette,
+  Plus,
+  Scissors,
+  SelectionAll,
+} from '@phosphor-icons/react';
+import type { Icon } from '@phosphor-icons/react';
+import { useAppStore } from '../../stores/appStore';
+import { getIsMac } from '../../utils/window';
+import { buildMenuLayout, formatShortcut } from '../../utils/contextMenuModel';
+import type { CommandId, MenuEntry } from '../../utils/contextMenuModel';
+import {
+  EMPTY_TARGET,
+  clearTerminalTarget,
+  copyFromTarget,
+  cutFromTarget,
+  detectContextTarget,
+  pasteIntoTarget,
+  restoreTargetFocus,
+  selectAllInTarget,
+} from '../../utils/contextMenuTarget';
+import type { ContextTarget } from '../../utils/contextMenuTarget';
+import { useThemeChoices } from './ThemeModeToggle';
+import logo from '../../assets/YzPzCodeLogo.png';
+import './context-menu.css';
 
-interface ContextMenuProps {
-  onDocsClick: () => void;
-  onNewWorkspace: () => void;
-}
+type RowCommand = Exclude<CommandId, 'theme'>;
 
-interface Position {
-  x: number;
-  y: number;
-}
+const ROWS: Record<RowCommand, { label: string; Icon: Icon }> = {
+  cut: { label: 'Cut', Icon: Scissors },
+  copy: { label: 'Copy', Icon: Copy },
+  paste: { label: 'Paste', Icon: ClipboardText },
+  selectAll: { label: 'Select All', Icon: SelectionAll },
+  clearTerminal: { label: 'Clear Terminal', Icon: Eraser },
+  newWorkspace: { label: 'New Workspace', Icon: Plus },
+  docs: { label: 'Documentation', Icon: BookOpenText },
+  settings: { label: 'Settings', Icon: GearSix },
+};
 
-export const ContextMenu: React.FC<ContextMenuProps> = ({
-  onDocsClick,
-  onNewWorkspace,
-}) => {
-  const [visible, setVisible] = useState(false);
-  const [position, setPosition] = useState<Position>({ x: 0, y: 0 });
-  const terminalRef = useRef<RegisteredTerminal | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
+// A menu opened over a modal dialog sits outside that dialog's React tree, so the
+// dialog reads every click on the menu as a click outside itself and closes,
+// discarding what the user was typing. Keep presses inside the menu from reaching
+// the document-level dismiss listeners.
+const containPointer = {
+  onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
+};
 
-  const close = useCallback(() => {
-    setVisible(false);
-    terminalRef.current = null;
-  }, []);
+const run = (task: () => void | Promise<void>): void => {
+  const fail = (error: unknown) => console.error('Context menu action failed:', error);
+  try {
+    void Promise.resolve(task()).catch(fail);
+  } catch (error) {
+    fail(error);
+  }
+};
+
+let cachedVersion: string | null = null;
+
+/** The app version for the menu footer; stays null outside the Tauri shell. */
+const useAppVersion = (): string | null => {
+  const [version, setVersion] = useState(cachedVersion);
 
   useEffect(() => {
-    const handleContextMenu = (e: MouseEvent) => {
-      // A more specific context menu (file tree, editor tabs, terminal, etc.)
-      // already handled this right-click — don't stack the global menu on top.
-      if (e.defaultPrevented) return;
-      e.preventDefault();
-
-      terminalRef.current = getTerminalForTarget(e.target) ?? null;
-
-      let x = e.clientX;
-      let y = e.clientY;
-
-      const menuWidth = 180;
-      const menuHeight = 250;
-      if (x + menuWidth > window.innerWidth) x = window.innerWidth - menuWidth - 8;
-      if (y + menuHeight > window.innerHeight) y = window.innerHeight - menuHeight - 8;
-
-      setPosition({ x, y });
-      setVisible(true);
-    };
-
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        close();
-      }
-    };
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
-    };
-
-    document.addEventListener('contextmenu', handleContextMenu);
-    document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleKeyDown);
-
+    if (cachedVersion !== null) return;
+    let cancelled = false;
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then((value) => {
+        cachedVersion = value;
+        if (!cancelled) setVersion(value);
+      })
+      .catch(() => {});
     return () => {
-      document.removeEventListener('contextmenu', handleContextMenu);
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleKeyDown);
+      cancelled = true;
     };
-  }, [close]);
+  }, []);
 
-  const handleAction = (action: () => void) => {
-    action();
-    close();
-  };
+  return version;
+};
 
-  if (!visible) return null;
+const ThemeSubmenu: React.FC = () => {
+  const choices = useThemeChoices();
+  const active = choices.find((choice) => choice.active);
+
+  const renderChoice = (choice: (typeof choices)[number]) => (
+    <Menu.RadioItem key={choice.key} value={choice.key} className="ctx-item">
+      <span className="ctx-item__icon">
+        <choice.icon size={16} aria-hidden="true" />
+      </span>
+      <span className="ctx-item__label">{choice.label}</span>
+      <Menu.ItemIndicator className="ctx-item__check">
+        <Check size={14} weight="bold" aria-hidden="true" />
+      </Menu.ItemIndicator>
+    </Menu.RadioItem>
+  );
+
+  const builtIn = choices.filter((choice) => !choice.custom);
+  const custom = choices.filter((choice) => choice.custom);
 
   return (
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label="Context menu"
-      className="fixed z-[10000] bg-theme-card border border-theme rounded-md shadow-lg py-1 min-w-[180px] font-mono animate-scale-in"
-      style={{ left: position.x, top: position.y }}
-    >
-      <button
-        role="menuitem"
-        onClick={() => handleAction(onNewWorkspace)}
-        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:text-theme-main hover:bg-theme-hover transition-colors duration-100 text-left cursor-pointer"
+    <Menu.Sub>
+      <Menu.SubTrigger className="ctx-item">
+        <span className="ctx-item__icon">
+          <Palette size={16} aria-hidden="true" />
+        </span>
+        <span className="ctx-item__label">Theme</span>
+        <span className="ctx-item__caret">
+          <CaretRight size={12} weight="bold" aria-hidden="true" />
+        </span>
+      </Menu.SubTrigger>
+      <Menu.Portal>
+        <Menu.SubContent
+          {...containPointer}
+          className="ctx-menu ctx-menu--popup"
+          sideOffset={6}
+          alignOffset={-5}
+          collisionPadding={8}
+          loop
+        >
+          <Menu.RadioGroup
+            value={active?.key}
+            onValueChange={(key) => choices.find((choice) => choice.key === key)?.select()}
+          >
+            {builtIn.map(renderChoice)}
+            {custom.length > 0 && <Menu.Separator className="ctx-sep" />}
+            {custom.map(renderChoice)}
+          </Menu.RadioGroup>
+        </Menu.SubContent>
+      </Menu.Portal>
+    </Menu.Sub>
+  );
+};
+
+interface ContextMenuProps {
+  /** The element that owns the menu: every right-click inside it is handled. */
+  children: React.ReactElement;
+  onNewWorkspace: () => void;
+  onDocsClick: () => void;
+  onSettingsClick: () => void;
+}
+
+/**
+ * The app-wide right-click menu. What it offers follows what was clicked: the
+ * clipboard commands for a terminal, a text field or a text selection, then the
+ * app commands everywhere. A more specific menu (file tree, editor tabs, the
+ * image canvas, terminal paste-on-right-click) opts out by preventing default.
+ */
+export const ContextMenu: React.FC<ContextMenuProps> = ({
+  children,
+  onNewWorkspace,
+  onDocsClick,
+  onSettingsClick,
+}) => {
+  const view = useAppStore((s) => s.view);
+  const version = useAppVersion();
+  const [target, setTarget] = useState<ContextTarget>(EMPTY_TARGET);
+  const returnFocusRef = useRef<HTMLElement | null>(null);
+  const dismissedOutsideRef = useRef(false);
+
+  // The trigger only sees right-clicks inside the app's React tree. Anything else
+  // (a third-party overlay appended to <body>) must still not raise the WebView's
+  // native menu, so swallow whatever nobody handled.
+  useEffect(() => {
+    const swallow = (event: MouseEvent) => {
+      if (!event.defaultPrevented) event.preventDefault();
+    };
+    document.addEventListener('contextmenu', swallow);
+    return () => document.removeEventListener('contextmenu', swallow);
+  }, []);
+
+  const handleContextMenu = useCallback((event: React.MouseEvent) => {
+    if (event.defaultPrevented) return;
+    const active = document.activeElement;
+    returnFocusRef.current = active instanceof HTMLElement && !active.closest('.ctx-menu') ? active : null;
+    dismissedOutsideRef.current = false;
+    setTarget(detectContextTarget(event.target));
+  }, []);
+
+  const restoreFocus = () => {
+    if (target.terminal || target.editable) {
+      restoreTargetFocus(target);
+      return;
+    }
+    const previous = returnFocusRef.current;
+    if (previous?.isConnected) previous.focus({ preventScroll: true });
+  };
+
+  // Radix would hand focus back itself, but it also re-selects the whole text of an
+  // input, which turns a Paste into "everything highlighted". Do it by hand, and
+  // leave focus alone when the menu was dismissed by clicking somewhere else.
+  const handleCloseAutoFocus = (event: Event) => {
+    event.preventDefault();
+    if (!dismissedOutsideRef.current) restoreFocus();
+    dismissedOutsideRef.current = false;
+  };
+
+  const isMac = getIsMac();
+  const { sections } = buildMenuLayout(target, view);
+
+  const handlers: Record<RowCommand, () => void> = {
+    cut: () => run(() => cutFromTarget(target)),
+    copy: () => run(() => copyFromTarget(target)),
+    paste: () => run(() => pasteIntoTarget(target)),
+    selectAll: () => run(() => selectAllInTarget(target)),
+    clearTerminal: () => run(() => clearTerminalTarget(target)),
+    newWorkspace: onNewWorkspace,
+    docs: onDocsClick,
+    settings: onSettingsClick,
+  };
+
+  const renderEntry = (entry: MenuEntry) => {
+    if (entry.id === 'theme') return <ThemeSubmenu key="theme" />;
+    const { label, Icon } = ROWS[entry.id];
+    return (
+      <Menu.Item
+        key={entry.id}
+        className="ctx-item"
+        disabled={entry.disabled}
+        onSelect={handlers[entry.id]}
       >
-        <svg className="w-3 h-3 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-        </svg>
-        New Workspace
-      </button>
+        <span className="ctx-item__icon">
+          <Icon size={16} aria-hidden="true" />
+        </span>
+        <span className="ctx-item__label">{label}</span>
+        {entry.keys && <span className="ctx-item__kbd">{formatShortcut(entry.keys, isMac)}</span>}
+      </Menu.Item>
+    );
+  };
 
-      <button
-        role="menuitem"
-        onClick={() => handleAction(onDocsClick)}
-        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:text-theme-main hover:bg-theme-hover transition-colors duration-100 text-left cursor-pointer"
-      >
-        <svg className="w-3 h-3 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-        </svg>
-        Documentation
-      </button>
-
-      <button
-        role="menuitem"
-        onClick={() => {
-          const terminal = terminalRef.current;
-          if (terminal) {
-            const selection = terminal.xterm.getSelection();
-            if (selection) {
-              navigator.clipboard.writeText(selection).catch(console.error);
-              close();
-              return;
-            }
-          }
-          const domSelection = window.getSelection()?.toString() ?? '';
-          if (domSelection) {
-            navigator.clipboard.writeText(domSelection).catch(console.error);
-          }
-          close();
-        }}
-        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:text-theme-main hover:bg-theme-hover transition-colors duration-100 text-left cursor-pointer"
-      >
-        <svg className="w-3 h-3 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-        Copy
-        <span className="ml-auto text-[9px] text-[var(--text-secondary)]">Ctrl+C</span>
-      </button>
-
-      <button
-        role="menuitem"
-        onClick={async () => {
-          try {
-            const text = await navigator.clipboard.readText();
-            if (text) {
-              const terminal = terminalRef.current;
-              if (terminal) {
-                terminal.focus();
-                void terminal.paste(text);
-                close();
-                return;
-              }
-            }
-            const target = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
-            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-              const start = target.selectionStart ?? 0;
-              const end = target.selectionEnd ?? 0;
-              const value = target.value;
-              target.value = value.slice(0, start) + text + value.slice(end);
-              target.selectionStart = target.selectionEnd = start + text.length;
-              target.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-          } catch {}
-          close();
-        }}
-        className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[11px] text-[var(--text-secondary)] hover:text-theme-main hover:bg-theme-hover transition-colors duration-100 text-left cursor-pointer"
-      >
-        <svg className="w-3 h-3 text-[var(--text-secondary)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3" />
-        </svg>
-        Paste
-        <span className="ml-auto text-[9px] text-[var(--text-secondary)]">Ctrl+V</span>
-      </button>
-
-      <div role="separator" className="my-1 mx-2 border-t border-theme" />
-
-      <div className="px-3 py-1.5 text-[9px] text-[var(--text-secondary)] uppercase tracking-[0.15em] cursor-default">
-        YzPzCode
-      </div>
-    </div>
+  return (
+    // Not modal: the page stays live, and a second right-click elsewhere reopens
+    // the menu in the new place instead of letting the WebView's own menu appear.
+    <Menu.Root modal={false}>
+      <Menu.Trigger asChild onContextMenu={handleContextMenu}>
+        {children}
+      </Menu.Trigger>
+      <Menu.Portal>
+        <Menu.Content
+          {...containPointer}
+          className="ctx-menu ctx-menu--popup"
+          aria-label="Application menu"
+          loop
+          collisionPadding={8}
+          onContextMenu={(event) => event.preventDefault()}
+          onInteractOutside={() => {
+            dismissedOutsideRef.current = true;
+          }}
+          onCloseAutoFocus={handleCloseAutoFocus}
+        >
+          {sections.map((section, index) => (
+            <React.Fragment key={index}>
+              {index > 0 && <Menu.Separator className="ctx-sep" />}
+              {section.map(renderEntry)}
+            </React.Fragment>
+          ))}
+          <Menu.Separator className="ctx-sep" />
+          <Menu.Label className="ctx-foot">
+            <img src={logo} alt="" className="ctx-foot__mark" draggable={false} />
+            <span className="ctx-foot__name">YzPzCode</span>
+            {version && <span className="ctx-foot__version">v{version}</span>}
+          </Menu.Label>
+        </Menu.Content>
+      </Menu.Portal>
+    </Menu.Root>
   );
 };

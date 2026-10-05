@@ -8,7 +8,7 @@ export const gettingStartedContent = `# Getting Started
 
 ## 2. Node.js Check
 
-On first launch, YzPzCode checks for Node.js, which several agent CLIs and the built-in agent harness depend on. If Node.js is missing, the app shows an installation prompt. Other prerequisites such as Git, npm, bun, pnpm, and Docker can be checked later under **Settings → Environment**.
+On first launch, YzPzCode checks for Node.js, which several agent CLIs depend on. If Node.js is missing, the app shows an installation prompt. Other prerequisites such as Git, npm, bun, pnpm, and Docker can be checked later under **Settings → Environment**.
 
 ## 3. What is a Workspace?
 

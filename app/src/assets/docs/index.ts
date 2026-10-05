@@ -38,7 +38,7 @@ const docPages: DocPage[] = [
     id: 'ai-agents',
     title: 'AI Agents',
     category: 'AI Agents',
-    description: 'Agent CLIs, the agent harness, queues, and image chat',
+    description: 'AI coding CLIs, installation, authentication, and quick prompts',
     content: aiAgentsContent,
   },
   {

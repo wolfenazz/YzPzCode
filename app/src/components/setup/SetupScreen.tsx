@@ -179,40 +179,16 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
 
       {/* ── Main Content ─────────────────────────────────────────────────── */}
       <main className="setup-main flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[82rem] space-y-7 px-4 pb-12 pt-8 sm:px-8 lg:px-10 lg:pt-10">
+        <div className="ws mx-auto w-full max-w-[80rem] space-y-6 px-4 pb-16 pt-8 sm:px-8 lg:px-12 lg:pt-12">
           {showWindows10Warning && !warningDismissed && (
-            <div className="app-surface flex items-center justify-between gap-4 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <WarningCircle className="shrink-0 text-amber-400/80" size={18} />
-                <div className="text-sm">
-                  <span className="font-medium text-[var(--text-primary)]">Windows 10 detected.</span>
-                  <span className="ml-1 text-[var(--text-secondary)]">Windows 11 provides the best window integration.</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setWarningDismissed(true)}
-                className="app-icon-button"
-                title="Dismiss"
-                type="button"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          )}
-
-          {createError && setupViewMode === 'page' && (
-            <div className="app-surface flex items-center justify-between gap-4 border-rose-500/20 px-4 py-3">
-              <div className="flex items-center gap-3">
-                <WarningCircle className="shrink-0 text-rose-400/80" size={18} />
-                <span className="text-sm text-rose-300/90">{createError}</span>
-              </div>
-              <button
-                onClick={() => setCreateError(null)}
-                className="app-icon-button"
-                title="Dismiss"
-                type="button"
-              >
-                <X size={15} />
+            <div className="ws-banner">
+              <span className="flex items-center gap-3">
+                <WarningCircle className="shrink-0 text-amber-500" size={17} />
+                <span><span className="font-medium">Windows 10 detected.</span>{' '}
+                  <span className="text-[var(--text-secondary)]">Windows 11 provides the best window integration.</span></span>
+              </span>
+              <button onClick={() => setWarningDismissed(true)} className="ws-btn ws-btn--icon ws-btn--sm ws-btn--ghost" aria-label="Dismiss" title="Dismiss" type="button">
+                <X size={14} />
               </button>
             </div>
           )}
@@ -247,8 +223,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
                 isExternalMode={selectedLayout.openExternally}
                 validationErrors={validationErrors}
                 selectedTemplateId={selectedTemplateId}
+                createError={createError}
               />
-
             </>
           ) : (
             <SetupStepper

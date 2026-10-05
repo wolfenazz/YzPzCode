@@ -5,7 +5,6 @@ import { WorkspaceBackground } from './WorkspaceBackground';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { ExtensionsPanel } from './ExtensionsPanel';
 import { BrowserPane } from './BrowserPane';
-import { AgentGrid } from '../agent/AgentGrid';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
 import { SourceControlPanel } from '../explorer/SourceControlPanel';
@@ -17,9 +16,9 @@ import { useTerminal } from '../../hooks/useTerminal';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useBrowser } from '../../hooks/useBrowser';
-import { useAgentHost } from '../../hooks/useAgentHost';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
+import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import type { ExtensionInfo, ExtensionInstallProgress } from '../../types';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { FileEntry, WorkspaceView } from '../../types';
@@ -69,7 +68,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const { detectAllClis } = useAgentCli();
   const { checkAllAuth } = useCliLauncher();
   const { closeBrowserView } = useBrowser();
-  const { closeSession: closeAgentSession } = useAgentHost();
   const { openFile } = useFileEditor();
   const {
     refreshGitStatus,
@@ -102,7 +100,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const handleOpenExtension = useCallback((extension: ExtensionInfo): void => {
     if (!currentWorkspace) return;
     useExtensionStore.getState().openPanel(currentWorkspace.id, extension);
-    setActiveView('terminal');
+    const panel = useExtensionStore.getState().panelsByWorkspace[currentWorkspace.id]?.find((entry) => entry.extensionId === extension.id);
+    if (!panel) return;
+    const layouts = useTerminalLayoutStore.getState();
+    const layoutId = `extensions:${currentWorkspace.id}`;
+    layouts.setArrangement(layoutId, layouts.arrangements[layoutId]?.preset ?? 'grid', panel.id);
+    setActiveView('extensions');
   }, [currentWorkspace, setActiveView]);
 
   const handleExplorerClick = useCallback((): void => {
@@ -312,21 +315,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       console.error('Error killing workspace sessions:', err);
     });
 
-    // Stop running YZPZ Agent sessions for this workspace. Sessions are KEPT
-    // persisted so they can be resumed later from Agent → History. If this was
-    // the last session anywhere, the agent-harness sidecar shuts down too.
-    const agentSessions = useAppStore.getState().agentSessionsByWorkspace[workspaceId] || [];
-    await Promise.allSettled(
-      agentSessions.map(async (s) => {
-        try {
-          await closeAgentSession(s.sessionId);
-        } catch (err) {
-          console.error('Error closing agent session:', err);
-        }
-      })
-    );
-    useAppStore.getState().setAgentSessionsForWorkspace(workspaceId, []);
-  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView, closeAgentSession]);
+  }, [killWorkspaceSessions, closeWorkspace, closeBrowserView]);
 
   const handleNewWorkspace = useCallback(() => {
     setView('setup');
@@ -482,7 +471,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
               )}
             </AnimatePresence>
             <div className="workspace-view flex-1 min-w-0 overflow-hidden relative isolate">
-              {activeView === 'terminal' && <WorkspaceBackground />}
+              {(activeView === 'terminal' || activeView === 'extensions') && <WorkspaceBackground />}
               {/*
                 Each open workspace owns a mounted terminal grid. Hidden grids
                 keep parsing PTY output, so screen and workspace switches retain
@@ -507,19 +496,24 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                 );
               })}
 
-              {/*
-                The agent grid stays MOUNTED across view switches (hidden via
-                CSS) so in-flight agent streams and chat state survive TTY<->
-                Agent<->Code<->Browser switching — same rationale as terminals.
-              */}
-              <div
-                className={activeView === "agent" ? "h-full w-full" : "hidden"}
-                aria-hidden={activeView !== "agent"}
-              >
-                <div className="h-full w-full overflow-hidden">
-                  {currentWorkspace && <AgentGrid workspaceId={currentWorkspace.id} />}
-                </div>
-              </div>
+              {openWorkspaces.map((workspace) => {
+                const isVisible = workspace.id === activeWorkspaceId && activeView === 'extensions';
+                return (
+                  <div
+                    key={`extensions:${workspace.id}`}
+                    className={isVisible ? 'h-full w-full overflow-hidden' : 'hidden'}
+                    aria-hidden={!isVisible}
+                  >
+                    <TerminalGrid
+                      workspace={workspace}
+                      sessions={[]}
+                      mode="extensions"
+                      onBrowseExtensions={() => setExtensionsOpen(true)}
+                      visible={isVisible && view === 'workspace' && !showQuickOpen}
+                    />
+                  </div>
+                );
+              })}
 
               <AnimatePresence initial={false}>
                 {view === 'workspace' && activeView === "browser" && currentWorkspace && (

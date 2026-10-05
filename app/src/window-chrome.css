@@ -560,6 +560,79 @@ button.statusbar__item--warn:hover {
   opacity: 0.8;
 }
 
+/* Update control: a regular status-bar item (same shape, padding and hover as Feedback).
+   It only takes a tint while it has something to report; idle it is indistinguishable
+   from its neighbours. */
+
+.statusbar__update {
+  --update-tint: var(--text-secondary);
+  --update-fill: 10%;
+  --update-ring: 36%;
+  background: color-mix(in srgb, var(--update-tint) var(--update-fill), transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--update-tint) var(--update-ring), transparent);
+  color: var(--update-tint);
+}
+
+.statusbar__update.is-checking {
+  --update-tint: var(--accent);
+}
+
+.statusbar__update.is-ok,
+.statusbar__update.is-downloading {
+  --update-tint: var(--chrome-ok);
+}
+
+.statusbar__update.is-available {
+  --update-tint: var(--chrome-warn);
+  --update-fill: 14%;
+  --update-ring: 44%;
+}
+
+button.statusbar__update:hover,
+button.statusbar__update:active {
+  --update-fill: 22%;
+  --update-ring: 60%;
+  background: color-mix(in srgb, var(--update-tint) var(--update-fill), transparent);
+  color: var(--update-tint);
+}
+
+.statusbar__update-icon {
+  flex: none;
+  transition: transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Idle refresh arrow turns clockwise (the way its arrowhead points) on hover */
+button.statusbar__item:not(.statusbar__update):hover .statusbar__update-icon {
+  transform: rotate(180deg);
+}
+
+.statusbar__update.is-checking .statusbar__update-icon {
+  animation: statusbar-spin 0.9s linear infinite;
+}
+
+.statusbar__update.is-ok .statusbar__update-icon {
+  animation: statusbar-pop 360ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.statusbar__update.is-available .statusbar__update-icon {
+  animation: statusbar-nudge 2.4s ease-in-out infinite;
+}
+
+@keyframes statusbar-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes statusbar-pop {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes statusbar-nudge {
+  0%, 55%, 100% { transform: translateY(0); }
+  25% { transform: translateY(1.5px); }
+}
+
 .statusbar__sep {
   flex: none;
   width: 1px;
@@ -717,9 +790,17 @@ html.animations-disabled .statusbar * {
   transition: none !important;
 }
 
+html.animations-disabled .statusbar__update-icon {
+  animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chrome *,
   .statusbar * {
     transition: none !important;
+  }
+
+  .statusbar__update-icon {
+    animation: none !important;
   }
 }

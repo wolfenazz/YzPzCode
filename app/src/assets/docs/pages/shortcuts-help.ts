@@ -35,11 +35,11 @@ export const shortcutsHelpContent = `# Shortcuts and Help
 2. Write a summary and optional description
 3. Tick **Push to \<remote\> after commit** and click the commit button
 
-### Sending Work to an Agent
+### Working with an AI Extension
 
-1. Type your prompt in the agent input, or click a quick prompt chip
-2. Add images with the paperclip or by pasting
-3. If the agent is busy, your prompt joins the **Up next** queue automatically
+1. Open the **Extensions** catalog with \`Ctrl+Shift+X\`
+2. Install an assistant and choose **Open** to switch to its panel in the **Extensions** view
+3. Sign in and send your prompt using the assistant's own interface
 
 ### Inspecting a Web Page
 
@@ -109,7 +109,7 @@ export const shortcutsHelpContent = `# Shortcuts and Help
 
 ### Do I need to install Node.js?
 
-Yes. YzPzCode checks for Node.js on first launch and prompts you to install it if missing. It is required by several agent CLIs and the built-in agent harness.
+Yes. YzPzCode checks for Node.js on first launch and prompts you to install it if missing. It is required by several agent CLIs.
 
 ### How many AI assistants can I use at once?
 

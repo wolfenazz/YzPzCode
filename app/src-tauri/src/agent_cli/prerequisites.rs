@@ -44,7 +44,6 @@ impl PrerequisitesChecker {
     }
 
     pub fn check_nodejs() -> PrerequisiteStatus {
-        // YZPZ Agent requires Node.js 22+.
         let minimum = "22.0.0";
         let result = Self::run_command("node", &["--version"]);
 
@@ -61,7 +60,6 @@ impl PrerequisitesChecker {
                     meets_minimum,
                     install_url: "https://nodejs.org".to_string(),
                     required_for: vec![
-                        "YZPZ Agent".to_string(),
                         "Claude Code".to_string(),
                         "OpenCode".to_string(),
                         "Codex CLI".to_string(),

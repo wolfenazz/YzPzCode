@@ -24,7 +24,9 @@ import { SettingsSetupBackground } from './SettingsSetupBackground';
 import { SettingsCustomThemes } from './SettingsCustomThemes';
 import { ThemeEditor } from '../theme/ThemeEditor';
 import { THEME_PRESETS, createCustomTheme, getThemePreset, uniqueThemeName } from '../../../utils/customTheme';
-import type { CustomTheme, ThemeMode } from '../../../types';
+import type { CursorSize, CursorStyleId, CustomTheme, ThemeMode } from '../../../types';
+import { CursorPreview } from '../../common/cursor/CursorPreview';
+import { CURSOR_STYLES } from '../../common/cursor/cursorStyles';
 import claudeLogo from '../../../assets/claude.png';
 import yzpzLogo from '../../../assets/YzPzCodeLogo.png';
 import {
@@ -63,6 +65,12 @@ const UI_DENSITIES = [
 const SETUP_VIEW_MODES = [
   { value: 'page' as const, label: 'Single page' },
   { value: 'stepper' as const, label: 'Step by step' },
+];
+
+const CURSOR_SIZES: Array<{ value: CursorSize; label: string }> = [
+  { value: 'small', label: 'Small' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'large', label: 'Large' },
 ];
 
 const APP_ZOOM_MIN = 80;
@@ -134,6 +142,10 @@ export const SettingsAppearance: React.FC = () => {
   const {
     customCursor,
     setCustomCursor,
+    cursorStyle,
+    setCursorStyle,
+    cursorSize,
+    setCursorSize,
     accentColor,
     setAccentColor,
     uiDensity,
@@ -199,6 +211,11 @@ export const SettingsAppearance: React.FC = () => {
       invoke('disable_discord_presence').catch(() => {});
     }
   }, [discordRichPresence]);
+
+  const chooseCursorStyle = (style: CursorStyleId): void => {
+    setCursorStyle(style);
+    if (!customCursor) setCustomCursor(true);
+  };
 
   const activeAccent = ACCENT_COLORS.find((color) => color.value === accentColor);
 
@@ -335,11 +352,39 @@ export const SettingsAppearance: React.FC = () => {
             />
             <ToggleRow
               checked={customCursor}
-              description="Replace the system pointer with a crosshair."
+              description="Replace the system pointer with an animated one."
               icon={<CursorClick size={16} aria-hidden="true" />}
               label="Custom cursor"
               onChange={setCustomCursor}
             />
+          </SettingsGroup>
+
+          <SettingsGroup title="Cursor style" description="Pick a pointer. Choosing one turns the custom cursor on; hover a card to see how it reacts to buttons.">
+            <SettingsRow
+              description="How large the custom cursor is drawn."
+              icon={<ArrowsOutLineHorizontal size={16} aria-hidden="true" />}
+              label="Cursor size"
+            >
+              <Segmented label="Cursor size" onChange={setCursorSize} options={CURSOR_SIZES} value={cursorSize} />
+            </SettingsRow>
+            <SettingsBlock>
+              <div className="st-options st-options--5" role="group" aria-label="Cursor style">
+                {CURSOR_STYLES.map(({ id, name, description }) => {
+                  const selected = customCursor && cursorStyle === id;
+                  return (
+                    <OptionCard
+                      hint={description}
+                      key={id}
+                      onSelect={() => chooseCursorStyle(id)}
+                      preview={<CursorPreview id={id} />}
+                      selected={selected}
+                      title={name}
+                      trailing={selected ? <Check size={14} weight="bold" aria-hidden="true" /> : undefined}
+                    />
+                  );
+                })}
+              </div>
+            </SettingsBlock>
           </SettingsGroup>
 
           <SettingsGroup title="New workspace">

@@ -10,7 +10,7 @@ Open Settings with \`Ctrl+,\` or from the context menu. There are 13 sections:
 | **Workspace** | Auto-save, minimap, defaults, IDE launch |
 | **Environment** | Prerequisites check |
 | **CLI tools** | AI agent and tool CLI detection, install commands, timeouts |
-| **YzPz Agent** | Built-in agent harness, model catalog |
+| **Application runs** | Saved Run and Build commands |
 | **IDE integration** | IDE detection and launch |
 | **Keyboard shortcuts** | Shortcut reference |
 | **Updates** | Update channel and auto-update behavior |
@@ -60,12 +60,6 @@ Check prerequisites at a glance: Node.js, npm, Git, bun, pnpm, and Docker.
 - Get install commands for missing CLIs
 - Set the agent timeout
 
-## YzPz Agent
-
-- Configure the built-in agent harness (runs as a local Node sidecar; settings apply globally)
-- Check the harness status
-- Refresh the model catalog to pick up newly released models
-
 ## IDE Integration
 
 Detects installed IDEs: VS Code, Visual Studio, Cursor, Zed, WebStorm, IntelliJ, Sublime Text, Windsurf, Perplexity, and Antigravity. Detected IDEs can be launched from the workspace.
@@ -78,7 +72,7 @@ Detects installed IDEs: VS Code, Visual Studio, Cursor, Zed, WebStorm, IntelliJ,
 
 ## Quick Prompts
 
-Manage the preset prompt chips that appear under the agent input, in terminal panes, and in the element inspector:
+Manage the preset prompt chips that appear in terminal panes and in the element inspector:
 
 - Two groups: **Enhance** and **Adjust / Edit**
 - Add, edit, and remove prompts with custom labels and prompt text

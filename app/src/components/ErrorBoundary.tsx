@@ -19,6 +19,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, info: React.ErrorInfo): void {
+    console.error('YzPzCode render failed:', error, info.componentStack);
+  }
+
   handleReset = () => {
     this.setState({ hasError: false, error: null });
   };
@@ -32,6 +36,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <pre style={{ color: '#b7b5a6', whiteSpace: 'pre-wrap', fontSize: 12, marginBottom: 24 }}>
               {this.state.error?.toString()}
             </pre>
+            <details style={{ marginBottom: 24, textAlign: 'left' }}>
+              <summary style={{ cursor: 'pointer', fontSize: 12 }}>Error details</summary>
+              <pre style={{ maxHeight: 240, overflow: 'auto', whiteSpace: 'pre-wrap', fontSize: 11 }}>
+                {this.state.error?.stack}
+              </pre>
+            </details>
             <button
               onClick={this.handleReset}
               style={{

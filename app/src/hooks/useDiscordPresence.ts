@@ -18,7 +18,7 @@ interface DiscordActivityPayload {
 
 const VIEW_DETAILS: Record<WorkspaceView, string> = {
   terminal: 'Working in the terminal',
-  agent: 'Building with AI agents',
+  extensions: 'Working with AI extensions',
   editor: 'Browsing project files',
   browser: 'Previewing a web project',
 };

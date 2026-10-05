@@ -75,10 +75,6 @@ jobs:
         working-directory: app
         run: npm ci
 
-      - name: Install agent-harness dependencies
-        working-directory: app/agent-harness
-        run: npm ci
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

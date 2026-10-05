@@ -1,12 +1,12 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "YzPzCode",
-  "version": "5.16.0",
+  "version": "5.17.0",
   "identifier": "com.yzpzcode.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:8745",
-    "beforeBuildCommand": "npm run build && npm run build:agent",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -53,13 +53,6 @@
         "installerIcon": "icons/icon.ico",
         "headerImage": "icons/installer-header.bmp"
       }
-    },
-    "resources": {
-      "../agent-harness/dist": "agent-harness/dist",
-      "../agent-harness/src": "agent-harness/src",
-      "../agent-harness/package.json": "agent-harness/package.json",
-      "../agent-harness/tsconfig.json": "agent-harness/tsconfig.json",
-      "../agent-harness/node_modules": "agent-harness/node_modules"
     },
     "icon": [
       "icons/32x32.png",

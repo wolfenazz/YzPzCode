@@ -12,14 +12,12 @@ import {
   PaintBrushBroad,
   Play,
   PlugsConnected,
-  Robot,
   SquaresFour,
   TerminalWindow,
 } from '@phosphor-icons/react';
 import { AppChrome } from '../common/AppChrome';
 import { AppFooter } from '../common/AppFooter';
 import { SettingsAbout } from './sections/SettingsAbout';
-import { SettingsAgent } from './sections/SettingsAgent';
 import { SettingsAgents } from './sections/SettingsAgents';
 import { SettingsAppearance } from './sections/SettingsAppearance';
 import { SettingsData } from './sections/SettingsData';
@@ -40,7 +38,6 @@ type SettingsSection =
   | 'editor'
   | 'workspace'
   | 'agents'
-  | 'agent'
   | 'runs'
   | 'ide'
   | 'quickPrompts'
@@ -116,13 +113,6 @@ const GROUPS: SettingsNavGroup[] = [
         description: 'Check which AI agents and service CLIs are installed.',
         icon: PlugsConnected,
         render: () => <SettingsAgents />,
-      },
-      {
-        id: 'agent',
-        label: 'YzPz Agent',
-        description: 'Providers, models, permissions and extensions for the built-in agent.',
-        icon: Robot,
-        render: () => <SettingsAgent />,
       },
       {
         id: 'runs',

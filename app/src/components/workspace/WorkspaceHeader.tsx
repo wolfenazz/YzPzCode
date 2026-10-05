@@ -1,21 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { Icon } from '@iconify/react';
 import {
   BookOpenText,
-  Code,
   GearSix,
   GitBranch,
-  GlobeSimple,
   Keyboard,
   Plus,
   PuzzlePiece,
   SidebarSimple,
-  Sparkle,
-  TerminalWindow,
   X,
 } from '@phosphor-icons/react';
 import type { WorkspaceConfig, WorkspaceView } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
+import { viewIconName } from './viewIcons';
 import { ChromeBrand, ChromeButton, ChromeDivider } from '../common/ChromeParts';
 import { ThemeModeToggle } from '../common/ThemeModeToggle';
 import { WindowControls } from '../common/WindowControls';
@@ -66,7 +64,7 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="app-surface app-surface--raised max-h-[70vh] w-full max-w-lg overflow-hidden" onClick={(event) => event.stopPropagation()}>
+      <section role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" className="app-surface app-surface--raised flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden" onClick={(event) => event.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-5 py-4">
           <div className="flex items-center gap-3">
             <Keyboard size={18} className="text-[var(--text-secondary)]" aria-hidden="true" />
@@ -77,7 +75,7 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
           </div>
           <button type="button" className="app-icon-button" onClick={onClose} title="Close shortcuts"><X size={16} aria-hidden="true" /><span className="sr-only">Close shortcuts</span></button>
         </div>
-        <div className="max-h-[calc(70vh-78px)] space-y-5 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
           {SHORTCUTS.map((group) => (
             <section key={group.category}>
               <h3 className="mb-2 text-xs font-medium text-[var(--text-secondary)]">{group.category}</h3>
@@ -99,11 +97,11 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
   );
 };
 
-const viewOptions: Array<{ view: WorkspaceView; label: string; icon: React.ElementType }> = [
-  { view: 'terminal', label: 'Terminal', icon: TerminalWindow },
-  { view: 'agent', label: 'Agent', icon: Sparkle },
-  { view: 'editor', label: 'Code', icon: Code },
-  { view: 'browser', label: 'Browser', icon: GlobeSimple },
+const viewOptions: Array<{ view: WorkspaceView; label: string }> = [
+  { view: 'terminal', label: 'Terminal' },
+  { view: 'extensions', label: 'Extensions' },
+  { view: 'editor', label: 'Code' },
+  { view: 'browser', label: 'Browser' },
 ];
 
 interface ViewSwitcherProps {
@@ -132,7 +130,7 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ activeView, onViewChange })
 
   return (
     <div className="view-switch" role="tablist" aria-label="Workspace views" onKeyDown={handleKeyDown}>
-      {viewOptions.map(({ view, label, icon: IconComponent }, index) => {
+      {viewOptions.map(({ view, label }, index) => {
         const isActive = activeView === view;
         return (
           <button
@@ -155,12 +153,13 @@ const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ activeView, onViewChange })
               />
             )}
             <span className="view-switch__content">
-              <IconComponent
-                size={14}
-                weight={isActive ? 'fill' : 'regular'}
+              {view === 'extensions' ? <PuzzlePiece size={16} weight={isActive ? 'fill' : 'regular'} className="view-switch__icon" aria-hidden="true" /> : <Icon
+                icon={viewIconName(view, isActive)}
+                width={16}
+                height={16}
                 className="view-switch__icon"
                 aria-hidden="true"
-              />
+              />}
               <span className="view-switch__label">{label}</span>
             </span>
           </button>

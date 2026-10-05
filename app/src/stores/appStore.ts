@@ -1,12 +1,12 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
-import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState, ThemeMode } from '../types';
+import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
-import type { CustomTheme, FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings } from '../types';
+import type { CursorSize, CursorStyleId, CustomTheme, FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings } from '../types';
 import { MAX_CUSTOM_THEMES, sanitizeCustomTheme, sanitizeCustomThemes } from '../utils/customTheme';
 import { DEFAULT_LIGHT_RAYS, migrateWorkspaceBackground, normalizeLightRays } from '../utils/workspaceBackground';
-import { DEFAULT_SETUP_GALAXY, normalizeSetupGalaxy } from '../utils/setupBackground';
+import { DEFAULT_SETUP_GALAXY, migrateSetupBackground, normalizeSetupBackground, normalizeSetupGalaxy } from '../utils/setupBackground';
 import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
@@ -193,6 +193,8 @@ interface AppState {
   autoSaveDelay: number;
   showMinimap: boolean;
   customCursor: boolean;
+  cursorStyle: CursorStyleId;
+  cursorSize: CursorSize;
   accentColor: string;
   uiDensity: "compact" | "comfortable" | "spacious";
   /** Global UI scale for the app chrome and workspace surfaces, stored as a percentage. */
@@ -210,10 +212,6 @@ interface AppState {
   /** Backdrop for the "Configure workspace" start screen. */
   setupBackground: SetupBackground;
   setupGalaxy: SetupGalaxySettings;
-  /** Accessibility preferences for the built-in YZPZ Agent workspace. */
-  agentSessionFontSize: number;
-  agentInterfaceScale: number;
-  agentConversationWidth: number;
   defaultTerminalCount: number;
   terminalFontFamily: string;
   terminalFontSize: number;
@@ -272,6 +270,8 @@ interface AppState {
   setAutoSaveDelay: (delay: number) => void;
   setShowMinimap: (show: boolean) => void;
   setCustomCursor: (enabled: boolean) => void;
+  setCursorStyle: (style: CursorStyleId) => void;
+  setCursorSize: (size: CursorSize) => void;
   setAccentColor: (color: string) => void;
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
   setAppZoom: (zoom: number) => void;
@@ -293,10 +293,6 @@ interface AppState {
   deleteCustomTheme: (id: string) => void;
   /** Switch the app to the given custom theme. */
   applyCustomTheme: (id: string) => void;
-  setAgentSessionFontSize: (size: number) => void;
-  setAgentInterfaceScale: (scale: number) => void;
-  setAgentConversationWidth: (width: number) => void;
-  resetAgentDisplayPreferences: () => void;
   setDefaultTerminalCount: (count: number) => void;
   setTerminalFontFamily: (font: string) => void;
   setTerminalFontSize: (size: number) => void;
@@ -394,18 +390,6 @@ interface AppState {
   setImageEditorPathForWorkspace: (workspaceId: string, path: string | null) => void;
   clearImageEditorForWorkspace: (workspaceId: string) => void;
   ensureBrowserState: (workspaceId: string) => void;
-  agentSessionsByWorkspace: Record<string, AgentSessionSummary[]>;
-  activeAgentSessionByWorkspace: Record<string, string | null>;
-  agentPaneUIModes: Record<string, AgentPaneUIMode>;
-  showAgentReasoning: boolean;
-  setShowAgentReasoning: (value: boolean) => void;
-  setAgentSessionsForWorkspace: (workspaceId: string, sessions: AgentSessionSummary[]) => void;
-  addAgentSessionForWorkspace: (workspaceId: string, session: AgentSessionSummary) => void;
-  removeAgentSessionForWorkspace: (workspaceId: string, sessionId: string) => void;
-  updateAgentSessionForWorkspace: (workspaceId: string, sessionId: string, updates: Partial<AgentSessionSummary>) => void;
-  setActiveAgentSessionForWorkspace: (workspaceId: string, sessionId: string | null) => void;
-  setAgentPaneUIMode: (sessionId: string, mode: AgentPaneUIMode) => void;
-  closeAllAgentSessions: () => void;
   setBrowserCurrentUrl: (workspaceId: string, url: string) => void;
   setBrowserDraftUrl: (workspaceId: string, url: string) => void;
   setBrowserLoading: (workspaceId: string, isLoading: boolean) => void;
@@ -529,6 +513,8 @@ export const useAppStore = create<AppState>()(
       autoSaveDelay: 1000,
       showMinimap: true,
       customCursor: false,
+      cursorStyle: "dot-ring",
+      cursorSize: "medium",
       accentColor: "default",
       uiDensity: "comfortable",
       appZoom: 100,
@@ -542,11 +528,8 @@ export const useAppStore = create<AppState>()(
       workspaceAuroraAmplitude: 1.0,
       workspaceAuroraSpeed: 0.5,
       workspaceAuroraMotion: true,
-      setupBackground: 'galaxy' as const,
+      setupBackground: 'none' as const,
       setupGalaxy: { ...DEFAULT_SETUP_GALAXY },
-      agentSessionFontSize: 14,
-      agentInterfaceScale: 100,
-      agentConversationWidth: 860,
       defaultTerminalCount: 1,
       terminalFontFamily: getPlatformDefaultTerminalFont(),
       terminalFontSize: 14,
@@ -752,6 +735,8 @@ export const useAppStore = create<AppState>()(
       setAutoSaveDelay: (delay) => set({ autoSaveDelay: delay }),
       setShowMinimap: (show) => set({ showMinimap: show }),
       setCustomCursor: (enabled) => set({ customCursor: enabled }),
+      setCursorStyle: (style) => set({ cursorStyle: style }),
+      setCursorSize: (size) => set({ cursorSize: size }),
       setAccentColor: (color) => set({ accentColor: color }),
       setUiDensity: (density) => set({ uiDensity: density }),
       setAppZoom: (zoom) => set({ appZoom: Math.min(140, Math.max(80, Math.round(zoom / 10) * 10)) }),
@@ -815,15 +800,6 @@ export const useAppStore = create<AppState>()(
         set((state) =>
           state.customThemes.some((item) => item.id === id) ? { themeMode: 'custom', activeCustomThemeId: id } : state,
         ),
-      setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
-      setAgentInterfaceScale: (scale) => set({ agentInterfaceScale: scale }),
-      setAgentConversationWidth: (width) => set({ agentConversationWidth: width }),
-      resetAgentDisplayPreferences: () =>
-        set({
-          agentSessionFontSize: 14,
-          agentInterfaceScale: 100,
-          agentConversationWidth: 860,
-        }),
       setDefaultTerminalCount: (count) => set({ defaultTerminalCount: [0, 1, 2, 4, 6, 8].includes(count) ? count : 1 }),
       setTerminalFontFamily: (font) => set({ terminalFontFamily: font }),
       setTerminalFontSize: (size) => set({ terminalFontSize: size }),
@@ -1018,8 +994,6 @@ export const useAppStore = create<AppState>()(
           activeViewByWorkspace: {},
           browserStateByWorkspace: {},
           imageEditorByWorkspace: {},
-          agentSessionsByWorkspace: {},
-          activeAgentSessionByWorkspace: {},
         }),
 
       pruneMissingWorkspaces: async () => {
@@ -1107,10 +1081,6 @@ export const useAppStore = create<AppState>()(
       activeViewByWorkspace: {} as Record<string, WorkspaceView>,
       browserStateByWorkspace: {} as Record<string, BrowserWorkspaceState>,
       imageEditorByWorkspace: {} as Record<string, ImageEditorWorkspaceState>,
-      agentSessionsByWorkspace: {} as Record<string, AgentSessionSummary[]>,
-      activeAgentSessionByWorkspace: {} as Record<string, string | null>,
-      agentPaneUIModes: {} as Record<string, AgentPaneUIMode>,
-      showAgentReasoning: true,
       explorerClipboard: null,
       restoredFilePathsByWorkspace: {} as Record<string, string[]>,
       recentDirectories: [],
@@ -1190,85 +1160,6 @@ export const useAppStore = create<AppState>()(
           const next = { ...state.imageEditorByWorkspace };
           delete next[workspaceId];
           return { imageEditorByWorkspace: next };
-        }),
-
-      setAgentSessionsForWorkspace: (workspaceId, sessions) =>
-        set((state) => ({
-          agentSessionsByWorkspace: {
-            ...state.agentSessionsByWorkspace,
-            [workspaceId]: sessions,
-          },
-        })),
-
-      addAgentSessionForWorkspace: (workspaceId, session) =>
-        set((state) => {
-          const current = state.agentSessionsByWorkspace[workspaceId] || [];
-          if (current.some((s) => s.sessionId === session.sessionId)) return state;
-          return {
-            agentSessionsByWorkspace: {
-              ...state.agentSessionsByWorkspace,
-              [workspaceId]: [...current, session],
-            },
-            activeAgentSessionByWorkspace: {
-              ...state.activeAgentSessionByWorkspace,
-              [workspaceId]: session.sessionId,
-            },
-          };
-        }),
-
-      removeAgentSessionForWorkspace: (workspaceId, sessionId) =>
-        set((state) => {
-          const current = state.agentSessionsByWorkspace[workspaceId] || [];
-          const next = current.filter((s) => s.sessionId !== sessionId);
-          return {
-            agentSessionsByWorkspace: {
-              ...state.agentSessionsByWorkspace,
-              [workspaceId]: next,
-            },
-            activeAgentSessionByWorkspace: {
-              ...state.activeAgentSessionByWorkspace,
-              [workspaceId]:
-                state.activeAgentSessionByWorkspace[workspaceId] === sessionId
-                  ? (next[0]?.sessionId ?? null)
-                  : state.activeAgentSessionByWorkspace[workspaceId],
-            },
-          };
-        }),
-
-      updateAgentSessionForWorkspace: (workspaceId, sessionId, updates) =>
-        set((state) => {
-          const current = state.agentSessionsByWorkspace[workspaceId] || [];
-          if (!current.some((s) => s.sessionId === sessionId)) return state;
-          return {
-            agentSessionsByWorkspace: {
-              ...state.agentSessionsByWorkspace,
-              [workspaceId]: current.map((s) => (s.sessionId === sessionId ? { ...s, ...updates } : s)),
-            },
-          };
-        }),
-
-      setActiveAgentSessionForWorkspace: (workspaceId, sessionId) =>
-        set((state) => ({
-          activeAgentSessionByWorkspace: {
-            ...state.activeAgentSessionByWorkspace,
-            [workspaceId]: sessionId,
-          },
-        })),
-
-      setAgentPaneUIMode: (sessionId, mode) =>
-        set((state) => ({
-          agentPaneUIModes: {
-            ...state.agentPaneUIModes,
-            [sessionId]: mode,
-          },
-        })),
-
-      setShowAgentReasoning: (value) => set({ showAgentReasoning: value }),
-
-      closeAllAgentSessions: () =>
-        set({
-          agentSessionsByWorkspace: {},
-          activeAgentSessionByWorkspace: {},
         }),
 
       ensureBrowserState: (workspaceId) =>
@@ -1947,21 +1838,14 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'yzpzcode-storage',
-      version: 7,
+      version: 9,
       migrate: (persistedState: unknown, version: number) => {
-        const state = (persistedState ?? {}) as { terminalFontFamily?: string; showAgentReasoning?: boolean; lightThemeEnabled?: boolean; themeMode?: ThemeMode; workspaceAuroraEnabled?: boolean; workspaceBackground?: WorkspaceBackground; workspaceLightRays?: WorkspaceLightRaysSettings; setupBackground?: SetupBackground; setupGalaxy?: SetupGalaxySettings };
+        const state = (persistedState ?? {}) as { terminalFontFamily?: string; lightThemeEnabled?: boolean; themeMode?: ThemeMode; workspaceAuroraEnabled?: boolean; workspaceBackground?: WorkspaceBackground; workspaceLightRays?: WorkspaceLightRaysSettings; setupBackground?: SetupBackground; setupGalaxy?: SetupGalaxySettings };
         if (version < 2) {
           const ua = navigator.userAgent.toLowerCase();
           if (state.terminalFontFamily === 'Cascadia Mono' && !ua.includes('windows')) {
             state.terminalFontFamily = ua.includes('mac') ? 'Menlo' : 'DejaVu Sans Mono';
           }
-        }
-        if (version < 3) {
-          // v3: the agent's thinking/reasoning view is now on by default, so
-          // existing installs keep seeing the reasoning blocks instead of the
-          // old hidden-by-default state. Users can still hide them with the
-          // pane header toggle.
-          state.showAgentReasoning = true;
         }
         if (version < 5 && state.themeMode === undefined) {
           // v5: the single "light theme" boolean became a three-way theme mode.
@@ -1974,8 +1858,23 @@ export const useAppStore = create<AppState>()(
         }
         if (version < 7) {
           // v7: the start screen gained an optional Galaxy backdrop with its own settings.
-          state.setupBackground = state.setupBackground === 'none' ? 'none' : 'galaxy';
+          state.setupBackground = normalizeSetupBackground(state.setupBackground);
           state.setupGalaxy = normalizeSetupGalaxy(state.setupGalaxy ?? {});
+        }
+        if (version < 8) {
+          // Retired agent views reopen in the extensions workspace.
+          const saved = state as Record<string, unknown>;
+          for (const key of ['agentSessionFontSize', 'agentInterfaceScale', 'agentConversationWidth', 'agentSessionsByWorkspace', 'activeAgentSessionByWorkspace', 'agentPaneUIModes', 'showAgentReasoning']) delete saved[key];
+          if (saved.activeView === 'agent') saved.activeView = 'extensions';
+          if (saved.activeViewByWorkspace && typeof saved.activeViewByWorkspace === 'object') {
+            saved.activeViewByWorkspace = Object.fromEntries(
+              Object.entries(saved.activeViewByWorkspace).map(([id, view]) => [id, view === 'agent' ? 'extensions' : view]),
+            );
+          }
+        }
+        if (version < 9) {
+          // Setup backgrounds are now opt-in, including for the former Galaxy default.
+          state.setupBackground = migrateSetupBackground(state.setupBackground);
         }
         return state;
       },
@@ -1987,7 +1886,10 @@ export const useAppStore = create<AppState>()(
         const activeCustomThemeId = customThemes.some((theme) => theme.id === persisted.activeCustomThemeId)
           ? (persisted.activeCustomThemeId ?? null)
           : null;
-        const merged = { ...currentState, ...persisted, customThemes, activeCustomThemeId };
+        const merged = {
+          ...currentState, ...persisted, customThemes, activeCustomThemeId,
+          setupBackground: normalizeSetupBackground(persisted.setupBackground ?? currentState.setupBackground),
+        };
         if (merged.themeMode === 'custom' && !activeCustomThemeId) merged.themeMode = 'dark';
         return merged;
       },
@@ -1999,6 +1901,8 @@ export const useAppStore = create<AppState>()(
           autoSaveDelay: state.autoSaveDelay,
           showMinimap: state.showMinimap,
           customCursor: state.customCursor,
+          cursorStyle: state.cursorStyle,
+          cursorSize: state.cursorSize,
           accentColor: state.accentColor,
           uiDensity: state.uiDensity,
           appZoom: state.appZoom,
@@ -2017,9 +1921,6 @@ export const useAppStore = create<AppState>()(
           themeMode: state.themeMode,
           customThemes: state.customThemes,
           activeCustomThemeId: state.activeCustomThemeId,
-          agentSessionFontSize: state.agentSessionFontSize,
-          agentInterfaceScale: state.agentInterfaceScale,
-          agentConversationWidth: state.agentConversationWidth,
           defaultTerminalCount: state.defaultTerminalCount,
           terminalFontFamily: state.terminalFontFamily,
           terminalFontSize: state.terminalFontSize,
@@ -2056,8 +1957,6 @@ export const useAppStore = create<AppState>()(
           discordRichPresence: state.discordRichPresence,
           nodejsCheckPassed: state.nodejsCheckPassed,
           inspectorQuickPrompts: state.inspectorQuickPrompts,
-          agentPaneUIModes: state.agentPaneUIModes,
-          showAgentReasoning: state.showAgentReasoning,
         };
 
         if (state.saveWorkspaceState) {
@@ -2069,8 +1968,6 @@ export const useAppStore = create<AppState>()(
             lastOpenedWorkspaceId: state.lastOpenedWorkspaceId,
             explorerOpen: state.explorerOpen,
             activeViewByWorkspace: state.activeViewByWorkspace,
-            activeAgentSessionByWorkspace: state.activeAgentSessionByWorkspace,
-            agentSessionsByWorkspace: state.agentSessionsByWorkspace,
             activeFileByWorkspace: state.activeFileByWorkspace,
             imageEditorByWorkspace: state.imageEditorByWorkspace,
             browserStateByWorkspace: Object.fromEntries(

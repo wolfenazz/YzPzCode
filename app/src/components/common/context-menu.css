@@ -1,0 +1,250 @@
+/*
+ * Context menus
+ *
+ * One look for every right-click menu in the app (global menu, file explorer,
+ * editor tabs). It follows the window chrome: 28px rows, 8px surface radius,
+ * 5px row radius, hairline dividers, solid surface, no glow or blur.
+ *
+ * Everything is derived from the theme tokens (--popover, --text-*, --accent,
+ * --destructive, --shadow-float), so dark, light, Claude, YzPz and custom
+ * themes need no per-theme overrides. Sizes are in rem so the menu follows the
+ * UI density setting like the rest of the chrome.
+ *
+ * Two flavours share the same rows:
+ *   Radix menus (global)   rows are highlighted through [data-highlighted]
+ *   plain menus            add .ctx-menu--plain; rows use :hover / :focus-visible
+ */
+
+.ctx-menu {
+  --ctx-row: 1.75rem;
+  --ctx-edge: color-mix(in srgb, var(--text-primary) 13%, transparent);
+  --ctx-rule: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --ctx-hover: color-mix(in srgb, var(--text-primary) 9%, transparent);
+
+  box-sizing: border-box;
+  min-width: 13.75rem;
+  max-width: min(20rem, calc(100vw - 1rem));
+  max-height: var(--radix-context-menu-content-available-height, none);
+  padding: 0.25rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--ctx-edge);
+  border-radius: 0.5rem;
+  background: var(--popover);
+  color: var(--popover-foreground, var(--text-primary));
+  box-shadow: var(--shadow-float), 0 1px 3px rgb(0 0 0 / 0.16);
+  font-family: var(--font-ui);
+  font-size: 0.8125rem;
+  /* Room for descenders: the label clips overflow so long theme names can ellipsise. */
+  line-height: 1.35;
+  outline: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transform-origin: var(--radix-context-menu-content-transform-origin, top left);
+}
+
+/* Floating menus (Radix) sit above dialogs and toasts but below the custom
+   cursor. Plain menus keep the z-index their host gives them. */
+.ctx-menu--popup {
+  z-index: 10000;
+}
+
+/* Plain menus bring their own entrance (framer-motion or .animate-popover-in);
+   a second animation here would fight them over transform and opacity. */
+.ctx-menu--popup[data-state='open'] {
+  animation: ctx-menu-in 120ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ctx-menu--popup[data-state='closed'] {
+  animation: ctx-menu-out 80ms ease-in both;
+}
+
+@keyframes ctx-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes ctx-menu-out {
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+/* ── Rows ─────────────────────────────────────────────────────────── */
+
+.ctx-item {
+  position: relative;
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: var(--ctx-row);
+  margin: 0;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.3125rem;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: background-color 90ms ease, color 90ms ease;
+}
+
+.ctx-item[data-highlighted],
+.ctx-item[data-state='open'],
+.ctx-menu--plain .ctx-item:hover:not(:disabled),
+.ctx-menu--plain .ctx-item:focus-visible {
+  background: var(--ctx-hover);
+}
+
+.ctx-item[data-disabled],
+.ctx-item:disabled {
+  opacity: 0.4;
+  cursor: default;
+  pointer-events: none;
+}
+
+.ctx-item__icon {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-secondary);
+  transition: color 90ms ease;
+}
+
+.ctx-item[data-highlighted] .ctx-item__icon,
+.ctx-item[data-state='open'] .ctx-item__icon,
+.ctx-menu--plain .ctx-item:hover:not(:disabled) .ctx-item__icon {
+  color: var(--text-primary);
+}
+
+.ctx-item__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Shortcut hint, or a trailing glyph such as the submenu caret or a check. */
+.ctx-item__kbd {
+  flex: none;
+  margin-left: auto;
+  padding-left: 1.5rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.ctx-item__caret,
+.ctx-item__check {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+
+.ctx-item__check {
+  color: var(--accent);
+}
+
+/* A submenu trigger and a shortcut never share a row, so the caret hugs the
+   edge exactly where a shortcut would end. */
+.ctx-item__caret {
+  margin-right: -0.125rem;
+}
+
+.ctx-item--danger {
+  color: var(--destructive);
+}
+
+.ctx-item--danger .ctx-item__icon {
+  color: inherit;
+}
+
+.ctx-item--danger[data-highlighted],
+.ctx-menu--plain .ctx-item--danger:hover:not(:disabled),
+.ctx-menu--plain .ctx-item--danger:focus-visible {
+  background: color-mix(in srgb, var(--destructive) 14%, transparent);
+}
+
+/* Plain menus carry no icons, so give the labels a slightly deeper inset and
+   keep shortcuts on the far edge. */
+.ctx-menu--plain .ctx-item {
+  justify-content: space-between;
+  padding-inline: 0.625rem;
+}
+
+.ctx-menu--plain .ctx-item__kbd {
+  padding-left: 1.5rem;
+}
+
+/* ── Structure ────────────────────────────────────────────────────── */
+
+.ctx-sep {
+  flex: none;
+  height: 1px;
+  margin: 0.25rem 0.375rem;
+  background: var(--ctx-rule);
+}
+
+/* Product line at the foot of the global menu: mark, name, version. */
+.ctx-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.375rem 0.5rem 0.25rem;
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  cursor: default;
+}
+
+.ctx-foot__mark {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 0.1875rem;
+  object-fit: contain;
+  opacity: 0.9;
+}
+
+.ctx-foot__name {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.ctx-foot__version {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+/* ── Motion ───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ctx-menu,
+  .ctx-menu--popup[data-state='open'],
+  .ctx-menu--popup[data-state='closed'] {
+    animation: none !important;
+  }
+
+  .ctx-item,
+  .ctx-item__icon {
+    transition: none !important;
+  }
+}

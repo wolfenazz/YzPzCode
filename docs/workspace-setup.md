@@ -15,7 +15,7 @@ initialization, IDE selection, and external terminal windows.
   are assigned with the + and − controls; unused terminals open as plain shells.
   Reducing the count trims allocations to fit, and No terminals clears them.
 - **Extensions:** select installed assistants, or choose Install & add. The
-  selected panels open when the workspace launches without consuming terminal
+  selected panels open in the Extensions view when the workspace launches without consuming terminal
   slots. Each supported assistant uses its bundled provider logo in setup,
   the workspace catalog, and panel headers.
 - **No terminals:** use extensions on their own, or open directly in the editor

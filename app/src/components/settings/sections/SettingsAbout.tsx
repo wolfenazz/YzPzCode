@@ -166,6 +166,11 @@ export const SettingsAbout: React.FC = () => {
           icon={<Scales size={16} aria-hidden="true" />}
           label="Proprietary"
         />
+        <SettingsRow
+          description="Workspace view and update icons: Solar by 480 Design, licensed under CC BY 4.0."
+          icon={<Scales size={16} aria-hidden="true" />}
+          label="Third-party icons"
+        />
       </SettingsGroup>
     </SettingsStack>
   );

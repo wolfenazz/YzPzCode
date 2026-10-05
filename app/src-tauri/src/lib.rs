@@ -1,6 +1,5 @@
 mod agent;
 mod agent_cli;
-mod agent_host;
 mod browser;
 mod commands;
 mod discord_presence;
@@ -14,7 +13,6 @@ mod utils;
 
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
-use agent_host::AgentHostManager;
 use browser::BrowserManager;
 use discord_presence::DiscordPresenceManager;
 use ide::IdeDetector;
@@ -71,7 +69,6 @@ pub fn run() {
     let browser_manager = BrowserManager::new();
     let ide_detector = IdeDetector::new();
     let discord_manager = DiscordPresenceManager::new();
-    let agent_host_manager = AgentHostManager::new();
     let open_file_manager = open_files::OpenFileManager::default();
     let extension_host_manager = extension_host::ExtensionHostManager::default();
     let launch_directory =
@@ -122,7 +119,6 @@ pub fn run() {
         .manage(browser_manager.clone())
         .manage(ide_detector.clone())
         .manage(discord_manager.clone())
-        .manage(agent_host_manager.clone())
         .manage(open_file_manager)
         .manage(extension_host_manager)
         .setup(move |app| {
@@ -132,7 +128,6 @@ pub fn run() {
             cli_launcher.set_app_handle(app.handle().clone());
             managed_command_manager.set_app_handle(app.handle().clone());
             browser_manager.set_app_handle(app.handle().clone());
-            agent_host_manager.set_app_handle(app.handle().clone());
 
             // On some Windows/WebView2 installations the configured window can
             // fail to materialize, leaving yzpzcode.exe alive with no top-level
@@ -172,7 +167,6 @@ pub fn run() {
                 let terminal_manager_clone = terminal_manager.clone();
                 let managed_command_manager_clone = managed_command_manager.clone();
                 let browser_manager_clone = browser_manager.clone();
-                let agent_host_manager_clone = agent_host_manager.clone();
 
                 app.listen("tauri://close-requested", move |_event| {
                     if let Err(e) = managed_command_manager_clone.stop_all() {
@@ -189,22 +183,6 @@ pub fn run() {
                             "Warning: failed to close browser views on close-requested: {}",
                             e
                         );
-                    }
-                    agent_host_manager_clone.shutdown();
-                });
-            }
-
-            // Warm the YZPZ Agent sidecar in the background right after launch
-            // so the first agent pane (new or resumed) opens immediately
-            // instead of paying the Node + ClineCore cold start on click.
-            // The keep-alive changes in AgentHostManager mean this warm sidecar
-            // stays ready for the whole app session.
-            {
-                let agent_host_manager_warm = agent_host_manager.clone();
-                tauri::async_runtime::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
-                    if let Err(error) = agent_host_manager_warm.ensure_running().await {
-                        eprintln!("[yzpz-agent] background pre-warm failed: {error}");
                     }
                 });
             }
@@ -348,52 +326,6 @@ pub fn run() {
                 commands::is_discord_presence_enabled,
                 commands::update_discord_activity,
                 commands::clear_discord_activity,
-                commands::ensure_agent_host,
-                commands::get_agent_host_status,
-                commands::create_agent_session,
-                commands::send_agent_message,
-                commands::resume_agent_session,
-                commands::abort_agent_session,
-                commands::stop_agent_session,
-                commands::close_agent_session,
-                commands::delete_agent_session,
-                commands::list_agent_sessions,
-                commands::get_agent_session,
-                commands::read_agent_messages,
-                commands::get_agent_session_preview,
-                commands::update_agent_session_title,
-                commands::update_agent_session_model,
-                commands::set_agent_fast_mode,
-                commands::list_pending_prompts,
-                commands::remove_pending_prompt,
-                commands::approve_agent_tool,
-                commands::get_agent_providers,
-                commands::get_agent_models,
-                commands::refresh_agent_catalogs,
-                commands::set_agent_provider_config,
-                commands::list_agent_provider_configs,
-                commands::remove_agent_provider_config,
-                commands::get_agent_provider_config_fields,
-                commands::login_agent_openai_codex,
-                commands::resolve_agent_oauth_prompt,
-                commands::get_agent_session_usage,
-                commands::update_agent_session_connection,
-                commands::get_agent_settings,
-                commands::update_agent_settings,
-                commands::set_agent_tool_policy,
-                commands::clear_agent_tool_policy,
-                commands::list_agent_user_instructions,
-                commands::add_agent_user_instruction,
-                commands::toggle_agent_user_instruction,
-                commands::list_agent_runtime_commands,
-                commands::answer_agent_question,
-                commands::list_agent_mcp_servers,
-                commands::add_agent_mcp_server,
-                commands::remove_agent_mcp_server,
-                commands::set_agent_mcp_server_disabled,
-                commands::shutdown_agent_host,
-                commands::translate_prompt_to_english,
-                commands::translate_text,
             ];
             move |invoke: tauri::ipc::Invoke| {
                 // Extension content uses VS Code's own API. It must never gain

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { ArrowRight, Check, CaretDown, FolderSimple, SlidersHorizontal, TerminalWindow } from '@phosphor-icons/react';
-import { MotionConfig, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion';
+import { ArrowLeft, ArrowRight, CaretDown, Check, Code, PuzzlePiece, TerminalWindow, WarningCircle } from '@phosphor-icons/react';
 import { DirectorySelector } from './DirectorySelector';
 import { LayoutSelector } from './LayoutSelector';
 import { AgentFleetConfig } from './AgentFleetConfig';
@@ -9,13 +10,17 @@ import { WorkspaceExtensionsConfig } from './WorkspaceExtensionsConfig';
 import { IdesSelector } from './IdesSelector';
 import { WorkspaceTemplatePicker } from './WorkspaceTemplatePicker';
 import { InitializeWorkspace } from './InitializeWorkspace';
-import { TerminalPreviewDemo } from './TerminalPreviewDemo';
+import { WorkspacePreview } from './WorkspacePreview';
+import { AGENT_IDS, cliMeta, slotAssignments } from './cliCatalog';
+import { MOD_KEY, SETUP_EASE, useSetupMotion } from './useSetupMotion';
 import SpotlightCard from '../reactbits/SpotlightCard';
 import CountUp from '../reactbits/CountUp';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
+import { IDE_DISPLAY_NAMES } from './ideConstants';
 import type { LayoutConfig, AgentFleet, ExtensionInstallProgress } from '../../types';
 import type { WorkspaceTemplate } from '../../hooks/useWorkspace';
+import './setup.css';
 
 export interface WorkspaceConfigFormProps {
   selectedPath: string;
@@ -49,37 +54,118 @@ export interface WorkspaceConfigFormProps {
   createError?: string | null;
 }
 
+type SectionState = 'done' | 'active' | 'todo';
+type Tab = 'agents' | 'tools' | 'extensions';
+
+function Section({ number, state, title, description, meta, last, children }: {
+  number: number; state: SectionState; title: string; description: string; meta?: ReactNode; last?: boolean; children: ReactNode;
+}): React.JSX.Element {
+  return (
+    <section className="ws-section" aria-label={title} data-last={last || undefined}>
+      <div className="ws-rail" aria-hidden="true">
+        <motion.span className="ws-rail__fill" initial={false} animate={{ scaleY: state === 'done' ? 1 : 0 }} transition={{ duration: 0.5, ease: SETUP_EASE }} />
+        <span className="ws-rail__dot" data-state={state}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span key={state === 'done' ? 'done' : 'num'} className="flex" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 600, damping: 30 }}>
+              {state === 'done' ? <Check size={13} weight="bold" /> : number}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+      </div>
+      <div className="min-w-0">
+        <div className="ws-section__head">
+          <div className="min-w-0">
+            <h2 className="ws-section__title">{title}</h2>
+            <p className="ws-section__desc">{description}</p>
+          </div>
+          {meta && <div className="ws-section__meta">{meta}</div>}
+        </div>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function SlotMeter({ sessions, fleet }: { sessions: number; fleet: AgentFleet }): React.JSX.Element {
+  const slots = slotAssignments(sessions, fleet);
+  const assigned = slots.filter(Boolean).length;
+  return (
+    <div className="ws-meter">
+      <div className="ws-meter__track" aria-hidden="true">
+        {slots.map((cli, index) => (
+          <span key={index} className="ws-meter__slot" title={cli ? cliMeta(cli).label : 'Plain shell'}>
+            <motion.span className="ws-meter__fill" initial={false} style={{ background: cli ? cliMeta(cli).color : 'transparent', transformOrigin: 'left' }}
+              animate={{ scaleX: cli ? 1 : 0 }} transition={{ duration: 0.32, ease: SETUP_EASE }} />
+          </span>
+        ))}
+      </div>
+      <span className="ws-meter__text" role="status">
+        <strong>{assigned}</strong> of {sessions} assigned{sessions - assigned > 0 ? ` · ${sessions - assigned} plain shell${sessions - assigned === 1 ? '' : 's'}` : ''}
+      </span>
+    </div>
+  );
+}
 
 export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.Element {
-  const [step, setStep] = useState<'project' | 'tools'>('project');
-  const [tab, setTab] = useState<'agents' | 'extensions' | 'tools'>('agents');
-  const [advanced, setAdvanced] = useState(false);
-  const [advancedVisited, setAdvancedVisited] = useState(false);
-  // Setup motion honours both the app-level "animations" preference and the OS
-  // reduced-motion setting, so the preview card and count-ups stay static when
-  // either one asks for it.
-  const animationsEnabled = useAppStore((state) => state.animationsEnabled);
-  const reduceMotion = useReducedMotion();
-  const motionEnabled = animationsEnabled && !reduceMotion;
+  const motionEnabled = useSetupMotion();
+  const [step, setStep] = useState<'project' | 'setup'>('project');
+  const [tab, setTab] = useState<Tab>('agents');
+  const [moreOpen, setMoreOpen] = useState(false);
   const installing = useExtensionStore((state) => state.installing);
   const catalog = useExtensionStore((state) => state.catalog);
   const backendReady = useExtensionStore((state) => state.backendReady);
+  const selectedIdes = useAppStore((state) => state.selectedIdes);
+  const ideStatuses = useAppStore((state) => state.ideStatuses);
+
+  const sessions = props.selectedLayout.sessions;
   const selectedExtensionsReady = props.selectedExtensionIds.every((id) => backendReady && catalog.some((extension) => extension.id === id && extension.installedVersion));
   const canOpen = props.isValid && selectedExtensionsReady && installing.length === 0 && !props.isLoading;
   const projectReady = Boolean(props.selectedPath && (props.isExternalMode || props.workspaceName.trim()));
   const showProject = !props.guided || step === 'project';
-  const showTools = !props.guided || step === 'tools';
-  // Derived values shared by the preview sidebar: how many terminals are claimed
-  // by agents and tool CLIs, how many stay plain shells, and what the workspace
-  // will be called once it opens (falling back to the folder name).
+  const showSetup = !props.guided || step === 'setup';
+  const continuing = Boolean(props.guided && step === 'project');
   const allocated = Object.values(props.agentFleet.allocation).reduce((sum, count) => sum + count, 0);
-  const shells = Math.max(0, props.selectedLayout.sessions - allocated);
   const folderName = props.selectedPath.replace(/\\/g, '/').split('/').filter(Boolean).at(-1);
-  const launchTitle = props.workspaceName.trim() || folderName || 'Your workspace';
+  const launchTitle = props.workspaceName.trim() || folderName || 'New workspace';
   const selectedTemplate = props.templates.find((template) => template.id === props.selectedTemplateId);
-  // Only surface the name error once a folder is chosen — an empty name is not
-  // invalid while the user is still filling in the project step.
+  const extensionNames = props.selectedExtensionIds.map((id) => catalog.find((extension) => extension.id === id)?.name ?? id);
+  const launchIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed !== false);
+  // Only surface the name error once a folder is chosen: an empty name is not
+  // invalid while the user is still picking a project.
   const nameError = props.selectedPath ? props.validationErrors.workspaceName : undefined;
+  const fleetReady = props.isAllocationValid && selectedExtensionsReady;
+  const externalAvailable = sessions > 0 && props.selectedExtensionIds.length === 0;
+
+  const blocker = !props.selectedPath ? 'Choose a project folder to continue.'
+    : !projectReady ? 'Give your workspace a name.'
+      : continuing ? null
+        : !props.isAllocationValid ? (props.validationErrors.allocation || 'Adjust the terminal assignments.')
+          : installing.length > 0 ? 'Waiting for extensions to finish installing…'
+            : !selectedExtensionsReady ? 'Install or deselect unavailable extensions.'
+              : null;
+  const primaryEnabled = continuing ? projectReady && !props.isLoading : canOpen;
+  const primaryLabel = props.isLoading ? 'Opening workspace' : continuing ? 'Continue' : props.isExternalMode ? 'Open terminals' : 'Open workspace';
+
+  const primaryAction = (): void => {
+    if (!primaryEnabled) return;
+    if (continuing) setStep('setup');
+    else props.onCreateWorkspace();
+  };
+
+  // Keyboard: Ctrl/⌘+Enter launches (or continues), Ctrl/⌘+O picks a folder.
+  const shortcuts = useRef({ primaryAction, selectDirectory: props.onSelectDirectory });
+  shortcuts.current = { primaryAction, selectDirectory: props.onSelectDirectory };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      if (event.key === 'Enter') { event.preventDefault(); shortcuts.current.primaryAction(); }
+      else if (event.key.toLowerCase() === 'o') { event.preventDefault(); shortcuts.current.selectDirectory(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     void useExtensionStore.getState().refreshCatalog();
@@ -93,150 +179,229 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
     return () => { disposed = true; unlisten?.(); };
   }, []);
 
+  const states: Record<'project' | 'layout' | 'fleet', SectionState> = {
+    project: projectReady ? 'done' : 'active',
+    layout: projectReady ? 'done' : 'todo',
+    fleet: projectReady && fleetReady ? 'done' : projectReady ? 'active' : 'todo',
+  };
+
+  const agentCount = AGENT_IDS.reduce((sum, cli) => sum + (props.agentFleet.allocation[cli] ?? 0), 0);
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: 'agents', label: 'Agents', count: agentCount },
+    { id: 'tools', label: 'Tool CLIs', count: allocated - agentCount },
+    { id: 'extensions', label: 'Extensions', count: props.selectedExtensionIds.length },
+  ];
+
+  const stagger = (index: number) => ({
+    initial: motionEnabled ? { opacity: 0, y: 12 } : false,
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.45, ease: SETUP_EASE, delay: motionEnabled ? 0.06 * index : 0 },
+  });
+
   return (
-    <MotionConfig reducedMotion={motionEnabled ? 'user' : 'always'} transition={motionEnabled ? undefined : { duration: 0 }}>
-      <div className="mx-auto w-full max-w-6xl rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-primary)] p-5 text-[var(--text-primary)] sm:p-8 [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-2 [&_button:focus-visible]:outline-[var(--accent)] [&_input:focus-visible]:outline-2 [&_input:focus-visible]:outline-offset-2 [&_input:focus-visible]:outline-[var(--accent)]">
-        <header className="mb-9 flex flex-wrap items-end justify-between gap-5 border-b border-[var(--border-primary)] pb-7">
+    <MotionConfig reducedMotion={motionEnabled ? 'user' : 'always'}>
+      <div className="ws">
+        <motion.header className="ws-hero" {...stagger(0)}>
           <div>
-            <p className="mb-3 text-xs font-medium text-[var(--text-secondary)]">Workspace setup</p>
-            <h1 className="font-[var(--font-display)] text-[clamp(1.75rem,3.4vw,2.75rem)] font-semibold leading-tight tracking-[-0.045em]">Configure workspace</h1>
-            <p className="mt-3 max-w-lg text-sm leading-relaxed text-[var(--text-secondary)]">Choose a project and the tools you want ready at launch.</p>
+            <div className="ws-eyebrow"><span className="ws-eyebrow__dot" />New workspace</div>
+            <h1 className="ws-title">Set up your workspace</h1>
+            <p className="ws-subtitle">Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.</p>
           </div>
-          {props.guided ? <nav aria-label="Setup steps" className="flex items-center gap-3 text-xs">
-            <button type="button" aria-current={step === 'project' ? 'step' : undefined} disabled={props.isLoading} onClick={() => setStep('project')}
-              className={`flex items-center gap-2 rounded-md p-2 ${step === 'project' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-              <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${step === 'project' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--border-primary)]'}`}>{projectReady && step === 'tools' ? <Check size={12} /> : '1'}</span>Project
-            </button>
-            <span aria-hidden="true" className="h-px w-6 bg-[var(--border-primary)]" />
-            <button type="button" aria-current={step === 'tools' ? 'step' : undefined} disabled={!projectReady || props.isLoading} onClick={() => setStep('tools')}
-              className={`flex items-center gap-2 rounded-md p-2 disabled:opacity-40 ${step === 'tools' ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`}>
-              <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${step === 'tools' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-[var(--border-primary)]'}`}>2</span>Tools
-            </button>
-          </nav> : <span className="flex items-center gap-1.5 pb-1 text-xs text-[var(--text-secondary)]"><FolderSimple size={14} /> Local workspace</span>}
-        </header>
-
-        {/* Two-column shell: numbered setup steps on the left, sticky preview +
-          launch controls on the right (single column below the lg breakpoint). */}
-        <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-10">
-          <div className="min-w-0 space-y-7">
-            <section hidden={!showProject} aria-labelledby="workspace-project-heading">
-              <div className="mb-5 flex items-start gap-3">
-                <span aria-hidden="true" className="pt-0.5 font-mono text-xs text-[var(--text-secondary)]/60">01</span>
-                <div><h2 id="workspace-project-heading" className="text-base font-semibold tracking-tight">Project details</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Choose where your workspace lives.</p></div>
-              </div>
-              <div className="space-y-4">
-                <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory} errorMessage={props.selectedPath ? props.validationErrors.directory : undefined} />
-                <div>
-                  <label htmlFor="workspace-name" className="mb-2 block text-sm font-medium">Workspace name</label>
-                  <input id="workspace-name" type="text" value={props.workspaceName} onChange={(event) => props.onWorkspaceNameChange(event.target.value)}
-                    aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'workspace-name-error' : 'workspace-name-hint'}
-                    placeholder="e.g. My next project" className="h-11 w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3.5 text-sm placeholder:text-[var(--text-secondary)]/60" />
-                  {nameError ? <p id="workspace-name-error" role="alert" className="mt-2 text-xs text-rose-400">{nameError}</p>
-                    : <p id="workspace-name-hint" className="mt-2 text-xs text-[var(--text-secondary)]">Filled from your folder. Use a name you'll recognize.</p>}
-                </div>
-              </div>
-            </section>
-
-            <section hidden={!showTools} aria-labelledby="workspace-tools-heading" className={`${showProject ? 'border-t border-[var(--border-primary)] pt-7' : ''} space-y-5`}>
-              <div className="flex items-start gap-3">
-                <span aria-hidden="true" className="pt-0.5 font-mono text-xs text-[var(--text-secondary)]/60">02</span>
-                <div><h2 id="workspace-tools-heading" className="text-base font-semibold tracking-tight">Build your setup</h2><p className="mt-1 text-xs text-[var(--text-secondary)]">Set your layout and choose what runs inside it.</p></div>
-              </div>
-              {/* The live layout preview lives in the sidebar, so the inline preview is
-                disabled here to avoid showing the same mock twice. */}
-              <LayoutSelector selectedLayout={props.selectedLayout} onSelectLayout={props.onLayoutSelect} agentFleet={props.agentFleet} showPreview={false} />
-              <div className="space-y-4">
-                <div className="flex gap-5 border-b border-[var(--border-primary)]" role="group" aria-label="Launch tools">
-                  {([{ id: 'agents', label: 'CLI agents' }, { id: 'extensions', label: 'Extensions' }, { id: 'tools', label: 'Tool CLIs' }] as const).map((item) => (
-                    <button key={item.id} type="button" aria-pressed={tab === item.id} onClick={() => setTab(item.id)}
-                      className={`relative border-b-2 px-0.5 pb-3 pt-1 text-sm font-medium transition-colors ${tab === item.id ? 'border-[var(--accent)] text-[var(--text-primary)]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}>
-                      {item.label}{item.id === 'extensions' && props.selectedExtensionIds.length > 0 && <span className="ml-1.5 rounded bg-[var(--bg-tertiary)] px-1.5 py-0.5 text-[10px] tabular-nums">{props.selectedExtensionIds.length}</span>}
-                    </button>
-                  ))}
-                </div>
-                {/* Agent allocation is pointless with zero terminals, so that case gets an
-                editor-first prompt instead. The allocation list is keyed by tab
-                to reset its internal scroll/expansion state on switch. */}
-                {showTools && (tab === 'extensions'
-                  ? <WorkspaceExtensionsConfig selectedIds={props.selectedExtensionIds} onToggle={props.onToggleExtension} />
-                  : props.selectedLayout.sessions === 0
-                    ? <div className="rounded-lg border border-dashed border-[var(--border-primary)] p-5">
-                        <TerminalWindow size={22} className="mb-3 text-[var(--text-secondary)]" />
-                        <p className="text-sm font-medium">An editor-first workspace</p>
-                        <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">Add extensions, or choose a terminal layout to run CLI agents.</p>
-                        <button type="button" className="mt-3 text-xs font-medium text-[var(--accent)]" onClick={() => setTab('extensions')}>Explore extensions <span aria-hidden="true">→</span></button>
-                      </div>
-                    : <AgentFleetConfig key={tab} fleet={props.agentFleet} category={tab} onAllocationChange={props.onAllocationChange} />)}
-                {!props.isAllocationValid && <p role="alert" className="text-xs text-rose-400">{props.validationErrors.allocation}</p>}
-                {!selectedExtensionsReady && <p role="alert" className="text-xs text-rose-400">Install or deselect unavailable extensions before opening the workspace.</p>}
-              </div>
-            </section>
-
-            <div className="border-t border-[var(--border-primary)] pt-5">
-              <button type="button" aria-expanded={advanced} aria-controls="workspace-more-options" onClick={() => { setAdvanced(!advanced); setAdvancedVisited(true); }}
-                className="flex w-full items-center gap-3 rounded-md py-1 text-left text-[var(--text-secondary)] transition-colors hover:text-[var(--text-primary)]">
-                <SlidersHorizontal size={18} className="shrink-0" />
-                <span className="flex-1"><span className="block text-sm font-medium">More options</span><span className="mt-1 block text-xs">Templates, project setup & IDEs</span></span>
-                <CaretDown size={14} className={`transition-transform ${advanced ? 'rotate-180' : ''}`} />
-              </button>
-              {advancedVisited && <div id="workspace-more-options" hidden={!advanced} className="space-y-5 pt-5">
-                <WorkspaceTemplatePicker selectedTemplateId={props.selectedTemplateId} templates={props.templates} onSelectTemplate={props.onTemplateSelect}
-                  onReapplyTemplate={props.onReapplyTemplate} onDeleteTemplate={props.onDeleteTemplate} onSaveCustomTemplate={props.onSaveCustomTemplate}
-                  onUpdateTemplate={props.onUpdateTemplate} onRestoreDefaults={props.onRestoreDefaults} />
-                <InitializeWorkspace selectedPath={props.selectedPath} />
-                <IdesSelector selectedPath={props.selectedPath} />
-                <label className="flex items-start gap-3 text-sm text-[var(--text-secondary)]">
-                  <input type="checkbox" className="mt-1 accent-[var(--accent)]" checked={Boolean(props.selectedLayout.openExternally)}
-                    disabled={props.selectedLayout.sessions === 0 || props.selectedExtensionIds.length > 0}
-                    onChange={(event) => props.onLayoutSelect({ ...props.selectedLayout, openExternally: event.target.checked })} />
-                  <span>Open terminals in external windows
-                    {(props.selectedLayout.sessions === 0 || props.selectedExtensionIds.length > 0) && <span className="mt-1 block text-xs">Available with terminals and no workspace extensions selected.</span>}
-                  </span>
-                </label>
-              </div>}
-            </div>
-          </div>
-
-          {/* Sticky preview sidebar: mirrors the chosen layout, the launch summary, and
-              the primary launch action so it stays visible while scrolling. */}
-          <aside aria-label="Workspace preview and launch" className="min-w-0 lg:sticky lg:top-8">
-            <SpotlightCard disabled={!motionEnabled} className="rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-5 sm:p-6">
-              <div className="mb-6 flex items-center justify-between gap-3">
-                <span className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]"><TerminalWindow size={15} /> Workspace preview</span>
-                <span className="font-mono text-[10px] text-[var(--text-secondary)]/65">{props.selectedLayout.sessions === 0 ? 'EDITOR' : props.selectedLayout.openExternally ? 'EXTERNAL' : 'GRID'}</span>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)]"><FolderSimple size={21} weight="duotone" /></div>
-                <div className="min-w-0"><h2 className="truncate text-lg font-semibold tracking-tight" title={launchTitle}>{launchTitle}</h2>
-                  <p className="mt-1 truncate font-mono text-[10px] text-[var(--text-secondary)]" title={props.selectedPath || undefined}>{props.selectedPath || 'Choose a project folder to begin'}</p></div>
-              </div>
-              <div className="mt-5"><TerminalPreviewDemo sessions={props.selectedLayout.sessions} agentFleet={props.agentFleet} /></div>
-              {/* Animated tallies. Each CountUp keeps an sr-only copy of the value so screen
-                readers still announce the number when motion is disabled. */}
-              <dl className="mt-5 grid grid-cols-3 divide-x divide-[var(--border-primary)] border-y border-[var(--border-primary)] py-4">
-                {([{ label: 'Terminals', count: props.selectedLayout.sessions }, { label: 'Assigned', count: allocated }, { label: 'Extensions', count: props.selectedExtensionIds.length }]).map(({ label, count }) => (
-                  <div key={label} className="px-3 first:pl-0 last:pr-0"><dt className="text-[11px] text-[var(--text-secondary)]">{label}</dt><dd className="mt-1.5 text-2xl font-medium leading-none tracking-tight tabular-nums"><span className="sr-only">{count}</span><CountUp to={count} disabled={!motionEnabled} /></dd></div>
-                ))}
-              </dl>
-              <div className="mt-4 flex items-center justify-between gap-3 text-xs"><span className="text-[var(--text-secondary)]">Launch mode</span><span>{props.isExternalMode ? 'External terminals' : props.selectedLayout.sessions === 0 ? 'Editor & extensions' : 'In-app terminals'}</span></div>
-              {selectedTemplate && <div className="mt-2.5 flex items-center justify-between gap-3 text-xs"><span className="text-[var(--text-secondary)]">Template</span><span className="truncate">{selectedTemplate.name}</span></div>}
-              <p className="mt-4 text-xs leading-relaxed text-[var(--text-secondary)]" role="status">{props.selectedLayout.sessions === 0 ? 'Your editor opens with the selected extensions.' : `${allocated} assigned ${allocated === 1 ? 'terminal' : 'terminals'} · ${shells} ${shells === 1 ? 'plain shell' : 'plain shells'}`}</p>
-
-              <div className="mt-6 border-t border-[var(--border-primary)] pt-5">
-                {props.createError && <p role="alert" className="mb-3 text-xs leading-relaxed text-rose-400">{props.createError}</p>}
-                <button type="button" onClick={props.guided && step === 'project' ? () => setStep('tools') : props.onCreateWorkspace}
-                  disabled={props.guided && step === 'project' ? !projectReady || props.isLoading : !canOpen}
-                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg bg-[var(--text-primary)] px-4 py-3 text-sm font-semibold text-[var(--bg-primary)] transition-opacity hover:opacity-85 active:opacity-70 disabled:opacity-35">
-                  <span>{props.isLoading ? 'Opening…' : props.guided && step === 'project' ? 'Continue to tools' : installing.length > 0 ? 'Installing…' : props.isExternalMode ? 'Open terminals' : 'Open workspace'}</span>
-                  <ArrowRight size={17} aria-hidden="true" />
+          {props.guided ? (
+            <nav className="ws-steps" aria-label="Setup steps">
+              {([{ id: 'project', label: 'Project' }, { id: 'setup', label: 'Layout & agents' }] as const).map((item, index) => (
+                <button key={item.id} type="button" className="ws-steps__item" aria-current={step === item.id ? 'step' : undefined}
+                  disabled={props.isLoading || (item.id === 'setup' && !projectReady)} onClick={() => setStep(item.id)}>
+                  {step === item.id && <motion.span layoutId="ws-step-pill" className="ws-steps__pill" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
+                  <span className="ws-steps__num">{item.id === 'project' && projectReady && step === 'setup' ? <Check size={10} weight="bold" /> : index + 1}</span>
+                  <span>{item.label}</span>
                 </button>
-                <p className="mt-3 text-center text-[11px] text-[var(--text-secondary)]">{!projectReady ? 'Select a folder and name your workspace.' : props.guided && step === 'project' ? 'Next, choose your layout and launch tools.' : !selectedExtensionsReady ? 'Install selected extensions to continue.' : !props.isAllocationValid ? 'Adjust your terminal allocation to continue.' : 'You can change your setup after opening.'}</p>
-                {props.guided && step === 'tools'
-                  ? <button type="button" disabled={props.isLoading} onClick={() => setStep('project')} className="mt-4 w-full rounded-md py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Back to project</button>
-                  : props.hasOpenWorkspaces && props.onCancel && <button type="button" disabled={props.isLoading} onClick={props.onCancel} className="mt-4 w-full rounded-md py-1 text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)]">Cancel and return to workspace</button>}
+              ))}
+            </nav>
+          ) : (
+            <div className="ws-hints" aria-hidden="true">
+              <span><span className="ws-kbd">{MOD_KEY}</span><span className="ws-kbd">O</span> Choose folder</span>
+              <span><span className="ws-kbd">{MOD_KEY}</span><span className="ws-kbd">↵</span> Open</span>
+            </div>
+          )}
+        </motion.header>
+
+        <div className="ws-layout">
+          <motion.div className="min-w-0" {...stagger(1)}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div key={props.guided ? step : 'all'}
+                initial={motionEnabled ? { opacity: 0, x: step === 'setup' ? 16 : -16 } : false}
+                animate={{ opacity: 1, x: 0 }}
+                exit={motionEnabled ? { opacity: 0, x: step === 'setup' ? -16 : 16 } : undefined}
+                transition={{ duration: 0.26, ease: SETUP_EASE }}>
+                {showProject && (
+                  <Section number={1} state={states.project} title="Project" description="The folder your terminals, agents, and editor open in.">
+                    <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory}
+                      errorMessage={props.selectedPath ? props.validationErrors.directory : undefined} />
+                    <AnimatePresence initial={false}>
+                      {props.selectedPath && (
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: SETUP_EASE }} className="overflow-hidden">
+                          <div className="pt-5">
+                            <label htmlFor="workspace-name" className="ws-label">Workspace name</label>
+                            <input id="workspace-name" className="ws-input" type="text" value={props.workspaceName} onChange={(event) => props.onWorkspaceNameChange(event.target.value)}
+                              aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'workspace-name-error' : 'workspace-name-hint'} placeholder={folderName || 'My project'} />
+                            {nameError
+                              ? <p id="workspace-name-error" role="alert" className="ws-error"><WarningCircle size={14} />{nameError}</p>
+                              : <p id="workspace-name-hint" className="ws-help">Shown on the workspace tab. Defaults to the folder name.</p>}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </Section>
+                )}
+
+                {showSetup && (
+                  <>
+                    <Section number={2} state={states.layout} title="Layout" description="Start from a preset or choose how many terminals open."
+                      meta={selectedTemplate ? <span title="Active preset">{selectedTemplate.name}</span> : undefined}>
+                      <WorkspaceTemplatePicker selectedTemplateId={props.selectedTemplateId} templates={props.templates} onSelectTemplate={props.onTemplateSelect}
+                        onReapplyTemplate={props.onReapplyTemplate} onDeleteTemplate={props.onDeleteTemplate} onSaveCustomTemplate={props.onSaveCustomTemplate}
+                        onUpdateTemplate={props.onUpdateTemplate} onRestoreDefaults={props.onRestoreDefaults} />
+                      <LayoutSelector selectedLayout={props.selectedLayout} onSelectLayout={props.onLayoutSelect} />
+                      <AnimatePresence initial={false}>
+                        {sessions > 0 && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.26, ease: SETUP_EASE }} className="overflow-hidden">
+                            <div className="ws-switch-row" data-disabled={!externalAvailable}>
+                              <div>
+                                <div className="ws-switch-row__title" id="ws-external-label">Open in separate windows</div>
+                                <div className="ws-switch-row__desc">{externalAvailable ? 'Launch each terminal as its own OS window, tiled across the screen.' : 'Not available while workspace extensions are selected.'}</div>
+                              </div>
+                              <button type="button" role="switch" className="ws-switch" aria-labelledby="ws-external-label" aria-checked={Boolean(props.selectedLayout.openExternally)}
+                                disabled={!externalAvailable} onClick={() => props.onLayoutSelect({ ...props.selectedLayout, openExternally: !props.selectedLayout.openExternally })} />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </Section>
+
+                    <Section number={3} last state={states.fleet} title="Agents & tools" description="Assign agents and tool CLIs to terminals, or add editor extensions."
+                      meta={sessions > 0 ? `${allocated}/${sessions} terminals` : undefined}>
+                      {sessions > 0 && tab !== 'extensions' && <SlotMeter sessions={sessions} fleet={props.agentFleet} />}
+                      <LayoutGroup id="ws-tabs">
+                        <div className="ws-tabs" role="tablist" aria-label="Launch tools">
+                          {tabs.map((item) => (
+                            <button key={item.id} type="button" role="tab" id={`ws-tab-${item.id}`} aria-controls="ws-tabpanel" aria-selected={tab === item.id} className="ws-tab" onClick={() => setTab(item.id)}>
+                              {item.label}
+                              {item.count > 0 && <span className="ws-count">{item.count}</span>}
+                              {tab === item.id && <motion.span layoutId="ws-tab-line" className="ws-tab__line" transition={{ type: 'spring', stiffness: 520, damping: 42 }} />}
+                            </button>
+                          ))}
+                        </div>
+                      </LayoutGroup>
+                      <div id="ws-tabpanel" role="tabpanel" aria-labelledby={`ws-tab-${tab}`}>
+                        <AnimatePresence mode="wait" initial={false}>
+                          <motion.div key={tab} initial={motionEnabled ? { opacity: 0, y: 6 } : false} animate={{ opacity: 1, y: 0 }} exit={motionEnabled ? { opacity: 0, y: -6 } : undefined}
+                            transition={{ duration: 0.18, ease: SETUP_EASE }}>
+                            {tab === 'extensions'
+                              ? <WorkspaceExtensionsConfig selectedIds={props.selectedExtensionIds} onToggle={props.onToggleExtension} />
+                              : sessions === 0
+                                ? (
+                                  <div className="ws-callout">
+                                    <span className="ws-row__logo"><Code size={16} /></span>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[0.8125rem] font-medium">This is an editor-only workspace</p>
+                                      <p className="mt-1 text-xs leading-relaxed text-[var(--text-secondary)]">Agents and tool CLIs run in terminals. Add a terminal to assign one, or open extensions in the editor instead.</p>
+                                      <div className="mt-3 flex flex-wrap gap-2">
+                                        <button type="button" className="ws-btn ws-btn--sm" onClick={() => props.onLayoutSelect({ type: 'grid', sessions: 1 })}><TerminalWindow size={13} />Add a terminal</button>
+                                        <button type="button" className="ws-btn ws-btn--sm ws-btn--ghost" onClick={() => setTab('extensions')}><PuzzlePiece size={13} />Browse extensions</button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                                : <AgentFleetConfig fleet={props.agentFleet} category={tab} onAllocationChange={props.onAllocationChange} />}
+                          </motion.div>
+                        </AnimatePresence>
+                        {!props.isAllocationValid && props.validationErrors.allocation && <p role="alert" className="ws-error"><WarningCircle size={14} />{props.validationErrors.allocation}</p>}
+                        {!selectedExtensionsReady && <p role="alert" className="ws-error"><WarningCircle size={14} />Install or deselect unavailable extensions before opening the workspace.</p>}
+                      </div>
+                    </Section>
+
+                    <div className="ws-more">
+                      <button type="button" className="ws-more__toggle" aria-expanded={moreOpen} aria-controls="ws-more-options" onClick={() => setMoreOpen((open) => !open)}>
+                        <span className="min-w-0 flex-1"><strong>More options</strong><span>Open in your editors and scaffold a new project</span></span>
+                        <motion.span animate={{ rotate: moreOpen ? 180 : 0 }} transition={{ duration: 0.25, ease: SETUP_EASE }} className="flex"><CaretDown size={14} /></motion.span>
+                      </button>
+                      <AnimatePresence initial={false}>
+                        {moreOpen && (
+                          <motion.div id="ws-more-options" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.32, ease: SETUP_EASE }} className="overflow-hidden">
+                            <div className="pb-2">
+                              <div className="ws-subsection">
+                                <div className="ws-subsection__head"><div><div className="ws-subsection__title">Also open in</div><div className="ws-subsection__desc">Launch these editors on the project when the workspace opens.</div></div></div>
+                                <IdesSelector />
+                              </div>
+                              <div className="ws-subsection">
+                                <div className="ws-subsection__head"><div><div className="ws-subsection__title">Scaffold a new project</div><div className="ws-subsection__desc">Run a starter template inside the project folder before you open it.</div></div></div>
+                                <InitializeWorkspace selectedPath={props.selectedPath} />
+                              </div>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            </AnimatePresence>
+          </motion.div>
+
+          {/* Sticky preview: mirrors every choice live and holds the launch action. */}
+          <motion.aside className="ws-aside min-w-0" aria-label="Workspace preview and launch" {...stagger(2)}>
+            <SpotlightCard disabled={!motionEnabled} className="ws-panel">
+              <div className="ws-panel__section">
+                <WorkspacePreview title={launchTitle} folderName={folderName} sessions={sessions} agentFleet={props.agentFleet}
+                  extensionNames={extensionNames} external={props.isExternalMode} />
+              </div>
+              <div className="ws-panel__section">
+                <dl className="ws-stats">
+                  {[{ label: 'Terminals', count: sessions }, { label: 'Assigned', count: allocated }, { label: 'Extensions', count: props.selectedExtensionIds.length }].map(({ label, count }) => (
+                    <div key={label}><dt>{label}</dt><dd><span className="sr-only">{count}</span><CountUp to={count} disabled={!motionEnabled} /></dd></div>
+                  ))}
+                </dl>
+              </div>
+              <div className="ws-panel__section">
+                <dl className="ws-summary">
+                  <div className="ws-summary__row"><dt>Folder</dt><dd className="font-mono text-xs" title={props.selectedPath || undefined}>{folderName ?? '—'}</dd></div>
+                  <div className="ws-summary__row"><dt>Opens as</dt><dd>{sessions === 0 ? 'Editor' : props.isExternalMode ? 'Separate windows' : 'Terminal grid'}</dd></div>
+                  {selectedTemplate && <div className="ws-summary__row"><dt>Preset</dt><dd>{selectedTemplate.name}</dd></div>}
+                  {launchIdes.length > 0 && <div className="ws-summary__row"><dt>Also opens</dt><dd title={launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}>{launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}</dd></div>}
+                </dl>
+              </div>
+              <div className="ws-panel__section">
+                <AnimatePresence>
+                  {props.createError && (
+                    <motion.p role="alert" className="ws-error ws-error--block" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                      <WarningCircle size={14} className="shrink-0" />{props.createError}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+                <button type="button" className="ws-launch" onClick={primaryAction} disabled={!primaryEnabled} aria-keyshortcuts="Control+Enter Meta+Enter">
+                  <span className="flex items-center gap-2.5">
+                    {props.isLoading && <span className="ws-spinner" />}
+                    {primaryLabel}
+                  </span>
+                  {!props.isLoading && <span className="ws-launch__kbd">{MOD_KEY} ↵</span>}
+                  <span className="ws-launch__arrow"><ArrowRight size={16} weight="bold" /></span>
+                </button>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.p key={blocker ?? (continuing ? 'continue' : 'ready')} className="ws-blocker" role="status"
+                    initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18 }}>
+                    {blocker ?? (continuing ? 'Next, choose a layout and your agents.' : 'Ready when you are.')}
+                  </motion.p>
+                </AnimatePresence>
+                {props.guided && step === 'setup'
+                  ? <div className="mt-3 text-center"><button type="button" className="ws-link inline-flex items-center gap-1" disabled={props.isLoading} onClick={() => setStep('project')}><ArrowLeft size={12} />Back to project</button></div>
+                  : props.hasOpenWorkspaces && props.onCancel && <div className="mt-3 text-center"><button type="button" className="ws-link" disabled={props.isLoading} onClick={props.onCancel}>Cancel and return to workspace</button></div>}
               </div>
             </SpotlightCard>
-          </aside>
+          </motion.aside>
         </div>
       </div>
     </MotionConfig>

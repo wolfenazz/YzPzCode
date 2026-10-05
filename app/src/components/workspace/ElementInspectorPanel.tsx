@@ -27,8 +27,6 @@ export interface SessionOption {
   id: string;
   label: string;
   agent: CliType | null;
-  /** 'terminal' = a TTY/CLI agent session, 'yzpz' = a built-in YZPZ Agent session. */
-  kind?: 'terminal' | 'yzpz';
 }
 
 interface ElementInspectorPanelProps {

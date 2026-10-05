@@ -1,68 +1,58 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Icon } from '@iconify/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { AgentCliStatusBadge } from './AgentCliStatusBadge';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Icon } from '@iconify/react';
+import { ArrowClockwise, CaretDown, DownloadSimple, MagnifyingGlass, Minus, Plus } from '@phosphor-icons/react';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useToolCli } from '../../hooks/useToolCli';
-import type { CliType, AgentType, ToolCliType, AgentFleet } from '../../types';
-import claudeLogo from '../../assets/claude.png';
-import codexLogo from '../../assets/codex.png';
-import antigravityLogo from '../../assets/antigravity.png';
-import opencodeLogo from '../../assets/opencode.png';
-import cursorLogo from '../../assets/cursor-ai.png';
-import kiloLogo from '../../assets/kiloCode.gif';
-import hermesLogo from '../../assets/Hermes-logo.png';
-import piLogo from '../../assets/pi.svg';
-import commandCodeLogo from '../../assets/commandcode-logo.svg';
-import clineLogo from '../../assets/cline.webp';
-import grokLogo from '../../assets/Grok.png';
-import { ADDITIONAL_AGENTS, ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
-
+import { AGENT_CATALOG, AGENT_IDS, TOOL_CATALOG, TOOL_IDS, isAgent } from './cliCatalog';
+import { SETUP_EASE, useSetupMotion } from './useSetupMotion';
+import type { AgentCliInfo, AgentFleet, CliType, ToolCliInfo } from '../../types';
 
 interface AgentFleetConfigProps {
   fleet: AgentFleet;
   category: 'agents' | 'tools';
   onAllocationChange: (fleet: AgentFleet) => void;
 }
-const AGENT_INFO: Record<AgentType, { label: string; color: string; logo: string }> = {
-  claude: { label: 'Claude', color: 'bg-orange-500', logo: claudeLogo },
-  codex: { label: 'Codex', color: 'bg-green-500', logo: codexLogo },
-  antigravity: { label: 'Antigravity CLI', color: 'bg-blue-600', logo: antigravityLogo },
-  opencode: { label: 'OpenCode', color: 'bg-purple-500', logo: opencodeLogo },
-  cursor: { label: 'Cursor', color: 'bg-pink-500', logo: cursorLogo },
-  kilo: { label: 'Kilo', color: 'bg-teal-500', logo: kiloLogo },
-  hermes: { label: 'Hermes', color: 'bg-amber-500', logo: hermesLogo },
-  pi: { label: 'Pi', color: 'bg-zinc-500', logo: piLogo },
-  commandcode: { label: 'Command Code', color: 'bg-neutral-500', logo: commandCodeLogo },
-  cline: { label: 'Cline', color: 'bg-sky-500', logo: clineLogo },
-  grok: { label: 'Grok', color: 'bg-zinc-700', logo: grokLogo },
-  ...ADDITIONAL_AGENTS,
-};
 
-const TOOL_INFO: Record<ToolCliType, { label: string; icon: string; color: string }> = {
-  gh: { label: 'GitHub', icon: 'simple-icons:github', color: '#ffffff' },
-  stripe: { label: 'Stripe', icon: 'simple-icons:stripe', color: '#635BFF' },
-  supabase: { label: 'Supabase', icon: 'simple-icons:supabase', color: '#3FCF8E' },
-  valyu: { label: 'Valyu', icon: 'simple-icons:search', color: '#F59E0B' },
-  posthog: { label: 'PostHog', icon: 'simple-icons:posthog', color: '#1D4AFF' },
-  elevenlabs: { label: 'ElevenLabs', icon: 'simple-icons:elevenlabs', color: '#8B5CF6' },
-  ramp: { label: 'Ramp', icon: 'simple-icons:creditcard', color: '#1AE65E' },
-  gws: { label: 'Google WS', icon: 'simple-icons:google', color: '#4285F4' },
-  agentmail: { label: 'AgentMail', icon: 'simple-icons:mailgun', color: '#EC4899' },
-  vercel: { label: 'Vercel', icon: 'simple-icons:vercel', color: '#ffffff' },
-};
+const isWindows = typeof navigator !== 'undefined' && navigator.userAgent.includes('Windows');
 
+/** A count that slides when it changes, like an odometer digit. */
+function AnimatedCount({ value, label }: { value: number; label: string }): React.JSX.Element {
+  const motionEnabled = useSetupMotion();
+  return (
+    <output aria-label={label} aria-live="polite">
+      <AnimatePresence initial={false} mode="popLayout">
+        <motion.span key={value} initial={motionEnabled ? { y: 10, opacity: 0 } : false} animate={{ y: 0, opacity: 1 }} exit={motionEnabled ? { y: -10, opacity: 0 } : undefined}
+          transition={{ duration: 0.18, ease: SETUP_EASE }}>
+          {value}
+        </motion.span>
+      </AnimatePresence>
+    </output>
+  );
+}
+
+function statusOf(info: AgentCliInfo | ToolCliInfo | null | undefined): { tone: 'ok' | 'warn' | 'busy' | 'muted'; text: React.ReactNode; usable: boolean } {
+  if (!info || info.status === 'Checking') return { tone: 'busy', text: 'Checking…', usable: false };
+  if (info.status === 'Installed') return { tone: 'ok', text: info.version ? <code>v{info.version}</code> : 'Installed', usable: true };
+  if (info.status === 'Error') return { tone: 'warn', text: info.error || 'Could not be checked', usable: false };
+  return { tone: 'muted', text: 'Not installed', usable: false };
+}
 
 export function AgentFleetConfig({ fleet, category, onAllocationChange }: AgentFleetConfigProps): React.JSX.Element {
   const { cliStatuses, detectAllClis, openInstallTerminal, loading: cliLoading, error: cliError } = useAgentCli();
   const { toolCliStatuses, detectAllToolClis, openToolInstallTerminal, loading: toolLoading, error: toolError } = useToolCli();
+  const motionEnabled = useSetupMotion();
   const [search, setSearch] = useState('');
+  const [showMissing, setShowMissing] = useState(false);
   const [installingCli, setInstallingCli] = useState<CliType | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const launching = useRef(false);
   const remaining = fleet.totalSlots - Object.values(fleet.allocation).reduce((sum, count) => sum + count, 0);
+  const checking = isRefreshing || (category === 'agents' ? cliLoading : toolLoading);
+  const listError = installError || (category === 'agents' ? cliError : toolError);
 
   useEffect(() => {
     if (category === 'agents') void detectAllClis();
@@ -87,11 +77,10 @@ export function AgentFleetConfig({ fleet, category, onAllocationChange }: AgentF
     setInstallingCli(cli);
     setInstallError(null);
     try {
-      const agents: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
-      if (agents.includes(cli as AgentType)) {
-        if (cli === 'amp' && navigator.userAgent.includes('Windows')) await openUrl('https://ampcode.com/docs/cli');
-        else await openInstallTerminal(cli as AgentType);
-      } else await openToolInstallTerminal(cli as ToolCliType);
+      if (isAgent(cli)) {
+        if (cli === 'amp' && isWindows) await openUrl('https://ampcode.com/docs/cli');
+        else await openInstallTerminal(cli);
+      } else await openToolInstallTerminal(cli);
     } catch (error) { setInstallError(String(error)); }
     finally { launching.current = false; setInstallingCli(null); }
   };
@@ -101,50 +90,99 @@ export function AgentFleetConfig({ fleet, category, onAllocationChange }: AgentF
     onAllocationChange({ ...fleet, allocation: { ...fleet.allocation, [cli]: count } });
   };
 
-  const entries = category === 'agents'
-    ? (Object.entries(AGENT_INFO) as [AgentType, typeof AGENT_INFO[AgentType]][]).map(([cli, info]) => ({
-      cli, label: info.label, installed: cliStatuses[cli]?.status === 'Installed',
-      icon: <img src={info.logo} alt="" className={`h-6 w-6 object-contain ${cli === 'opencode' ? 'rounded bg-white' : ''}`} />,
-      status: <AgentCliStatusBadge cliInfo={cliStatuses[cli]} onInstall={() => void install(cli)} installing={installingCli === cli}
-        installLabel={cli === 'amp' && navigator.userAgent.includes('Windows') ? 'Docs' : 'Install'} />,
-    }))
-    : (Object.entries(TOOL_INFO) as [ToolCliType, typeof TOOL_INFO[ToolCliType]][]).map(([cli, info]) => ({
-      cli, label: info.label, installed: toolCliStatuses[cli]?.status === 'Installed',
-      icon: <Icon icon={info.icon} className="h-5 w-5" style={{ color: info.color === '#ffffff' ? 'var(--text-primary)' : info.color }} />,
-      status: toolCliStatuses[cli]?.status === 'Installed'
-        ? <span className="text-xs text-[var(--text-secondary)]">Installed</span>
-        : <button type="button" className="text-xs text-[var(--accent)] disabled:opacity-50" disabled={installingCli === cli || toolLoading}
-            onClick={() => void install(cli)}>{installingCli === cli ? 'Installing…' : toolLoading ? 'Checking…' : 'Install'}</button>,
-    }));
-  const filtered = entries.filter((entry) => entry.label.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => Number(fleet.allocation[b.cli] > 0) - Number(fleet.allocation[a.cli] > 0) || Number(b.installed) - Number(a.installed));
+  const query = search.trim().toLowerCase();
+  const entries = (category === 'agents' ? AGENT_IDS : TOOL_IDS).map((cli) => {
+    const meta = category === 'agents' ? AGENT_CATALOG[cli as keyof typeof AGENT_CATALOG] : TOOL_CATALOG[cli as keyof typeof TOOL_CATALOG];
+    const info = category === 'agents' ? cliStatuses[cli as keyof typeof cliStatuses] : toolCliStatuses[cli as keyof typeof toolCliStatuses];
+    return { cli, meta, info, status: statusOf(info) };
+  }).filter(({ meta }) => !query || meta.label.toLowerCase().includes(query) || meta.description.toLowerCase().includes(query));
+  // Installed (or still being checked) tools lead; missing ones fold away so the
+  // list stays about what can run today. Assigned tools never fold away.
+  const isMissing = (entry: typeof entries[number]): boolean =>
+    fleet.allocation[entry.cli] === 0 && (entry.info?.status === 'NotInstalled' || entry.info?.status === 'Error');
+  const ready = entries.filter((entry) => !isMissing(entry));
+  const missing = entries.filter(isMissing);
+  const missingOpen = showMissing || query.length > 0 || ready.length === 0;
+
+  const renderRow = (entry: typeof entries[number], index: number): React.JSX.Element => {
+    const { cli, meta, status } = entry;
+    const count = fleet.allocation[cli];
+    const busy = installingCli === cli;
+    return (
+      <motion.div key={cli} className="ws-row" data-active={count > 0} data-installed={status.usable || status.tone === 'busy'}
+        initial={motionEnabled ? { opacity: 0, y: 6 } : false} animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.24, ease: SETUP_EASE, delay: motionEnabled ? Math.min(index, 10) * 0.025 : 0 }}>
+        <AnimatePresence>
+          {count > 0 && (
+            <motion.span className="ws-row__accent" style={{ background: meta.color }} aria-hidden="true"
+              initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} exit={{ scaleY: 0 }} transition={{ duration: 0.2, ease: SETUP_EASE }} />
+          )}
+        </AnimatePresence>
+        <span className={`ws-row__logo${cli === 'opencode' ? ' ws-row__logo--white' : ''}`} aria-hidden="true">
+          {meta.logo
+            ? <img src={meta.logo} alt="" draggable={false} />
+            : <Icon icon={meta.icon ?? 'ph:terminal-window'} width={18} height={18} style={{ color: meta.color }} />}
+        </span>
+        <span className="ws-row__body">
+          <span className="ws-row__name block">{meta.label}</span>
+          <span className="ws-row__status" title={entry.info?.error ?? entry.info?.path ?? undefined}>
+            <span className="ws-status-dot" data-tone={status.tone} />
+            {status.text}
+            {status.usable && <span className="truncate opacity-70">· {meta.description}</span>}
+          </span>
+        </span>
+        {status.usable || count > 0 ? (
+          <span className="ws-stepper">
+            <button type="button" aria-label={`Remove one ${meta.label} terminal`} disabled={count === 0} onClick={() => changeCount(cli, count - 1)}><Minus size={12} weight="bold" /></button>
+            <AnimatedCount value={count} label={`${meta.label} terminals`} />
+            <button type="button" aria-label={`Add one ${meta.label} terminal`} disabled={remaining <= 0 || !status.usable} onClick={() => changeCount(cli, count + 1)}
+              title={remaining <= 0 ? 'Every terminal is assigned. Add more terminals or remove an agent.' : undefined}><Plus size={12} weight="bold" /></button>
+          </span>
+        ) : status.tone !== 'busy' && (
+          <button type="button" className="ws-btn ws-btn--sm" disabled={busy || checking} onClick={() => void install(cli)}>
+            {busy ? <span className="ws-spinner" /> : <DownloadSimple size={13} />}
+            {busy ? 'Opening…' : cli === 'amp' && isWindows ? 'Docs' : 'Install'}
+          </button>
+        )}
+      </motion.div>
+    );
+  };
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-3">
-        <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={category === 'agents' ? 'Find a CLI agent…' : 'Find a tool…'}
-          aria-label={category === 'agents' ? 'Find a CLI agent' : 'Find a tool'} className="min-w-0 flex-1 rounded-lg border border-theme bg-theme-main px-3 py-2 text-sm text-theme-main" />
-        <button type="button" onClick={() => void refresh()} disabled={isRefreshing || cliLoading || toolLoading}
-          className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50">{isRefreshing || cliLoading || toolLoading ? 'Checking…' : 'Refresh'}</button>
+    <div>
+      <div className="ws-toolbar">
+        <label className="ws-search">
+          <MagnifyingGlass size={14} />
+          <input type="search" className="ws-input" value={search} onChange={(event) => setSearch(event.target.value)}
+            placeholder={category === 'agents' ? 'Search agents' : 'Search tool CLIs'} aria-label={category === 'agents' ? 'Search CLI agents' : 'Search tool CLIs'} />
+        </label>
+        <button type="button" className="ws-btn ws-btn--icon" onClick={() => void refresh()} disabled={checking} aria-label="Check installed CLIs again" title="Check again">
+          <ArrowClockwise size={15} className={checking ? 'animate-spin' : undefined} />
+        </button>
       </div>
-      {(installError || (category === 'agents' ? cliError : toolError)) && <p role="alert" className="text-xs text-rose-400">{installError || (category === 'agents' ? cliError : toolError)}</p>}
-      <div className="grid max-h-56 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-        {filtered.map((entry) => (
-          <div key={entry.cli} className={`flex min-w-0 items-center gap-3 rounded-lg border p-3 ${fleet.allocation[entry.cli] > 0 ? 'border-[var(--accent)] bg-[var(--bg-tertiary)]' : 'border-theme'}`}>
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center">{entry.icon}</div>
-            <div className="min-w-0 flex-1"><div className="truncate text-sm text-[var(--text-primary)]">{entry.label}</div>{entry.status}</div>
-            <div className="flex shrink-0 items-center gap-1">
-              <button type="button" aria-label={`Remove one ${entry.label} terminal`} onClick={() => changeCount(entry.cli, fleet.allocation[entry.cli] - 1)} disabled={fleet.allocation[entry.cli] === 0}
-                className="h-7 w-7 rounded border border-theme text-sm disabled:opacity-30">−</button>
-              <output aria-label={`${entry.label} terminals`} className="w-5 text-center text-xs tabular-nums">{fleet.allocation[entry.cli]}</output>
-              <button type="button" aria-label={`Add one ${entry.label} terminal`} onClick={() => changeCount(entry.cli, fleet.allocation[entry.cli] + 1)} disabled={remaining <= 0 || !entry.installed}
-                className="h-7 w-7 rounded border border-theme text-sm disabled:opacity-30">+</button>
-            </div>
-          </div>
-        ))}
-        {filtered.length === 0 && <p className="py-4 text-sm text-[var(--text-secondary)]">No matching tools.</p>}
+      {listError && <p role="alert" className="ws-error ws-error--block">{listError}</p>}
+      <div className="ws-list">
+        <div className="ws-list__scroll">
+          {ready.map(renderRow)}
+          {missing.length > 0 && (
+            <>
+              <button type="button" className="ws-list__group" aria-expanded={missingOpen} onClick={() => setShowMissing((open) => !open)} disabled={query.length > 0 || ready.length === 0}>
+                <span>Not installed · {missing.length}</span>
+                {!query && ready.length > 0 && <CaretDown size={12} className={`transition-transform duration-200 ${missingOpen ? 'rotate-180' : ''}`} />}
+              </button>
+              <AnimatePresence initial={false}>
+                {missingOpen && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: motionEnabled ? 0.28 : 0, ease: SETUP_EASE }} className="overflow-hidden border-t border-[var(--border-primary)]">
+                    {missing.map(renderRow)}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
+          {entries.length === 0 && <p className="ws-empty">Nothing matches “{search}”.</p>}
+        </div>
       </div>
-      <p className="text-xs text-[var(--text-secondary)]">{remaining} plain shell{remaining === 1 ? '' : 's'} · {fleet.totalSlots - remaining} assigned terminal{fleet.totalSlots - remaining === 1 ? '' : 's'}</p>
     </div>
   );
 }

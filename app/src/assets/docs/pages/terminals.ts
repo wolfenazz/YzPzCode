@@ -27,7 +27,7 @@ Every terminal pane can show a **quick prompt strip**: a horizontally scrollable
 
 - Toggle it per-pane with the sparkle button in the terminal header ("Show quick prompts")
 - Clicking a chip runs its prompt text immediately in that terminal session
-- The same presets you configure under **Settings → Quick prompts** appear here and in the agent input
+- The same presets you configure under **Settings → Quick prompts** appear here and in the element inspector
 
 ## Terminal Colors
 

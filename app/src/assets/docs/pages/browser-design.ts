@@ -42,7 +42,7 @@ Click an element to capture its computed CSS styles (including \`::before\` and 
 
 **Copy a UI element from any page and rebuild it in your local project.** Clicking an element captures a full reference: structure tree, layout grid, spacing, typography, colors, shadows, and assets. The capture feeds a rich prompt, which you can:
 
-- Send to any terminal session running an agent, or to the built-in YzPz Agent
+- Send to any terminal session running an agent
 - Use in **replace** mode or **insert** mode, depending on whether you are replacing an element in your project or adding a new one
 
 ### Apply Mode

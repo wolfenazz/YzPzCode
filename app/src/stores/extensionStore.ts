@@ -122,7 +122,7 @@ export const useExtensionStore = create<ExtensionStore>()(
         // Remove the panes immediately; the backend also cancels pending starts.
         set((state) => ({
           panelsByWorkspace: { ...state.panelsByWorkspace, [workspaceId]: [] },
-          paneOrderByWorkspace: { ...state.paneOrderByWorkspace, [workspaceId]: [] },
+          paneOrderByWorkspace: { ...state.paneOrderByWorkspace, [workspaceId]: [], [`extensions:${workspaceId}`]: [] },
         }));
         await invoke('close_workspace_extension_panels', { workspaceId });
       },

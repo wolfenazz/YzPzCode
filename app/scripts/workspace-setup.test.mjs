@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
 
 const sources = new Map(await Promise.all(['utils/workspaceSetup', 'data/additionalAgents'].map(async (path) => [
   path, await readFile(new URL(`../src/${path}.ts`, import.meta.url), 'utf8'),
@@ -134,7 +135,22 @@ test('extensions-only setup registers selected panels before opening the workspa
     ['panel', workspace.id, 'openai.chatgpt'], ['panel', workspace.id, 'google.antigravity'],
   ]);
   assert.ok(events.findIndex(([kind]) => kind === 'workspace') > events.findLastIndex(([kind]) => kind === 'panel'));
-  assert.equal(events.some(([kind]) => kind === 'view'), false);
+  assert.deepEqual(events.at(-1), ['view', 'extensions']);
+});
+
+test('selected extensions open their view while retaining CLI terminal slots', async (context) => {
+  const { render, events } = setup(context);
+  let api = render();
+  api.selectRecentDirectory('/project');
+  api.setSelectedLayout({ type: 'grid', sessions: 2 });
+  api = render();
+  api.updateAgentFleet({ totalSlots: 2, allocation: { ...api.agentFleet.allocation, claude: 1 } });
+  api.toggleExtension('openai.chatgpt');
+  api = render();
+  const workspace = await api.createWorkspace();
+  assert.equal(workspace.layout.sessions, 2);
+  assert.equal(workspace.agentFleet.allocation.claude, 1);
+  assert.deepEqual(events.at(-1), ['view', 'extensions']);
 });
 
 test('no terminals and no extensions opens the editor', async (context) => {
@@ -193,4 +209,52 @@ test('custom templates restore extensions and zero terminals, filtering retired 
   assert.equal(api.selectedLayout.sessions, 0);
   assert.deepEqual(api.selectedExtensionIds, ['openai.chatgpt']);
   assert.equal(api.agentFleet.totalSlots, 0);
+});
+
+
+test('retired agent views migrate to extensions while preserving other workspace data', async () => {
+  const source = ts.createSourceFile('appStore.ts', await readFile(new URL('../src/stores/appStore.ts', import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true);
+  let migration;
+  const visit = (node) => {
+    if (ts.isPropertyAssignment(node) && node.name.getText(source) === 'migrate') migration = node.initializer;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  assert.ok(migration);
+  const prelude = `
+    const migrateWorkspaceBackground = (s) => s.workspaceBackground;
+    const normalizeLightRays = (r) => r;
+    const normalizeSetupBackground = (b) => b;
+    const normalizeSetupGalaxy = (g) => g;
+    const migrateSetupBackground = (b) => b;
+  `;
+  const { outputText } = ts.transpileModule(`${prelude}\nexport default ${migration.getText(source)};`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+  });
+  const { default: migrate } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
+  const saved = {
+    activeView: 'agent',
+    activeViewByWorkspace: { old: 'agent', cli: 'terminal', code: 'editor', preview: 'browser', ext: 'extensions' },
+    agentSessionsByWorkspace: { old: [{ sessionId: 'retired' }] },
+    activeAgentSessionByWorkspace: { old: 'retired' },
+    agentPaneUIModes: { retired: 'minimal' },
+    showAgentReasoning: true,
+    agentSessionFontSize: 16,
+    agentInterfaceScale: 125,
+    agentConversationWidth: 900,
+    themeMode: 'light',
+    workspaceList: [{ id: 'old', name: 'Project' }],
+    browserStateByWorkspace: { preview: { currentUrl: 'http://localhost:8745' } },
+    restoredFilePathsByWorkspace: { code: ['/project/main.ts'] },
+  };
+  const original = structuredClone(saved);
+  const next = migrate(saved, 7);
+  assert.equal(next.activeView, 'extensions');
+  assert.deepEqual(next.activeViewByWorkspace, { ...original.activeViewByWorkspace, old: 'extensions' });
+  for (const key of ['agentSessionsByWorkspace', 'activeAgentSessionByWorkspace', 'agentPaneUIModes', 'showAgentReasoning', 'agentSessionFontSize', 'agentInterfaceScale', 'agentConversationWidth']) {
+    assert.equal(key in next, false, `${key} must no longer hydrate`);
+  }
+  for (const key of ['themeMode', 'workspaceList', 'browserStateByWorkspace', 'restoredFilePathsByWorkspace']) {
+    assert.deepEqual(next[key], original[key], `${key} must be preserved`);
+  }
 });

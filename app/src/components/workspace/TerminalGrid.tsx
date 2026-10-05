@@ -8,11 +8,13 @@ import {
   useSensors,
   type DragStartEvent,
   type DragEndEvent,
+  type Modifier,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
+import { getEventCoordinates } from '@dnd-kit/utilities';
 import { TerminalSession, CliType } from '../../types';
 import { SortableTerminalPane } from './SortableTerminalPane';
 import { ExtensionPane } from './ExtensionPane';
@@ -21,7 +23,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
 import { EMPTY_EXTENSION_PANELS, useExtensionStore } from '../../stores/extensionStore';
 import { BoxLoader } from '../common/BoxLoader';
-import { Plus, TerminalWindow } from '@phosphor-icons/react';
+import { ExtensionLogo } from '../common/ExtensionLogo';
+import { Plus, PuzzlePiece, TerminalWindow } from '@phosphor-icons/react';
 import { TerminalLayoutContext } from './TerminalLayoutContext';
 import { DEFAULT_TERMINAL_ARRANGEMENT, useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { getTerminalLayoutRects } from '../../utils/terminalLayouts';
@@ -33,6 +36,8 @@ interface TerminalGridProps {
   sessions: TerminalSession[];
   isLoading?: boolean;
   visible?: boolean;
+  mode?: 'terminal' | 'extensions';
+  onBrowseExtensions?: () => void;
 }
 
 interface WorkspacePane {
@@ -62,7 +67,41 @@ const MIN_SIZE = 12;
 const DIVIDER = 3;
 const GAP_PX = 8;
 
-export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions, isLoading, visible = true }) => {
+/** Width of `.terminal-drag-preview` (19rem) — keep in sync with premium-system.css. */
+const DRAG_PREVIEW_WIDTH_REM = 19;
+/** The preview is grabbed by its header, so never hold it lower than this. */
+const DRAG_PREVIEW_MAX_GRAB_Y = 44;
+
+/**
+ * dnd-kit sizes and places the DragOverlay wrapper to match the dragged pane,
+ * but the preview is a small fixed-width card pinned to that wrapper's top-left.
+ * Grabbing a wide pane anywhere but its left edge therefore left the card far
+ * from the pointer. Shift the overlay so the card sits under the pointer at the
+ * same relative spot where the pane was grabbed.
+ */
+const anchorPreviewToPointer: Modifier = ({ transform, activatorEvent, activeNodeRect }) => {
+  if (!activatorEvent || !activeNodeRect || activeNodeRect.width <= 0) return transform;
+  const pointer = getEventCoordinates(activatorEvent);
+  if (!pointer) return transform;
+
+  const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const previewWidth = DRAG_PREVIEW_WIDTH_REM * rootFontSize;
+
+  const grabX = Math.min(Math.max(pointer.x - activeNodeRect.left, 0), activeNodeRect.width);
+  const grabY = Math.max(pointer.y - activeNodeRect.top, 0);
+  const previewGrabX = (grabX / activeNodeRect.width) * previewWidth;
+  const previewGrabY = Math.min(grabY, DRAG_PREVIEW_MAX_GRAB_Y);
+
+  return {
+    ...transform,
+    x: transform.x + grabX - previewGrabX,
+    y: transform.y + grabY - previewGrabY,
+  };
+};
+
+const DRAG_OVERLAY_MODIFIERS = [anchorPreviewToPointer];
+
+export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions, isLoading, visible = true, mode = 'terminal', onBrowseExtensions }) => {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [rowColSizes, setRowColSizes] = useState<number[][] | null>(null);
   const [colRowSizes, setColRowSizes] = useState<number[][] | null>(null);
@@ -84,22 +123,25 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
   const reorderSessions = useAppStore((s) => s.reorderSessions);
   const independentGridResize = useAppStore((s) => s.independentGridResize);
   const workspaceId = workspace.id;
-  const extensionPanels = useExtensionStore((state) => state.panelsByWorkspace[workspaceId] ?? EMPTY_EXTENSION_PANELS);
-  const paneOrder = useExtensionStore((state) => state.paneOrderByWorkspace[workspaceId]);
+  const isExtensions = mode === 'extensions';
+  const layoutId = isExtensions ? `extensions:${workspaceId}` : workspaceId;
+  const allExtensionPanels = useExtensionStore((state) => state.panelsByWorkspace[workspaceId] ?? EMPTY_EXTENSION_PANELS);
+  const extensionPanels = isExtensions ? allExtensionPanels : EMPTY_EXTENSION_PANELS;
+  const paneOrder = useExtensionStore((state) => state.paneOrderByWorkspace[layoutId] ?? (isExtensions ? state.paneOrderByWorkspace[workspaceId] : undefined));
   const setPaneOrder = useExtensionStore((state) => state.setPaneOrder);
-  const arrangement = useTerminalLayoutStore((s) => s.arrangements[workspaceId] ?? DEFAULT_TERMINAL_ARRANGEMENT);
+  const arrangement = useTerminalLayoutStore((s) => s.arrangements[layoutId] ?? DEFAULT_TERMINAL_ARRANGEMENT);
   const setArrangement = useTerminalLayoutStore((s) => s.setArrangement);
   const setActiveSession = useAppStore((s) => s.setActiveSession);
 
   const sorted = useMemo(() => {
     const panes: WorkspacePane[] = [
-      ...[...sessions].sort((a, b) => a.index - b.index).map((terminal) => ({ id: terminal.id, terminal, extension: null })),
+      ...[...(isExtensions ? [] : sessions)].sort((a, b) => a.index - b.index).map((terminal) => ({ id: terminal.id, terminal, extension: null })),
       ...extensionPanels.map((extension) => ({ id: extension.id, terminal: null, extension })),
     ];
     if (!paneOrder?.length) return panes;
     const order = new Map(paneOrder.map((id, index) => [id, index]));
     return panes.sort((a, b) => (order.get(a.id) ?? paneOrder.length) - (order.get(b.id) ?? paneOrder.length));
-  }, [sessions, extensionPanels, paneOrder]);
+  }, [sessions, extensionPanels, paneOrder, isExtensions]);
   const { cols, rows } = getGridDimensions(sorted.length);
   const preset = arrangement.preset;
   const customLayout = preset !== 'grid';
@@ -110,13 +152,13 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     [preset, sorted.length, focusedIndex],
   );
   const selectPreset = useCallback((next: TerminalLayoutPreset, sessionId: string) => {
-    setArrangement(workspaceId, next, sessionId);
+    setArrangement(layoutId, next, sessionId);
     if (sessions.some((session) => session.id === sessionId)) setActiveSession(sessionId);
     setRowColSizes(null);
     setColRowSizes(null);
     setColSizes(null);
     setRowSizes(null);
-  }, [workspaceId, setArrangement, setActiveSession, sessions]);
+  }, [layoutId, setArrangement, setActiveSession, sessions]);
   const layoutControls = useMemo(() => ({ preset, focusedSessionId, selectPreset }), [preset, focusedSessionId, selectPreset]);
   // Scroll when a preset would otherwise make the smaller terminals unusable.
   const focusBeside = preset === 'focus-left' || preset === 'focus-right';
@@ -244,11 +286,12 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
       const order = sorted.map((pane) => pane.id);
       const [moved] = order.splice(fromIndex, 1);
       order.splice(toIndex, 0, moved);
-      setPaneOrder(workspaceId, order);
+      setPaneOrder(layoutId, order);
       if (extensionPanels.length === 0) reorderSessions(fromIndex, toIndex);
     }
-  }, [sorted, reorderSessions, setPaneOrder, workspaceId, extensionPanels.length]);
+  }, [sorted, reorderSessions, setPaneOrder, layoutId, extensionPanels.length]);
 
+  const activeExtension = activeId ? sorted.find((pane) => pane.id === activeId)?.extension ?? null : null;
   const activeSession = useMemo(
     () => (activeId ? sorted.find((s) => s.id === activeId)?.terminal ?? null : null),
     [activeId, sorted]
@@ -377,7 +420,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     }
   }, [independentGridResize, rows, cols]);
 
-  if (isLoading && extensionPanels.length === 0) {
+  if (!isExtensions && isLoading) {
     return (
       <div className="h-full flex items-center justify-center font-mono text-zinc-500">
         <div className="flex flex-col items-center gap-4">
@@ -387,6 +430,19 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
           </div>
         </div>
       </div>
+    );
+  }
+
+  if (isExtensions && sorted.length === 0) {
+    return (
+      <section className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center" aria-label="Extension workspace">
+        <PuzzlePiece size={36} weight="light" className="text-[var(--text-secondary)]" aria-hidden="true" />
+        <div className="max-w-sm space-y-2">
+          <h2 className="text-lg font-medium text-[var(--text-primary)]">Open an AI extension</h2>
+          <p className="text-sm leading-6 text-[var(--text-secondary)]">Choose an assistant from the extensions catalog. Its panel opens here, ready to work in {workspace.name}.</p>
+        </div>
+        <button type="button" className="app-button" onClick={onBrowseExtensions}><Plus size={16} aria-hidden="true" />Browse extensions</button>
+      </section>
     );
   }
 
@@ -404,7 +460,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
             onClick={() => setShowNewDialog(true)}
             className="px-6 py-2.5 border text-[11px] font-bold uppercase tracking-widest transition-colors duration-200 cursor-pointer border-[var(--border-primary)] text-[var(--text-primary)] hover:border-[var(--text-secondary)]"
           >
-            + New Terminal
+            + {isExtensions ? 'Open extension' : 'New Terminal'}
           </button>
         </div>
         {showNewDialog && (
@@ -453,7 +509,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
             return (
               <div
                 key={session.id}
-                className="absolute overflow-hidden bg-theme-main"
+                className="absolute overflow-hidden"
                 data-terminal-session={session.id}
                 style={{
                   left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
@@ -493,7 +549,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
               const topPct = cellColRowSizes[c].slice(0, r).reduce((a, b) => a + b, 0);
               return (
                 <div
-                  className={`absolute overflow-hidden border bg-zinc-950/30 border-zinc-800`}
+                  className={`absolute overflow-hidden rounded-[10px] border bg-zinc-950/30 border-zinc-800`}
                   style={{
                     left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
                     top: `calc(${topPct}% + ${r * GAP_PX}px)`,
@@ -504,17 +560,17 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
                   <button
                     type="button"
                     className="group/empty flex h-full w-full cursor-pointer items-center justify-center border-0 bg-[var(--bg-secondary)]/45 text-left transition-colors duration-200 hover:bg-[var(--bg-tertiary)]/70"
-                    onClick={() => setShowNewDialog(true)}
-                    title="Spawn Terminal"
-                    aria-label="Spawn a new terminal"
+                    onClick={() => isExtensions ? onBrowseExtensions?.() : setShowNewDialog(true)}
+                    title={isExtensions ? 'Open extension' : 'Spawn Terminal'}
+                    aria-label={isExtensions ? 'Open an extension' : 'Spawn a new terminal'}
                   >
                     <div className="flex flex-col items-center gap-3 transition-transform duration-200 group-hover/empty:-translate-y-0.5">
                       <div className="flex h-10 w-10 items-center justify-center border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] transition-colors duration-200 group-hover/empty:border-[var(--accent-border)] group-hover/empty:text-[var(--text-primary)]">
-                        <TerminalWindow size={18} weight="regular" aria-hidden="true" />
+                        {isExtensions ? <PuzzlePiece size={18} aria-hidden="true" /> : <TerminalWindow size={18} weight="regular" aria-hidden="true" />}
                         <Plus className="-ml-1.5 -mt-3" size={10} weight="bold" aria-hidden="true" />
                       </div>
-                      <span className="text-xs font-medium tracking-tight text-[var(--text-secondary)] transition-colors duration-200 group-hover/empty:text-[var(--text-primary)]">New terminal</span>
-                      <span className="-mt-1 text-[11px] text-[var(--text-secondary)]/65">Open a shell session</span>
+                      <span className="text-xs font-medium tracking-tight text-[var(--text-secondary)] transition-colors duration-200 group-hover/empty:text-[var(--text-primary)]">{isExtensions ? 'Open extension' : 'New terminal'}</span>
+                      <span className="-mt-1 text-[11px] text-[var(--text-secondary)]/65">{isExtensions ? 'Choose an AI assistant' : 'Open a shell session'}</span>
                     </div>
                   </button>
                 </div>
@@ -628,6 +684,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
       </SortableContext>
 
       <DragOverlay
+        modifiers={DRAG_OVERLAY_MODIFIERS}
         dropAnimation={{
           duration: 240,
           easing: 'cubic-bezier(0.18, 0.89, 0.32, 1.28)',
@@ -671,6 +728,17 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
               </div>
             </div>
           </div>
+        ) : activeExtension ? (
+          <div className="terminal-drag-preview select-none pointer-events-none">
+            <div className="terminal-drag-preview__header">
+              <div className="flex min-w-0 items-center gap-2">
+                <ExtensionLogo extensionId={activeExtension.extensionId} name={activeExtension.name} small />
+                <span className="truncate text-xs font-medium">{activeExtension.name}</span>
+              </div>
+              <span className="text-xs text-[var(--text-secondary)]">Moving</span>
+            </div>
+            <div className="terminal-drag-preview__body text-xs text-[var(--text-secondary)]">Drag to reorder extension panels</div>
+          </div>
         ) : null}
       </DragOverlay>
     </DndContext>
@@ -679,6 +747,15 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
   return (
     <TerminalLayoutContext.Provider value={layoutControls}>
     <div className="h-full w-full flex flex-col relative overflow-hidden">
+      {isExtensions && (
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2 text-xs text-[var(--text-secondary)]">
+            <PuzzlePiece size={16} aria-hidden="true" />
+            <span>{sorted.length} {sorted.length === 1 ? 'extension' : 'extensions'} open</span>
+          </div>
+          <button type="button" className="app-button h-7 min-h-0 px-2.5 text-xs" onClick={onBrowseExtensions}><Plus size={14} aria-hidden="true" />Open extension</button>
+        </header>
+      )}
       <div
         ref={containerRef}
         className="flex-1 min-h-0 relative overflow-auto"

@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { HelpTooltip } from '../common/HelpTooltip';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ArrowRight, ClockCounterClockwise, FolderOpen, FolderSimple, WarningCircle } from '@phosphor-icons/react';
 import { useAppStore } from '../../stores/appStore';
+import { MOD_KEY, SETUP_EASE } from './useSetupMotion';
 
 interface DirectorySelectorProps {
   selectedPath: string;
@@ -9,134 +11,117 @@ interface DirectorySelectorProps {
   errorMessage?: string;
 }
 
-export const DirectorySelector: React.FC<DirectorySelectorProps> = ({
-  selectedPath,
-  onSelectDirectory,
-  onSelectRecentDirectory,
-  errorMessage,
-}) => {
-  const { recentDirectories, clearRecentDirectories } = useAppStore();
-  const [showRecent, setShowRecent] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+function splitPath(path: string): { name: string; parent: string } {
+  const segments = path.replace(/\\/g, '/').split('/').filter(Boolean);
+  const name = segments.at(-1) ?? path;
+  const parent = segments.slice(0, -1).join('/');
+  return { name, parent: parent.length > 0 ? parent : '/' };
+}
+
+function RecentRow({ path, onSelect }: { path: string; onSelect: () => void }): React.JSX.Element {
+  const { name, parent } = splitPath(path);
+  return (
+    <button type="button" className="ws-recent" onClick={onSelect} title={path}>
+      <FolderSimple size={16} className="shrink-0 text-[var(--text-secondary)]" />
+      <span className="ws-recent__name">{name}</span>
+      <span className="ws-recent__path">{parent}</span>
+      <ArrowRight size={14} className="ws-recent__arrow shrink-0" />
+    </button>
+  );
+}
+
+/**
+ * Project folder picker. Empty: a large target plus one-click recent folders.
+ * Chosen: the folder's name and full path, with Change and a recents menu.
+ */
+export function DirectorySelector({ selectedPath, onSelectDirectory, onSelectRecentDirectory, errorMessage }: DirectorySelectorProps): React.JSX.Element {
+  const recentDirectories = useAppStore((state) => state.recentDirectories);
+  const clearRecentDirectories = useAppStore((state) => state.clearRecentDirectories);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const recents = recentDirectories.filter((path) => path !== selectedPath);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowRecent(false);
-      }
+    if (!menuOpen) return;
+    const close = (event: MouseEvent): void => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
     };
-    if (showRecent) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showRecent]);
+    const escape = (event: KeyboardEvent): void => { if (event.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', escape);
+    };
+  }, [menuOpen]);
 
-  const handleSelectRecent = (path: string) => {
-    onSelectRecentDirectory(path);
-    setShowRecent(false);
-  };
-
-  const pathSegments = selectedPath ? selectedPath.replace(/\\/g, '/').split('/') : [];
-  const displayPath = selectedPath
-    ? pathSegments.length > 3
-      ? '.../' + pathSegments.slice(-3).join('/')
-      : selectedPath
-    : '';
-
-  return (
-    <div>
-      <div className="flex items-center gap-2 mb-2">
-        <span className="block text-sm font-medium text-[var(--text-primary)]">
-          Project folder
-        </span>
-        <HelpTooltip text="The root folder for your project, terminals, and extensions." />
-      </div>
-      <div className="flex gap-2.5">
-        <div
-          className={`flex h-11 min-w-0 flex-1 items-center truncate rounded-lg border bg-[var(--bg-secondary)] px-3.5 text-sm text-[var(--text-primary)] ${
-            errorMessage ? 'border-rose-500/40' : 'border-theme'
-          }`}
-          title={selectedPath || undefined}
-        >
-          <span className="min-w-0 truncate">{displayPath || (
-            <span className="text-[var(--text-secondary)]">Choose a project folder</span>
-          )}</span>
-        </div>
-
+  if (!selectedPath) {
+    return (
+      <div>
+        <button type="button" onClick={onSelectDirectory} className={`ws-folder ws-folder--empty${errorMessage ? ' ws-folder--error' : ''}`}>
+          <span className="ws-folder__glyph"><FolderOpen size={22} /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[0.9375rem] font-[540]">Choose a project folder</span>
+            <span className="mt-1 block text-xs text-[var(--text-secondary)]">Terminals, agents, and the editor all start here.</span>
+          </span>
+          <span className="pointer-events-none hidden sm:block"><span className="ws-btn ws-btn--sm">Browse<span className="ws-kbd">{MOD_KEY} O</span></span></span>
+        </button>
         {recentDirectories.length > 0 && (
-          <div className="relative" ref={dropdownRef}>
-            <button
-              type="button"
-              onClick={() => setShowRecent(!showRecent)}
-              className="flex h-11 items-center gap-1.5 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-              title="Recent directories"
-              aria-label="Recent project folders"
-              aria-expanded={showRecent}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <svg className={`w-3 h-3 transition-transform duration-200 ${showRecent ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {showRecent && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-3rem)] overflow-hidden rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-xl">
-                <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-3 py-2.5">
-                  <span className="text-xs font-medium text-[var(--text-secondary)]">Recent folders</span>
-                  <button
-                    type="button"
-                    onClick={() => { clearRecentDirectories(); setShowRecent(false); }}
-                    className="text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-primary)] font-mono transition-colors duration-150 cursor-pointer"
-                  >
-                    Clear
-                  </button>
-                </div>
-                <div className="max-h-48 overflow-y-auto">
-                  {recentDirectories.map((path) => {
-                    const segments = path.replace(/\\/g, '/').split('/');
-                    const shortPath = segments.length > 3
-                      ? '.../' + segments.slice(-3).join('/')
-                      : path;
-                    return (
-                      <button
-                        key={path}
-                        type="button"
-                        onClick={() => handleSelectRecent(path)}
-                        className="group flex w-full items-center gap-2 px-3 py-2.5 text-left transition-colors hover:bg-[var(--bg-tertiary)]"
-                      >
-                        <svg className="w-3.5 h-3.5 text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-                        </svg>
-                        <span className="truncate font-mono text-xs text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]" title={path}>
-                          {shortPath}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+          <div className="ws-recents">
+            <div className="ws-recents__head">
+              <span className="flex items-center gap-1.5"><ClockCounterClockwise size={13} /> Recent</span>
+              <button type="button" className="ws-link" onClick={clearRecentDirectories}>Clear</button>
+            </div>
+            {recentDirectories.slice(0, 4).map((path) => (
+              <RecentRow key={path} path={path} onSelect={() => onSelectRecentDirectory(path)} />
+            ))}
           </div>
         )}
-
-        <button
-          type="button"
-          onClick={onSelectDirectory}
-          className="h-11 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-tertiary)] px-4 text-xs font-medium text-[var(--text-primary)] transition-colors hover:border-[var(--text-secondary)]"
-        >
-          Browse
-        </button>
+        {errorMessage && <p role="alert" className="ws-error"><WarningCircle size={14} />{errorMessage}</p>}
       </div>
+    );
+  }
 
-      {errorMessage ? (
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <svg className="w-3 h-3 text-rose-400/80 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <span className="text-[10px] text-rose-400/80 font-mono">{errorMessage}</span>
-        </div>
-      ) : null}
+  const { name } = splitPath(selectedPath);
+  return (
+    <div>
+      <div className={`ws-folder${errorMessage ? ' ws-folder--error' : ''}`}>
+        <span className="ws-folder__glyph"><FolderSimple size={22} weight="fill" /></span>
+        <span className="min-w-0 flex-1">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span key={selectedPath} className="block" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2, ease: SETUP_EASE }}>
+              <span className="ws-folder__name block">{name}</span>
+              <span className="ws-folder__path block" title={selectedPath}>{selectedPath}</span>
+            </motion.span>
+          </AnimatePresence>
+        </span>
+        <span className="flex shrink-0 items-center gap-1.5">
+          {recents.length > 0 && (
+            <span className="relative" ref={menuRef}>
+              <button type="button" className="ws-btn ws-btn--icon ws-btn--ghost" aria-label="Recent project folders" aria-haspopup="menu" aria-expanded={menuOpen} title="Recent folders"
+                onClick={() => setMenuOpen((open) => !open)}>
+                <ClockCounterClockwise size={16} />
+              </button>
+              <AnimatePresence>
+                {menuOpen && (
+                  <motion.div role="menu" className="ws-popover" initial={{ opacity: 0, y: -4, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                    transition={{ duration: 0.16, ease: SETUP_EASE }} style={{ transformOrigin: 'top right' }}>
+                    <div className="ws-recents__head px-2.5 pt-1.5">
+                      <span>Recent folders</span>
+                      <button type="button" className="ws-link" onClick={() => { clearRecentDirectories(); setMenuOpen(false); }}>Clear</button>
+                    </div>
+                    {recents.slice(0, 8).map((path) => (
+                      <RecentRow key={path} path={path} onSelect={() => { onSelectRecentDirectory(path); setMenuOpen(false); }} />
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </span>
+          )}
+          <button type="button" className="ws-btn" onClick={onSelectDirectory}>Change</button>
+        </span>
+      </div>
+      {errorMessage && <p role="alert" className="ws-error"><WarningCircle size={14} />{errorMessage}</p>}
     </div>
   );
-};
+}

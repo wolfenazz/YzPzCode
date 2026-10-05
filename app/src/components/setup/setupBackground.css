@@ -1,0 +1,59 @@
+/* Restrained, decorative effects never intercept setup controls. */
+.setup-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  opacity: 0.24;
+  filter: saturate(0.55);
+}
+
+.setup-backdrop-swatch {
+  display: block;
+  width: 100%;
+  height: 4rem;
+  border-bottom: 1px solid var(--border-primary);
+  border-radius: inherit;
+  background-color: var(--bg-primary);
+}
+
+/* Still swatches also provide a quiet fallback with reduced motion or no WebGL. */
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still]) {
+  background-color: var(--bg-primary);
+  background-size: cover;
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='aurora'] {
+  background-image: radial-gradient(ellipse at 30% 0%, #8ca99666, transparent 70%), radial-gradient(ellipse at 80% 15%, #91a4b755, transparent 65%);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='threads'] {
+  background-image: repeating-linear-gradient(168deg, transparent 0 7px, #98afa633 8px, transparent 9px 16px);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='iridescence'] {
+  background-image: conic-gradient(from 70deg at 25% 70%, #98b9a966, #aeb4c855, #c9baa855, #98b9a966);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='waves'] {
+  background-image: repeating-radial-gradient(ellipse at 0% 90%, transparent 0 9px, #9eafa63d 10px, transparent 11px 20px);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='particles'],
+.setup-backdrop-swatch[data-effect='galaxy'] {
+  background-image: radial-gradient(circle at 25% 30%, #becdc9 0 1px, transparent 2px), radial-gradient(circle at 70% 65%, #a8b9b4 0 1px, transparent 2px), radial-gradient(circle at 45% 80%, #cbd1d6 0 1px, transparent 2px);
+  background-size: 49px 37px, 67px 53px, 89px 71px;
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='dark-veil'] {
+  background-image: radial-gradient(ellipse at 70% 0%, #788da977, transparent 65%), linear-gradient(120deg, transparent, #4b646c55, transparent);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='gradient-blinds'] {
+  background-image: repeating-linear-gradient(90deg, #8ca99655, #94a6b333 8%, transparent 9% 12%);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='liquid-chrome'] {
+  background-image: repeating-conic-gradient(from 25deg at 80% 150%, #b4c2bf44 0deg, #607c7855 15deg, transparent 25deg, #b4c2bf44 35deg);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='plasma'] {
+  background-image: radial-gradient(ellipse at 50% 60%, #b4a48d77, transparent 65%);
+}
+:is(.setup-backdrop-swatch, .setup-backdrop[data-still])[data-effect='shape-grid'] {
+  background-image: linear-gradient(#8d9e9333 1px, transparent 1px), linear-gradient(90deg, #8d9e9333 1px, transparent 1px);
+  background-size: 24px 24px;
+}

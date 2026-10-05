@@ -1,5 +1,4 @@
 mod agent_commands;
-mod agent_host_commands;
 mod browser_commands;
 mod cli_commands;
 mod db_commands;
@@ -12,11 +11,9 @@ mod ide_commands;
 mod open_file_commands;
 mod os_commands;
 mod terminal_commands;
-mod translation_commands;
 mod window_commands;
 
 pub use agent_commands::*;
-pub use agent_host_commands::*;
 pub use browser_commands::*;
 pub use cli_commands::*;
 pub use db_commands::*;
@@ -29,5 +26,4 @@ pub use ide_commands::*;
 pub use open_file_commands::*;
 pub use os_commands::*;
 pub use terminal_commands::*;
-pub use translation_commands::*;
 pub use window_commands::*;

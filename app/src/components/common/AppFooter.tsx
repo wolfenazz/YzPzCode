@@ -1,14 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  ArrowClockwise,
-  Check,
-  CheckCircle,
-  ChatCircleDots,
-  Copy,
-  Crosshair,
-  DownloadSimple,
-} from '@phosphor-icons/react';
+import { Icon } from '@iconify/react';
+import { Check, Copy } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { footerIconName, type FooterIcon } from './footerIcons';
 import { useUpdaterStore } from '../../stores/updaterStore';
 import { useAppStore } from '../../stores/appStore';
 import { TerminalStatusBar } from '../workspace/TerminalStatusBar';
@@ -158,6 +152,10 @@ const Credits: React.FC = () => {
   );
 };
 
+const FooterGlyph: React.FC<{ icon: FooterIcon; className?: string }> = ({ icon, className }) => (
+  <Icon icon={footerIconName(icon)} width={14} height={14} className={className} aria-hidden="true" />
+);
+
 export const AppFooter: React.FC = () => {
   const {
     checking,
@@ -216,7 +214,6 @@ export const AppFooter: React.FC = () => {
             )}
           </>
         )}
-        <TerminalStatusBar />
       </div>
 
       {/* Center: credits, setup screen only */}
@@ -224,16 +221,17 @@ export const AppFooter: React.FC = () => {
 
       {/* Right: the app */}
       <div className="statusbar__group statusbar__group--end" role="group" aria-label="Application utilities">
+        <TerminalStatusBar />
         {checking && (
-          <div className="statusbar__item">
-            <ArrowClockwise size={12} className="animate-spin-slow" aria-hidden="true" />
-            <span>Checking for updates</span>
+          <div className="statusbar__item statusbar__update is-checking" role="status">
+            <FooterGlyph icon="refresh" className="statusbar__update-icon" />
+            <span>Checking…</span>
           </div>
         )}
 
         {!checking && upToDate && (
-          <div className="statusbar__item statusbar__item--ok" role="status">
-            <CheckCircle size={12} weight="fill" aria-hidden="true" />
+          <div className="statusbar__item statusbar__update is-ok" role="status">
+            <FooterGlyph icon="ok" className="statusbar__update-icon" />
             <span>Up to date</span>
           </div>
         )}
@@ -242,16 +240,16 @@ export const AppFooter: React.FC = () => {
           <button
             type="button"
             onClick={downloadAndInstall}
-            className="statusbar__item statusbar__item--warn"
+            className="statusbar__item statusbar__update is-available"
             title={`Download and install v${updateAvailable.version}`}
           >
-            <DownloadSimple size={12} weight="bold" aria-hidden="true" />
+            <FooterGlyph icon="available" className="statusbar__update-icon" />
             <span>Update to v{updateAvailable.version}</span>
           </button>
         )}
 
         {downloading && (
-          <div className="statusbar__item statusbar__item--ok" role="status">
+          <div className="statusbar__item statusbar__update is-downloading" role="status">
             <div className="statusbar__progress" aria-hidden="true">
               <span style={{ width: `${downloadProgress}%` }} />
             </div>
@@ -261,7 +259,7 @@ export const AppFooter: React.FC = () => {
 
         {!checking && !downloading && !updateAvailable && !upToDate && (
           <button type="button" onClick={() => checkForUpdates(true)} className="statusbar__item">
-            <ArrowClockwise size={12} aria-hidden="true" />
+            <FooterGlyph icon="refresh" className="statusbar__update-icon" />
             <span>Check for updates</span>
           </button>
         )}
@@ -276,7 +274,7 @@ export const AppFooter: React.FC = () => {
           className="statusbar__item"
           title="Report an issue or share feedback on GitHub"
         >
-          <ChatCircleDots size={12} aria-hidden="true" />
+          <FooterGlyph icon="feedback" />
           <span>Feedback</span>
         </button>
 
@@ -288,7 +286,7 @@ export const AppFooter: React.FC = () => {
           aria-pressed={customCursor}
           aria-label="Custom cursor"
         >
-          <Crosshair size={12} weight={customCursor ? 'bold' : 'regular'} aria-hidden="true" />
+          <FooterGlyph icon={customCursor ? 'cursorOn' : 'cursor'} />
         </button>
 
         <span className="statusbar__sep" aria-hidden="true" />

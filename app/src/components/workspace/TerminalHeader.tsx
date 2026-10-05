@@ -92,6 +92,9 @@ export const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGO
 
 const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 
+// Toggle rows flip in place; Radix would otherwise close the menu on select.
+const keepMenuOpen = (event: Event): void => event.preventDefault();
+
 const stopDrag = {
   onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
   onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
@@ -173,6 +176,11 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
   const agentCommands = isAiAgent && effectiveAgent ? AGENT_COMMANDS[effectiveAgent as AgentType] ?? [] : [];
   const agentLabel = effectiveAgent ? CLI_LABELS[effectiveAgent] ?? effectiveAgent : 'Shell';
+  // Run starts its own PTY and streams into this pane, which would fight an AI
+  // agent's UI. Hide it while an agent owns the terminal, but keep it mounted
+  // if a managed command is still live so the user can always stop it.
+  const managedCommandLive = ['Starting', 'Running', 'Stopping'].includes(managedCommandState?.status ?? '');
+  const showRunControls = !isAiAgent || managedCommandLive;
   // Radix restores focus to the trigger when the menu closes. Send it to the
   // terminal instead, unless the chosen action owns focus (the find widget).
   const keepFocusRef = useRef(false);
@@ -216,13 +224,15 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
           </button>
         )}
 
-        <QuickActions
-          sessionId={session.id}
-          workspaceId={session.workspaceId}
-          cwd={currentCwd}
-          managedState={managedCommandState}
-          onStop={onStopManagedCommand}
-        />
+        {showRunControls && (
+          <QuickActions
+            sessionId={session.id}
+            workspaceId={session.workspaceId}
+            cwd={currentCwd}
+            managedState={managedCommandState}
+            onStop={onStopManagedCommand}
+          />
+        )}
 
         <TerminalLayoutPicker session={session} />
 
@@ -304,6 +314,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                       <DropdownMenu.CheckboxItem
                         className="term-menu__item"
                         checked={showQuickPrompts}
+                        onSelect={keepMenuOpen}
                         onCheckedChange={onToggleQuickPrompts}
                       >
                         <span className="term-menu__icon"><Sparkle size={14} /></span>
@@ -340,6 +351,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
                   <DropdownMenu.CheckboxItem
                     className="term-menu__item"
                     checked={mouseTrackingEnabled}
+                    onSelect={keepMenuOpen}
                     onCheckedChange={onToggleMouseTracking}
                   >
                     <span className="term-menu__icon"><MouseSimple size={14} /></span>

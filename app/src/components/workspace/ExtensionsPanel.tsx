@@ -41,7 +41,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
           <MagnifyingGlass size={14} className="shrink-0 text-[var(--text-secondary)]" />
           <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} className="w-full min-w-0 bg-transparent text-xs outline-none" placeholder="Search extensions" aria-label="Search extensions" />
         </label>
-        <p className="mt-3 text-[11px] leading-5 text-[var(--text-secondary)]">Install an assistant, then open its graphical panel beside your terminals.</p>
+        <p className="mt-3 text-[11px] leading-5 text-[var(--text-secondary)]">Install an assistant, then open its graphical panel in the Extensions workspace.</p>
       </div>
       <div className="flex-1 overflow-y-auto" aria-busy={loading}>
         {error && <div role="alert" className="m-3 space-y-2 text-xs text-rose-500"><p className="break-words">{error}</p><button type="button" className="app-button" onClick={() => void refreshCatalog()}>Retry</button></div>}

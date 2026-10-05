@@ -19,8 +19,8 @@ const GROUP_ICON: Record<InspectorQuickPromptGroup, React.ReactNode> = {
 };
 
 /**
- * Horizontal scrollable row of quick-prompt chips, shared between the YZPZ Agent
- * input area and the Terminal CLI prompt strip. Reads prompts from the global store.
+ * Horizontal scrollable row of quick-prompt chips for the Terminal CLI prompt
+ * strip. Reads prompts from the global store.
  */
 export const QuickPromptChips: React.FC<QuickPromptChipsProps> = ({
   id,

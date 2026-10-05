@@ -6,7 +6,7 @@
 
 ### The Unified Workspace for AI Coding Agents
 
-**Run 26 external AI coding CLIs, 10 developer tool CLIs, Graphical Workspace Extensions, and the built-in YZPZ Agent from one native desktop application.**
+**Run 26 external AI coding CLIs, 10 developer tool CLIs, Graphical Workspace Extensions from one native desktop application.**
 
 <p align="center">
   <a href="https://github.com/wolfenazz/YzPzCode/releases/latest">
@@ -31,7 +31,6 @@
   <a href="#-graphical-workspace-extensions">Extensions</a> •
   <a href="#-application-run--build-system">Run & Build</a> •
   <a href="#-core-features">Features</a> •
-  <a href="#-yzpz-agent">Built-in Agent</a> •
   <a href="#-download--installation">Download</a> •
   <a href="#-architecture">Architecture</a> •
   <a href="#-contributors">Contributors</a>
@@ -64,7 +63,7 @@ Modern AI-assisted development often degrades into a chaotic shuffle between doz
 | 🔄 Desynchronized file state across tools | 🔄 **Transactional file sync** & recursive filesystem watcher |
 | 🌐 Separate browser for UI validation | 🔍 **In-app browser** with deep CSS / visual inspector |
 | ⚙️ Repetitive CLI install & auth checks | 🔑 **Automatic detection, 1-click install & auth tracking** |
-| 💬 Isolated AI chats with lost context | 🤖 **Built-in YZPZ Agent** + 26 supported external AI CLIs |
+| 💬 Isolated AI chats with lost context | 🧩 **Graphical AI Extensions** + 26 supported external AI CLIs |
 | 🎨 Switching to Photoshop / Figma for quick edits | 🖌️ **Built-in layered image editor** with blend modes |
 
 ---
@@ -249,55 +248,28 @@ See [the application runs guide](docs/application-runs.md) for full configuratio
 
 ### 🧩 3. Graphical Workspace Extensions
 - **Curated Open VSX Catalog**: 1-click install for leading visual coding extensions (Google Antigravity, Kilo Code, Cline, Codex, Claude Code, Continue, Amazon Q, Tabby, Windsurf, Mistral Vibe)
-- **Grid Layout Integration**: Mix and match graphical webview panels with interactive PTY terminal sessions
+- **Grid Layout Integration**: Open AI assistant panels in a dedicated Extensions view with independent layouts
 - **Strict Security Boundaries**: Isolated child webviews with connection tokens, local origins, and app command rejection
 - **Durable Profile Persistence**: Workspace-scoped profiles, persistent authentication, and synchronized trust gates
 
-### 🤖 4. Built-In YZPZ Agent
-- **Native AI Sidecar**: Powered by a supervised Node.js harness over WebSockets
-- **Zero-Setup Required**: Ready to chat, execute tools, and manipulate files without external CLIs
-- **Full Transparency**: Streaming tokens, tool-call logs, permission approval gates, and context-window meters
-- **Agent Teams & Mentions**: Orchestrate multi-agent subtasks and reference project files with `@filename`
-
-### 📝 5. Monaco-Based Code Editor & Source Control
+### 📝 4. Monaco-Based Code Editor & Source Control
 - **Multi-Tab Workspace**: Split views, tab management (close others / right / saved)
 - **Syntax Highlighting & Minimap**: Rich language support via Monaco + CodeMirror engines
 - **Rich File Previews**: Markdown, PDF, CSV, Excel (`.xlsx`), Word (`.docx`), and Draw.io diagrams
 - **Transactional File Sync**: High-speed recursive filesystem watcher (`notify`) with debounced synchronization keeping open editor tabs in sync with external IDEs and agents
 - **Integrated Git Source Control**: Branch switching, diff statistics, staging/unstaging individual files or hunk diffs, discard changes, commit workflow, and remote sync
 
-### 🌐 6. In-App Browser & Visual Inspector
+### 🌐 5. In-App Browser & Visual Inspector
 - **Device Presets**: Emulate iPhone, iPad, responsive desktop; toggle portrait/landscape
 - **Deep Element Inspector**: Inspect computed CSS, pseudo-elements, box model, and DOM hierarchy
 - **Style Picker & Generator**: Capture styles directly to clipboard, generate atomic CSS classes, and apply with full undo stack
 - **Dev-Server Integration**: Instant 1-click browser preview when development servers emit local URLs
 
-### 🎨 7. AI Designer & Layered Image Editor
+### 🎨 6. AI Designer & Layered Image Editor
 - **Prompt-to-UI Generator**: Produce responsive HTML/CSS/JS interfaces directly from natural language prompts
 - **Full Layered Canvas**: Raster, vector, text, and shape layers powered by Konva
 - **16 Blend Modes**: Full layer opacity, rotation, masking, marquee/lasso selections, and history
 - **Multi-Format Export**: PNG, JPG, WebP, SVG, GIF, BMP, AVIF, TIFF
-
----
-
-<a id="-yzpz-agent"></a>
-## 🧠 YZPZ Agent: Under the Hood
-
-<div align="center">
-  <img src="docs/capture/Capture3new.PNG.jpg" width="85%" alt="YZPZ Agent Interface" style="border-radius: 8px;" />
-  <br />
-  <sub><b>Interactive Agent Chat with tool execution logs, approval controls, and token context meter</b></sub>
-</div>
-
-<br />
-
-The built-in **YZPZ Agent** runs as an isolated Node.js sidecar process supervised directly by the Tauri Rust host:
-
-- ⚡ **Real-Time Streaming**: Incremental token delivery via low-latency WebSocket connection
-- 🛡️ **Permission Controls**: Approve or reject bash commands, file writes, and external network requests
-- 🔄 **Session Persistence**: Resumable workspace-scoped sessions stored locally
-- 🎯 **Model Flexibility**: Connect to OpenAI, Anthropic, Gemini, Ollama, DeepSeek, or any custom OpenAI-compatible endpoint
-- 📊 **Context Awareness**: Real-time context budget tracking, automatic compaction strategies, and token cost estimation
 
 ---
 
@@ -309,7 +281,6 @@ flowchart TB
         direction LR
         UI_Term["Terminal Grid\n(xterm.js 6)"]
         UI_Ext["Workspace\nExtensions"]
-        UI_Agent["YZPZ Agent\nChat UI"]
         UI_Editor["Code Editor\n(Monaco)"]
         UI_Browser["Browser &\nInspector"]
         UI_Image["Image Editor\n(Konva)"]
@@ -320,13 +291,11 @@ flowchart TB
         PTY["PTY & Run Engine\n(portable-pty)"]
         ExtHost["Extension Host\nManager"]
         FS["File & Git Watcher\n(notify)"]
-        Host["Agent Host Supervisor"]
         DevEnv["IDE / CLI Detector"]
     end
 
     subgraph External["External Runtime"]
         ExtRuntime["VSCodium reh-web\n(Open VSX Host)"]
-        Harness["Node.js 22+ Agent Harness\n(WebSocket Server)"]
         CLIs["External AI & Tool CLIs\n(Claude, Antigravity, gh, etc.)"]
         IDEs["External IDEs\n(VS Code, Cursor, Zed)"]
     end
@@ -335,12 +304,10 @@ flowchart TB
     IPC --> PTY
     IPC --> ExtHost
     IPC --> FS
-    IPC --> Host
     IPC --> DevEnv
 
     PTY <==>|"Raw PTY Stream"| CLIs
     ExtHost <==>|"Loopback HTTP / Child Webview"| ExtRuntime
-    Host <==>|"Localhost WebSocket (JSON-RPC)"| Harness
     DevEnv -.->|"Process Launch"| IDEs
 ```
 
@@ -349,7 +316,7 @@ flowchart TB
 | Layer | Technologies |
 | :--- | :--- |
 | **Desktop Shell** | [Tauri v2](https://v2.tauri.app/), [Rust](https://www.rust-lang.org/) (2021 Edition) |
-| **Concurrency & PTY** | `tokio`, `portable-pty`, `tokio-tungstenite`, `notify`, `which` |
+| **Concurrency & PTY** | `tokio`, `portable-pty`, `notify`, `which` |
 | **Extension Host** | VSCodium `reh-web` (Open VSX), Sandboxed Child WebViews (`panel-*.localhost`) |
 | **Frontend Framework** | [React 19](https://react.dev/), [TypeScript 5.6](https://www.typescriptlang.org/), [Vite 6](https://vitejs.dev/) |
 | **Styling & Motion** | [Tailwind CSS v4](https://tailwindcss.com/), [Framer Motion](https://www.framer.com/motion/) |
@@ -370,7 +337,6 @@ yzpzcode/
     │   └── src/
     │       ├── agent/          # Autonomous agent task orchestration & retry logic
     │       ├── agent_cli/      # AI & Tool CLI detection, installation & auth
-    │       ├── agent_host/     # Supervisor for built-in Node.js agent harness
     │       ├── browser/        # Webview management & visual inspector bridge
     │       ├── commands/       # Tauri IPC commands (~100+ endpoints)
     │       ├── extension_host/ # Embedded VSCodium web runtime manager, Open VSX & VSIX sandboxing
@@ -391,8 +357,6 @@ yzpzcode/
     │   ├── hooks/              # Custom React hooks (useTerminal, useBrowser, useFileWatcher, etc.)
     │   ├── stores/             # Zustand global state stores (appStore, runConfigStore, extensionStore)
     │   └── types/              # TypeScript mirror interfaces of Rust structs
-    │
-    └── agent-harness/          # Supervised Node.js sidecar for YZPZ Agent
 ```
 
 ---
@@ -432,8 +396,6 @@ cd YzPzCode/app
 # Install frontend dependencies
 npm install
 
-# Install agent harness dependencies
-cd agent-harness && npm install && cd ..
 ```
 
 #### 3. Run in development mode
@@ -469,7 +431,6 @@ YzPzCode was built with a **local-first** security philosophy:
 
 - 🛡️ **Your Code Stays Local**: No project files or source code are ever uploaded to third-party servers by YzPzCode itself.
 - 🔑 **Locally Stored Secrets**: API keys and tokens are stored exclusively on your local machine.
-- 🚪 **Explicit Permission Gates**: The built-in agent requires explicit user confirmation before executing shell commands or writing destructive changes.
 - 📡 **Direct Provider Connections**: When you configure API keys for Anthropic, OpenAI, or other LLMs, requests are dispatched directly to their official endpoints.
 
 ---

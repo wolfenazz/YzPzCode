@@ -12,14 +12,11 @@ import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
 import grokLogo from '../../assets/Grok.png';
 import { ADDITIONAL_AGENT_LOGOS } from '../../data/additionalAgents';
-import yzpzLogo from '../../assets/YzPzCodeLogo.png';
 
 export interface AgentTargetOption {
   id: string;
   label: string;
   agent: CliType | null;
-  /** 'terminal' = a TTY/CLI agent session, 'yzpz' = a built-in YZPZ Agent session. */
-  kind?: 'terminal' | 'yzpz';
 }
 
 const AGENT_LOGO: Record<string, string> = {
@@ -36,7 +33,6 @@ const AGENT_LOGO: Record<string, string> = {
 };
 
 const optionLogo = (option: AgentTargetOption): string | null => {
-  if (option.kind === 'yzpz') return yzpzLogo;
   return option.agent ? AGENT_LOGO[option.agent] : null;
 };
 
@@ -234,7 +230,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
           {selectedLogo ? (
             <img
               src={selectedLogo}
-              alt={selected?.kind === 'yzpz' ? 'YZPZ Agent' : selected?.agent ?? 'terminal'}
+              alt={selected?.agent ?? 'terminal'}
               className="h-4 w-4 object-contain"
             />
           ) : (

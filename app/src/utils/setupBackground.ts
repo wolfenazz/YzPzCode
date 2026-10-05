@@ -1,9 +1,28 @@
 import type { SetupBackground, SetupGalaxySettings } from '../types';
 
 export const SETUP_BACKGROUNDS: { value: SetupBackground; label: string; description: string }[] = [
-  { value: 'none', label: 'None', description: 'Plain start screen background.' },
+  { value: 'none', label: 'No background', description: 'A clean, plain setup page. Default.' },
+  { value: 'aurora', label: 'Aurora', description: 'Soft sage light drifting across the page.' },
+  { value: 'threads', label: 'Threads', description: 'Fine silver strands with a slow, flowing motion.' },
+  { value: 'iridescence', label: 'Iridescence', description: 'A soft pearlescent wash in muted tones.' },
+  { value: 'waves', label: 'Waves', description: 'Delicate contour lines with gentle movement.' },
+  { value: 'particles', label: 'Particles', description: 'Sparse, softly lit particles floating in the distance.' },
+  { value: 'dark-veil', label: 'Dark Veil', description: 'A quiet veil of smoky blue light.' },
+  { value: 'gradient-blinds', label: 'Gradient Blinds', description: 'Subtle vertical folds in sage and slate.' },
+  { value: 'liquid-chrome', label: 'Liquid Chrome', description: 'Slow ripples with a brushed metal finish.' },
+  { value: 'plasma', label: 'Plasma', description: 'A restrained ribbon of warm, diffused light.' },
+  { value: 'shape-grid', label: 'Shape Grid', description: 'A fine architectural grid, slowly drifting.' },
   { value: 'galaxy', label: 'Galaxy', description: 'A drifting field of stars behind the workspace setup.' },
 ];
+
+export function normalizeSetupBackground(value: unknown): SetupBackground {
+  return SETUP_BACKGROUNDS.find((option) => option.value === value)?.value ?? 'none';
+}
+
+/** Clear the former Galaxy default once; later selections remain persisted. */
+export function migrateSetupBackground(value: unknown): SetupBackground {
+  return value === 'galaxy' ? 'none' : normalizeSetupBackground(value);
+}
 
 export const DEFAULT_SETUP_GALAXY: SetupGalaxySettings = {
   intensity: 70,

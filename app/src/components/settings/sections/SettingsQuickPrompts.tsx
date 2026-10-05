@@ -189,7 +189,7 @@ export const SettingsQuickPrompts: React.FC = () => {
             </Button>
           }
           description={meta.description}
-          footer="Prompts appear as one-click buttons in the element inspector and the agent input. Clicking one fills the text box so you can edit it before sending."
+          footer="Prompts appear as one-click buttons in the element inspector and the terminal prompt strip. Clicking one fills the text box so you can edit it before sending."
           title={meta.label}
         >
           {prompts.length === 0 ? (

@@ -2,8 +2,9 @@
 
 The Extensions button sits immediately after Explorer in the workspace header.
 `Ctrl+Shift+X` opens the catalog. Install an assistant and choose Open to add its
-original graphical extension panel to the terminal grid. Different assistants
-can run alongside shell and CLI terminals. Panels support dragging, resizing,
+original graphical extension panel to the dedicated **Extensions** view. Shell
+and CLI terminals stay in the **Terminal** view. Each view keeps its own layout.
+Panels support dragging, resizing,
 focus layouts, workspace switching, and closing.
 
 Workspace setup also includes an Extensions list. Select assistants there to

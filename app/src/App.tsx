@@ -205,6 +205,11 @@ function App() {
 
   return (
     <TooltipProvider delayDuration={350}>
+    <ContextMenu
+      onNewWorkspace={() => setView('setup')}
+      onDocsClick={handleDocsClick}
+      onSettingsClick={handleSettingsClick}
+    >
     <div className="app-shell min-h-screen overflow-hidden">
       {/* Keep live terminals parsing output while Settings, Docs or Setup is open. */}
       <div
@@ -264,12 +269,9 @@ function App() {
         )}
       </AnimatePresence>
       <UpdateNotification />
-      <ContextMenu
-        onDocsClick={handleDocsClick}
-        onNewWorkspace={() => setView('setup')}
-      />
       {customCursor && <CustomCursor />}
     </div>
+    </ContextMenu>
     </TooltipProvider>
   );
 }

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { TreeNodeData } from '../../hooks/useFileTree';
 import type { ExplorerClipboard, ExplorerClipboardEntry } from './TreeNode';
+import '../common/context-menu.css';
 
 interface ContextMenuState {
   x: number;
@@ -48,26 +49,16 @@ const MenuItem: React.FC<{
   <button
     role="menuitem"
     disabled={disabled}
-    className={`w-full flex items-center justify-between px-3 py-[5px] text-[11px] cursor-pointer transition-colors duration-75 ${
-      disabled
-        ? 'text-[var(--text-secondary)]/40 cursor-default'
-        : danger
-          ? 'text-rose-400 hover:bg-rose-500/10'
-          : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'
-    }`}
+    className={danger ? 'ctx-item ctx-item--danger' : 'ctx-item'}
     onClick={onClick}
   >
-    <span>{label}</span>
-    {shortcut && (
-      <span className={`text-[9px] ml-6 ${disabled ? 'text-[var(--text-secondary)]/40' : 'text-[var(--text-secondary)]'}`}>
-        {shortcut}
-      </span>
-    )}
+    <span className="ctx-item__label">{label}</span>
+    {shortcut && <span className="ctx-item__kbd">{shortcut}</span>}
   </button>
 ));
 
 const MenuSeparator: React.FC = memo(() => (
-  <div className="my-1 h-px bg-zinc-800/80 mx-2" />
+  <div role="separator" className="ctx-sep" />
 ));
 
 const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
@@ -292,7 +283,7 @@ const ContextMenuInner: React.FC<ExplorerContextMenuProps> = ({
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.97 }}
           transition={{ duration: 0.08, ease: 'easeOut' }}
-          className="absolute z-50 bg-zinc-900/95 backdrop-blur-md border border-zinc-700/70 rounded-md shadow-2xl py-1 min-w-[230px] overflow-hidden"
+          className="ctx-menu ctx-menu--plain absolute z-50"
           role="menu"
           onContextMenu={(e) => e.preventDefault()}
         >

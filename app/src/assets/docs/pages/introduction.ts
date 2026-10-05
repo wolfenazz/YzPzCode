@@ -6,7 +6,6 @@ YzPzCode is a multi-terminal AI development environment. It is a desktop app tha
 
 - **Parallel AI workflows**: Run Claude, Codex, Antigravity, and more at the same time, each in its own terminal
 - **Smart terminal grid**: Resizable, draggable panes with per-pane color customization
-- **Local agent harness**: An app-managed agent runtime with ask, act, plan, and orchestrator modes
 - **Built-in file explorer**: Browse, search, and manage project files with Git status badges
 - **Code editor**: Syntax highlighting, find and replace, auto-save, minimap, and file previews
 - **Source Control panel**: Stage, commit, diff, push, and pull without leaving the app
@@ -14,6 +13,7 @@ YzPzCode is a multi-terminal AI development environment. It is a desktop app tha
 - **Visual design inspector**: Inspect, capture, and apply styles from any webpage
 - **AI Designer**: Prompt-based UI generation with live preview and code export
 - **Image editor**: Layer-based image editing with brushes, shapes, text, and blend modes
+- **AI extensions**: Open graphical assistants in a dedicated Extensions view with draggable, resizable panels
 - **Multi-workspace**: Switch between projects with tabbed workspaces
 - **Discord Rich Presence**: Show your current activity on your Discord profile
 

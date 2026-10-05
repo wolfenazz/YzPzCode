@@ -21,31 +21,34 @@ const THEME_OPTIONS: Array<{ value: Exclude<ThemeMode, 'custom'>; label: string;
   { value: 'system', label: 'System', icon: Desktop },
 ];
 
-interface ThemeChoice {
+export interface ThemeChoice {
   key: string;
   label: string;
   icon: React.ElementType;
   active: boolean;
+  /** One of the user's own themes rather than a built-in. */
+  custom: boolean;
   select: () => void;
 }
 
-export const ThemeModeToggle: React.FC = () => {
+/** Every theme the user can switch to, with the store wiring for selecting it. */
+export const useThemeChoices = (): ThemeChoice[] => {
   const themeMode = useAppStore((s) => s.themeMode);
   const customThemes = useAppStore((s) => s.customThemes);
   const activeCustomThemeId = useAppStore((s) => s.activeCustomThemeId);
   const setThemeMode = useAppStore((s) => s.setThemeMode);
   const applyCustomTheme = useAppStore((s) => s.applyCustomTheme);
   const setAccentColor = useAppStore((s) => s.setAccentColor);
-  const [isChanging, setIsChanging] = useState(false);
 
   // Built-in themes first, then the user's own, in the order they appear in Settings.
-  const choices = useMemo<ThemeChoice[]>(
+  return useMemo<ThemeChoice[]>(
     () => [
       ...THEME_OPTIONS.map((option) => ({
         key: option.value,
         label: option.label,
         icon: option.icon,
         active: themeMode === option.value,
+        custom: false,
         select: () => {
           setThemeMode(option.value);
           if (option.value === 'claude') {
@@ -60,11 +63,17 @@ export const ThemeModeToggle: React.FC = () => {
         label: theme.name,
         icon: Palette,
         active: themeMode === 'custom' && activeCustomThemeId === theme.id,
+        custom: true,
         select: () => applyCustomTheme(theme.id),
       })),
     ],
     [themeMode, customThemes, activeCustomThemeId, setThemeMode, setAccentColor, applyCustomTheme],
   );
+};
+
+export const ThemeModeToggle: React.FC = () => {
+  const choices = useThemeChoices();
+  const [isChanging, setIsChanging] = useState(false);
 
   const currentIndex = Math.max(0, choices.findIndex((choice) => choice.active));
   const current = choices[currentIndex];

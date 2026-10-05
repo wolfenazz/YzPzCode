@@ -128,7 +128,7 @@ const TabBar: React.FC<TabBarProps> = ({
     <div
       role="tablist"
       aria-label="Open files"
-      className="flex shrink-0 items-center overflow-x-auto bg-[var(--bg-secondary)]"
+      className="flex shrink-0 items-center overflow-x-auto overflow-y-hidden scrollbar-none bg-[var(--bg-secondary)]"
       onContextMenu={handleBarContextMenu}
     >
       {openFiles.map((file, index) => {

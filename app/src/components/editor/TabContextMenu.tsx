@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import '../common/context-menu.css';
 
 interface MenuItem {
   label: string;
@@ -62,7 +63,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
       ref={menuRef}
       role="menu"
       aria-label="Tab context menu"
-      className="fixed z-[200] min-w-[220px] bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md shadow-xl py-1 animate-popover-in select-none"
+      className="ctx-menu ctx-menu--plain animate-popover-in fixed z-[200]"
       style={{ top: y, left: x }}
       onKeyDown={(event) => {
         if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
@@ -75,7 +76,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
     >
       {items.map((item, i) => {
         if (item.separator) {
-          return <div key={`sep-${i}`} role="separator" className="my-1 border-t border-theme" />;
+          return <div key={`sep-${i}`} role="separator" className="ctx-sep" />;
         }
         const mi = item as MenuItem;
         return (
@@ -89,17 +90,11 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
                 onClose();
               }
             }}
-            className={`w-full flex items-center justify-between px-3 py-2 text-[11px] transition-colors focus-visible:bg-[var(--bg-tertiary)] focus-visible:outline-none cursor-pointer ${
-              mi.disabled
-                ? 'text-[var(--text-secondary)]/40 cursor-default'
-                : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'
-            }`}
+            className="ctx-item"
             disabled={mi.disabled}
           >
-            <span>{mi.label}</span>
-            {mi.shortcut && (
-              <span className="ml-4 text-[10px] text-[var(--text-secondary)]">{mi.shortcut}</span>
-            )}
+            <span className="ctx-item__label">{mi.label}</span>
+            {mi.shortcut && <span className="ctx-item__kbd">{mi.shortcut}</span>}
           </button>
         );
       })}

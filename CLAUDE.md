@@ -211,14 +211,15 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 ### Setup & Onboarding
 **Frontend** (`app/src/components/setup/`):
 - `SetupScreen.tsx`: Main setup with workspace creation flow
-- `SetupStepper.tsx`: Step-by-step guided setup
+- `SetupStepper.tsx`: Step-by-step guided setup (same form, `guided` mode)
 - `NodeJsCheckScreen.tsx`: Node.js prerequisite check on first launch
-- `WorkspaceConfigForm.tsx`: Workspace name, directory, layout configuration
-- `WorkspaceTemplatePicker.tsx`: Layout template selection
-- `DirectorySelector.tsx`: Directory browsing with recent directories
+- `WorkspaceConfigForm.tsx`: "Set up your workspace" page — numbered Project / Layout / Agents & tools sections on a progress rail, sticky live preview + launch panel, Ctrl/⌘+O and Ctrl/⌘+Enter shortcuts. All styling lives in `setup.css` (`.ws-*` classes, theme tokens only; motion off under `.animations-disabled`/reduced motion via `useSetupMotion`)
+- `WorkspacePreview.tsx`: Animated mock of the workspace about to open (pane grid, typed commands, editor-only mock)
+- `cliCatalog.ts`: Shared agent/tool CLI metadata (label, logo/icon, color, command) and `slotAssignments`
+- `WorkspaceTemplatePicker.tsx`: Preset chips + "Manage" dialog (save current, edit, restore defaults)
+- `DirectorySelector.tsx`: Project folder picker with recent directories
 - `LayoutSelector.tsx`: Terminal count/grid layout selection
-- `AgentFleetConfig.tsx`: AI agent allocation to terminal slots
-- `AgentCliStatusBadge.tsx`: CLI status indicators
+- `AgentFleetConfig.tsx`: AI agent / tool CLI allocation to terminal slots (not-installed CLIs fold away)
 - `IdesSelector.tsx` / `IdesTable.tsx`: IDE selection for workspace
 - `PrerequisitesPanel.tsx`: Dependencies status panel
 - `InitializeWorkspace.tsx`: Workspace initialization

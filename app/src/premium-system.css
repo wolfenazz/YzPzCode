@@ -285,7 +285,10 @@
   opacity: 0.22;
 }
 
-.yzpz-theme .app-shell > *:not(.custom-cursor-layer) {
+/* Lift in-flow children above the noise layer. Elements that position themselves
+   (modals, menus, banners) are skipped: this rule is unlayered, so it would beat
+   their Tailwind `fixed`/`absolute` and turn an overlay into a normal flow item. */
+.yzpz-theme .app-shell > *:not(.custom-cursor-layer, .fixed, .absolute, .sticky) {
   position: relative;
   z-index: 1;
 }
@@ -392,9 +395,7 @@ body {
 
 .app-shell [class*="bg-gradient-"],
 .app-shell [class*="from-transparent"],
-.app-shell .premium-hero-gradient,
-.app-shell .premium-shimmer,
-.app-shell .agent-ready-rainbow {
+.app-shell .premium-hero-gradient {
   background-image: none !important;
   -webkit-text-fill-color: currentColor !important;
   color: inherit;
@@ -405,9 +406,7 @@ body {
   filter: none !important;
 }
 
-.app-shell .premium-pane::before,
-.app-shell .premium-surface::before,
-.app-shell .agent-input-island::before {
+.app-shell .premium-surface::before {
   background: none !important;
   opacity: 0 !important;
 }
@@ -1187,55 +1186,6 @@ html.animations-disabled .browser-inspect__beam::after {
 .diff-code .hljs-variable,
 .diff-code .hljs-params { color: var(--hljs-variable, var(--text-primary)); }
 .diff-code__text { tab-size: 2; }
-
-.agent-avatar {
-  position: relative;
-  isolation: isolate;
-  border-radius: 0.75rem;
-  transition: transform 180ms var(--ease-product), filter 180ms ease;
-}
-
-.agent-avatar::before {
-  content: "";
-  position: absolute;
-  inset: 0.25rem;
-  z-index: -1;
-  border-radius: 0.55rem;
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  opacity: 0;
-  transform: scale(0.72);
-  transition: opacity 180ms ease, transform 180ms var(--ease-product);
-}
-
-.agent-avatar:hover,
-.agent-avatar:focus-within {
-  transform: translateY(-1px) rotate(-2deg);
-  filter: drop-shadow(0 5px 10px color-mix(in srgb, var(--accent) 22%, transparent));
-}
-
-.agent-avatar:hover::before,
-.agent-avatar:focus-within::before {
-  opacity: 1;
-  transform: scale(1);
-}
-
-.agent-avatar__logo {
-  transition: transform 220ms var(--ease-product), filter 220ms ease;
-}
-
-.agent-avatar:hover .agent-avatar__logo,
-.agent-avatar:focus-within .agent-avatar__logo {
-  transform: scale(1.08);
-  filter: brightness(1.12) saturate(1.08);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .agent-avatar,
-  .agent-avatar::before,
-  .agent-avatar__logo {
-    transition: none;
-  }
-}
 
 /* ── Spawn Session Palette ───────────────────────────────────────────
    Command-palette style launcher: search first, flat rows, one quiet
@@ -2124,8 +2074,8 @@ html.animations-disabled .browser-inspect__beam::after {
   background: var(--bg-primary);
 }
 
-/* The Galaxy backdrop lives on the shell, so the scroll container must let it show through. */
-.setup-shell[data-background='galaxy'] .setup-main {
+/* Opt-in backdrops live on the shell, behind the scroll container. */
+.setup-shell:not([data-background='none']) .setup-main {
   background: transparent;
 }
 
@@ -2323,225 +2273,11 @@ html.animations-disabled .browser-inspect__beam::after {
   }
 }
 
-/* YzPz Agent: one calm workspace, not a stack of glowing terminal panels. */
-.app-shell .premium-pane {
-  border: 1px solid var(--border-primary) !important;
-  border-radius: var(--radius-surface);
-  background: var(--bg-primary) !important;
-  box-shadow: none !important;
-}
-
-.app-shell .premium-pane--active {
-  border-color: color-mix(in srgb, var(--border-primary) 55%, var(--text-secondary)) !important;
-  box-shadow: none !important;
-}
-
-.app-shell .premium-header {
-  background: var(--bg-secondary) !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
-}
-
-.app-shell .agent-input-island {
-  border: 1px solid color-mix(in srgb, var(--border-primary) 72%, var(--text-secondary)) !important;
-  border-radius: 1rem !important;
-  background: var(--popover) !important;
-  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.32) !important;
-}
-
-.app-shell .agent-input-island--active {
-  border-color: var(--border-primary) !important;
-  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.32) !important;
-}
-
-.app-shell .agent-composer-toolbar {
-  background: var(--bg-secondary);
-}
-
-.app-shell .agent-composer-body {
-  background: var(--popover);
-}
-
-.app-shell .agent-composer-status {
-  border: 1px solid var(--border-primary);
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-}
-
-.app-shell .agent-quick-prompts-toggle {
-  display: inline-flex;
-  height: 1.875rem;
-  align-items: center;
-  gap: 0.35rem;
-  border: 1px solid var(--border-primary);
-  border-radius: 0.625rem;
-  padding: 0 0.6rem;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  font-size: 0.625rem;
-  font-weight: 520;
-  cursor: pointer;
-  transition: border-color 160ms var(--ease-product), color 160ms var(--ease-product), background 160ms var(--ease-product);
-}
-.app-shell .agent-quick-prompts-toggle:hover,
-.app-shell .agent-quick-prompts-toggle[aria-expanded="true"] {
-  border-color: var(--accent-border);
-  color: var(--accent-text);
-  background: var(--accent-light);
-}
-.app-shell .agent-quick-prompts-toggle:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
-}
-.app-shell .agent-quick-prompts-toggle:disabled,
-.app-shell .agent-input-keycap:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-.app-shell .agent-quick-prompts-count {
-  min-width: 1.1rem;
-  border-radius: 999px;
-  padding: 0.1rem 0.3rem;
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  text-align: center;
-  font-family: var(--font-code);
-  font-size: 0.5625rem;
-}
-
-.app-shell .agent-input-keycap {
-  height: 1.875rem;
-  min-width: 4.2rem;
-  border: 1px solid var(--accent-border);
-  border-radius: 0.625rem;
-  padding: 0 0.65rem;
-  color: var(--text-secondary);
-  background: var(--bg-primary);
-  box-shadow: none !important;
-}
-.app-shell .agent-input-keycap:hover,
-.app-shell .agent-input-keycap.is-fast {
-  border-color: var(--accent-border);
-  color: var(--accent);
-  background: var(--accent-light);
-}
-
-.app-shell .agent-composer-status-dot {
-  width: 0.375rem;
-  height: 0.375rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-secondary) 55%, transparent);
-}
-
-.app-shell .agent-composer-status.is-running {
-  color: var(--text-primary);
-}
-
-.app-shell .agent-composer-status.is-running .agent-composer-status-dot {
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-light);
-}
-
-.app-shell .agent-composer-queue {
-  border-color: color-mix(in srgb, var(--accent-border) 75%, var(--border-primary));
-  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--accent-light));
-}
-
-.app-shell .agent-composer-queue-icon,
-.app-shell .agent-composer-queue-count {
-  color: var(--accent-text);
-  background: var(--accent-light);
-}
-
-.app-shell .agent-composer-compose {
-  border-color: var(--input);
-  background: var(--bg-primary);
-  transition: border-color 160ms var(--ease-product), background 160ms var(--ease-product);
-}
-
-.app-shell .agent-composer-compose:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--input));
-}
-
-.app-shell .agent-composer-compose.is-queueing {
-  background: color-mix(in srgb, var(--bg-primary) 94%, var(--accent-light));
-}
-
-.app-shell .agent-composer-submit {
-  min-width: 2rem;
-  outline: none;
-}
-
-.app-shell .agent-composer-submit:focus-visible {
-  box-shadow: 0 0 0 2px var(--ring);
-}
-
-.app-shell .agent-composer-submit.is-send {
-  border-color: transparent;
-  color: var(--primary-foreground);
-  background: var(--primary);
-}
-
-.app-shell .agent-composer-submit.is-send:hover:not(:disabled) {
-  opacity: 0.88;
-}
-
-.app-shell .agent-composer-submit.is-queue {
-  border-color: var(--accent-border);
-  color: var(--text-primary);
-  background: var(--accent-light);
-}
-
-.app-shell .agent-composer-submit.is-queue:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--accent-border));
-  background: color-mix(in srgb, var(--accent-light) 78%, var(--bg-tertiary));
-}
-
-.app-shell :where(.electric-chip, .agent-input-keycap) {
-  filter: none !important;
-  text-shadow: none !important;
-  box-shadow: none !important;
-}
-
-.app-shell .premium-segmented {
-  border: 0;
-  border-radius: 0.625rem !important;
-  background: var(--bg-primary);
-  box-shadow: none;
-}
-
-.app-shell .premium-segmented-item {
-  border-radius: 0.45rem !important;
-  color: var(--text-secondary) !important;
-  box-shadow: none !important;
-}
-
-.app-shell .premium-segmented-item[aria-selected="true"] {
-  color: var(--text-primary) !important;
-  background: var(--bg-tertiary) !important;
-}
-
-.app-shell .premium-segmented-item[data-mode] svg,
-.app-shell .premium-segmented-item[data-mode][aria-selected="true"] svg {
-  color: currentColor !important;
-  filter: none !important;
-}
-
+/* Shared image editor surface treatment. */
 .app-shell .premium-surface {
   border-color: var(--border-primary);
   background: var(--bg-secondary);
   box-shadow: none;
-}
-
-.app-shell .premium-lift:hover {
-  transform: none;
-  box-shadow: none;
-}
-
-.app-shell .agent-rich-text {
-  color: var(--foreground);
-  font-family: var(--font-ui);
-  letter-spacing: -0.006em;
 }
 
 @keyframes theme-switch-icon {
@@ -2553,30 +2289,6 @@ html.animations-disabled .browser-inspect__beam::after {
 .app-shell .theme-switch-icon {
   display: inline-flex;
   animation: theme-switch-icon 300ms var(--ease-product);
-}
-
-.app-shell .agent-rich-text :where(p, li) {
-  line-height: 1.65;
-}
-
-.app-shell .agent-ai-reasoning,
-.app-shell .agent-ai-tool {
-  box-shadow: none;
-}
-
-.app-shell .agent-ai-tool [data-slot="badge"] {
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-}
-
-.app-shell .agent-ai-tool [data-slot="badge"] svg {
-  color: currentColor !important;
-}
-
-.app-shell .agent-ready-icon,
-.app-shell .agent-ready-logo {
-  filter: none !important;
-  box-shadow: none !important;
 }
 
 @media (max-width: 760px) {

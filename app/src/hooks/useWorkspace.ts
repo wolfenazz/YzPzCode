@@ -284,7 +284,9 @@ export const useWorkspace = () => {
       if (extension) extensions.openPanel(workspace.id, extension);
     }
     openWorkspace(workspace);
-    if (selectedLayout.sessions === 0 && selectedExtensionIds.length === 0) {
+    if (selectedExtensionIds.length > 0) {
+      useAppStore.getState().setActiveView('extensions');
+    } else if (selectedLayout.sessions === 0) {
       useAppStore.getState().setActiveView('editor');
     }
     return workspace;

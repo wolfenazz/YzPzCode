@@ -23,7 +23,7 @@ export const BrowserTabBar: React.FC<BrowserTabBarProps> = ({
   }, [onCloseTab]);
 
   return (
-    <nav className="browser-tabs flex items-center gap-0.5 overflow-x-auto border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1" aria-label="Browser tabs">
+    <nav className="browser-tabs flex items-center gap-0.5 overflow-x-auto overflow-y-hidden scrollbar-none border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1" aria-label="Browser tabs">
       {tabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         return (
