@@ -1,16 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { Icon } from '@iconify/react';
 import {
   CaretDown,
   Check,
-  Info,
   MagnifyingGlass,
-  Sparkle,
   TerminalWindow,
-  Wrench,
-  X,
 } from '@phosphor-icons/react';
 import { AgentType, ToolCliType, CliType } from '../../types';
 import claudeLogo from '../../assets/claude.png';
@@ -77,7 +73,30 @@ const TOOL_OPTIONS: { type: ToolCliType; label: string; description: string; ico
   { type: 'agentmail', label: 'AgentMail CLI', description: 'Email for AI agents', icon: 'simple-icons:mailgun', color: '#EC4899' },
 ];
 
+// Monochrome brand icons that would vanish on a dark/light surface; render them in the text colour instead.
+const MONO_TOOL_COLORS = new Set(['#ffffff', '#000000']);
+
 type CategoryFilter = 'all' | 'agents' | 'tools' | 'shell';
+
+const CATEGORIES: { id: CategoryFilter; label: string; count: number }[] = [
+  { id: 'all', label: 'All', count: AGENT_OPTIONS.length + TOOL_OPTIONS.length + 1 },
+  { id: 'agents', label: 'Agents', count: AGENT_OPTIONS.length },
+  { id: 'tools', label: 'Tools', count: TOOL_OPTIONS.length },
+  { id: 'shell', label: 'Shell', count: 1 },
+];
+
+type SectionId = 'shell' | 'agents' | 'tools';
+
+const SECTION_COLUMNS: Record<SectionId, number> = { shell: 1, agents: 2, tools: 2 };
+
+interface PaletteItem {
+  key: string;
+  section: SectionId;
+  indexInSection: number;
+  cli: CliType | null;
+  label: string;
+  detail: string;
+}
 
 interface ShellOption {
   name: string;
@@ -90,27 +109,17 @@ interface NewTerminalDialogProps {
   onSelect: (agent: CliType | null, shell: string | null) => void;
 }
 
+const matches = (q: string, ...fields: string[]) => fields.some((f) => f.toLowerCase().includes(q));
+
 export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, onSelect }) => {
-  const [expandedAgent, setExpandedAgent] = useState<AgentType | null>(null);
   const [availableShells, setAvailableShells] = useState<ShellOption[]>([]);
   const [selectedShell, setSelectedShell] = useState<string | null>(null);
   const [showShellPicker, setShowShellPicker] = useState(false);
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (showShellPicker) {
-          setShowShellPicker(false);
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, showShellPicker]);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     invoke<ShellOption[]>('get_available_shells').then((shells) => {
@@ -120,369 +129,348 @@ export const NewTerminalDialog: React.FC<NewTerminalDialogProps> = ({ onClose, o
     }).catch(console.error);
   }, []);
 
-  const handleSelect = (agent: CliType | null) => {
-    onSelect(agent, selectedShell);
-  };
+  useEffect(() => {
+    searchRef.current?.focus();
+  }, []);
+
+  const currentShellName = availableShells.find((s) => s.path === selectedShell)?.name || 'Default shell';
+
+  const q = searchQuery.trim().toLowerCase();
 
   const filteredAgents = useMemo(() => {
     if (category === 'tools' || category === 'shell') return [];
-    const q = searchQuery.trim().toLowerCase();
     if (!q) return AGENT_OPTIONS;
-    return AGENT_OPTIONS.filter((a) =>
-      a.label.toLowerCase().includes(q) ||
-      a.description.toLowerCase().includes(q) ||
-      a.type.toLowerCase().includes(q)
-    );
-  }, [category, searchQuery]);
+    return AGENT_OPTIONS.filter((a) => matches(q, a.label, a.description, a.type));
+  }, [category, q]);
 
   const filteredTools = useMemo(() => {
     if (category === 'agents' || category === 'shell') return [];
-    const q = searchQuery.trim().toLowerCase();
     if (!q) return TOOL_OPTIONS;
-    return TOOL_OPTIONS.filter((t) =>
-      t.label.toLowerCase().includes(q) ||
-      t.description.toLowerCase().includes(q) ||
-      t.type.toLowerCase().includes(q)
-    );
-  }, [category, searchQuery]);
+    return TOOL_OPTIONS.filter((t) => matches(q, t.label, t.description, t.type));
+  }, [category, q]);
 
-  const showShellSection = category === 'all' || category === 'shell';
-  const availableShellCount = availableShells.filter((s) => s.isAvailable).length;
-  const currentShellName = availableShells.find((s) => s.path === selectedShell)?.name || 'Default Shell';
+  const showShellSection =
+    (category === 'all' || category === 'shell') &&
+    (!q || matches(q, 'system shell', 'terminal', currentShellName));
+
+  // Flat, visually-ordered list used for keyboard navigation.
+  const items = useMemo<PaletteItem[]>(() => {
+    const list: PaletteItem[] = [];
+    if (showShellSection) {
+      list.push({
+        key: 'shell',
+        section: 'shell',
+        indexInSection: 0,
+        cli: null,
+        label: 'System Shell',
+        detail: `Plain terminal session using ${currentShellName}.`,
+      });
+    }
+    filteredAgents.forEach((a, i) => list.push({
+      key: `agent:${a.type}`,
+      section: 'agents',
+      indexInSection: i,
+      cli: a.type,
+      label: a.label,
+      detail: AGENT_CAPABILITIES[a.type] ?? a.description,
+    }));
+    filteredTools.forEach((t, i) => list.push({
+      key: `tool:${t.type}`,
+      section: 'tools',
+      indexInSection: i,
+      cli: t.type,
+      label: t.label,
+      detail: t.description,
+    }));
+    return list;
+  }, [showShellSection, filteredAgents, filteredTools, currentShellName]);
+
+  // Reset highlight whenever the result set changes shape.
+  useEffect(() => {
+    setActiveIndex(0);
+    listRef.current?.scrollTo({ top: 0 });
+  }, [category, q]);
+
+  const activeItem = items[Math.min(activeIndex, items.length - 1)];
+
+  const launch = useCallback((cli: CliType | null) => {
+    onSelect(cli, selectedShell);
+  }, [onSelect, selectedShell]);
+
+  const scrollActiveIntoView = (index: number) => {
+    const key = items[index]?.key;
+    if (!key) return;
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+    el?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const moveVertical = (dir: 1 | -1): number => {
+    const cur = items[activeIndex];
+    if (!cur) return 0;
+    const sectionItems = items.filter((it) => it.section === cur.section);
+    const cols = SECTION_COLUMNS[cur.section];
+    const col = cur.indexInSection % cols;
+    const target = sectionItems[cur.indexInSection + dir * cols];
+    if (target) return items.indexOf(target);
+
+    // Cross into the neighbouring section, keeping the column where possible.
+    const sectionOrder = Array.from(new Set(items.map((it) => it.section)));
+    const nextSection = sectionOrder[sectionOrder.indexOf(cur.section) + dir];
+    if (!nextSection) return activeIndex;
+    const nextItems = items.filter((it) => it.section === nextSection);
+    const nextCols = SECTION_COLUMNS[nextSection];
+    const nextCol = Math.min(col, nextCols - 1);
+    let idx: number;
+    if (dir === 1) {
+      idx = Math.min(nextCol, nextItems.length - 1);
+    } else {
+      const lastRowStart = Math.floor((nextItems.length - 1) / nextCols) * nextCols;
+      idx = Math.min(lastRowStart + nextCol, nextItems.length - 1);
+    }
+    return items.indexOf(nextItems[idx]);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (showShellPicker) setShowShellPicker(false);
+      else onClose();
+      return;
+    }
+    if (showShellPicker || items.length === 0) return;
+
+    let next: number | null = null;
+    switch (e.key) {
+      case 'ArrowDown': next = moveVertical(1); break;
+      case 'ArrowUp': next = moveVertical(-1); break;
+      case 'ArrowRight':
+        if (activeItem && SECTION_COLUMNS[activeItem.section] > 1) next = Math.min(activeIndex + 1, items.length - 1);
+        break;
+      case 'ArrowLeft':
+        if (activeItem && SECTION_COLUMNS[activeItem.section] > 1) next = Math.max(activeIndex - 1, 0);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (activeItem) launch(activeItem.cli);
+        return;
+      case 'Tab': {
+        e.preventDefault();
+        const i = CATEGORIES.findIndex((c) => c.id === category);
+        const step = e.shiftKey ? -1 : 1;
+        setCategory(CATEGORIES[(i + step + CATEGORIES.length) % CATEGORIES.length].id);
+        return;
+      }
+      default:
+        return;
+    }
+    if (next !== null) {
+      e.preventDefault();
+      setActiveIndex(next);
+      scrollActiveIntoView(next);
+    }
+  };
+
+  const indexOfKey = (key: string) => items.findIndex((it) => it.key === key);
+
+  const rowProps = (key: string, cli: CliType | null) => {
+    const index = indexOfKey(key);
+    return {
+      'data-key': key,
+      role: 'option' as const,
+      'aria-selected': index === activeIndex,
+      className: `spawn-row ${index === activeIndex ? 'is-active' : ''}`,
+      onMouseMove: () => { if (index !== activeIndex) setActiveIndex(index); },
+      onClick: () => launch(cli),
+    };
+  };
+
+  const sectionHeader = (title: string, count?: number) => (
+    <div className="spawn-section-label">
+      <span>{title}</span>
+      {count !== undefined && <span className="spawn-section-count">{count}</span>}
+    </div>
+  );
+
+  const activeLogo = (() => {
+    if (!activeItem) return null;
+    if (activeItem.section === 'shell') return <TerminalWindow size={12} weight="bold" />;
+    if (activeItem.section === 'agents') {
+      const a = AGENT_OPTIONS.find((o) => o.type === activeItem.cli);
+      return a ? <img src={a.logo} alt="" className="h-full w-full object-contain" /> : null;
+    }
+    const t = TOOL_OPTIONS.find((o) => o.type === activeItem.cli);
+    return t ? <Icon icon={t.icon} className="h-3 w-3" style={MONO_TOOL_COLORS.has(t.color.toLowerCase()) ? undefined : { color: t.color }} /> : null;
+  })();
 
   const modalContent = (
-    <div
-      className="spawn-session-backdrop"
-      onClick={onClose}
-      role="presentation"
-    >
+    <div className="spawn-backdrop" onMouseDown={onClose} role="presentation">
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Spawn new terminal session"
-        className="spawn-session-window"
-        onClick={(e) => e.stopPropagation()}
+        aria-label="New terminal session"
+        className="spawn-window"
+        tabIndex={-1}
+        onMouseDown={(e) => e.stopPropagation()}
+        onKeyDown={handleKeyDown}
       >
-        {/* Header */}
-        <div className="spawn-session-header">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] shadow-sm">
-              <TerminalWindow size={18} weight="bold" className="text-[var(--accent)]" aria-hidden="true" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold tracking-tight text-[var(--text-primary)]">
-                Spawn New Session
-              </h2>
-              <p className="text-[11px] text-[var(--text-secondary)]">
-                Select an AI agent, tool CLI, or system shell
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="workspace-window-control workspace-window-control--close"
-            title="Close dialog (Esc)"
-            aria-label="Close dialog"
-            type="button"
-          >
-            <X size={13} weight="bold" aria-hidden="true" />
+        {/* Search */}
+        <div className="spawn-search">
+          <MagnifyingGlass size={16} className="spawn-search-icon" aria-hidden="true" />
+          <input
+            ref={searchRef}
+            type="text"
+            placeholder="Start a session with…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="spawn-search-input"
+            aria-label="Search agents, tools and shells"
+            aria-controls="spawn-results"
+            spellCheck={false}
+            autoComplete="off"
+          />
+          <button type="button" onClick={onClose} className="spawn-kbd spawn-kbd--button" aria-label="Close dialog">
+            esc
           </button>
         </div>
 
-        {/* Toolbar: Category Switcher & Search Bar */}
-        <div className="flex flex-col gap-2.5 px-4 pt-3 pb-2 shrink-0 border-b border-[var(--border-primary)]/50">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="spawn-session-filter-dock" role="tablist" aria-label="Filter categories">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={category === 'all'}
-                onClick={() => setCategory('all')}
-                className={`spawn-session-filter-item ${category === 'all' ? 'is-active' : ''}`}
-              >
-                All ({AGENT_OPTIONS.length + TOOL_OPTIONS.length + 1})
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={category === 'agents'}
-                onClick={() => setCategory('agents')}
-                className={`spawn-session-filter-item flex items-center gap-1 ${category === 'agents' ? 'is-active' : ''}`}
-              >
-                <Sparkle size={12} weight={category === 'agents' ? 'fill' : 'regular'} aria-hidden="true" />
-                Agents ({AGENT_OPTIONS.length})
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={category === 'tools'}
-                onClick={() => setCategory('tools')}
-                className={`spawn-session-filter-item flex items-center gap-1 ${category === 'tools' ? 'is-active' : ''}`}
-              >
-                <Wrench size={12} weight="regular" aria-hidden="true" />
-                Tools ({TOOL_OPTIONS.length})
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={category === 'shell'}
-                onClick={() => setCategory('shell')}
-                className={`spawn-session-filter-item flex items-center gap-1 ${category === 'shell' ? 'is-active' : ''}`}
-              >
-                <TerminalWindow size={12} weight="regular" aria-hidden="true" />
-                Shell
-              </button>
-            </div>
-
-            {/* Quick search input */}
-            <div className="spawn-session-search flex-1 min-w-[160px] max-w-[240px]">
-              <MagnifyingGlass size={13} className="text-[var(--text-muted)] shrink-0 mr-1.5" aria-hidden="true" />
-              <input
-                type="text"
-                placeholder="Search fleet..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-transparent text-[11px] text-[var(--text-primary)] placeholder-[var(--text-muted)] outline-none"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                >
-                  <X size={11} weight="bold" />
-                </button>
-              )}
-            </div>
-          </div>
+        {/* Categories */}
+        <div className="spawn-tabs" role="tablist" aria-label="Filter categories">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              role="tab"
+              aria-selected={category === c.id}
+              onClick={() => { setCategory(c.id); searchRef.current?.focus(); }}
+              className={`spawn-tab ${category === c.id ? 'is-active' : ''}`}
+            >
+              {c.label}
+              <span className="spawn-tab-count">{c.count}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Scrollable Content */}
-        <div
-          className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-4"
-          style={{ scrollbarWidth: 'thin' }}
-        >
-          {/* System Shell Section */}
-          {showShellSection && !searchQuery && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  System Environment
-                </span>
-                {/* Shell selector dropdown pill */}
-                <div className="relative">
+        {/* Results */}
+        <div ref={listRef} id="spawn-results" role="listbox" className="spawn-list">
+          {showShellSection && (
+            <section>
+              {sectionHeader('Shell')}
+              <div {...rowProps('shell', null)}>
+                <div className="spawn-logo spawn-logo--shell">
+                  <TerminalWindow size={15} weight="bold" />
+                </div>
+                <div className="spawn-row-text">
+                  <span className="spawn-row-title">System Shell</span>
+                  <span className="spawn-row-desc">Plain terminal, no agent attached</span>
+                </div>
+
+                <div className="relative" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
-                    onClick={() => setShowShellPicker(!showShellPicker)}
-                    className="flex h-6 items-center gap-1.5 rounded-full border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 text-[10px] font-medium text-[var(--text-secondary)] transition-colors hover:border-[var(--accent)] hover:text-[var(--text-primary)]"
+                    onClick={() => setShowShellPicker((v) => !v)}
+                    className="spawn-shell-picker"
+                    aria-haspopup="listbox"
+                    aria-expanded={showShellPicker}
                   >
-                    <span>{currentShellName}</span>
-                    <span className="rounded-full bg-[var(--bg-tertiary)] px-1 py-0.2 text-[8px] font-mono text-[var(--text-muted)]">
-                      {availableShellCount}
-                    </span>
-                    <CaretDown size={10} weight="bold" className={`transition-transform ${showShellPicker ? 'rotate-180' : ''}`} />
+                    <span className="truncate">{currentShellName}</span>
+                    <CaretDown size={10} weight="bold" className={`shrink-0 transition-transform ${showShellPicker ? 'rotate-180' : ''}`} />
                   </button>
 
                   {showShellPicker && (
-                    <div className="absolute right-0 z-50 mt-1 w-48 overflow-hidden rounded-xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-xl backdrop-blur-2xl">
+                    <div className="spawn-shell-menu" role="listbox">
                       {availableShells.map((shell) => (
                         <button
                           key={shell.path}
                           type="button"
-                          onClick={() => {
-                            if (shell.isAvailable) {
-                              setSelectedShell(shell.path);
-                              setShowShellPicker(false);
-                            }
-                          }}
-                          className={`flex w-full items-center justify-between px-3 py-2 text-left text-[11px] transition-colors ${
-                            shell.isAvailable
-                              ? 'cursor-pointer hover:bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
-                              : 'cursor-not-allowed opacity-40 text-[var(--text-muted)]'
-                          } ${selectedShell === shell.path ? 'bg-[var(--bg-tertiary)] font-semibold' : ''}`}
+                          role="option"
+                          aria-selected={selectedShell === shell.path}
                           disabled={!shell.isAvailable}
+                          onClick={() => {
+                            setSelectedShell(shell.path);
+                            setShowShellPicker(false);
+                            searchRef.current?.focus();
+                          }}
+                          className="spawn-shell-option"
                         >
                           <span className="truncate">{shell.name}</span>
-                          {selectedShell === shell.path && (
-                            <Check size={12} weight="bold" className="text-emerald-500 shrink-0" />
-                          )}
+                          {selectedShell === shell.path && <Check size={12} weight="bold" className="shrink-0" />}
+                          {!shell.isAvailable && <span className="spawn-shell-na">Not found</span>}
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-
-              <div
-                onClick={() => handleSelect(null)}
-                className="spawn-session-card group"
-              >
-                <div className="spawn-session-logo-tile">
-                  <TerminalWindow size={18} weight="bold" className="text-[var(--accent)]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-[var(--text-primary)]">System Shell</span>
-                    <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[8px] font-semibold text-emerald-400">
-                      Standard
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5">
-                    Launch standard system tty terminal using {currentShellName}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1 text-[11px] font-semibold text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-                  <span>Launch</span>
-                  <span className="text-xs">→</span>
-                </div>
-              </div>
-            </div>
+            </section>
           )}
 
-          {/* Agent Fleet Grid */}
           {filteredAgents.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  AI Agent Fleet
-                </span>
-                <span className="text-[9px] font-mono text-[var(--text-muted)]">
-                  {filteredAgents.length} {filteredAgents.length === 1 ? 'agent' : 'agents'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {filteredAgents.map((agent) => {
-                  const isExpanded = expandedAgent === agent.type;
-                  return (
-                    <div key={agent.type} className="flex flex-col">
-                      <div
-                        onClick={() => handleSelect(agent.type)}
-                        className="spawn-session-card group"
-                        style={{
-                          borderLeftColor: agent.color ? `color-mix(in srgb, ${agent.color} 50%, var(--border-primary))` : undefined,
-                        }}
-                      >
-                        <div className="spawn-session-logo-tile">
-                          <img
-                            src={agent.logo}
-                            alt={agent.label}
-                            className="h-full w-full object-contain"
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                              {agent.label}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5">
-                            {agent.description}
-                          </p>
-                        </div>
-
-                        {/* Info trigger */}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExpandedAgent(isExpanded ? null : agent.type);
-                          }}
-                          className={`p-1 rounded-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors ${
-                            isExpanded ? 'bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : ''
-                          }`}
-                          title="View capabilities"
-                        >
-                          <Info size={14} weight={isExpanded ? 'fill' : 'regular'} />
-                        </button>
-                      </div>
-
-                      {/* Capabilities dropdown */}
-                      {isExpanded && (
-                        <div className="mt-1 rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2.5 text-[10px] text-[var(--text-secondary)] shadow-sm animate-fade-in">
-                          <div className="flex items-center gap-1.5 mb-1 font-semibold text-[var(--text-primary)]">
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: agent.color }} />
-                            <span>{agent.label} Capabilities</span>
-                          </div>
-                          <p className="leading-relaxed">{AGENT_CAPABILITIES[agent.type]}</p>
-                        </div>
-                      )}
+            <section>
+              {sectionHeader('Agents', filteredAgents.length)}
+              <div className="spawn-grid">
+                {filteredAgents.map((agent) => (
+                  <div key={agent.type} {...rowProps(`agent:${agent.type}`, agent.type)}>
+                    <div className="spawn-logo">
+                      <img src={agent.logo} alt="" className="h-full w-full object-contain" />
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Tool CLIs Grid */}
-          {filteredTools.length > 0 && (
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-                  Developer &amp; SaaS Tools
-                </span>
-                <span className="text-[9px] font-mono text-[var(--text-muted)]">
-                  {filteredTools.length} {filteredTools.length === 1 ? 'tool' : 'tools'}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {filteredTools.map((tool) => (
-                  <div
-                    key={tool.type}
-                    onClick={() => handleSelect(tool.type)}
-                    className="spawn-session-card group"
-                  >
-                    <div className="spawn-session-logo-tile">
-                      <Icon icon={tool.icon} style={{ color: tool.color }} className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-[var(--text-primary)] truncate">
-                          {tool.label}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-[var(--text-secondary)] truncate mt-0.5">
-                        {tool.description}
-                      </p>
-                    </div>
-                    <div className="text-[11px] font-semibold text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-opacity pr-1">
-                      →
+                    <div className="spawn-row-text">
+                      <span className="spawn-row-title">{agent.label}</span>
+                      <span className="spawn-row-desc">{agent.description}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* Empty search state */}
-          {filteredAgents.length === 0 && filteredTools.length === 0 && !showShellSection && (
-            <div className="py-12 text-center text-[var(--text-muted)]">
-              <p className="text-xs">No matching agents or tools found for &quot;{searchQuery}&quot;</p>
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="mt-2 text-[11px] font-medium text-[var(--accent)] hover:underline"
-              >
-                Clear search query
+          {filteredTools.length > 0 && (
+            <section>
+              {sectionHeader('Tools', filteredTools.length)}
+              <div className="spawn-grid">
+                {filteredTools.map((tool) => (
+                  <div key={tool.type} {...rowProps(`tool:${tool.type}`, tool.type)}>
+                    <div className="spawn-logo">
+                      <Icon
+                        icon={tool.icon}
+                        className="h-4 w-4"
+                        style={MONO_TOOL_COLORS.has(tool.color.toLowerCase()) ? undefined : { color: tool.color }}
+                      />
+                    </div>
+                    <div className="spawn-row-text">
+                      <span className="spawn-row-title">{tool.label}</span>
+                      <span className="spawn-row-desc">{tool.description}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {items.length === 0 && (
+            <div className="spawn-empty">
+              <p>No results for &ldquo;{searchQuery}&rdquo;</p>
+              <button type="button" onClick={() => { setSearchQuery(''); searchRef.current?.focus(); }}>
+                Clear search
               </button>
             </div>
           )}
         </div>
 
-        {/* Footer Bar */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t border-[var(--border-primary)] bg-[var(--bg-primary)]/40 shrink-0 text-[10px] text-[var(--text-secondary)]">
-          <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Ready to spawn session</span>
+        {/* Footer: preview of the highlighted item + key hints */}
+        <div className="spawn-footer">
+          <div className="spawn-footer-preview" title={activeItem?.detail}>
+            {activeItem && (
+              <>
+                <span className="spawn-footer-logo">{activeLogo}</span>
+                <span className="spawn-footer-name">{activeItem.label}</span>
+                <span className="spawn-footer-detail">{activeItem.detail}</span>
+              </>
+            )}
           </div>
-          <div className="flex items-center gap-1 text-[var(--text-muted)]">
-            <span>Press</span>
-            <kbd className="rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[var(--text-secondary)]">
-              ESC
-            </kbd>
-            <span>to dismiss</span>
+          <div className="spawn-footer-keys" aria-hidden="true">
+            <span><kbd className="spawn-kbd">↑↓</kbd> Move</span>
+            <span><kbd className="spawn-kbd">tab</kbd> Filter</span>
+            <span><kbd className="spawn-kbd">↵</kbd> Launch</span>
           </div>
         </div>
       </div>

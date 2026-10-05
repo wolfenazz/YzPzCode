@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { Marked, Renderer, type Tokens } from 'marked';
 import hljs from 'highlight.js';
@@ -392,6 +392,7 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
   const debouncedContent = useDebouncedValue(content, 300);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const copyTimerRef = useRef<number | null>(null);
+  const [headings, setHeadings] = useState<{ text: string; level: number }[]>([]);
 
   useEffect(
     () => () => {
@@ -422,6 +423,11 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
       activeImageContext = null;
     }
   }, [debouncedContent, filePath, workspacePath]);
+
+  useEffect(() => {
+    const elements = containerRef.current?.querySelectorAll<HTMLHeadingElement>('h1, h2, h3');
+    setHeadings(elements ? Array.from(elements).map((element) => ({ text: element.textContent ?? '', level: Number(element.tagName.slice(1)) })) : []);
+  }, [html]);
 
   /**
    * Local images are emitted as placeholders (`data-md-image-src`), then loaded
@@ -489,6 +495,17 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
 
   const handleContainerClick = (event: React.MouseEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;
+    const link = target.closest<HTMLAnchorElement>('a[href^="#"]');
+    if (link) {
+      event.preventDefault();
+      const rawId = link.getAttribute('href')?.slice(1) ?? '';
+      let id = rawId;
+      try { id = decodeURIComponent(rawId); } catch { /* Preserve literal IDs with malformed percent escapes. */ }
+      // Scope anchors to this pane, including when two previews show the same file.
+      const heading = Array.from(containerRef.current?.querySelectorAll<HTMLElement>('[id]') ?? []).find((element) => element.id === id);
+      heading?.scrollIntoView({ block: 'start' });
+      return;
+    }
     const button = target.closest<HTMLButtonElement>('.md-copy-btn');
     if (!button) return;
     const wrapper = button.closest<HTMLElement>('.md-code-wrapper');
@@ -510,9 +527,19 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
 
   return (
     <div
-      className="markdown-preview absolute inset-0 overflow-y-auto overflow-x-hidden markdown-dark"
+      className="markdown-preview absolute inset-0 overflow-y-auto overflow-x-hidden markdown-dark [container-type:inline-size] [&_.md-content]:max-w-[72ch] [&_.md-content]:px-[clamp(1rem,5cqw,2.5rem)] [&_.md-content]:pt-7 [&_.md-content]:text-sm [&_.md-content_h1]:after:hidden [&_.md-content_h3]:before:hidden [&_.md-code-wrapper]:shadow-none"
       onClick={handleContainerClick}
     >
+      <div className="sticky top-0 z-10 flex h-9 items-center justify-between gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 text-[10px] text-[var(--text-secondary)]">
+        <span className="shrink-0">Reading view</span>
+        {headings.length > 0 && <select aria-label="On this page" value="" onChange={(event) => {
+          const index = Number(event.target.value);
+          containerRef.current?.querySelectorAll<HTMLHeadingElement>('h1, h2, h3')[index]?.scrollIntoView({ block: 'start' });
+        }} className="max-w-[65%] min-w-0 truncate rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1 text-[10px] cursor-pointer">
+          <option value="" disabled>On this page</option>
+          {headings.map((heading, index) => <option key={index} value={index}>{`${'\u00a0\u00a0'.repeat(Math.max(0, heading.level - 1))}${heading.text}`}</option>)}
+        </select>}
+      </div>
       <article ref={containerRef} className="md-content" dangerouslySetInnerHTML={{ __html: html }} />
     </div>
   );

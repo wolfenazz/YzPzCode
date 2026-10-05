@@ -1,4 +1,5 @@
 import React from 'react';
+import { ArrowClockwise, CircleNotch, ShieldCheck, SignIn, WarningCircle } from '@phosphor-icons/react';
 import { AgentCliInfo, CliLaunchState, AuthInfo } from '../../types';
 
 interface CliStatusBadgeProps {
@@ -10,72 +11,72 @@ interface CliStatusBadgeProps {
   installing: boolean;
 }
 
-const getLaunchStatusBadge = (launchState: CliLaunchState | null | undefined) => {
-  const badgeBase = `text-[10px] px-1.5 py-0.5 rounded-sm font-mono tracking-widest uppercase`;
+const stopDrag = {
+  onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+  onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+};
 
-  if (!launchState) {
-    return (
-      <span className={`${badgeBase} bg-zinc-900 border border-zinc-700 text-zinc-400`}>
-        Ready
-      </span>
-    );
-  }
+const LaunchStatus: React.FC<{ launchState: CliLaunchState | null | undefined; authInfo: AuthInfo | null | undefined }> = ({
+  launchState,
+  authInfo,
+}) => {
+  const authenticated = authInfo?.status === 'Authenticated';
+  const authTitle = authenticated ? ` · Authenticated${authInfo?.configPath ? ` (${authInfo.configPath})` : ''}` : '';
 
-  switch (launchState.status) {
+  switch (launchState?.status) {
     case 'Starting':
       return (
-        <span className={`${badgeBase} flex items-center gap-1 bg-zinc-800 border border-zinc-700 text-zinc-300`}>
-          <svg className="w-2.5 h-2.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          Init
+        <span className="term-pill" title={`Starting CLI${authTitle}`}>
+          <CircleNotch size={10} weight="bold" className="term-spin" aria-hidden="true" />
+          Starting
         </span>
       );
     case 'Running':
       return (
-        <span className={`${badgeBase} flex items-center gap-1 bg-emerald-950 border border-emerald-900 text-emerald-500`}>
-          <span className="w-1.5 h-1.5 rounded-sm bg-emerald-500" />
+        <span className="term-pill term-pill--ok" title={`CLI running${authTitle}`}>
+          <span className="term-dot term-dot--live" aria-hidden="true" />
           Active
+          {authenticated && <ShieldCheck size={11} weight="fill" aria-label="Authenticated" />}
         </span>
       );
     case 'Error':
       return (
-        <span className={`${badgeBase} bg-rose-950 opacity-80 border border-rose-900 text-rose-500`} title={launchState.error || 'Error'}>
+        <span className="term-pill term-pill--danger" title={launchState.error || 'CLI error'}>
+          <WarningCircle size={11} weight="fill" aria-hidden="true" />
           Error
         </span>
       );
     default:
       return (
-        <span className={`${badgeBase} bg-zinc-900 border border-zinc-700 text-zinc-400`}>
+        <span className="term-pill" title={`Ready${authTitle}`}>
+          <span className="term-dot" aria-hidden="true" />
           Ready
+          {authenticated && <ShieldCheck size={11} weight="fill" aria-label="Authenticated" />}
         </span>
       );
   }
 };
 
-const getAuthStatusBadge = (authInfo: AuthInfo | null | undefined, onAuthenticate: () => void) => {
-  if (!authInfo) return null;
-
-  switch (authInfo.status) {
-    case 'Authenticated':
-      return (
-        <span className="text-[10px] px-1.5 py-0.5 rounded-sm font-mono tracking-widest uppercase bg-emerald-950/50 border border-emerald-900 text-emerald-500/80" title={authInfo.configPath || 'Authenticated'}>
-          Auth OK
-        </span>
-      );
-    case 'NotAuthenticated':
-      return (
-        <button
-          onClick={onAuthenticate}
-          className="text-[10px] px-1.5 py-0.5 rounded-sm font-mono tracking-widest uppercase transition-colors cursor-pointer bg-amber-950 border border-amber-900 text-amber-500 hover:bg-amber-900 hover:text-amber-400"
-        >
-          !Login
-        </button>
-      );
-    default:
-      return null;
-  }
+const AuthAction: React.FC<{ authInfo: AuthInfo | null | undefined; onAuthenticate: () => void }> = ({
+  authInfo,
+  onAuthenticate,
+}) => {
+  if (authInfo?.status !== 'NotAuthenticated') return null;
+  return (
+    <button
+      type="button"
+      {...stopDrag}
+      onClick={(e) => {
+        e.stopPropagation();
+        onAuthenticate();
+      }}
+      className="term-pill term-pill--warn"
+      title="This CLI is not signed in"
+    >
+      <SignIn size={11} weight="bold" aria-hidden="true" />
+      Sign in
+    </button>
+  );
 };
 
 export const CliStatusBadge: React.FC<CliStatusBadgeProps> = ({
@@ -86,58 +87,39 @@ export const CliStatusBadge: React.FC<CliStatusBadgeProps> = ({
   onRetryInstall,
   installing,
 }) => {
-  if (!cliInfo || cliInfo.status === 'Checking') {
-    if (launchState) {
-      return (
-        <div className="flex items-center gap-1">
-          {getLaunchStatusBadge(launchState)}
-          {getAuthStatusBadge(authInfo, onAuthenticate)}
-        </div>
-      );
-    }
-    return null;
-  }
+  const isLive = launchState?.status === 'Running' || launchState?.status === 'Starting';
 
-  if (launchState?.status === 'Running' || launchState?.status === 'Starting') {
+  if ((!cliInfo || cliInfo.status === 'Checking') && !launchState) return null;
+
+  if (!isLive && (cliInfo?.status === 'NotInstalled' || cliInfo?.status === 'Error')) {
     return (
-      <div className="flex items-center gap-1">
-        {getLaunchStatusBadge(launchState)}
-        {getAuthStatusBadge(authInfo, onAuthenticate)}
-      </div>
+      <button
+        type="button"
+        {...stopDrag}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRetryInstall();
+        }}
+        disabled={installing}
+        className="term-pill term-pill--danger"
+        title={cliInfo.error || 'CLI not installed'}
+      >
+        {installing ? (
+          <CircleNotch size={10} weight="bold" className="term-spin" aria-hidden="true" />
+        ) : (
+          <ArrowClockwise size={11} weight="bold" aria-hidden="true" />
+        )}
+        {installing ? 'Installing…' : 'Install'}
+      </button>
     );
   }
 
-  switch (cliInfo.status) {
-    case 'Installed':
-      return (
-        <div className="flex items-center gap-1">
-          {getLaunchStatusBadge(launchState)}
-          {getAuthStatusBadge(authInfo, onAuthenticate)}
-        </div>
-      );
-    case 'NotInstalled':
-    case 'Error':
-      return (
-        <button
-          onClick={onRetryInstall}
-          disabled={installing}
-          className="text-xs px-2 py-0.5 rounded flex items-center gap-1 disabled:opacity-50 transition-colors cursor-pointer bg-red-900/30 text-red-400 hover:bg-red-900/50"
-          title={cliInfo.error || 'CLI not installed'}
-        >
-          {installing ? (
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-          )}
-          {installing ? 'Installing...' : 'Install'}
-        </button>
-      );
-    default:
-      return null;
-  }
+  if (cliInfo && !isLive && cliInfo.status !== 'Installed' && cliInfo.status !== 'Checking') return null;
+
+  return (
+    <>
+      <LaunchStatus launchState={launchState} authInfo={authInfo} />
+      <AuthAction authInfo={authInfo} onAuthenticate={onAuthenticate} />
+    </>
+  );
 };

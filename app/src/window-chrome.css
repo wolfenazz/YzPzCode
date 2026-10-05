@@ -1,0 +1,725 @@
+/*
+ * Window chrome — title bar and status bar
+ *
+ * One quiet grammar shared by the setup screen, settings and the workspace:
+ *   28px controls · 6px radius · hairline dividers · no glow, gloss or blur.
+ *
+ * Everything is derived from the theme tokens in premium-system.css, so the
+ * dark, light, Claude and YzPz themes work without per-theme overrides apart
+ * from the segmented-control thumb and the semantic status colours below.
+ * Theme classes live on <html>, so these tokens resolve against the live theme.
+ */
+
+:root {
+  --chrome-height: 2.5rem;
+  --statusbar-height: 1.75rem;
+  --chrome-control: 1.75rem;
+  --chrome-radius: 0.375rem;
+
+  --chrome-hover: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  --chrome-press: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  --chrome-active: color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --chrome-divider: color-mix(in srgb, var(--text-primary) 14%, transparent);
+  --chrome-track: color-mix(in srgb, var(--text-primary) 5.5%, transparent);
+  --chrome-thumb: color-mix(in srgb, var(--text-primary) 11%, var(--bg-secondary));
+  --chrome-thumb-shadow: 0 0 0 1px var(--border-primary);
+
+  --chrome-ok: #34d399;
+  --chrome-warn: #fbbf24;
+  --chrome-close: #c42b1c;
+}
+
+.light-theme,
+.claude-theme {
+  --chrome-thumb: var(--bg-secondary);
+  --chrome-thumb-shadow: 0 0 0 1px var(--border-primary), 0 1px 2px rgb(32 31 29 / 0.08);
+  --chrome-ok: #059669;
+  --chrome-warn: #b45309;
+}
+
+/* ── Frame ────────────────────────────────────────────────────────────
+   The title bar and status bar share one surface and one hairline, so they
+   frame the window symmetrically on every screen. */
+
+.chrome,
+.statusbar {
+  background: var(--bg-secondary);
+  /* Some screens (e.g. the Node.js check) set a monospace font on their root. */
+  font-family: var(--font-ui);
+  user-select: none;
+}
+
+.yzpz-theme .chrome,
+.yzpz-theme .statusbar {
+  background: color-mix(in srgb, #0a0717 88%, transparent);
+  border-color: rgba(199, 184, 245, 0.14);
+}
+
+.chrome {
+  position: relative;
+  z-index: 100;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: var(--chrome-height);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.chrome__start,
+.chrome__end {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.125rem;
+  height: 100%;
+}
+
+.chrome__start {
+  padding-inline: 0.5rem 0.25rem;
+}
+
+.chrome__end {
+  padding-inline: 0.25rem 0.5rem;
+}
+
+.chrome__center {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+}
+
+.chrome__group {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+
+.chrome-divider {
+  flex: none;
+  width: 1px;
+  height: 1rem;
+  margin-inline: 0.375rem;
+  background: var(--chrome-divider);
+}
+
+/* ── Brand and breadcrumbs ───────────────────────────────────────── */
+
+.chrome-brand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.5rem;
+  height: var(--chrome-control);
+  padding-inline: 0.25rem 0.375rem;
+  color: var(--text-primary);
+}
+
+.chrome-brand__mark {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 0.3125rem;
+  object-fit: contain;
+}
+
+.chrome-brand__name {
+  font-size: 0.8125rem;
+  font-weight: 560;
+  letter-spacing: -0.015em;
+  line-height: 1;
+}
+
+.chrome-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chrome-crumbs__sep {
+  flex: none;
+  color: var(--text-secondary);
+  opacity: 0.5;
+}
+
+.chrome-crumbs__item {
+  overflow: hidden;
+  padding-inline: 0.125rem;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
+}
+
+.chrome-crumbs__item:last-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ── Icon button ─────────────────────────────────────────────────── */
+
+.chrome-btn {
+  position: relative;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--chrome-control);
+  height: var(--chrome-control);
+  padding: 0;
+  border: 0;
+  border-radius: var(--chrome-radius);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.chrome-btn:hover {
+  background: var(--chrome-hover);
+  color: var(--text-primary);
+}
+
+.chrome-btn:active {
+  background: var(--chrome-press);
+}
+
+.chrome-btn[aria-pressed='true'] {
+  background: var(--chrome-active);
+  color: var(--text-primary);
+}
+
+.chrome-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.chrome-btn__badge {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 0.8125rem;
+  height: 0.8125rem;
+  padding-inline: 0.1875rem;
+  border-radius: 9999px;
+  background: var(--text-primary);
+  color: var(--bg-secondary);
+  /* A header-coloured ring keeps the badge crisp where it crosses the icon. */
+  box-shadow: 0 0 0 1.5px var(--bg-secondary);
+  font-size: 0.5625rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.8125rem;
+  text-align: center;
+}
+
+/* ── Workspace tabs ──────────────────────────────────────────────── */
+
+.chrome-tabs {
+  display: flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+  height: 100%;
+  padding-inline: 0.25rem;
+}
+
+.chrome-tabs__scroll {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.chrome-tabs__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chrome-tab {
+  position: relative;
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 0.4375rem;
+  min-width: 5.5rem;
+  max-width: 13rem;
+  height: var(--chrome-control);
+  padding: 0 0.3125rem 0 0.625rem;
+  border-radius: var(--chrome-radius);
+  color: var(--text-secondary);
+  font-size: 0.78125rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.chrome-tab:hover {
+  background: var(--chrome-hover);
+  color: var(--text-primary);
+}
+
+.chrome-tab.is-active {
+  background: var(--chrome-active);
+  color: var(--text-primary);
+}
+
+.chrome-tab:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.chrome-tab--static {
+  padding-right: 0.75rem;
+  cursor: default;
+}
+
+.chrome-tab__icon {
+  flex: none;
+  opacity: 0.7;
+}
+
+.chrome-tab.is-active .chrome-tab__icon {
+  opacity: 1;
+}
+
+.chrome-tab__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Count and close button occupy the same cell so tabs never shift on hover. */
+.chrome-tab__tail {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-left: auto;
+}
+
+.chrome-tab__tail > * {
+  grid-area: 1 / 1;
+}
+
+.chrome-tab__count {
+  color: var(--text-secondary);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  transition: opacity 120ms ease;
+}
+
+.chrome-tab__close {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.chrome-tab:hover .chrome-tab__close,
+.chrome-tab:focus-within .chrome-tab__close,
+.chrome-tab.is-active .chrome-tab__close {
+  opacity: 0.7;
+  pointer-events: auto;
+}
+
+.chrome-tab:hover .chrome-tab__count,
+.chrome-tab:focus-within .chrome-tab__count,
+.chrome-tab.is-active .chrome-tab__count {
+  opacity: 0;
+}
+
+.chrome-tab__close:hover {
+  background: var(--chrome-press);
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+/* ── View switcher (segmented control) ───────────────────────────── */
+
+.view-switch {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.125rem;
+  height: var(--chrome-control);
+  padding: 0.125rem;
+  border-radius: 0.5rem;
+  background: var(--chrome-track);
+}
+
+.view-switch__item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: calc(var(--chrome-control) - 0.25rem);
+  padding: 0 0.625rem;
+  border: 0;
+  border-radius: var(--chrome-radius);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.view-switch__item:hover,
+.view-switch__item.is-active {
+  color: var(--text-primary);
+}
+
+.view-switch__item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.view-switch__pill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--chrome-thumb);
+  box-shadow: var(--chrome-thumb-shadow);
+  pointer-events: none;
+}
+
+.view-switch__content {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.view-switch__item.is-active .view-switch__icon {
+  color: var(--accent);
+}
+
+/* ── Window controls ─────────────────────────────────────────────────
+   Flush to the window edge at full title-bar height, as on native Windows. */
+
+.window-controls {
+  display: flex;
+  flex: none;
+  align-self: stretch;
+}
+
+.window-control {
+  display: grid;
+  place-items: center;
+  width: 2.875rem;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.window-control:hover {
+  background: var(--chrome-hover);
+  color: var(--text-primary);
+}
+
+.window-control:active {
+  background: var(--chrome-press);
+}
+
+.window-control--close:hover,
+.window-control--close:active {
+  background: var(--chrome-close);
+  color: #ffffff;
+}
+
+.window-control--close:active {
+  background: color-mix(in srgb, var(--chrome-close) 86%, #000);
+}
+
+.window-control:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+/* ── Status bar ──────────────────────────────────────────────────────
+   Left: what is happening in this workspace. Right: the app itself. */
+
+.statusbar {
+  position: relative;
+  z-index: 40;
+  display: grid;
+  flex: 0 0 auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  height: var(--statusbar-height);
+  padding-inline: 0.375rem;
+  border-top: 1px solid var(--border-primary);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
+.statusbar__group {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.statusbar__group--end {
+  justify-content: flex-end;
+}
+
+.statusbar__item {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.375rem;
+  height: 1.25rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 0.3125rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.statusbar__item strong {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+button.statusbar__item {
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+button.statusbar__item:hover {
+  background: var(--chrome-hover);
+  color: var(--text-primary);
+}
+
+button.statusbar__item:active {
+  background: var(--chrome-press);
+}
+
+button.statusbar__item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+button.statusbar__item[aria-pressed='true'] {
+  background: var(--chrome-active);
+  color: var(--text-primary);
+}
+
+.statusbar__item--action {
+  color: var(--text-primary);
+  box-shadow: inset 0 0 0 1px var(--border-primary);
+}
+
+.statusbar__item--ok {
+  color: var(--chrome-ok);
+}
+
+.statusbar__item--warn {
+  color: var(--chrome-warn);
+}
+
+button.statusbar__item--warn:hover {
+  background: color-mix(in srgb, var(--chrome-warn) 14%, transparent);
+  color: var(--chrome-warn);
+}
+
+.statusbar__item--version {
+  padding-inline: 0.5rem 0.375rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.statusbar__sep {
+  flex: none;
+  width: 1px;
+  height: 0.75rem;
+  margin-inline: 0.25rem;
+  background: var(--chrome-divider);
+}
+
+.statusbar__dot {
+  flex: none;
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+}
+
+.statusbar__dot.is-live {
+  background: var(--chrome-ok);
+}
+
+.statusbar__progress {
+  width: 3rem;
+  height: 0.1875rem;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: var(--chrome-track);
+}
+
+.statusbar__progress > span {
+  display: block;
+  height: 100%;
+  background: var(--chrome-ok);
+  transition: width 200ms ease;
+}
+
+/* Credits (setup screen only) */
+
+.statusbar-credits {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  white-space: nowrap;
+}
+
+.statusbar-credits__person {
+  position: relative;
+  display: inline-flex;
+}
+
+.statusbar-credits__name {
+  padding: 0.125rem 0.25rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.statusbar-credits__name:hover,
+.statusbar-credits__name[aria-expanded='true'] {
+  background: var(--chrome-hover);
+}
+
+.statusbar-credits__name:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.statusbar-credits__plain {
+  padding: 0.125rem 0.25rem;
+  color: var(--text-primary);
+}
+
+.statusbar-credits__amp {
+  opacity: 0.5;
+}
+
+.statusbar-popover {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  left: 50%;
+  z-index: 60;
+  min-width: 11.5rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 0.5rem;
+  background: var(--popover);
+  box-shadow: var(--shadow-float);
+  translate: -50% 0;
+}
+
+.statusbar-popover__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.1875rem 0.1875rem 0.1875rem 0.5rem;
+  border-radius: 0.3125rem;
+  color: var(--text-primary);
+}
+
+.statusbar-popover__row + .statusbar-popover__row {
+  margin-top: 0.125rem;
+}
+
+.statusbar-popover__row img {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.statusbar-popover__handle {
+  flex: 1;
+  font-weight: 500;
+}
+
+.statusbar-popover__copy {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.statusbar-popover__copy.is-copied {
+  color: var(--chrome-ok);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────
+   The window cannot go below 1020px. Below 1100px the workspace header gives
+   up the view labels and the wordmark so workspace names keep their room. */
+
+@media (max-width: 1100px) {
+  .chrome--workspace .chrome-brand__name,
+  .view-switch__label {
+    display: none;
+  }
+
+  .view-switch__item {
+    justify-content: center;
+    width: 1.75rem;
+    padding-inline: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .chrome-brand__name,
+  .statusbar-credits {
+    display: none;
+  }
+}
+
+/* ── Motion ──────────────────────────────────────────────────────── */
+
+html.animations-disabled .chrome *,
+html.animations-disabled .statusbar * {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chrome *,
+  .statusbar * {
+    transition: none !important;
+  }
+}

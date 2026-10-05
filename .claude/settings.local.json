@@ -3,5 +3,10 @@
     "allow": [
       "Bash(npm run:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "shadcn"
+  ],
+  "outputStyle": "default"
 }

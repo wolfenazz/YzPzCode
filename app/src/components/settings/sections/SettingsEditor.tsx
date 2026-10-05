@@ -1,7 +1,25 @@
 import React from 'react';
+import {
+  BracketsCurly,
+  FloppyDisk,
+  Hash,
+  MapTrifold,
+  Scissors,
+  TextAa,
+  TextAlignLeft,
+  TextIndent,
+  Timer,
+  MagicWand,
+} from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
-import { SettingsToggle } from '../../common/SettingsToggle';
-import { SettingsSlider } from '../../common/SettingsSlider';
+import {
+  Segmented,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+  SliderRow,
+  ToggleRow,
+} from '../SettingsKit';
 
 const FONT_FAMILIES = [
   'Cascadia Mono',
@@ -15,11 +33,15 @@ const FONT_FAMILIES = [
 
 const LINE_NUMBER_MODES = [
   { value: 'on' as const, label: 'On' },
-  { value: 'off' as const, label: 'Off' },
   { value: 'relative' as const, label: 'Relative' },
+  { value: 'off' as const, label: 'Off' },
 ];
 
-const TAB_SIZES = [2, 4, 8];
+const TAB_SIZES = [
+  { value: 2, label: '2' },
+  { value: 4, label: '4' },
+  { value: 8, label: '8' },
+];
 
 export const SettingsEditor: React.FC = () => {
   const {
@@ -48,152 +70,112 @@ export const SettingsEditor: React.FC = () => {
   } = useAppStore();
 
   return (
-    <div className="space-y-8 font-mono">
-      <div>
-        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Editor</h2>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">Configure code editor behavior and appearance</p>
-      </div>
+    <SettingsStack>
+      <SettingsGroup title="Text">
+        <SettingsRow
+          description="The typeface used for code."
+          icon={<TextAa size={16} aria-hidden="true" />}
+          label="Font family"
+        >
+          <select
+            aria-label="Editor font family"
+            className="st-select st-control-w"
+            onChange={(event) => setEditorFontFamily(event.target.value)}
+            value={editorFontFamily}
+          >
+            {FONT_FAMILIES.includes(editorFontFamily) ? null : <option value={editorFontFamily}>{editorFontFamily}</option>}
+            {FONT_FAMILIES.map((font) => (
+              <option key={font} value={font}>{font}</option>
+            ))}
+          </select>
+        </SettingsRow>
+        <SliderRow
+          description="Editor text size in pixels."
+          format={(value) => `${value}px`}
+          icon={<TextAa size={16} aria-hidden="true" />}
+          label="Font size"
+          max={24}
+          min={10}
+          onChange={setEditorFontSize}
+          value={editorFontSize}
+        />
+        <SettingsRow
+          description="Spaces per indentation level."
+          icon={<TextIndent size={16} aria-hidden="true" />}
+          label="Tab size"
+        >
+          <Segmented label="Tab size" onChange={setEditorTabSize} options={TAB_SIZES} value={editorTabSize} />
+        </SettingsRow>
+      </SettingsGroup>
 
-      <div className="space-y-6">
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Font</h3>
+      <SettingsGroup title="Display">
+        <SettingsRow
+          description="Show line numbers in the gutter, or numbers relative to the cursor."
+          icon={<Hash size={16} aria-hidden="true" />}
+          label="Line numbers"
+        >
+          <Segmented label="Line numbers" onChange={setEditorLineNumbers} options={LINE_NUMBER_MODES} value={editorLineNumbers} />
+        </SettingsRow>
+        <ToggleRow
+          checked={editorWordWrap}
+          description="Wrap long lines instead of scrolling sideways."
+          icon={<TextAlignLeft size={16} aria-hidden="true" />}
+          label="Word wrap"
+          onChange={setEditorWordWrap}
+        />
+        <ToggleRow
+          checked={showMinimap}
+          description="A zoomed-out overview of the file on the right."
+          icon={<MapTrifold size={16} aria-hidden="true" />}
+          label="Minimap"
+          onChange={setShowMinimap}
+        />
+        <ToggleRow
+          checked={editorBracketColorization}
+          description="Give matching brackets the same color."
+          icon={<BracketsCurly size={16} aria-hidden="true" />}
+          label="Bracket pair colors"
+          onChange={setEditorBracketColorization}
+        />
+      </SettingsGroup>
 
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Font Family</p>
-            <div className="flex items-center gap-2 flex-wrap">
-              {FONT_FAMILIES.map((font) => (
-                <button
-                  key={font}
-                  onClick={() => setEditorFontFamily(font)}
-                  className={`px-3 py-1.5 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
-                    editorFontFamily === font
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-                  }`}
-                  style={{ fontFamily: font }}
-                >
-                  {font}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <SettingsSlider
-            label="Font Size"
-            description="Editor text size in pixels"
-            value={editorFontSize}
-            displayValue={`${editorFontSize}px`}
-            min={10}
-            max={24}
-            onChange={setEditorFontSize}
+      <SettingsGroup title="Saving">
+        <ToggleRow
+          checked={autoSave}
+          description="Save changes automatically while you type."
+          icon={<FloppyDisk size={16} aria-hidden="true" />}
+          label="Auto save"
+          onChange={setAutoSave}
+        />
+        {autoSave && (
+          <SliderRow
+            description="How long to wait after you stop typing."
+            format={(value) => `${(value / 1000).toFixed(1)}s`}
+            icon={<Timer size={16} aria-hidden="true" />}
+            label="Auto save delay"
+            max={5000}
+            min={500}
+            nested
+            onChange={setAutoSaveDelay}
+            step={500}
+            value={autoSaveDelay}
           />
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Formatting</h3>
-
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Tab Size</p>
-            <div className="flex items-center gap-2">
-              {TAB_SIZES.map((size) => (
-                <button
-                  key={size}
-                  onClick={() => setEditorTabSize(size)}
-                  className={`w-10 h-8 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
-                    editorTabSize === size
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-                  }`}
-                >
-                  {size}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Line Numbers</p>
-            <div className="flex items-center gap-2">
-              {LINE_NUMBER_MODES.map((mode) => (
-                <button
-                  key={mode.value}
-                  onClick={() => setEditorLineNumbers(mode.value)}
-                  className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                    editorLineNumbers === mode.value
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-                  }`}
-                >
-                  {mode.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-4">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Toggles</h3>
-
-          <div className="space-y-3">
-            <SettingsToggle
-              enabled={autoSave}
-              onToggle={() => setAutoSave(!autoSave)}
-              label="Auto Save"
-              description="Automatically save file changes"
-            />
-
-            {autoSave && (
-              <div className="border-l-2 border-[var(--accent-border)] pl-3">
-                <SettingsSlider
-                  label="Auto Save Delay"
-                  description="Delay before saving (ms)"
-                  value={autoSaveDelay}
-                  displayValue={`${autoSaveDelay}ms`}
-                  min={500}
-                  max={5000}
-                  step={500}
-                  onChange={setAutoSaveDelay}
-                />
-              </div>
-            )}
-
-            <SettingsToggle
-              enabled={showMinimap}
-              onToggle={() => setShowMinimap(!showMinimap)}
-              label="Show Minimap"
-              description="Display code overview on the right side"
-            />
-
-            <SettingsToggle
-              enabled={editorWordWrap}
-              onToggle={() => setEditorWordWrap(!editorWordWrap)}
-              label="Word Wrap"
-              description="Wrap long lines in the editor"
-            />
-
-            <SettingsToggle
-              enabled={editorBracketColorization}
-              onToggle={() => setEditorBracketColorization(!editorBracketColorization)}
-              label="Bracket Pair Colorization"
-              description="Color matching brackets differently"
-            />
-
-            <SettingsToggle
-              enabled={editorFormatOnSave}
-              onToggle={() => setEditorFormatOnSave(!editorFormatOnSave)}
-              label="Format on Save"
-              description="Auto-format code when saving files"
-            />
-
-            <SettingsToggle
-              enabled={editorTrimWhitespace}
-              onToggle={() => setEditorTrimWhitespace(!editorTrimWhitespace)}
-              label="Trim Trailing Whitespace"
-              description="Remove trailing whitespace on save"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+        )}
+        <ToggleRow
+          checked={editorFormatOnSave}
+          description="Tidy up code formatting each time a file is saved."
+          icon={<MagicWand size={16} aria-hidden="true" />}
+          label="Format on save"
+          onChange={setEditorFormatOnSave}
+        />
+        <ToggleRow
+          checked={editorTrimWhitespace}
+          description="Remove spaces at the end of lines when saving."
+          icon={<Scissors size={16} aria-hidden="true" />}
+          label="Trim trailing whitespace"
+          onChange={setEditorTrimWhitespace}
+        />
+      </SettingsGroup>
+    </SettingsStack>
   );
 };

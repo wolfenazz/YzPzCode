@@ -1,13 +1,46 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Desktop, Minus, Moon, Plus, Sun } from '@phosphor-icons/react';
+import {
+  ArrowsOutLineHorizontal,
+  Check,
+  CursorClick,
+  Desktop,
+  DiscordLogo,
+  ImageSquare,
+  MagnifyingGlassMinus,
+  MagnifyingGlassPlus,
+  Moon,
+  Palette,
+  Rows,
+  Sparkle,
+  Sun,
+  SquaresFour,
+  X,
+} from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
-import { SettingsToggle } from '../../common/SettingsToggle';
+import { useActiveCustomTheme } from '../../../hooks/useCustomTheme';
 import { SettingsWorkspaceBackground } from './SettingsWorkspaceBackground';
 import { SettingsSetupBackground } from './SettingsSetupBackground';
-import type { ThemeMode } from '../../../types';
+import { SettingsCustomThemes } from './SettingsCustomThemes';
+import { ThemeEditor } from '../theme/ThemeEditor';
+import { THEME_PRESETS, createCustomTheme, getThemePreset, uniqueThemeName } from '../../../utils/customTheme';
+import type { CustomTheme, ThemeMode } from '../../../types';
 import claudeLogo from '../../../assets/claude.png';
 import yzpzLogo from '../../../assets/YzPzCodeLogo.png';
+import {
+  Badge,
+  Button,
+  ColorBands,
+  Notice,
+  OptionCard,
+  Segmented,
+  SettingsBlock,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+  SettingsTabs,
+  ToggleRow,
+} from '../SettingsKit';
 
 const ACCENT_COLORS = [
   { name: 'Claude', value: 'default', color: '#c15f3c' },
@@ -27,65 +60,75 @@ const UI_DENSITIES = [
   { value: 'spacious' as const, label: 'Spacious' },
 ];
 
+const SETUP_VIEW_MODES = [
+  { value: 'page' as const, label: 'Single page' },
+  { value: 'stepper' as const, label: 'Step by step' },
+];
+
 const APP_ZOOM_MIN = 80;
 const APP_ZOOM_MAX = 140;
 const APP_ZOOM_STEP = 10;
 
-const ClaudeLogoIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <img src={claudeLogo} alt="" style={{ width: size, height: size }} className="object-contain opacity-85" />
-);
-
-const YzPzLogoIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
-  <img src={yzpzLogo} alt="" style={{ width: size, height: size }} className="object-contain opacity-85" />
+const LogoIcon = ({ src }: { src: string }) => (
+  <img src={src} alt="" width={14} height={14} style={{ objectFit: 'contain' }} />
 );
 
 const THEME_OPTIONS: Array<{
   value: ThemeMode;
   label: string;
   description: string;
-  icon: React.ElementType;
+  icon: React.ReactNode;
   swatches: string[];
 }> = [
   {
     value: 'light',
     label: 'Light',
     description: 'Bright neutral interface',
-    icon: Sun,
+    icon: <Sun size={14} aria-hidden="true" />,
     swatches: ['#f6f6f4', '#fbfbfa', '#4f5358'],
   },
   {
     value: 'dark',
     label: 'Dark',
     description: 'Deep neutral interface',
-    icon: Moon,
+    icon: <Moon size={14} aria-hidden="true" />,
     swatches: ['#0b0b0b', '#1a1a1a', '#d0d0d0'],
   },
   {
     value: 'claude',
     label: 'Claude',
     description: 'Warm Crail and Pampas interface',
-    icon: ClaudeLogoIcon,
+    icon: <LogoIcon src={claudeLogo} />,
     swatches: ['#c15f3c', '#b1ada1', '#f4f3ee', '#ffffff'],
   },
   {
     value: 'yzpz',
     label: 'YzPzCode',
     description: 'Textured Burple brand interface',
-    icon: YzPzLogoIcon,
+    icon: <LogoIcon src={yzpzLogo} />,
     swatches: ['#8c4edd', '#2e1b9c', '#546bf3', '#c7b8f5'],
   },
   {
     value: 'system',
     label: 'System',
     description: 'Follows your OS theme',
-    icon: Desktop,
+    icon: <Desktop size={14} aria-hidden="true" />,
     swatches: ['#0b0b0b', '#f6f6f4'],
   },
 ];
 
-const Divider = () => (
-  <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
-);
+type AppearanceTab = 'theme' | 'interface' | 'backgrounds';
+
+interface ThemeEditorState {
+  theme: CustomTheme;
+  isNew: boolean;
+}
+
+const TABS = [
+  { id: 'theme' as const, label: 'Theme', icon: Palette },
+  { id: 'interface' as const, label: 'Interface', icon: SquaresFour },
+  { id: 'backgrounds' as const, label: 'Backgrounds', icon: ImageSquare },
+];
 
 export const SettingsAppearance: React.FC = () => {
   const {
@@ -101,12 +144,19 @@ export const SettingsAppearance: React.FC = () => {
     setAnimationsEnabled,
     themeMode,
     setThemeMode,
+    customThemes,
+    activeCustomThemeId,
+    saveCustomTheme,
+    applyCustomTheme,
     setupViewMode,
     setSetupViewMode,
     discordRichPresence,
     setDiscordRichPresence,
   } = useAppStore();
+  const customTheme = useActiveCustomTheme();
 
+  const [tab, setTab] = useState<AppearanceTab>('theme');
+  const [editor, setEditor] = useState<ThemeEditorState | null>(null);
   const [discordError, setDiscordError] = useState<string | null>(null);
 
   const changeAppZoom = (delta: number): void => {
@@ -122,6 +172,23 @@ export const SettingsAppearance: React.FC = () => {
     }
   };
 
+  /** A new theme starts as a copy of whatever the app looks like right now. */
+  const startNewTheme = (): void => {
+    const presetId =
+      themeMode === 'system'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        : themeMode;
+    const source = customTheme ?? getThemePreset(presetId) ?? THEME_PRESETS[0];
+    const name = uniqueThemeName('My theme', customThemes.map((theme) => theme.name));
+    setEditor({ theme: createCustomTheme(source, name), isNew: true });
+  };
+
+  const saveEditedTheme = (theme: CustomTheme, apply: boolean): void => {
+    saveCustomTheme(theme);
+    if (apply) applyCustomTheme(theme.id);
+    setEditor(null);
+  };
+
   useEffect(() => {
     if (discordRichPresence) {
       invoke('enable_discord_presence').catch(() => {
@@ -133,214 +200,189 @@ export const SettingsAppearance: React.FC = () => {
     }
   }, [discordRichPresence]);
 
+  const activeAccent = ACCENT_COLORS.find((color) => color.value === accentColor);
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
-          Appearance
-        </h2>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Customize the look and feel of YzPzCode</p>
-      </div>
+    <>
+      {/* The editor is a focused task with its own Back button; hiding the tabs keeps a draft from being lost by switching away. */}
+      {!editor && <SettingsTabs label="Appearance sections" onChange={setTab} tabs={TABS} value={tab} />}
 
-      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-          Accent Color
-        </h3>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Select a primary accent for UI highlights</p>
+      {tab === 'theme' && editor && (
+        <ThemeEditor
+          initial={editor.theme}
+          isActive={themeMode === 'custom' && activeCustomThemeId === editor.theme.id}
+          isNew={editor.isNew}
+          key={editor.theme.id}
+          onClose={() => setEditor(null)}
+          onSave={saveEditedTheme}
+        />
+      )}
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {ACCENT_COLORS.map((color) => (
-            <button
-              key={color.value}
-              onClick={() => setAccentColor(color.value)}
-              className={`group relative w-8 h-8 rounded-full transition-all duration-200 cursor-pointer ${
-                accentColor === color.value
-                  ? 'ring-2 ring-[var(--accent)] ring-offset-2 ring-offset-[var(--bg-secondary)] scale-110'
-                  : 'hover:scale-105'
-              }`}
-              title={color.name}
-            >
-              <div
-                className="absolute inset-1 rounded-full border border-white/10"
-                style={{ backgroundColor: color.color }}
-              />
-              {accentColor === color.value && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg className="w-3 h-3 text-white drop-shadow-[0_0_4px_rgba(255,255,255,0.6)]" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-          Theme
-        </h3>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Choose a light, dark, Claude, YzPzCode, or system-following interface</p>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-          {THEME_OPTIONS.map(({ value, label, description, icon: IconComponent, swatches }) => (
-            <button
-              key={value}
-              onClick={() => changeTheme(value)}
-              className={`flex flex-1 flex-col items-center gap-1.5 rounded-md px-3 py-2.5 text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                themeMode === value
-                  ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                  : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-              }`}
-              title={description}
-            >
-              <IconComponent size={16} weight="duotone" aria-hidden="true" />
-              <span>{label}</span>
-              <span className="mt-0.5 flex h-1.5 w-12 items-center overflow-hidden rounded-full ring-1 ring-[var(--border-primary)]" aria-hidden="true">
-                {swatches.map((swatch) => (
-                  <span key={swatch} className="h-full flex-1" style={{ backgroundColor: swatch }} />
+      {tab === 'theme' && !editor && (
+        <SettingsStack>
+          <SettingsGroup title="Theme" description="Claude and YzPzCode themes bring their own accent color.">
+            <SettingsBlock>
+              <div className="st-options st-options--5" role="group" aria-label="Theme">
+                {THEME_OPTIONS.map(({ value, label, description, icon, swatches }) => (
+                  <OptionCard
+                    hint={description}
+                    key={value}
+                    onSelect={() => changeTheme(value)}
+                    preview={<ColorBands colors={swatches} />}
+                    selected={themeMode === value}
+                    title={label}
+                    trailing={themeMode === value ? <Check size={14} weight="bold" aria-hidden="true" /> : undefined}
+                    icon={icon}
+                  />
                 ))}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+              </div>
+            </SettingsBlock>
+          </SettingsGroup>
 
-      <SettingsWorkspaceBackground />
+          <SettingsCustomThemes
+            onCreate={startNewTheme}
+            onEdit={(theme) => setEditor({ theme, isNew: false })}
+          />
 
-      <SettingsSetupBackground />
-
-      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-          UI Density
-        </h3>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono">Adjust spacing and sizing across the interface</p>
-
-        <div className="flex items-center gap-2">
-          {UI_DENSITIES.map((density) => (
-            <button
-              key={density.value}
-              onClick={() => setUiDensity(density.value)}
-              className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                uiDensity === density.value
-                  ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                  : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-              }`}
-            >
-              {density.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <div>
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-            App Zoom
-          </h3>
-          <p className="mt-1 text-[10px] text-[var(--text-secondary)] font-mono">
-            Scale the entire interface without changing terminal or editor font preferences
-          </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-4 rounded-md border border-[var(--border-primary)]/70 bg-[var(--bg-primary)]/50 px-3 py-2.5">
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono">Interface scale</p>
-            <p className="mt-0.5 text-[10px] text-[var(--text-secondary)] font-mono">Default is 100%</p>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => changeAppZoom(-APP_ZOOM_STEP)}
-              disabled={appZoom <= APP_ZOOM_MIN}
-              aria-label="Decrease app zoom"
-              title="Decrease app zoom"
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
-            >
-              <Minus size={14} weight="bold" aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setAppZoom(100)}
-              aria-label={`Reset app zoom to 100%, currently ${appZoom}%`}
-              title="Reset to 100%"
-              className="min-w-16 rounded-md border border-[var(--accent-border)] bg-[var(--accent-light)] px-2.5 py-1.5 text-center font-mono text-[11px] font-bold tabular-nums text-[var(--accent-text)] transition-colors hover:bg-[var(--accent-light)] hover:text-[var(--accent)] cursor-pointer"
-            >
-              {appZoom}%
-            </button>
-            <button
-              type="button"
-              onClick={() => changeAppZoom(APP_ZOOM_STEP)}
-              disabled={appZoom >= APP_ZOOM_MAX}
-              aria-label="Increase app zoom"
-              title="Increase app zoom"
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:bg-[var(--accent-light)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
-            >
-              <Plus size={14} weight="bold" aria-hidden="true" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-        <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-          Preferences
-        </h3>
-
-        <div className="space-y-4">
-          <SettingsToggle enabled={customCursor} onToggle={() => setCustomCursor(!customCursor)} label="Custom Cursor" description="Enable the custom crosshair cursor" />
-
-          <Divider />
-
-          <SettingsToggle enabled={animationsEnabled} onToggle={() => setAnimationsEnabled(!animationsEnabled)} label="Animations" description="Enable motion animations throughout the app" />
-
-          <Divider />
-
-          <SettingsToggle enabled={discordRichPresence} onToggle={() => { setDiscordRichPresence(!discordRichPresence); setDiscordError(null); }} label="Discord Rich Presence" description="Show your current workspace activity on Discord" />
-
-          {discordRichPresence && discordError && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/[0.06] border border-amber-500/20">
-              <svg className="w-3 h-3 text-amber-400/80 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span className="text-[10px] font-mono text-amber-400/80">{discordError}</span>
-              <button
-                type="button"
-                onClick={() => setDiscordError(null)}
-                className="ml-auto text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer shrink-0"
+          <SettingsGroup title="Accent color">
+            {customTheme ? (
+              <SettingsRow
+                badge={<Badge tone="accent">{customTheme.name}</Badge>}
+                description="This custom theme defines its own accent. Edit the theme to change it."
+                label="Highlight color"
               >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
+                <span aria-hidden="true" className="st-accentchip" style={{ backgroundColor: customTheme.colors.accent }} />
+              </SettingsRow>
+            ) : (
+              <>
+                <SettingsRow
+                  badge={activeAccent && <Badge tone="accent">{activeAccent.name}</Badge>}
+                  description="Used for toggles, selection and highlights."
+                  label="Highlight color"
+                />
+                <SettingsBlock>
+                  <div className="st-swatches" role="group" aria-label="Accent color">
+                    {ACCENT_COLORS.map((color) => (
+                      <button
+                        aria-label={color.name}
+                        aria-pressed={accentColor === color.value}
+                        className="st-swatch"
+                        key={color.value}
+                        onClick={() => setAccentColor(color.value)}
+                        style={{ backgroundColor: color.color, ['--swatch-color' as string]: color.color }}
+                        title={color.name}
+                        type="button"
+                      >
+                        {accentColor === color.value && <Check size={13} weight="bold" aria-hidden="true" />}
+                      </button>
+                    ))}
+                  </div>
+                </SettingsBlock>
+              </>
+            )}
+          </SettingsGroup>
+        </SettingsStack>
+      )}
 
-          <Divider />
+      {tab === 'interface' && (
+        <SettingsStack>
+          <SettingsGroup title="Size and spacing">
+            <SettingsRow
+              description="How much breathing room the interface has."
+              icon={<Rows size={16} aria-hidden="true" />}
+              label="Density"
+            >
+              <Segmented label="Density" onChange={setUiDensity} options={UI_DENSITIES} value={uiDensity} />
+            </SettingsRow>
+            <SettingsRow
+              description="Scales the whole app. Terminal and editor fonts are set separately."
+              icon={<ArrowsOutLineHorizontal size={16} aria-hidden="true" />}
+              label="Interface zoom"
+            >
+              <Button
+                aria-label="Zoom out"
+                disabled={appZoom <= APP_ZOOM_MIN}
+                icon={MagnifyingGlassMinus}
+                iconOnly
+                onClick={() => changeAppZoom(-APP_ZOOM_STEP)}
+                title="Zoom out"
+              />
+              <Button
+                aria-label={`Reset zoom to 100%, currently ${appZoom}%`}
+                onClick={() => setAppZoom(100)}
+                title="Reset to 100%"
+              >
+                <span style={{ minWidth: '2.5rem', fontVariantNumeric: 'tabular-nums' }}>{appZoom}%</span>
+              </Button>
+              <Button
+                aria-label="Zoom in"
+                disabled={appZoom >= APP_ZOOM_MAX}
+                icon={MagnifyingGlassPlus}
+                iconOnly
+                onClick={() => changeAppZoom(APP_ZOOM_STEP)}
+                title="Zoom in"
+              />
+            </SettingsRow>
+          </SettingsGroup>
 
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-[var(--text-primary)] font-mono">Setup View Mode</p>
-              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">Choose between page layout or guided stepper</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {(['page', 'stepper'] as const).map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setSetupViewMode(mode)}
-                  className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                    setupViewMode === mode
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-                  }`}
+          <SettingsGroup title="Motion and pointer">
+            <ToggleRow
+              checked={animationsEnabled}
+              description="Transitions and animated effects throughout the app."
+              icon={<Sparkle size={16} aria-hidden="true" />}
+              label="Animations"
+              onChange={setAnimationsEnabled}
+            />
+            <ToggleRow
+              checked={customCursor}
+              description="Replace the system pointer with a crosshair."
+              icon={<CursorClick size={16} aria-hidden="true" />}
+              label="Custom cursor"
+              onChange={setCustomCursor}
+            />
+          </SettingsGroup>
+
+          <SettingsGroup title="New workspace">
+            <SettingsRow
+              description="Configure everything on one page, or be guided through it."
+              icon={<SquaresFour size={16} aria-hidden="true" />}
+              label="Setup layout"
+            >
+              <Segmented label="Setup layout" onChange={setSetupViewMode} options={SETUP_VIEW_MODES} value={setupViewMode} />
+            </SettingsRow>
+          </SettingsGroup>
+
+          <SettingsGroup title="Integrations">
+            <ToggleRow
+              checked={discordRichPresence}
+              description="Show the workspace you are working in on your Discord profile."
+              icon={<DiscordLogo size={16} aria-hidden="true" />}
+              label="Discord Rich Presence"
+              onChange={(value) => {
+                setDiscordRichPresence(value);
+                setDiscordError(null);
+              }}
+            />
+            {discordRichPresence && discordError && (
+              <SettingsBlock>
+                <Notice
+                  action={<Button aria-label="Dismiss" icon={X} iconOnly onClick={() => setDiscordError(null)} size="sm" variant="ghost" />}
+                  tone="warning"
                 >
-                  {mode === 'page' ? 'Page' : 'Stepper'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                  {discordError}
+                </Notice>
+              </SettingsBlock>
+            )}
+          </SettingsGroup>
+        </SettingsStack>
+      )}
+
+      {tab === 'backgrounds' && (
+        <SettingsStack>
+          <SettingsWorkspaceBackground />
+          <SettingsSetupBackground />
+        </SettingsStack>
+      )}
+    </>
   );
 };

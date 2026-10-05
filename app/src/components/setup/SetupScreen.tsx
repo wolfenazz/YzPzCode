@@ -8,7 +8,7 @@ import { useWorkspace } from '../../hooks/useWorkspace';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { activeAgentAllocation, humanizeAgentVariantMismatch } from '../../utils/agentAllocation';
-import { WorkspaceTab } from '../workspace/WorkspaceTab';
+import { NewWorkspaceTab, WorkspaceTab } from '../workspace/WorkspaceTab';
 import { AppFooter } from '../common/AppFooter';
 import { AppChrome } from '../common/AppChrome';
 import type { IdeInfo, IdeType } from '../../types';
@@ -149,24 +149,25 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     <div className="setup-shell relative isolate flex h-screen flex-col overflow-hidden bg-theme-main text-theme-main" data-background={setupBackground}>
       <SetupBackground />
       <AppChrome
-        center={openWorkspaces.length > 0 ? (
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
-            {openWorkspaces.map((workspace) => (
-              <WorkspaceTab
-                key={workspace.id}
-                workspace={workspace}
-                isActive={false}
-                sessionsCount={sessionsCountMap[workspace.id] || 0}
-                onClick={() => handleWorkspaceClick(workspace.id)}
-                onClose={(event) => {
-                  event.stopPropagation();
-                  handleWorkspaceClose(workspace.id);
-                }}
-              />
-            ))}
-          </div>
-        ) : (
-          <span className="hidden text-xs text-[var(--text-secondary)] md:inline">Create or reopen a workspace</span>
+        center={(
+          <nav className="chrome-tabs" aria-label="Workspaces">
+            <div className="chrome-tabs__scroll" role="tablist">
+              {openWorkspaces.map((workspace) => (
+                <WorkspaceTab
+                  key={workspace.id}
+                  workspace={workspace}
+                  isActive={false}
+                  sessionsCount={sessionsCountMap[workspace.id] || 0}
+                  onClick={() => handleWorkspaceClick(workspace.id)}
+                  onClose={(event) => {
+                    event.stopPropagation();
+                    handleWorkspaceClose(workspace.id);
+                  }}
+                />
+              ))}
+              <NewWorkspaceTab />
+            </div>
+          </nav>
         )}
         isWindows={isWindows}
         onClose={closeWindow}
@@ -174,7 +175,6 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         onMaximize={maximizeWindow}
         onMinimize={minimizeWindow}
         onSettings={onSettingsClick}
-        title="YzPzCode"
       />
 
       {/* ── Main Content ─────────────────────────────────────────────────── */}

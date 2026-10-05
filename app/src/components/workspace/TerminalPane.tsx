@@ -12,14 +12,18 @@ import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, Cli
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
+import { useActiveCustomTheme } from '../../hooks/useCustomTheme';
 import { useAppStore } from '../../stores/appStore';
+import { buildTerminalPalette } from '../../utils/customTheme';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
 import { registerTerminal } from '../../utils/terminalRegistry';
 import { observeTerminalLayout, refreshTerminalAtlases, registerTerminalRenderer } from '../../utils/terminalRendering';
 import { detectTerminalCwd } from '../../utils/terminalCwd';
 import { buildMouseModeSequence, DEFAULT_MOUSE_TRACKING_MODES, registerTerminalMouseModes } from '../../utils/terminalMouseModes';
 import { ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
+import { CaretDown, CaretUp, MagnifyingGlass, Warning, X } from '@phosphor-icons/react';
 import '@xterm/xterm/css/xterm.css';
+import './TerminalPane.css';
 
 import { TerminalHeader } from './TerminalHeader';
 import { CliStatusBadge } from './CliStatusBadge';
@@ -56,6 +60,26 @@ const DARK_TERMINAL_THEME = {
   brightMagenta: '#d670d6',
   brightCyan: '#29b8db',
   brightWhite: '#faf8f1',
+};
+
+/** ANSI colors tuned for a light terminal background (custom themes may choose one). */
+const LIGHT_TERMINAL_ANSI = {
+  black: '#2b2b2b',
+  red: '#c42b1c',
+  green: '#0f7b45',
+  yellow: '#8a6100',
+  blue: '#1b5fb8',
+  magenta: '#9b2f9b',
+  cyan: '#0e6f87',
+  white: '#6b6b6b',
+  brightBlack: '#555555',
+  brightRed: '#d13438',
+  brightGreen: '#13804b',
+  brightYellow: '#9a6c00',
+  brightBlue: '#2468c4',
+  brightMagenta: '#a93fa9',
+  brightCyan: '#137a94',
+  brightWhite: '#1a1a1a',
 };
 
 const withOpacity = (color: string, opacityPercent: number): string => {
@@ -232,6 +256,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<{ index: number; count: number } | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [cliLaunched, setCliLaunched] = useState(false);
   const terminalReadyRef = useRef(false);
   const firstOutputFitDoneRef = useRef(false);
@@ -324,19 +350,28 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const authInfo: AuthInfo | null | undefined = session.agent ? getAuthInfoSync(session.agent) : undefined;
 
   const effectiveTheme = useEffectiveTheme();
+  const customTheme = useActiveCustomTheme();
 
   // xterm's color parser rejects CSS var strings, so read the resolved value
   // of --bg-terminal (app background darkened) for the canvas background.
+  // A custom theme supplies its palette directly: the CSS variables it sets land
+  // after this memo runs, so reading them back here would be one theme behind.
   const terminalTheme = useMemo(() => {
-    const themeBackground = getComputedStyle(document.documentElement).getPropertyValue('--bg-terminal').trim();
+    const palette = customTheme ? buildTerminalPalette(customTheme) : null;
+    const themeBackground = palette?.background ?? getComputedStyle(document.documentElement).getPropertyValue('--bg-terminal').trim();
     const background = terminalBackgroundColor || themeBackground || DARK_TERMINAL_THEME.background;
     return {
-      ...DARK_TERMINAL_THEME,
+      ...(palette?.light ? { ...DARK_TERMINAL_THEME, ...LIGHT_TERMINAL_ANSI } : DARK_TERMINAL_THEME),
+      ...(palette && {
+        cursor: palette.cursor,
+        selectionBackground: palette.selectionBackground,
+        selectionForeground: palette.selectionForeground,
+      }),
       background: withOpacity(background, terminalOpacity),
-      foreground: terminalForegroundColor || DARK_TERMINAL_THEME.foreground,
+      foreground: terminalForegroundColor || palette?.foreground || DARK_TERMINAL_THEME.foreground,
       cursorAccent: background,
     };
-  }, [effectiveTheme, terminalBackgroundColor, terminalForegroundColor, terminalOpacity]);
+  }, [effectiveTheme, customTheme, terminalBackgroundColor, terminalForegroundColor, terminalOpacity]);
   const managedCommandActive =
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
@@ -434,34 +469,60 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     }
   }, [sendResize]);
 
-  const handleSearch = useCallback((direction: 'next' | 'prev') => {
-    if (!searchAddonRef.current || !searchQuery) return;
+  const handleSearch = useCallback((direction: 'next' | 'prev', query = searchQuery, incremental = false) => {
+    if (!searchAddonRef.current) return;
+    if (!query) {
+      searchAddonRef.current.clearDecorations();
+      setSearchResults(null);
+      return;
+    }
 
     const options = {
       regex: false,
       wholeWord: false,
       caseSensitive: false,
+      incremental,
       decorations: {
-        matchBackground: '#3b8eea',
+        matchBackground: '#3b8eea66',
+        matchBorder: '#3b8eea',
         activeMatchBackground: '#f5f543',
+        activeMatchBorder: '#f5f543',
         matchOverviewRuler: '#3b8eea',
         activeMatchColorOverviewRuler: '#f5f543',
       },
     };
 
     if (direction === 'next') {
-      searchAddonRef.current.findNext(searchQuery, options);
+      searchAddonRef.current.findNext(query, options);
     } else {
-      searchAddonRef.current.findPrevious(searchQuery, options);
+      searchAddonRef.current.findPrevious(query, options);
     }
   }, [searchQuery]);
+
+  const handleOpenSearch = useCallback(() => {
+    setShowSearch(true);
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  }, []);
 
   const handleClearSearch = useCallback(() => {
     if (searchAddonRef.current) {
       searchAddonRef.current.clearDecorations();
     }
     setSearchQuery('');
+    setSearchResults(null);
     setShowSearch(false);
+    xtermRef.current?.focus();
+  }, []);
+
+  const handleClearTerminal = useCallback(() => {
+    xtermRef.current?.clear();
+  }, []);
+
+  const focusTerminal = useCallback(() => {
+    xtermRef.current?.focus();
   }, []);
 
   const handleRunCommand = useCallback(async (command: string) => {
@@ -679,6 +740,10 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         console.error('Failed to open URL:', e);
         window.open(uri, '_blank', 'noopener,noreferrer');
       }
+    });
+
+    const searchResultsSubscription = searchAddon.onDidChangeResults(({ resultIndex, resultCount }) => {
+      setSearchResults({ index: resultIndex, count: resultCount });
     });
 
     xterm.loadAddon(fitAddon);
@@ -970,6 +1035,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       unregisterTerminal();
       unregisterRenderer();
       mouseSubscription.dispose();
+      searchResultsSubscription.dispose();
       xterm.dispose();
       terminalReadyRef.current = false;
       xtermRef.current = null;
@@ -1228,11 +1294,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`h-full flex flex-col overflow-hidden font-mono transition-[background-color,border-color,box-shadow] duration-200 ${
-        isActive
-          ? 'border border-[var(--accent)] bg-[var(--accent-light)] rounded-sm shadow-[inset_0_0_0_1px_var(--accent-border)]'
-          : 'border border-[var(--border-primary)] bg-[var(--bg-terminal)] rounded-sm'
-      }`}
+      className={`term-pane ${isActive ? 'term-pane--active' : ''}`}
+      style={terminalBackgroundColor ? ({ '--term-surface': terminalBackgroundColor } as React.CSSProperties) : undefined}
       onMouseDown={() => setActiveSession(session.id)}
     >
       <TerminalHeader
@@ -1251,6 +1314,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         onToggleQuickPrompts={() => setShowQuickPrompts((v) => !v)}
         managedCommandState={managedCommandState}
         onStopManagedCommand={() => void stopManagedCommand()}
+        onFind={handleOpenSearch}
+        onClear={handleClearTerminal}
+        onFocusTerminal={focusTerminal}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}
@@ -1265,7 +1331,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       />
 
       {showQuickPrompts && effectiveAgent && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5 shrink-0">
+        <div className="term-strip">
           <QuickPromptChips
             compact
             onSelect={(prompt) => void handleRunCommand(prompt.text)}
@@ -1273,66 +1339,62 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         </div>
       )}
 
-      {showSearch && (
-        <div className="flex items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5">
-          <svg className="w-3.5 h-3.5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleSearch(e.shiftKey ? 'prev' : 'next');
-              } else if (e.key === 'Escape') {
-                handleClearSearch();
-              }
-            }}
-            placeholder="Search..."
-            className="flex-1 bg-transparent text-xs outline-none text-[var(--text-primary)] placeholder:text-[var(--text-secondary)]"
-            autoFocus
-          />
-          <button
-            onClick={() => handleSearch('prev')}
-            className="p-1 transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500"
-            title="Previous match"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-            </svg>
-          </button>
-          <button
-            onClick={() => handleSearch('next')}
-            className="p-1 transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500"
-            title="Next match"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          <button
-            onClick={handleClearSearch}
-            className="p-1 transition-colors cursor-pointer hover:bg-zinc-800 text-zinc-500"
-            title="Close search"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
+      <div className="term-body">
+        {showSearch && (
+          <div className="term-find" role="search" onMouseDown={(e) => e.stopPropagation()}>
+            <MagnifyingGlass size={13} className="shrink-0 opacity-60" aria-hidden="true" />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                handleSearch('next', e.target.value, true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleSearch(e.shiftKey ? 'prev' : 'next');
+                } else if (e.key === 'Escape') {
+                  handleClearSearch();
+                }
+              }}
+              placeholder="Find in terminal"
+              aria-label="Find in terminal"
+              autoFocus
+            />
+            <span
+              className={`term-find__count ${searchQuery && searchResults?.count === 0 ? 'term-find__count--empty' : ''}`}
+              aria-live="polite"
+            >
+              {searchQuery && searchResults
+                ? searchResults.count === 0
+                  ? 'No results'
+                  : `${searchResults.index >= 0 ? searchResults.index + 1 : '?'}/${searchResults.count}`
+                : ''}
+            </span>
+            <button type="button" onClick={() => handleSearch('prev')} className="term-btn" title="Previous match (Shift+Enter)" aria-label="Previous match">
+              <CaretUp size={13} />
+            </button>
+            <button type="button" onClick={() => handleSearch('next')} className="term-btn" title="Next match (Enter)" aria-label="Next match">
+              <CaretDown size={13} />
+            </button>
+            <button type="button" onClick={handleClearSearch} className="term-btn" title="Close (Esc)" aria-label="Close find">
+              <X size={13} />
+            </button>
+          </div>
+        )}
 
-      <div
-        ref={terminalRef}
-        className="flex-1 overflow-hidden min-h-0 p-[3px] bg-theme-terminal"
-        style={{
-          pointerEvents: 'auto',
-          touchAction: 'auto',
-        }}
-        onClick={() => xtermRef.current?.focus()}
-        onMouseDown={() => xtermRef.current?.focus()}
-      />
+        <div
+          ref={terminalRef}
+          className="term-canvas"
+          style={{
+            pointerEvents: 'auto',
+            touchAction: 'auto',
+          }}
+          onClick={() => xtermRef.current?.focus()}
+          onMouseDown={() => xtermRef.current?.focus()}
+        />
+      </div>
 
       {showAuthModal && session.agent && (
         <AuthModal
@@ -1343,31 +1405,21 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       )}
 
       {showPasteConfirm && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="w-80 border border-zinc-700/70 p-5 bg-zinc-950 border-zinc-800">
-            <div className="flex items-center gap-2 mb-3">
-              <svg className="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <span className="text-xs font-bold uppercase tracking-wider text-zinc-200">
-                Large Paste Detected
-              </span>
-            </div>
-            <p className="text-[10px] leading-relaxed mb-4 text-zinc-500">
-              You are about to paste {(pendingPasteText.length / 1024).toFixed(1)} KB of text into the terminal. This may take a moment.
+        <div className="term-overlay" role="dialog" aria-modal="true" aria-labelledby={`paste-title-${session.id}`}>
+          <div className="term-dialog">
+            <p id={`paste-title-${session.id}`} className="term-dialog__title">
+              <Warning size={15} weight="fill" className="text-amber-400" aria-hidden="true" />
+              Paste {(pendingPasteText.length / 1024).toFixed(1)} KB?
             </p>
-            <div className="flex gap-2">
-              <button
-                onClick={cancelPaste}
-                className="flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer bg-zinc-900 text-zinc-400 hover:bg-zinc-800"
-              >
+            <p className="term-dialog__body">
+              This is a large paste and may take a moment to send to the terminal.
+            </p>
+            <div className="term-dialog__actions">
+              <button type="button" onClick={cancelPaste} className="term-dialog__btn">
                 Cancel
               </button>
-              <button
-                onClick={executePaste}
-                className="flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider bg-emerald-600 text-white hover:bg-emerald-500 transition-colors cursor-pointer"
-              >
-                Paste Anyway
+              <button type="button" onClick={executePaste} className="term-dialog__btn term-dialog__btn--primary" autoFocus>
+                Paste anyway
               </button>
             </div>
           </div>

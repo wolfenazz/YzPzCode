@@ -6,9 +6,9 @@ import { getTerminalLayoutRects, TERMINAL_LAYOUT_PRESETS } from '../../utils/ter
 import type { TerminalSession } from '../../types';
 import type { TerminalLayoutPreset } from '../../utils/terminalLayouts';
 
-function LayoutThumbnail({ preset }: { preset: TerminalLayoutPreset }): React.JSX.Element {
+export function LayoutThumbnail({ preset, className = 'h-11 w-full' }: { preset: TerminalLayoutPreset; className?: string }): React.JSX.Element {
   return (
-    <svg viewBox="0 0 84 48" className="h-11 w-full" aria-hidden="true">
+    <svg viewBox="0 0 84 48" className={className} aria-hidden="true">
       {getTerminalLayoutRects(preset, 4, 0).map((rect, index) => (
         <rect key={index} x={rect.x * 84 + 2} y={rect.y * 48 + 2}
           width={rect.width * 84 - 4} height={rect.height * 48 - 4} rx="2"

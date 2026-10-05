@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from 'react';
 import { X } from '@phosphor-icons/react';
-import { FileTab } from '../../types';
+import type { FileTab } from '../../types';
 import { FileIcon } from '../explorer/FileIcon';
 import { TabContextMenu } from './TabContextMenu';
 
@@ -14,6 +14,7 @@ interface EditorTabsProps {
   onCloseAll: () => void;
   onCloseSaved: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  onOpenBeside?: (path: string) => void;
 }
 
 const getExtension = (name: string): string | null => {
@@ -32,10 +33,11 @@ const EditorTabsInner: React.FC<EditorTabsProps> = ({
   onCloseAll,
   onCloseSaved,
   onReorder,
+  onOpenBeside,
 }) => {
   if (openFiles.length === 0) return null;
 
-  const hasDirty = openFiles.some((f) => f.isDirty);
+  const hasDirty = openFiles.some((f) => !f.isDirty);
 
   return (
     <TabBar
@@ -49,6 +51,7 @@ const EditorTabsInner: React.FC<EditorTabsProps> = ({
       onCloseAll={onCloseAll}
       onCloseSaved={onCloseSaved}
       onReorder={onReorder}
+      onOpenBeside={onOpenBeside}
     />
   );
 };
@@ -66,6 +69,7 @@ interface TabBarProps {
   onCloseAll: () => void;
   onCloseSaved: () => void;
   onReorder: (fromIndex: number, toIndex: number) => void;
+  onOpenBeside?: (path: string) => void;
 }
 
 const TabBar: React.FC<TabBarProps> = ({
@@ -79,6 +83,7 @@ const TabBar: React.FC<TabBarProps> = ({
   onCloseAll,
   onCloseSaved,
   onReorder,
+  onOpenBeside,
 }) => {
   const [contextMenu, setContextMenu] = React.useState<{
     x: number;
@@ -92,6 +97,7 @@ const TabBar: React.FC<TabBarProps> = ({
   const menuItems = useMemo(() => {
     if (!contextMenu) return null;
     return [
+      ...(onOpenBeside ? [{ label: 'Open in other pane', action: () => onOpenBeside(contextMenu.path) }, { separator: true as const }] : []),
       { label: 'Close', action: () => onTabClose(contextMenu.path), shortcut: 'Ctrl+W' },
       { label: 'Close Others', action: () => onCloseOthers(contextMenu.path) },
       { label: 'Close to the Right', action: () => onCloseToRight(contextMenu.path), disabled: contextMenu.index >= openFiles.length - 1 },
@@ -99,7 +105,7 @@ const TabBar: React.FC<TabBarProps> = ({
       { label: 'Close All', action: onCloseAll },
       { label: 'Close Saved', action: onCloseSaved, disabled: !hasDirty },
     ];
-  }, [contextMenu, openFiles.length, hasDirty, onTabClose, onCloseOthers, onCloseToRight, onCloseAll, onCloseSaved]);
+  }, [contextMenu, openFiles.length, hasDirty, onTabClose, onCloseOthers, onCloseToRight, onCloseAll, onCloseSaved, onOpenBeside]);
 
   const handleContextMenu = (e: React.MouseEvent, path: string, index: number) => {
     e.preventDefault();
@@ -121,7 +127,8 @@ const TabBar: React.FC<TabBarProps> = ({
   return (
     <div
       role="tablist"
-      className="flex shrink-0 items-center overflow-x-auto border-b border-[var(--border-primary)] bg-[var(--bg-secondary)]"
+      aria-label="Open files"
+      className="flex shrink-0 items-center overflow-x-auto bg-[var(--bg-secondary)]"
       onContextMenu={handleBarContextMenu}
     >
       {openFiles.map((file, index) => {
@@ -133,13 +140,14 @@ const TabBar: React.FC<TabBarProps> = ({
             key={file.path}
             role="tab"
             aria-selected={isActive}
-            tabIndex={0}
+            tabIndex={isActive ? 0 : -1}
             title={file.path}
             draggable
             onDragStart={(e) => {
               setDragIndex(index);
               e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', String(index));
+              e.dataTransfer.setData('application/yzpz-editor-file', file.path);
+              e.dataTransfer.setData('text/plain', file.path);
             }}
             onDragOver={(e) => {
               e.preventDefault();
@@ -151,22 +159,27 @@ const TabBar: React.FC<TabBarProps> = ({
             }}
             onDrop={(e) => {
               e.preventDefault();
-              const fromIdx = dragIndex;
+              e.stopPropagation();
+              const draggedPath = e.dataTransfer.getData('application/yzpz-editor-file');
+              const fromIdx = openFiles.findIndex((entry) => entry.path === draggedPath);
               setDragIndex(null);
               setDragOverIndex(null);
-              if (fromIdx !== null && fromIdx !== index) {
+              if (fromIdx >= 0 && fromIdx !== index) {
                 onReorder(fromIdx, index);
+              }
+              if (draggedPath) {
+                onTabClick(draggedPath);
               }
             }}
             onDragEnd={() => {
               setDragIndex(null);
               setDragOverIndex(null);
             }}
-            className={`relative flex items-center gap-1.5 px-3 py-1.5 border-r cursor-pointer group min-w-0 max-w-[160px] transition-colors duration-100 ${
+            className={`relative flex items-center gap-2 px-3 h-10 border-r cursor-pointer group min-w-0 shrink-0 max-w-[200px] transition-colors duration-100 ${
               isDragging ? 'opacity-40' : ''
             } ${
               isDragOver
-                ? 'border-l-2 border-l-blue-500 bg-blue-950/30'
+                ? 'border-l-2 border-l-[var(--accent)] bg-[var(--accent-light)]'
                 : ''
             } ${
                  isActive
@@ -174,7 +187,16 @@ const TabBar: React.FC<TabBarProps> = ({
                  : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)] border-[var(--border-primary)]'
             }`}
             onClick={() => onTabClick(file.path)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabClick(file.path); } }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTabClick(file.path); }
+              if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) {
+                e.preventDefault();
+                const nextIndex = e.key === 'Home' ? 0 : e.key === 'End' ? openFiles.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + openFiles.length) % openFiles.length;
+                onTabClick(openFiles[nextIndex].path);
+                const tabs = e.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="tab"]');
+                tabs?.[nextIndex]?.focus();
+              }
+            }}
             onContextMenu={(e) => handleContextMenu(e, file.path, index)}
           >
             <FileIcon
@@ -185,25 +207,28 @@ const TabBar: React.FC<TabBarProps> = ({
             <span className="text-[11px] truncate" title={file.path}>{file.name}</span>
 
             {file.isDirty && (
-              <span className="w-2 h-2 rounded-full shrink-0 group-hover:hidden bg-zinc-400" />
+              <span className="w-2 h-2 rounded-full shrink-0 group-hover:hidden bg-[var(--accent)]" />
             )}
 
             <button
+              type="button"
+              aria-label={`Close ${file.name}${file.isDirty ? " (unsaved changes)" : ""}`}
+              title={`Close ${file.name}`}
               onClick={(e) => {
                 e.stopPropagation();
                 onTabClose(file.path);
               }}
               className={`app-icon-button h-5 w-5 shrink-0 rounded transition-colors cursor-pointer ${
                 file.isDirty
-                   ? 'hidden group-hover:block hover:bg-[var(--bg-tertiary)]'
-                   : 'opacity-0 group-hover:opacity-100 hover:bg-[var(--bg-tertiary)]'
+                   ? 'hidden group-hover:block group-focus-within:block hover:bg-[var(--bg-tertiary)]'
+                   : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 hover:bg-[var(--bg-tertiary)]'
               }`}
             >
               <X size={12} aria-hidden="true" />
             </button>
 
             {isActive && (
-              <div className="absolute inset-x-2 bottom-0 h-px bg-[var(--text-primary)]" />
+              <div className="absolute inset-x-0 top-0 h-0.5 bg-[var(--accent)]" />
             )}
           </div>
         );

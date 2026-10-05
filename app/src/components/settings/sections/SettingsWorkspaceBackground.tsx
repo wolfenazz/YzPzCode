@@ -4,39 +4,34 @@ import { SettingsWorkspaceAurora } from './SettingsWorkspaceAurora';
 import { SettingsWorkspaceLightRays } from './SettingsWorkspaceLightRays';
 import { useAppStore } from '../../../stores/appStore';
 import { WORKSPACE_BACKGROUNDS } from '../../../utils/workspaceBackground';
+import { Segmented, SettingsBlock, SettingsGroup, SettingsRow } from '../SettingsKit';
 
 export function SettingsWorkspaceBackground(): ReactElement {
   const background = useAppStore((s) => s.workspaceBackground);
   const setBackground = useAppStore((s) => s.setWorkspaceBackground);
   const selected = WORKSPACE_BACKGROUNDS.find(({ value }) => value === background);
   return (
-    <section className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)]/80 p-5 space-y-5" aria-labelledby="workspace-background-heading">
-      <div>
-        <h3 id="workspace-background-heading" className="text-sm font-semibold text-[var(--text-primary)]">Terminal workspace background</h3>
-        <p className="mt-1 text-xs text-[var(--text-secondary)]">Choose a background, then customize it. Each background keeps its own settings.</p>
-      </div>
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Workspace background">
-        {WORKSPACE_BACKGROUNDS.map(({ value, label }) => (
-          <button
-            key={value}
-            type="button"
-            aria-pressed={background === value}
-            onClick={() => setBackground(value)}
-            className={`rounded-md border px-4 py-2 text-xs cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${background === value
-              ? 'border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--text-primary)]'
-              : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-          >{label}</button>
-        ))}
-      </div>
-      <figure>
-        <div className="relative isolate h-40 overflow-hidden rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]" aria-hidden="true">
-          <WorkspaceBackground />
-        </div>
-        <figcaption className="mt-2 text-[11px] text-[var(--text-secondary)]">Live preview · {selected?.description}</figcaption>
-      </figure>
+    <SettingsGroup
+      description="Appears behind your terminal layout. Panel opacity is set in Terminal settings."
+      title="Terminal workspace"
+    >
+      <SettingsRow label="Background" description={selected?.description}>
+        <Segmented
+          label="Workspace background"
+          onChange={setBackground}
+          options={WORKSPACE_BACKGROUNDS.map(({ value, label }) => ({ value, label }))}
+          value={background}
+        />
+      </SettingsRow>
+      {background !== 'none' && (
+        <SettingsBlock>
+          <div aria-hidden="true" className="st-preview">
+            <WorkspaceBackground />
+          </div>
+        </SettingsBlock>
+      )}
       {background === 'aurora' && <SettingsWorkspaceAurora />}
       {background === 'light-rays' && <SettingsWorkspaceLightRays />}
-      <p className="text-[11px] text-[var(--text-secondary)]">Backgrounds appear behind the terminal layout. Terminal panel opacity is controlled in Terminal settings.</p>
-    </section>
+    </SettingsGroup>
   );
 }

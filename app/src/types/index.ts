@@ -4,7 +4,37 @@ export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "
 
 export type CliType = AgentType | ToolCliType;
 export type WorkspaceView = "terminal" | "agent" | "editor" | "browser";
-export type ThemeMode = "light" | "dark" | "claude" | "yzpz" | "system";
+export type ThemeMode = "light" | "dark" | "claude" | "yzpz" | "system" | "custom";
+
+/** Whether a custom theme is built on a light or dark foundation (drives zinc ramp, shadows, editor base). */
+export type CustomThemeBase = "light" | "dark";
+
+/** The nine colors a user edits; every other UI token is derived from these. */
+export interface CustomThemeColors {
+  /** App canvas behind every panel. */
+  background: string;
+  /** Panels, cards and bars. */
+  surface: string;
+  /** Hovered, raised and popover surfaces. */
+  elevated: string;
+  text: string;
+  textMuted: string;
+  border: string;
+  accent: string;
+  danger: string;
+  terminal: string;
+}
+
+export interface CustomTheme {
+  id: string;
+  name: string;
+  base: CustomThemeBase;
+  colors: CustomThemeColors;
+  /** Base corner radius in px; control, surface and dialog radii scale from it. */
+  radius: number;
+  createdAt: number;
+  updatedAt: number;
+}
 
 export interface ExtensionInfo {
   id: string;

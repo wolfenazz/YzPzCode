@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { TerminalWindow } from '@phosphor-icons/react';
+import { Plus } from '@phosphor-icons/react';
 import type { CliType, TerminalSession } from '../../types';
 import { useAppStore } from '../../stores/appStore';
 import { NewTerminalDialog } from './NewTerminalDialog';
@@ -38,12 +38,12 @@ export const TerminalStatusBar: React.FC = () => {
     <>
       <button
         onClick={() => setShowNewDialog(true)}
-        className="app-footer__terminal-btn"
+        className="statusbar__item statusbar__item--action"
         title="Open a new terminal"
         aria-label="Create terminal"
         type="button"
       >
-        <TerminalWindow size={13} weight="bold" className="app-footer__terminal-icon" />
+        <Plus size={12} weight="bold" aria-hidden="true" />
         <span>New terminal</span>
       </button>
 

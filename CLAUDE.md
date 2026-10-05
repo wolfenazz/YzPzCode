@@ -195,6 +195,7 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 **Frontend** (`app/src/components/settings/`):
 - `SettingsScreen.tsx`: Main settings layout with navigation
 - `SettingsAppearance.tsx`: Theme (dark/light), accent color (8 options), UI density (compact/comfortable/spacious), animations, custom cursor
+  - **Custom themes** (`sections/SettingsCustomThemes.tsx` list/import/export, `theme/ThemeEditor.tsx` editor with scoped `ThemePreview`, `ThemePaletteGallery`, WCAG contrast checks). A theme is 9 colors + light/dark base + radius; `utils/customTheme.ts` (dependency-free, tested by `npm run test:custom-theme`) derives every other token, incl. the Tailwind zinc ramp, and holds the 40+ presets. `themeMode: 'custom'` + `activeCustomThemeId`; `hooks/useCustomTheme.ts` writes tokens as inline vars on `<html>`, which outrank the `.light-theme`/`.claude-theme` classes. Terminal and Monaco read the theme directly (not via CSS vars, which land one render late). Imports are validated strictly; saves that make text unreadable (<3:1) are blocked.
 - `SettingsTerminal.tsx`: Font, size, cursor style (block/underline/bar), blink, scrollback, copy/paste behavior, bell, opacity, word wrap
 - `SettingsEditor.tsx`: Font, size, tab size, word wrap, line numbers, bracket colorization, format on save, trim whitespace
 - `SettingsAgents.tsx`: Agent CLI detection status, tool CLI detection, install commands, agent timeout
@@ -205,7 +206,7 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 - `SettingsData.tsx`: Clear data/reset application
 - `SettingsAbout.tsx`: Version info, OS info
 - `SettingsShortcuts.tsx`: Keyboard shortcuts reference
-- `SettingsSlider.tsx`, `SettingsToggle.tsx`: Reusable settings UI components
+- `SettingsKit.tsx` + `settings.css`: Shared settings primitives (SettingsGroup, SettingsRow, ToggleRow, SliderRow, Segmented, Switch, Button, Badge, Notice, SettingsTabs). Build every settings page from these — no per-page card styling.
 
 ### Setup & Onboarding
 **Frontend** (`app/src/components/setup/`):
@@ -244,7 +245,8 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 - `ContextMenu.tsx`: Global right-click context menu (theme, docs, designer, new workspace)
 - `ThemeToggleButton.tsx`: Dark/light toggle
 - `CustomCursor.tsx`: Animated custom cursor overlay
-- `AppFooter.tsx`: Status bar footer
+- `AppChrome.tsx`: Title bar for setup, settings, and the Node.js check (brand, breadcrumbs, tab strip, theme, window controls); `ChromeParts.tsx` holds the shared brand/button/divider
+- `AppFooter.tsx`: Status bar footer — workspace status on the left, app utilities on the right. The workspace header, `AppChrome`, and the footer are all styled in `src/window-chrome.css` (28px controls, 6px radius, hairline dividers; no glow, gloss, or blur)
 - `UpdateNotification.tsx`: Update available banner
 - `HelpTooltip.tsx`: Contextual help tooltips
 - `UtilizationBar.tsx`: Resource utilization display

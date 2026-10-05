@@ -11,3 +11,4 @@ target/
 .env.*.local
 .env.development
 .env.production
+artifacts/

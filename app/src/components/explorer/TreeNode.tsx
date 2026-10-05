@@ -50,26 +50,27 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
   <motion.svg
-    className="w-3 h-3 shrink-0 text-[var(--text-secondary)]"
-    viewBox="0 0 20 20"
-    fill="currentColor"
+    className="explorer-chevron w-3 h-3 shrink-0"
+    viewBox="0 0 16 16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth={1.6}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    initial={false}
     animate={{ rotate: isOpen ? 90 : 0 }}
-    transition={{ duration: 0.12, ease: 'easeOut' }}
+    transition={{ type: 'spring', stiffness: 520, damping: 32, mass: 0.6 }}
   >
-    <path
-      fillRule="evenodd"
-      d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-      clipRule="evenodd"
-    />
+    <path d="M6 3.5L10.5 8L6 12.5" />
   </motion.svg>
 ));
 
 const IndentGuides: React.FC<{ level: number }> = memo(({ level }) => {
   if (level === 0) return null;
   return (
-    <div className="flex shrink-0" aria-hidden="true">
+    <div className="flex shrink-0 self-stretch" aria-hidden="true">
       {Array.from({ length: level }).map((_, i) => (
-        <div key={i} className="w-[14px] border-l border-zinc-800/60" />
+        <div key={i} className="explorer-indent-guide w-[14px]" />
       ))}
     </div>
   );
@@ -248,12 +249,12 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   const dropHighlight = isDropTarget;
 
   const rowClass = isActive
-    ? 'is-active bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
+    ? 'is-active'
     : isSelected
-      ? 'is-selected bg-[var(--bg-primary)] text-[var(--text-primary)]'
+      ? 'is-selected'
       : dropHighlight
-        ? 'is-drop-target bg-blue-500/10 text-blue-700'
-        : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]';
+        ? 'is-drop-target'
+        : '';
 
   return (
     <div
@@ -268,7 +269,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
         ...style,
         paddingLeft: 0,
       }}
-      className={`explorer-tree-row flex items-center gap-1 pr-3 cursor-pointer select-none group transition-colors duration-75 relative ${
+      className={`explorer-tree-row ${data.isDir ? 'is-dir' : 'is-file'} ${node.isOpen ? 'is-open' : ''} flex items-center gap-1 pr-3 cursor-pointer select-none group relative ${
         isCut ? 'opacity-45' : ''
       } ${rowClass}`}
       onClick={handleClick}
@@ -276,7 +277,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
     >
       {dropHighlight && data.isDir && (
         <motion.div
-          className="absolute inset-y-0 left-0 right-0 border-2 border-blue-500/50 pointer-events-none"
+          className="explorer-drop-ring absolute inset-y-0 left-1 right-1 pointer-events-none"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

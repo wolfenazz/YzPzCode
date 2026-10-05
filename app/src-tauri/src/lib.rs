@@ -215,6 +215,7 @@ pub fn run() {
             let handler: fn(tauri::ipc::Invoke) -> bool = tauri::generate_handler![
                 commands::list_supported_extensions,
                 commands::install_workspace_extension,
+                commands::check_extension_updates,
                 commands::start_extension_panel,
                 commands::sync_extension_panel,
                 commands::close_extension_panel,

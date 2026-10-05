@@ -37,7 +37,7 @@ Use the shared tokens and primitives in `src/premium-system.css`:
 - `--text-primary`, `--text-secondary`
 - `--border-primary`
 - `--accent` only as a restrained neutral selection color
-- `.app-chrome`
+- `.chrome`, `.chrome-btn`, `.chrome-tab`, `.view-switch`, `.statusbar` (window chrome, in `src/window-chrome.css`)
 - `.app-page`, `.app-page__header`, `.app-page__content`
 - `.app-sidebar`, `.app-nav-item`
 - `.app-surface`, `.app-surface--raised`

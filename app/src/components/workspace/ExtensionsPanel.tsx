@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowClockwise, ArrowSquareOut, DownloadSimple, MagnifyingGlass, PuzzlePiece, X } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
-import { useExtensionStore } from '../../stores/extensionStore';
+import { isNewerVersion, useExtensionStore } from '../../stores/extensionStore';
 import { ExtensionLogo } from '../common/ExtensionLogo';
 import type { ExtensionInfo } from '../../types';
 
@@ -18,6 +18,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
   const error = useExtensionStore((state) => state.error);
   const installing = useExtensionStore((state) => state.installing);
   const progress = useExtensionStore((state) => state.progress);
+  const latestVersions = useExtensionStore((state) => state.latestVersions);
   const refreshCatalog = useExtensionStore((state) => state.refreshCatalog);
   const install = useExtensionStore((state) => state.install);
   const panels = useExtensionStore((state) => state.panelsByWorkspace[workspaceId]);
@@ -48,6 +49,8 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
         {!loading && !error && filtered.length === 0 && <p className="px-3 py-4 text-xs text-[var(--text-secondary)]">No supported extensions match “{query}”.</p>}
         {filtered.map((extension) => {
           const busy = installing.includes(extension.id);
+          const latest = latestVersions[extension.id];
+          const updatable = isNewerVersion(latest, extension.installedVersion);
           const status = progress[extension.id];
           const opened = panels?.some((panel) => panel.extensionId === extension.id) ?? false;
           const percent = status?.totalBytes ? Math.min(100, Math.round(status.downloadedBytes / status.totalBytes * 100)) : null;
@@ -60,11 +63,20 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
               </div>
               <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{extension.description}</p>
               <div className="mt-3 flex items-center justify-between gap-2">
-                <span className="text-[10px] text-[var(--text-secondary)]">{!backendReady ? 'Checking availability' : extension.installedVersion ? (opened ? 'Open in workspace' : 'Installed') : 'Available from Open VSX'}</span>
-                <button type="button" disabled={busy || !backendReady} onClick={() => extension.installedVersion ? onOpen(extension) : void install(extension.id)} className="app-button h-7 min-h-0 shrink-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60">
-                  {!extension.installedVersion && !busy && <DownloadSimple size={13} />}
-                  {busy ? 'Installing…' : extension.installedVersion ? (opened ? 'Show panel' : 'Open') : status?.stage === 'failed' ? 'Retry install' : 'Install'}
-                </button>
+                <span className="text-[10px] text-[var(--text-secondary)]">{!backendReady ? 'Checking availability' : updatable ? `Update available · v${latest}` : extension.installedVersion ? (opened ? 'Open in workspace' : 'Installed') : 'Available from Open VSX'}</span>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {updatable && (
+                    <button type="button" disabled={busy || !backendReady} onClick={() => void install(extension.id)} className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60" title={`Update ${extension.name} to v${latest}`}>
+                      {!busy && <ArrowClockwise size={13} />}{busy ? 'Updating…' : 'Update'}
+                    </button>
+                  )}
+                  {!(busy && updatable) && (
+                    <button type="button" disabled={busy || !backendReady} onClick={() => extension.installedVersion ? onOpen(extension) : void install(extension.id)} className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60">
+                      {!extension.installedVersion && !busy && <DownloadSimple size={13} />}
+                      {busy ? 'Installing…' : extension.installedVersion ? (opened ? 'Show panel' : 'Open') : status?.stage === 'failed' ? 'Retry install' : 'Install'}
+                    </button>
+                  )}
+                </div>
               </div>
               {busy && status && <div className="mt-3 space-y-1.5" role="status"><p className="text-[10px] leading-4 text-[var(--text-secondary)]">{status.message}{percent !== null ? ` ${percent}%` : ''}</p>{percent !== null && <progress max={100} value={percent} className="h-1 w-full accent-[var(--accent)]" aria-label={`${extension.name} download progress`} />}</div>}
               {!busy && status?.stage === 'failed' && <p role="alert" className="mt-2 break-words text-[11px] leading-4 text-rose-500">{status.message}</p>}

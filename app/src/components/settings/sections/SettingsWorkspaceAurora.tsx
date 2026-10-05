@@ -1,6 +1,13 @@
 import type { ReactElement } from 'react';
 import { useAppStore } from '../../../stores/appStore';
 import type { WorkspaceAuroraPalette } from '../../../types';
+import {
+  ColorInput,
+  Disclosure,
+  SettingsRow,
+  SliderRow,
+  ToggleRow,
+} from '../SettingsKit';
 
 const PALETTES: { value: WorkspaceAuroraPalette; label: string; colors: string }[] = [
   { value: 'gemini', label: 'Gemini', colors: '#fb19da, #00b6f2, #2b27ff' },
@@ -9,11 +16,12 @@ const PALETTES: { value: WorkspaceAuroraPalette; label: string; colors: string }
   { value: 'custom', label: 'Custom', colors: '#fb19da, #00b6f2, #2b27ff' },
 ];
 const COLOR_STOPS = [
-  { index: 0 as const, label: 'First color' },
-  { index: 1 as const, label: 'Middle color' },
-  { index: 2 as const, label: 'Last color' },
+  { index: 0 as const, label: 'Start' },
+  { index: 1 as const, label: 'Middle' },
+  { index: 2 as const, label: 'End' },
 ];
 
+/** Rows that customize the Aurora background; rendered inside a settings card. */
 export function SettingsWorkspaceAurora(): ReactElement {
   const palette = useAppStore((s) => s.workspaceAuroraPalette);
   const colors = useAppStore((s) => s.workspaceAuroraColors);
@@ -32,130 +40,96 @@ export function SettingsWorkspaceAurora(): ReactElement {
   const setMotion = useAppStore((s) => s.setWorkspaceAuroraMotion);
 
   return (
-    <fieldset className="space-y-5">
-      <legend className="sr-only">Aurora appearance</legend>
-      <div>
-        <div className="mb-2 flex items-center justify-between text-xs">
-          <label htmlFor="workspace-aurora-blend" className="text-[var(--text-primary)]">Edge softness</label>
-          <output htmlFor="workspace-aurora-blend" className="tabular-nums text-[var(--text-secondary)]">{Math.round(blend * 100)}%</output>
-        </div>
-        <input
-          id="workspace-aurora-blend"
-          type="range"
-          min={10}
-          max={100}
-          step={5}
-          value={Math.round(blend * 100)}
-          onChange={(event) => setBlend(Number(event.target.value) / 100)}
-          className="w-full accent-[var(--accent)] cursor-pointer disabled:cursor-default"
-        />
-        <div className="mt-1 flex justify-between text-[10px] text-[var(--text-secondary)]"><span>Defined</span><span>Diffused</span></div>
-      </div>
-
-      <div>
-        <p className="mb-2 text-[11px] text-[var(--text-secondary)]">Palette</p>
-        <div className="flex flex-wrap gap-2">
+    <>
+      <SettingsRow label="Palette" description="Pick a color set to start from.">
+        <div className="st-swatches" role="group" aria-label="Aurora palette">
           {PALETTES.map((option) => (
             <button
-              key={option.value}
-              type="button"
               aria-pressed={palette === option.value}
+              className="st-option"
+              key={option.value}
               onClick={() => setPalette(option.value)}
-              className={`flex items-center gap-2 rounded-md border px-3 py-2 text-[11px] transition-colors cursor-pointer disabled:cursor-default focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)] ${palette === option.value
-                ? 'border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--text-primary)]'
-                : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
+              style={{ flexDirection: 'row', alignItems: 'center', padding: '0.25rem 0.625rem 0.25rem 0.375rem' }}
+              type="button"
             >
-              <span className="h-3 w-5 rounded-sm" style={{ background: `linear-gradient(110deg, ${option.value === 'custom' ? colors.join(', ') : option.colors})` }} aria-hidden="true" />
-              {option.label}
+              <span
+                aria-hidden="true"
+                style={{
+                  width: '1.25rem',
+                  height: '0.875rem',
+                  borderRadius: '0.1875rem',
+                  background: `linear-gradient(110deg, ${option.value === 'custom' ? colors.join(', ') : option.colors})`,
+                }}
+              />
+              <span className="st-option__name" style={{ padding: 0 }}>{option.label}</span>
             </button>
           ))}
         </div>
-      </div>
+      </SettingsRow>
 
-      <div>
-        <p className="mb-2 text-[11px] text-[var(--text-secondary)]">Aurora colors</p>
-        <div className="grid grid-cols-3 gap-2">
-          {COLOR_STOPS.map(({ label, index }) => (
-            <label key={label} className="flex min-w-0 flex-col gap-1.5 text-[10px] text-[var(--text-secondary)]">
-              <span>{label}</span>
-              <span className="flex items-center gap-2 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1.5">
-                <input
-                  type="color"
-                  aria-label={label}
-                  value={colors[index]}
-                  onChange={(event) => setColor(index, event.target.value)}
-                  className="h-5 w-6 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
-                />
-                <output className="truncate font-mono tabular-nums text-[var(--text-primary)]">{colors[index].toUpperCase()}</output>
-              </span>
-            </label>
+      <SettingsRow label="Colors" description="Editing a color switches to the Custom palette.">
+        <div className="st-row__control" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {COLOR_STOPS.map(({ index, label }) => (
+            <ColorInput
+              key={label}
+              label={`${label} color`}
+              onChange={(value) => setColor(index, value)}
+              value={colors[index]}
+            />
           ))}
         </div>
-        <p className="mt-1.5 text-[10px] text-[var(--text-secondary)]">Choose any color; editing a stop saves a Custom palette.</p>
-      </div>
+      </SettingsRow>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2 text-xs">
-            <label htmlFor="workspace-aurora-amplitude" className="text-[var(--text-primary)]">Amplitude</label>
-            <output htmlFor="workspace-aurora-amplitude" className="tabular-nums text-[var(--text-secondary)]">{amplitude.toFixed(1)}</output>
-          </div>
-          <input
-            id="workspace-aurora-amplitude"
-            type="range"
-            min={0.1}
-            max={2}
-            step={0.1}
-            value={amplitude}
-            onChange={(event) => setAmplitude(Number(event.target.value))}
-            className="w-full accent-[var(--accent)] cursor-pointer disabled:cursor-default"
-          />
-          <p className="mt-1 text-[10px] text-[var(--text-secondary)]">Wave height</p>
-        </div>
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2 text-xs">
-            <label htmlFor="workspace-aurora-speed" className="text-[var(--text-primary)]">Speed</label>
-            <output htmlFor="workspace-aurora-speed" className="tabular-nums text-[var(--text-secondary)]">{speed.toFixed(1)}</output>
-          </div>
-          <input
-            id="workspace-aurora-speed"
-            type="range"
-            min={0}
-            max={2}
-            step={0.1}
-            value={speed}
-            onChange={(event) => setSpeed(Number(event.target.value))}
-            className="w-full accent-[var(--accent)] cursor-pointer disabled:cursor-default"
-          />
-          <p className="mt-1 text-[10px] text-[var(--text-secondary)]">Motion pace</p>
-        </div>
-      </div>
+      <SliderRow
+        description="How strong the glow is."
+        format={(value) => `${value}%`}
+        label="Intensity"
+        max={100}
+        min={0}
+        onChange={setIntensity}
+        step={5}
+        value={intensity}
+      />
 
-      <div>
-        <div className="mb-2 flex items-center justify-between text-xs">
-          <label htmlFor="workspace-aurora-intensity" className="text-[var(--text-primary)]">Intensity</label>
-          <output htmlFor="workspace-aurora-intensity" className="tabular-nums text-[var(--text-secondary)]">{intensity}%</output>
-        </div>
-        <input
-          id="workspace-aurora-intensity"
-          type="range"
-          min={0}
+      <ToggleRow
+        checked={motion}
+        description={animationsEnabled ? 'A gentle drift. Follows your reduced-motion preference.' : 'Paused while app animations are turned off.'}
+        label="Slow movement"
+        onChange={setMotion}
+      />
+
+      <Disclosure label="Fine tuning" description="Edge softness, wave height and speed">
+        <SliderRow
+          description="From crisp edges to a diffused glow."
+          format={(value) => `${Math.round(value * 100)}%`}
+          label="Edge softness"
           max={100}
+          min={10}
+          onChange={(value) => setBlend(value / 100)}
           step={5}
-          value={intensity}
-          onChange={(event) => setIntensity(Number(event.target.value))}
-          className="w-full accent-[var(--accent)] cursor-pointer disabled:cursor-default"
+          value={Math.round(blend * 100)}
         />
-        <div className="mt-1 flex justify-between text-[10px] text-[var(--text-secondary)]"><span>Subtle</span><span>Rich</span></div>
-      </div>
-
-      <label className="flex items-center justify-between gap-4 cursor-pointer">
-        <span>
-          <span className="block text-xs text-[var(--text-primary)]">Slow movement</span>
-          <span className="mt-0.5 block text-[10px] text-[var(--text-secondary)]">{animationsEnabled ? 'Gentle drift; follows your reduced motion preference' : 'Paused while app animations are disabled'}</span>
-        </span>
-        <input type="checkbox" checked={motion} onChange={(event) => setMotion(event.target.checked)} className="h-4 w-4 shrink-0 accent-[var(--accent)]" />
-      </label>
-    </fieldset>
+        <SliderRow
+          description="Height of the waves."
+          format={(value) => value.toFixed(1)}
+          label="Amplitude"
+          max={2}
+          min={0.1}
+          onChange={setAmplitude}
+          step={0.1}
+          value={amplitude}
+        />
+        <SliderRow
+          description="How fast the aurora moves."
+          format={(value) => value.toFixed(1)}
+          label="Speed"
+          max={2}
+          min={0}
+          onChange={setSpeed}
+          step={0.1}
+          value={speed}
+        />
+      </Disclosure>
+    </>
   );
 }

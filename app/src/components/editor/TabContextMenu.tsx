@@ -43,6 +43,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
 
   useEffect(() => {
     if (!menuRef.current) return;
+    menuRef.current.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
     const rect = menuRef.current.getBoundingClientRect();
     const win = window.innerHeight;
     const wid = window.innerWidth;
@@ -61,8 +62,16 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
       ref={menuRef}
       role="menu"
       aria-label="Tab context menu"
-      className="fixed z-[200] min-w-[180px] bg-theme-card border border-theme rounded shadow-2xl py-1 animate-popover-in font-mono select-none"
+      className="fixed z-[200] min-w-[220px] bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-md shadow-xl py-1 animate-popover-in select-none"
       style={{ top: y, left: x }}
+      onKeyDown={(event) => {
+        if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+        const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next]?.focus();
+      }}
     >
       {items.map((item, i) => {
         if (item.separator) {
@@ -71,6 +80,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
         const mi = item as MenuItem;
         return (
           <button
+            type="button"
             key={i}
             role="menuitem"
             onClick={() => {
@@ -79,7 +89,7 @@ export const TabContextMenu: React.FC<TabContextMenuProps> = ({ x, y, items, onC
                 onClose();
               }
             }}
-            className={`w-full flex items-center justify-between px-3 py-1.5 text-[11px] tracking-wide transition-colors cursor-pointer ${
+            className={`w-full flex items-center justify-between px-3 py-2 text-[11px] transition-colors focus-visible:bg-[var(--bg-tertiary)] focus-visible:outline-none cursor-pointer ${
               mi.disabled
                 ? 'text-[var(--text-secondary)]/40 cursor-default'
                 : 'text-theme-secondary hover:bg-theme-hover hover:text-theme-main'

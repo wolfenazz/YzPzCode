@@ -16,10 +16,10 @@ import {
 } from '@phosphor-icons/react';
 import type { WorkspaceConfig, WorkspaceView } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
+import { ChromeBrand, ChromeButton, ChromeDivider } from '../common/ChromeParts';
 import { ThemeModeToggle } from '../common/ThemeModeToggle';
 import { WindowControls } from '../common/WindowControls';
 import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
-import logo from '../../assets/YzPzCodeLogo.png';
 
 interface WorkspaceHeaderProps {
   workspaces: WorkspaceConfig[];
@@ -106,6 +106,70 @@ const viewOptions: Array<{ view: WorkspaceView; label: string; icon: React.Eleme
   { view: 'browser', label: 'Browser', icon: GlobeSimple },
 ];
 
+interface ViewSwitcherProps {
+  activeView: WorkspaceView;
+  onViewChange: (view: WorkspaceView) => void;
+}
+
+const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ activeView, onViewChange }) => {
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const focusedIndex = buttonRefs.current.findIndex((button) => button === event.target);
+    if (focusedIndex < 0) return;
+    let nextIndex: number;
+    switch (event.key) {
+      case 'ArrowRight': nextIndex = (focusedIndex + 1) % viewOptions.length; break;
+      case 'ArrowLeft': nextIndex = (focusedIndex - 1 + viewOptions.length) % viewOptions.length; break;
+      case 'Home': nextIndex = 0; break;
+      case 'End': nextIndex = viewOptions.length - 1; break;
+      default: return;
+    }
+    event.preventDefault();
+    buttonRefs.current[nextIndex]?.focus();
+    onViewChange(viewOptions[nextIndex].view);
+  };
+
+  return (
+    <div className="view-switch" role="tablist" aria-label="Workspace views" onKeyDown={handleKeyDown}>
+      {viewOptions.map(({ view, label, icon: IconComponent }, index) => {
+        const isActive = activeView === view;
+        return (
+          <button
+            key={view}
+            ref={(button) => { buttonRefs.current[index] = button; }}
+            onClick={() => onViewChange(view)}
+            className={`view-switch__item ${isActive ? 'is-active' : ''}`}
+            role="tab"
+            aria-selected={isActive}
+            aria-label={label}
+            title={label}
+            tabIndex={isActive ? 0 : -1}
+            type="button"
+          >
+            {isActive && (
+              <motion.div
+                layoutId="workspace-view-active-pill"
+                className="view-switch__pill"
+                transition={{ type: 'spring', bounce: 0.12, duration: 0.3 }}
+              />
+            )}
+            <span className="view-switch__content">
+              <IconComponent
+                size={14}
+                weight={isActive ? 'fill' : 'regular'}
+                className="view-switch__icon"
+                aria-hidden="true"
+              />
+              <span className="view-switch__label">{label}</span>
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   workspaces,
   activeWorkspaceId,
@@ -131,144 +195,77 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 }) => {
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
   const titlebarRef = useTitlebarDrag<HTMLElement>();
-  const viewButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
-  const activeViewIndex = viewOptions.findIndex((option) => option.view === activeView);
 
-  const handleViewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const focusedIndex = viewButtonRefs.current.findIndex((button) => button === event.target);
-    if (focusedIndex < 0) return;
-    let nextIndex: number;
-    switch (event.key) {
-      case 'ArrowRight': nextIndex = (focusedIndex + 1) % viewOptions.length; break;
-      case 'ArrowLeft': nextIndex = (focusedIndex - 1 + viewOptions.length) % viewOptions.length; break;
-      case 'Home': nextIndex = 0; break;
-      case 'End': nextIndex = viewOptions.length - 1; break;
-      default: return;
-    }
-    event.preventDefault();
-    viewButtonRefs.current[nextIndex]?.focus();
-    onViewChange(viewOptions[nextIndex].view);
-  };
+  const changeLabel = `${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}`;
 
   return (
     <>
-      <header ref={titlebarRef} className="workspace-chrome app-chrome relative z-[100] h-12 select-none">
-        <div className="workspace-chrome__brand flex h-full min-w-0 items-center">
-          <div className="workspace-chrome__product flex h-full items-center gap-2 border-r border-[var(--border-primary)] px-3">
-            <img src={logo} alt="YzPzCode" className="h-4 w-auto opacity-85" draggable={false} />
-            <span className="text-[12px] font-medium tracking-[-0.02em] text-[var(--text-primary)]">YzPzCode</span>
-          </div>
-          <div className="workspace-chrome__utility-cluster flex items-center gap-0.5 px-1.5">
-            <button onClick={onDocsClick} className="workspace-chrome__tool app-icon-button" title="Documentation" type="button"><BookOpenText size={16} aria-hidden="true" /><span className="sr-only">Documentation</span></button>
-            <button
+      <header ref={titlebarRef} className="chrome chrome--workspace">
+        <div className="chrome__start">
+          <ChromeBrand />
+          <ChromeDivider />
+          <div className="chrome__group" role="group" aria-label="Side panels">
+            <ChromeButton label="Explorer" pressed={explorerOpen} onClick={onExplorerClick}>
+              <SidebarSimple size={16} aria-hidden="true" />
+            </ChromeButton>
+            <ChromeButton
+              label={sourceControlChangeCount > 0 ? `Source Control, ${changeLabel}` : 'Source Control'}
+              title={sourceControlChangeCount > 0 ? `Source Control — ${changeLabel}` : 'Source Control'}
+              pressed={sourceControlOpen}
+              badge={sourceControlChangeCount > 99 ? '99+' : sourceControlChangeCount > 0 ? sourceControlChangeCount : null}
               onClick={onSourceControlClick}
-              className={`workspace-chrome__tool app-icon-button relative ${sourceControlOpen ? 'text-[var(--accent)]' : ''}`}
-              title={sourceControlChangeCount > 0 ? `Source Control — ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Source Control'}
-              aria-label={sourceControlChangeCount > 0 ? `Source Control, ${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}` : 'Source Control'}
-              aria-pressed={sourceControlOpen}
-              type="button"
             >
               <GitBranch size={16} aria-hidden="true" />
-              {sourceControlChangeCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-[var(--bg-secondary)] bg-[var(--accent)] px-0.5 font-mono text-[8px] font-bold leading-none text-[var(--text-primary)] tabular-nums">
-                  {sourceControlChangeCount > 99 ? '99+' : sourceControlChangeCount}
-                </span>
-              )}
-              <span className="sr-only">Source Control</span>
-            </button>
-            <button
-              onClick={onExplorerClick}
-              className={`workspace-chrome__tool app-icon-button ${explorerOpen ? 'text-[var(--accent)]' : ''}`}
-              title="Explorer"
-              aria-label="Explorer"
-              aria-pressed={explorerOpen}
-              type="button"
-            >
-              <SidebarSimple size={16} aria-hidden="true" />
-              <span className="sr-only">Explorer</span>
-            </button>
-            <button
-              onClick={onExtensionsClick}
-              className={`workspace-chrome__tool app-icon-button ${extensionsOpen ? 'text-[var(--accent)]' : ''}`}
-              title="Extensions (Ctrl+Shift+X)"
-              aria-label="Extensions"
-              aria-pressed={extensionsOpen}
-              type="button"
-            >
+            </ChromeButton>
+            <ChromeButton label="Extensions" title="Extensions (Ctrl+Shift+X)" pressed={extensionsOpen} onClick={onExtensionsClick}>
               <PuzzlePiece size={16} aria-hidden="true" />
-              <span className="sr-only">Extensions</span>
-            </button>
+            </ChromeButton>
           </div>
         </div>
 
-        <nav className="workspace-tabs flex min-w-0 flex-1 items-center overflow-hidden" aria-label="Workspaces">
-          <div className="workspace-tabs__scroll flex min-w-0 items-center gap-1 overflow-x-auto px-1.5">
+        <nav className="chrome-tabs" aria-label="Workspaces">
+          <div className="chrome-tabs__scroll" role="tablist">
             {workspaces.map((workspace) => (
-              <WorkspaceTab key={workspace.id} workspace={workspace} isActive={workspace.id === activeWorkspaceId} sessionsCount={sessionsByWorkspace[workspace.id] || 0} onClick={() => onWorkspaceClick(workspace.id)} onClose={(event) => { event.stopPropagation(); onWorkspaceClose(workspace.id); }} />
+              <WorkspaceTab
+                key={workspace.id}
+                workspace={workspace}
+                isActive={workspace.id === activeWorkspaceId}
+                sessionsCount={sessionsByWorkspace[workspace.id] || 0}
+                onClick={() => onWorkspaceClick(workspace.id)}
+                onClose={(event) => {
+                  event.stopPropagation();
+                  onWorkspaceClose(workspace.id);
+                }}
+              />
             ))}
-            <button onClick={onNewWorkspace} className="workspace-tabs__new app-icon-button app-icon-button--compact shrink-0" title="New workspace" aria-label="Create workspace" type="button"><Plus size={14} aria-hidden="true" /><span className="sr-only">New workspace</span></button>
           </div>
+          <ChromeButton label="New workspace" onClick={onNewWorkspace}>
+            <Plus size={14} aria-hidden="true" />
+          </ChromeButton>
         </nav>
 
-        <div className="workspace-chrome__controls flex h-full shrink-0 items-center gap-1 border-l border-[var(--border-primary)] pl-1.5">
+        <div className="chrome__end">
+          <ViewSwitcher activeView={activeView} onViewChange={onViewChange} />
+          <ChromeDivider />
+          <ChromeButton label="Documentation" onClick={onDocsClick}>
+            <BookOpenText size={16} aria-hidden="true" />
+          </ChromeButton>
+          <ChromeButton label="Keyboard shortcuts" onClick={() => setIsShortcutOpen(true)}>
+            <Keyboard size={16} aria-hidden="true" />
+          </ChromeButton>
           <ThemeModeToggle />
-          <button onClick={onSettingsClick} className="workspace-chrome__tool app-icon-button" title="Settings (Ctrl+,)" type="button"><GearSix size={16} aria-hidden="true" /><span className="sr-only">Settings</span></button>
-          <button onClick={() => setIsShortcutOpen(true)} className="workspace-chrome__tool app-icon-button" title="Keyboard shortcuts" type="button"><Keyboard size={16} aria-hidden="true" /><span className="sr-only">Keyboard shortcuts</span></button>
-          <div
-            className="workspace-view-switcher flex shrink-0 items-center"
-            role="tablist"
-            aria-label="Workspace views"
-            style={{ '--active-view-index': activeViewIndex } as React.CSSProperties}
-            onKeyDown={handleViewKeyDown}
-            onPointerMove={(event) => {
-              const bounds = event.currentTarget.getBoundingClientRect();
-              event.currentTarget.style.setProperty('--glass-pointer-x', `${event.clientX - bounds.left}px`);
-              event.currentTarget.style.setProperty('--glass-pointer-y', `${event.clientY - bounds.top}px`);
-            }}
-          >
-            <div className="workspace-view-switcher__lens" aria-hidden="true" />
-            {viewOptions.map(({ view, label, icon: IconComponent }, index) => {
-              const isActive = activeView === view;
-              return (
-                <button
-                  key={view}
-                  ref={(button) => { viewButtonRefs.current[index] = button; }}
-                  onClick={() => onViewChange(view)}
-                  className={`workspace-view-switcher__item inline-flex shrink-0 items-center justify-center ${isActive ? 'is-active' : ''}`}
-                  role="tab"
-                  aria-selected={isActive}
-                  aria-label={label}
-                  title={label}
-                  type="button"
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="workspace-view-active-pill"
-                      className="workspace-view-switcher__active-pill"
-                      transition={{ type: 'spring', bounce: 0.16, duration: 0.32 }}
-                    />
-                  )}
-                  <span className="workspace-view-switcher__content inline-flex shrink-0 items-center">
-                    <IconComponent
-                      size={13.5}
-                      weight={isActive ? 'fill' : 'regular'}
-                      className="workspace-view-switcher__icon shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span className="workspace-view-switcher__label shrink-0 whitespace-nowrap">{label}</span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          {isWindows && (
-            <WindowControls
-              onMinimize={onMinimizeWindow}
-              onMaximize={onMaximizeWindow}
-              onClose={onCloseWindow}
-            />
-          )}
+          <ChromeButton label="Settings" title="Settings (Ctrl+,)" onClick={onSettingsClick}>
+            <GearSix size={16} aria-hidden="true" />
+          </ChromeButton>
         </div>
+
+        {isWindows && (
+          <WindowControls
+            onMinimize={onMinimizeWindow}
+            onMaximize={onMaximizeWindow}
+            onClose={onCloseWindow}
+          />
+        )}
       </header>
       {isShortcutOpen && <ShortcutModal onClose={() => setIsShortcutOpen(false)} />}
     </>

@@ -411,6 +411,34 @@ impl PtySession {
     }
 }
 
+#[cfg(all(test, target_os = "windows"))]
+mod windows_input_tests {
+    use super::encode_terminal_input;
+
+    const ESC_KEY: &[u8] = b"\x1b[27;1;27;1;0;1_\x1b[27;1;27;0;0;1_";
+
+    #[test]
+    fn lone_escape_becomes_a_console_key_event() {
+        assert_eq!(encode_terminal_input(b"\x1b").as_ref(), ESC_KEY);
+    }
+
+    #[test]
+    fn escape_sequences_pass_through() {
+        for input in [&b"\x1b[A"[..], b"\x1b[200~hi\x1b[201~", b"\x1bb"] {
+            assert_eq!(encode_terminal_input(input).as_ref(), input);
+        }
+    }
+
+    #[test]
+    fn double_escape_sends_two_escape_keys() {
+        let expected = [ESC_KEY, ESC_KEY].concat();
+        assert_eq!(
+            encode_terminal_input(b"\x1b\x1b").as_ref(),
+            expected.as_slice()
+        );
+    }
+}
+
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
     use super::PtySession;
@@ -539,14 +567,22 @@ mod windows_tests {
 /// Preserve Windows console semantics for xterm's control-key bytes.
 pub(super) fn encode_terminal_input(data: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     #[cfg(target_os = "windows")]
-    if data.iter().any(|byte| matches!(byte, 3 | 127)) {
+    if data.iter().any(|byte| matches!(byte, 3 | 27 | 127)) {
         let mut encoded = Vec::with_capacity(data.len());
-        for byte in data {
+        for (index, byte) in data.iter().enumerate() {
             match byte {
                 // Send real console keys rather than ConPTY's VT fallback,
                 // which can treat ETX as text and DEL as Ctrl+Backspace.
                 3 => encoded.extend_from_slice(b"\x1b[67;46;3;1;8;1_\x1b[67;46;3;0;8;1_"),
                 127 => encoded.extend_from_slice(b"\x1b[8;14;8;1;0;1_\x1b[8;14;8;0;0;1_"),
+                // A lone ESC (end of input, or directly before another ESC) is
+                // the Escape key. ConPTY holds a bare ESC byte while it waits to
+                // see whether a sequence follows, so Escape never reaches the
+                // app. ESC followed by other bytes is a real VT sequence (arrow
+                // keys, bracketed paste, Alt+key) and is passed through.
+                27 if matches!(data.get(index + 1), None | Some(27)) => {
+                    encoded.extend_from_slice(b"\x1b[27;1;27;1;0;1_\x1b[27;1;27;0;0;1_")
+                }
                 _ => encoded.push(*byte),
             }
         }

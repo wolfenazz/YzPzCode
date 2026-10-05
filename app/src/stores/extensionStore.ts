@@ -13,13 +13,28 @@ interface ExtensionStore {
   progress: Record<string, ExtensionInstallProgress>;
   panelsByWorkspace: Record<string, WorkspaceExtensionPanel[]>;
   paneOrderByWorkspace: Record<string, string[]>;
+  latestVersions: Record<string, string>;
   refreshCatalog: () => Promise<void>;
+  checkUpdates: () => Promise<void>;
   install: (extensionId: string) => Promise<void>;
   setProgress: (progress: ExtensionInstallProgress) => void;
   openPanel: (workspaceId: string, extension: ExtensionInfo) => void;
   closePanel: (panelId: string) => Promise<void>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
   setPaneOrder: (workspaceId: string, ids: string[]) => void;
+}
+
+/** True when `latest` is a newer dotted version than `installed` (prerelease suffixes ignored). */
+export function isNewerVersion(latest: string | undefined, installed: string | null): boolean {
+  if (!latest || !installed) return false;
+  const parse = (value: string) => value.split(/[-+]/)[0].split('.').map((part) => parseInt(part, 10) || 0);
+  const a = parse(latest);
+  const b = parse(installed);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff > 0;
+  }
+  return false;
 }
 
 export const EMPTY_EXTENSION_PANELS: WorkspaceExtensionPanel[] = [];
@@ -45,19 +60,27 @@ export const useExtensionStore = create<ExtensionStore>()(
   persist(
     (set, get) => ({
       catalog: supportedExtensions.map((extension) => ({ ...extension, installedVersion: null, registryUrl: `https://open-vsx.org/extension/${extension.id.replace('.', '/')}` })),
-      loading: false, backendReady: false, error: null, installing: [], progress: {},
+      loading: false, backendReady: false, error: null, installing: [], progress: {}, latestVersions: {},
       panelsByWorkspace: {}, paneOrderByWorkspace: {},
       refreshCatalog: async () => {
         set({ loading: true, error: null });
         try {
           const catalog = await invoke<ExtensionInfo[]>('list_supported_extensions');
           set({ catalog: catalog.filter((extension) => supportedIds.has(extension.id.toLowerCase())), backendReady: true });
+          void get().checkUpdates();
         } catch (error) {
           const message = String(error);
           set({ backendReady: false, error: message.includes('list_supported_extensions') && message.includes('not found')
             ? 'Restart YzPzCode to enable extension installation and open panels.' : message });
         } finally {
           set({ loading: false });
+        }
+      },
+      checkUpdates: async () => {
+        try {
+          set({ latestVersions: await invoke<Record<string, string>>('check_extension_updates') });
+        } catch {
+          // Offline or registry unavailable: keep the last known result.
         }
       },
       install: async (extensionId) => {

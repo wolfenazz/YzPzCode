@@ -1,5 +1,51 @@
-import React from 'react';
+import React, { useState } from 'react';
+import {
+  ArrowCounterClockwise,
+  Broom,
+  ClockCounterClockwise,
+  DownloadSimple,
+  HardDrives,
+  SquaresFour,
+  UploadSimple,
+} from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
+import {
+  Button,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+} from '../SettingsKit';
+
+/** Two-step button so a destructive action can't be triggered by a single stray click. */
+const ConfirmButton = ({
+  label,
+  confirmLabel = 'Confirm',
+  onConfirm,
+  disabled,
+  solid,
+}: {
+  label: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  disabled?: boolean;
+  solid?: boolean;
+}) => {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <Button disabled={disabled} onClick={() => setAsking(true)} size="sm" variant="danger">
+        {label}
+      </Button>
+    );
+  }
+  return (
+    <>
+      <span style={{ color: 'var(--text-secondary)', fontSize: '0.75rem' }}>Are you sure?</span>
+      <Button onClick={() => setAsking(false)} size="sm" variant="ghost">Cancel</Button>
+      <Button onClick={onConfirm} size="sm" variant={solid ? 'danger-solid' : 'danger'}>{confirmLabel}</Button>
+    </>
+  );
+};
 
 export const SettingsData: React.FC = () => {
   const {
@@ -9,17 +55,15 @@ export const SettingsData: React.FC = () => {
     openWorkspaces,
   } = useAppStore();
 
-  const [showConfirmReset, setShowConfirmReset] = React.useState(false);
-  const [showConfirmWorkspaces, setShowConfirmWorkspaces] = React.useState(false);
-
   const getStorageUsage = () => {
     let total = 0;
-    for (let key in localStorage) {
-      if (localStorage.hasOwnProperty(key)) {
+    for (const key in localStorage) {
+      if (Object.prototype.hasOwnProperty.call(localStorage, key)) {
         total += localStorage[key].length * 2;
       }
     }
-    return (total / 1024).toFixed(2);
+    const kb = total / 1024;
+    return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb.toFixed(1)} KB`;
   };
 
   const handleExportSettings = () => {
@@ -78,137 +122,77 @@ export const SettingsData: React.FC = () => {
         keysToRemove.push(key);
       }
     }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
     window.location.reload();
   };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Data & Storage</h2>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">Manage application data and storage</p>
-      </div>
+    <SettingsStack>
+      <SettingsGroup title="Stored on this device">
+        <SettingsRow
+          description="Settings and workspace data kept by the app."
+          icon={<HardDrives size={16} aria-hidden="true" />}
+          label="Local storage"
+        >
+          <span className="st-slider__value" style={{ minWidth: 0 }}>{getStorageUsage()}</span>
+        </SettingsRow>
+        <SettingsRow
+          description={`${openWorkspaces.length} open right now`}
+          icon={<SquaresFour size={16} aria-hidden="true" />}
+          label="Saved workspaces"
+        >
+          <span className="st-slider__value" style={{ minWidth: 0 }}>{workspaceList.length}</span>
+        </SettingsRow>
+      </SettingsGroup>
 
-      <div className="space-y-6">
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Storage Usage</h3>
+      <SettingsGroup
+        description="Move your preferences to another computer, or keep a copy."
+        title="Backup"
+      >
+        <SettingsRow
+          description="Save your preferences to a JSON file."
+          icon={<DownloadSimple size={16} aria-hidden="true" />}
+          label="Export settings"
+        >
+          <Button icon={DownloadSimple} onClick={handleExportSettings}>Export</Button>
+        </SettingsRow>
+        <SettingsRow
+          description="Load a file you exported earlier. The app restarts to apply it."
+          icon={<UploadSimple size={16} aria-hidden="true" />}
+          label="Import settings"
+        >
+          <Button icon={UploadSimple} onClick={handleImportSettings}>Import…</Button>
+        </SettingsRow>
+      </SettingsGroup>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-[var(--bg-primary)]/50 border border-[var(--border-primary)]/70 rounded-lg p-4">
-              <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-mono mb-1">Local Storage</p>
-              <p className="text-lg text-zinc-200 font-mono font-bold">{getStorageUsage()} KB</p>
-            </div>
-            <div className="bg-[var(--bg-primary)]/50 border border-[var(--border-primary)]/70 rounded-lg p-4">
-              <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-mono mb-1">Workspaces</p>
-              <p className="text-lg text-zinc-200 font-mono font-bold">{workspaceList.length}</p>
-            </div>
-            <div className="bg-[var(--bg-primary)]/50 border border-[var(--border-primary)]/70 rounded-lg p-4">
-              <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-mono mb-1">Open</p>
-              <p className="text-lg text-zinc-200 font-mono font-bold">{openWorkspaces.length}</p>
-            </div>
-          </div>
-        </div>
+      <SettingsGroup title="Clear data">
+        <SettingsRow
+          description={`${recentDirectories.length} folder${recentDirectories.length === 1 ? '' : 's'} in the list`}
+          icon={<ClockCounterClockwise size={16} aria-hidden="true" />}
+          label="Recent folders"
+        >
+          <Button disabled={recentDirectories.length === 0} icon={Broom} onClick={clearRecentDirectories} size="sm">
+            Clear
+          </Button>
+        </SettingsRow>
+        <SettingsRow
+          description={`${workspaceList.length} saved workspace${workspaceList.length === 1 ? '' : 's'}. The app reloads afterwards.`}
+          icon={<SquaresFour size={16} aria-hidden="true" />}
+          label="Workspace history"
+        >
+          <ConfirmButton disabled={workspaceList.length === 0} label="Clear…" onConfirm={handleClearWorkspaces} />
+        </SettingsRow>
+      </SettingsGroup>
 
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Import / Export</h3>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleExportSettings}
-              className="px-4 py-2 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] border border-[var(--border-primary)] transition-colors cursor-pointer text-[10px] font-mono uppercase"
-            >
-              Export Settings
-            </button>
-            <button
-              onClick={handleImportSettings}
-              className="px-4 py-2 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] border border-[var(--border-primary)] transition-colors cursor-pointer text-[10px] font-mono uppercase"
-            >
-              Import Settings
-            </button>
-          </div>
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Clear Data</h3>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-[var(--text-primary)] font-mono">Recent Directories</p>
-                <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">{recentDirectories.length} entries</p>
-              </div>
-              <button
-                onClick={clearRecentDirectories}
-                className="px-3 py-1.5 rounded-md text-[10px] font-mono uppercase text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
-              >
-                Clear
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs text-[var(--text-primary)] font-mono">Workspace History</p>
-                <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">{workspaceList.length} saved workspaces</p>
-              </div>
-              {!showConfirmWorkspaces ? (
-                <button
-                  onClick={() => setShowConfirmWorkspaces(true)}
-                  className="px-3 py-1.5 rounded-md text-[10px] font-mono uppercase text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
-                >
-                  Clear
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[var(--text-secondary)] font-mono">Are you sure?</span>
-                  <button
-                    onClick={handleClearWorkspaces}
-                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={() => setShowConfirmWorkspaces(false)}
-                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-[var(--border-primary)] text-[var(--text-secondary)] hover:bg-[#303030] transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between pt-3 border-t border-[var(--border-primary)]">
-              <div>
-                <p className="text-xs text-rose-400/80 font-mono">Reset All Settings</p>
-                <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">This will clear all data and reload the app</p>
-              </div>
-              {!showConfirmReset ? (
-                <button
-                  onClick={() => setShowConfirmReset(true)}
-                  className="px-3 py-1.5 rounded-md text-[10px] font-mono uppercase text-rose-400/80 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                >
-                  Reset All
-                </button>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-[var(--text-secondary)] font-mono">Are you sure?</span>
-                  <button
-                    onClick={handleResetAll}
-                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 transition-colors cursor-pointer"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={() => setShowConfirmReset(false)}
-                    className="px-2 py-1 rounded-md text-[10px] font-mono uppercase bg-[var(--border-primary)] text-[var(--text-secondary)] hover:bg-[#303030] transition-colors cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+      <SettingsGroup title="Danger zone">
+        <SettingsRow
+          description="Erase every setting and all saved data, then reload the app. This cannot be undone."
+          icon={<ArrowCounterClockwise size={16} aria-hidden="true" />}
+          label="Reset everything"
+        >
+          <ConfirmButton confirmLabel="Reset" label="Reset…" onConfirm={handleResetAll} solid />
+        </SettingsRow>
+      </SettingsGroup>
+    </SettingsStack>
   );
 };

@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { PrerequisiteStatus } from '../../types';
 import { useAppStore } from '../../stores/appStore';
 import { minimizeWindow, maximizeWindow, closeWindow, initWindowPlatform } from '../../utils/window';
-import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
+import { AppChrome } from '../common/AppChrome';
 import { AppFooter } from '../common/AppFooter';
 import logo from '../../assets/YzPzCodeLogo.png';
 
@@ -18,7 +18,6 @@ export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady })
   const [checkState, setCheckState] = useState<CheckState>('checking');
   const [nodejsInfo, setNodejsInfo] = useState<PrerequisiteStatus | null>(null);
   const [isWindows, setIsWindows] = useState(false);
-  const titlebarRef = useTitlebarDrag<HTMLElement>();
 
   useEffect(() => {
     initWindowPlatform().then(setIsWindows).catch(() => {});
@@ -74,63 +73,13 @@ export const NodeJsCheckScreen: React.FC<NodeJsCheckScreenProps> = ({ onReady })
 
   return (
     <div className="h-screen bg-theme-main text-theme-main font-mono flex flex-col overflow-hidden">
-      <header
-        ref={titlebarRef}
-        className="relative z-50 flex items-center h-11 bg-theme-card/60 backdrop-blur-md border-b border-theme select-none overflow-visible flex-shrink-0"
-      >
-        <div className="flex items-center h-full">
-          <div className="flex items-center gap-2.5 px-5 h-full border-r border-theme bg-theme-card/40 group cursor-default">
-            <img src={logo} alt="YzPzCode" className="h-5 w-auto opacity-70 group-hover:opacity-100 group-hover:scale-110 transition-all duration-300" />
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-semibold tracking-tight text-theme-main">YZPZ</span>
-              <span className="text-[9px] text-[var(--text-secondary)]">/</span>
-              <span className="text-[10px] font-mono text-theme-secondary tracking-wide">code</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 flex items-center h-full min-w-0">
-          <div className="hidden lg:flex items-center gap-4 px-5 text-[9px] font-mono tracking-[0.2em] text-[var(--text-secondary)] uppercase">
-            <span>_init</span>
-            <span className="text-[var(--text-secondary)]">:</span>
-            <span>sys-check</span>
-          </div>
-        </div>
-
-        <div className="flex items-center h-full">
-          {isWindows && (
-            <div className="flex h-full border-l border-theme">
-              <button
-                onClick={minimizeWindow}
-                className="group/min w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-[var(--text-secondary)] hover:text-theme-main transition-all duration-150 cursor-pointer"
-                title="Minimize"
-              >
-                <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/min:translate-y-[2px] group-hover/min:scale-125" viewBox="0 0 12 12">
-                  <rect fill="currentColor" width="10" height="1" x="1" y="5.5" />
-                </svg>
-              </button>
-              <button
-                onClick={maximizeWindow}
-                className="group/max w-[42px] h-full flex items-center justify-center hover:bg-theme-hover text-[var(--text-secondary)] hover:text-theme-main transition-all duration-150 cursor-pointer"
-                title="Maximize"
-              >
-                <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/max:scale-125 group-hover/max:drop-shadow-[0_0_4px_rgba(161,161,170,0.4)]" viewBox="0 0 12 12">
-                  <rect fill="none" stroke="currentColor" width="8" height="8" x="2" y="2" strokeWidth="1" />
-                </svg>
-              </button>
-              <button
-                onClick={closeWindow}
-                className="group/close w-[48px] h-full flex items-center justify-center hover:bg-[#c42b1c] text-[var(--text-secondary)] hover:text-white transition-all duration-150 cursor-pointer"
-                title="Close"
-              >
-                <svg className="w-2.5 h-2.5 transition-transform duration-300 group-hover/close:rotate-90 group-hover/close:scale-125 group-hover/close:drop-shadow-[0_0_6px_rgba(196,43,28,0.6)]" viewBox="0 0 12 12">
-                  <path fill="none" stroke="currentColor" strokeWidth="1.2" d="M2.5,2.5 L9.5,9.5 M2.5,9.5 L9.5,2.5" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-      </header>
+      <AppChrome
+        crumbs={['System check']}
+        isWindows={isWindows}
+        onClose={closeWindow}
+        onMaximize={maximizeWindow}
+        onMinimize={minimizeWindow}
+      />
 
       <main className="flex-1 flex items-center justify-center overflow-hidden">
         <div className="w-full max-w-lg mx-auto px-8">

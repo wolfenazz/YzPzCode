@@ -10,6 +10,17 @@ pub fn list_supported_extensions(
 }
 
 #[tauri::command]
+pub async fn check_extension_updates(
+    app: AppHandle,
+    manager: State<'_, ExtensionHostManager>,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    manager
+        .latest_versions(&app)
+        .await
+        .map_err(|error| format!("{error:#}"))
+}
+
+#[tauri::command]
 pub async fn install_workspace_extension(
     app: AppHandle,
     manager: State<'_, ExtensionHostManager>,

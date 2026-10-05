@@ -1,6 +1,37 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import {
+  ArrowSquareOut,
+  ArrowsClockwise,
+  CheckCircle,
+  DownloadSimple,
+  Package,
+  Warning,
+  XCircle,
+} from '@phosphor-icons/react';
 import { PrerequisiteStatus, PrerequisiteType } from '../../../types';
+import {
+  Badge,
+  Button,
+  Notice,
+  SettingsEmpty,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+} from '../SettingsKit';
+
+type Health = 'ok' | 'outdated' | 'missing';
+
+const healthOf = (item: PrerequisiteStatus): Health => {
+  if (!item.installed) return 'missing';
+  return item.meetsMinimum ? 'ok' : 'outdated';
+};
+
+const HEALTH_ICON = {
+  ok: <CheckCircle size={18} weight="fill" color="var(--st-success)" aria-hidden="true" />,
+  outdated: <Warning size={18} weight="fill" color="var(--st-warning)" aria-hidden="true" />,
+  missing: <XCircle size={18} weight="fill" color="var(--st-danger)" aria-hidden="true" />,
+} as const;
 
 export const SettingsEnvironment: React.FC = () => {
   const [prerequisites, setPrerequisites] = useState<PrerequisiteStatus[]>([]);
@@ -33,24 +64,24 @@ export const SettingsEnvironment: React.FC = () => {
     if (tooltips[key]) return;
     try {
       const cmd = await invoke<string>('get_prerequisite_install_command', { prereqType });
-      if (cmd) setTooltips(prev => ({ ...prev, [key]: cmd }));
+      if (cmd) setTooltips((prev) => ({ ...prev, [key]: cmd }));
     } catch (err) {
       console.error('Failed to get install command:', err);
     }
   };
 
   const handleInstall = async (key: string, prereqType: PrerequisiteType) => {
-    setInstalling(prev => ({ ...prev, [key]: true }));
+    setInstalling((prev) => ({ ...prev, [key]: true }));
     try {
       await invoke('open_prerequisite_install_terminal', { prereqType });
     } catch (err) {
       console.error('Failed to open install terminal:', err);
     } finally {
-      setInstalling(prev => ({ ...prev, [key]: false }));
+      setInstalling((prev) => ({ ...prev, [key]: false }));
     }
   };
 
-  const handleInstallNodejs = async () => {
+  const handleOpenNodejsDownload = async () => {
     try {
       await invoke('open_url', { url: 'https://nodejs.org/en/download/current' });
     } catch (err) {
@@ -58,167 +89,90 @@ export const SettingsEnvironment: React.FC = () => {
     }
   };
 
-  const allMet = prerequisites.length > 0 && prerequisites.every(p => p.installed && p.meetsMinimum);
+  const allMet = prerequisites.length > 0 && prerequisites.every((p) => p.installed && p.meetsMinimum);
+  const missingCount = prerequisites.filter((p) => !(p.installed && p.meetsMinimum)).length;
+
+  const versionLabel = (item: PrerequisiteStatus) => {
+    if (!item.version) return <Badge tone="danger">Not installed</Badge>;
+    if (!item.meetsMinimum) return <Badge tone="warning">v{item.version} · needs {item.minimumVersion}+</Badge>;
+    return <Badge>v{item.version}</Badge>;
+  };
+
+  const recheck = (
+    <Button icon={ArrowsClockwise} loading={checking} onClick={() => void checkAll()} size="sm">
+      {checking ? 'Checking…' : 'Check again'}
+    </Button>
+  );
 
   return (
-    <div className="space-y-8 font-mono">
-      <div>
-        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Environment</h2>
-        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-mono">System dependencies & runtime checks</p>
-      </div>
+    <SettingsStack>
+      {allMet && <Notice tone="success">Everything the app needs is installed.</Notice>}
+      {!allMet && prerequisites.length > 0 && (
+        <Notice tone="warning">
+          {missingCount} {missingCount === 1 ? 'item needs' : 'items need'} attention. AI agent CLIs may not work until
+          they are installed.
+        </Notice>
+      )}
 
-      <div className="space-y-6">
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Node.js</h3>
-            <button
-              onClick={checkAll}
-              disabled={checking}
-              className="px-4 py-2 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] border border-[var(--border-primary)] transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {checking ? 'Checking...' : 'Re-check'}
-            </button>
-          </div>
+      {nodejsStatus && (
+        <SettingsGroup action={recheck} title="Node.js">
+          <SettingsRow
+            description="Required to run the agent CLIs (Claude, Codex, OpenCode, Kilo and others). Version 18 or newer."
+            icon={HEALTH_ICON[healthOf(nodejsStatus)]}
+            iconBare
+            label="Node.js"
+          >
+            {versionLabel(nodejsStatus)}
+          </SettingsRow>
+          {!nodejsStatus.installed && (
+            <SettingsRow description="Install it from a terminal, or download the installer." label="Get Node.js">
+              <Button
+                icon={DownloadSimple}
+                loading={installing.nodejs}
+                onClick={() => void handleInstall('nodejs', 'NodeJs')}
+                onMouseEnter={() => void loadTooltip('nodejs', 'NodeJs')}
+                title={tooltips.nodejs || 'Install via terminal'}
+                variant="primary"
+              >
+                Install in terminal
+              </Button>
+              <Button icon={ArrowSquareOut} onClick={() => void handleOpenNodejsDownload()}>Download page</Button>
+            </SettingsRow>
+          )}
+        </SettingsGroup>
+      )}
 
-          {nodejsStatus && (
-            <div className="flex items-center justify-between py-2.5 px-3 rounded-md bg-[var(--bg-primary)]/60">
-              <div className="flex items-center gap-2.5">
-                {nodejsStatus.installed && nodejsStatus.meetsMinimum ? (
-                  <svg className="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                ) : nodejsStatus.installed && !nodejsStatus.meetsMinimum ? (
-                  <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
+      <SettingsGroup
+        action={nodejsStatus ? undefined : recheck}
+        description="Tools used by workspaces, agents and extensions."
+        title="Developer tools"
+      >
+        {prerequisites.length === 0 ? (
+          <SettingsEmpty icon={Package} title={checking ? "Checking your system…" : "Nothing to show yet"}>{checking ? undefined : "Press Check again to scan this computer."}</SettingsEmpty>
+        ) : (
+          prerequisites.map((prereq) => {
+            const key = prereq.prerequisiteType;
+            const health = healthOf(prereq);
+            return (
+              <SettingsRow icon={HEALTH_ICON[health]} iconBare key={key} label={prereq.name}>
+                {health !== 'ok' && (
+                  <Button
+                    icon={DownloadSimple}
+                    loading={installing[key]}
+                    onClick={() => void handleInstall(key, key as PrerequisiteType)}
+                    onMouseEnter={() => void loadTooltip(key, key as PrerequisiteType)}
+                    size="sm"
+                    title={tooltips[key] || 'Install via terminal'}
+                  >
+                    {health === 'outdated' ? 'Update' : 'Install'}
+                  </Button>
                 )}
-                <span className="text-xs text-[var(--text-primary)] font-mono">Node.js</span>
-              </div>
-              <div className="flex items-center gap-3">
-                {nodejsStatus.version ? (
-                  <span className="text-[10px] text-[var(--text-secondary)] font-mono">
-                    v{nodejsStatus.version}
-                    {!nodejsStatus.meetsMinimum && (
-                      <span className="text-amber-400 ml-1">(need {nodejsStatus.minimumVersion}+)</span>
-                    )}
-                  </span>
-                ) : (
-                  <span className="text-[10px] text-red-400/80 font-mono">Not installed</span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {nodejsStatus && !nodejsStatus.installed && (
-            <div className="space-y-3">
-              <div className="flex items-start gap-2 px-3 py-2 rounded-md bg-rose-500/10 border border-rose-500/20">
-                <svg className="w-3.5 h-3.5 text-rose-500/80 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                <span className="text-[10px] text-rose-400/80 font-mono">CLI agents (Claude, Codex, Antigravity, OpenCode, Kilo) require Node.js v18+ to run.</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleInstall('nodejs', 'NodeJs')}
-                  onMouseEnter={() => loadTooltip('nodejs', 'NodeJs')}
-                  disabled={installing['nodejs']}
-                  className="flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors cursor-pointer text-[10px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={tooltips['nodejs'] || 'Install via terminal'}
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  {installing['nodejs'] ? 'Opening...' : 'Install via Terminal'}
-                </button>
-                <button
-                  onClick={handleInstallNodejs}
-                  className="flex items-center gap-2 px-4 py-2 rounded-md bg-[var(--bg-tertiary)]/50 text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)]/80 border border-[var(--border-primary)]/50 transition-colors cursor-pointer text-[10px] font-mono uppercase"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                  </svg>
-                  Download Page
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">All Prerequisites</h3>
-            {prerequisites.length > 0 && (
-              <span className={`text-[10px] font-mono uppercase tracking-wider ${allMet ? 'text-emerald-400/80' : 'text-amber-400/80'}`}>
-                {allMet ? 'All satisfied' : 'Missing requirements'}
-              </span>
-            )}
-          </div>
-
-          {checking && prerequisites.length === 0 ? (
-            <div className="text-center py-4 text-[var(--text-secondary)] text-xs font-mono">Checking...</div>
-          ) : (
-            <div className="space-y-1.5">
-              {prerequisites.map((prereq) => {
-                const isOk = prereq.installed && prereq.meetsMinimum;
-                const key = prereq.prerequisiteType;
-                return (
-                  <div key={prereq.prerequisiteType} className="flex items-center justify-between py-2 px-3 rounded-md bg-[var(--bg-primary)]/60">
-                    <div className="flex items-center gap-2.5">
-                      {isOk ? (
-                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      ) : prereq.installed && !prereq.meetsMinimum ? (
-                        <svg className="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                      <span className="text-xs text-[var(--text-primary)] font-mono">{prereq.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {!isOk && (
-                        <button
-                          onClick={() => handleInstall(key, key as PrerequisiteType)}
-                          onMouseEnter={() => loadTooltip(key, key as PrerequisiteType)}
-                          disabled={installing[key]}
-                          className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 transition-colors cursor-pointer text-[9px] font-mono uppercase disabled:opacity-50 disabled:cursor-not-allowed"
-                          title={tooltips[key] || 'Install via terminal'}
-                        >
-                          {installing[key] ? 'Opening...' : 'Install'}
-                        </button>
-                      )}
-                      {prereq.version ? (
-                        <span className="text-[10px] text-[var(--text-secondary)] font-mono">
-                          v{prereq.version}
-                          {!prereq.meetsMinimum && (
-                            <span className="text-amber-400 ml-1">(need {prereq.minimumVersion}+)</span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-red-400/80 font-mono">Not installed</span>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {!allMet && prerequisites.length > 0 && (
-            <div className="mt-3 p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-md">
-              <span className="text-[10px] text-amber-300/80 font-mono">Some prerequisites are missing. CLI agents may not work properly without them.</span>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+                {versionLabel(prereq)}
+              </SettingsRow>
+            );
+          })
+        )}
+      </SettingsGroup>
+    </SettingsStack>
   );
 };

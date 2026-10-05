@@ -1,23 +1,107 @@
 import { useState } from 'react';
+import { PencilSimple, Play, Plus, Trash } from '@phosphor-icons/react';
 import { RunConfigEditor } from '../../common/RunConfigEditor';
 import { useRunConfigStore } from '../../../stores/runConfigStore';
 import type { ApplicationRunConfig } from '../../../types';
+import {
+  Button,
+  Notice,
+  SettingsBlock,
+  SettingsEmpty,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+} from '../SettingsKit';
+
+const newConfig = (): ApplicationRunConfig => ({
+  id: crypto.randomUUID(),
+  name: '',
+  projectPath: '',
+  workingDirectory: '',
+  command: '',
+  buildCommand: '',
+});
 
 export function SettingsRuns(): React.JSX.Element {
   const configs = useRunConfigStore((state) => state.configs);
   const saveConfig = useRunConfigStore((state) => state.saveConfig);
   const removeConfig = useRunConfigStore((state) => state.removeConfig);
   const [editing, setEditing] = useState<ApplicationRunConfig | null>(null);
+
   return (
-    <div className="space-y-6">
-      <p className="text-sm leading-6 text-[var(--text-secondary)]">Manage commands available from each terminal's Run button. Automatic detection covers Python, C, C++, C#, JavaScript/TypeScript, Rust, Go, Java, Dart, Ruby, PHP, Swift, Lua, Perl, R, and Flutter. Add a saved configuration for another language, a specific application, or a development server.</p>
-      <button type="button" className="app-button" onClick={() => setEditing({ id: crypto.randomUUID(), name: '', projectPath: '', workingDirectory: '', command: '', buildCommand: '' })}>Add run configuration</button>
-      {editing && <div className="border border-[var(--border-primary)] rounded p-5"><RunConfigEditor key={editing.id} initial={editing} onCancel={() => setEditing(null)} onSave={(config) => { saveConfig(config); setEditing(null); }} /></div>}
-      {!configs.length && <p className="text-sm text-[var(--text-secondary)]">No saved configurations yet. Automatic targets are still available in terminal headers.</p>}
-      {configs.map((config) => <div key={config.id} className="flex items-start justify-between gap-4 border-b border-[var(--border-primary)] pb-4">
-        <div className="min-w-0"><h2 className="text-sm font-medium">{config.name}</h2><p className="mt-1 break-all text-xs text-[var(--text-secondary)]">{config.projectPath || 'Every project'}</p><code className="mt-2 block break-all text-xs">{config.command}</code></div>
-        <div className="flex shrink-0 gap-2"><button type="button" className="app-button" onClick={() => setEditing(config)}>Edit</button><button type="button" className="app-button" onClick={() => removeConfig(config.id)}>Delete</button></div>
-      </div>)}
-    </div>
+    <SettingsStack>
+      <Notice>
+        Python, C, C++, C#, JavaScript/TypeScript, Rust, Go, Java, Dart, Ruby, PHP, Swift, Lua, Perl, R and Flutter
+        projects are detected automatically. Add a saved configuration for another language, a specific app or a
+        development server.
+      </Notice>
+
+      <SettingsGroup
+        action={
+          <Button disabled={editing !== null} icon={Plus} onClick={() => setEditing(newConfig())} size="sm" variant="primary">
+            Add configuration
+          </Button>
+        }
+        title="Saved configurations"
+      >
+        {editing && (
+          <SettingsBlock>
+            <RunConfigEditor
+              initial={editing}
+              key={editing.id}
+              onCancel={() => setEditing(null)}
+              onSave={(config) => {
+                saveConfig(config);
+                setEditing(null);
+              }}
+            />
+          </SettingsBlock>
+        )}
+
+        {configs.length === 0 && !editing && (
+          <SettingsEmpty icon={Play} title="No saved configurations">
+            Automatic targets still appear in each terminal’s Run button.
+          </SettingsEmpty>
+        )}
+
+        {configs.map((config) => (
+          <SettingsRow
+            description={
+              <>
+                <span className="st-truncate" style={{ display: 'block' }} title={config.projectPath || undefined}>
+                  {config.projectPath || 'Every project'}
+                </span>
+                <code className="st-mono st-truncate" style={{ display: 'block', marginTop: '0.25rem' }} title={config.command}>
+                  {config.command}
+                </code>
+              </>
+            }
+            icon={<Play size={16} aria-hidden="true" />}
+            key={config.id}
+            label={config.name}
+          >
+            <Button
+              aria-label={`Edit ${config.name}`}
+              disabled={editing?.id === config.id}
+              icon={PencilSimple}
+              iconOnly
+              onClick={() => setEditing(config)}
+              size="sm"
+              title="Edit"
+              variant="ghost"
+            />
+            <Button
+              aria-label={`Delete ${config.name}`}
+              icon={Trash}
+              iconOnly
+              onClick={() => removeConfig(config.id)}
+              size="sm"
+              title="Delete"
+              variant="ghost"
+            />
+          </SettingsRow>
+        ))}
+      </SettingsGroup>
+    </SettingsStack>
   );
 }

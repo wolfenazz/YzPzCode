@@ -1,6 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import type { ReactNode } from 'react';
-import { ArrowClockwise, FolderOpen, ListBullets, MouseSimple, Plus, Sparkle, Square, TerminalWindow, X } from '@phosphor-icons/react';
+import { DropdownMenu } from 'radix-ui';
+import {
+  ArrowClockwise,
+  Broom,
+  CaretRight,
+  DotsThree,
+  FolderSimple,
+  ListBullets,
+  MagnifyingGlass,
+  MouseSimple,
+  Plus,
+  Sparkle,
+  TerminalWindow,
+  X,
+} from '@phosphor-icons/react';
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession, ManagedTerminalCommandState } from '../../types';
 import { QuickActions } from './QuickActions';
@@ -19,7 +33,7 @@ import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
 import clineLogo from '../../assets/cline.webp';
 import grokLogo from '../../assets/Grok.png';
-import { ADDITIONAL_AGENT_LOGOS } from '../../data/additionalAgents';
+import { ADDITIONAL_AGENT_LABELS, ADDITIONAL_AGENT_LOGOS } from '../../data/additionalAgents';
 
 export const AGENT_LOGOS: Record<AgentType, string> = {
   claude: claudeLogo,
@@ -49,7 +63,40 @@ const TOOL_ICON_MAP: Record<ToolCliType, { icon: string; color: string }> = {
   vercel: { icon: 'simple-icons:vercel', color: '#ffffff' },
 };
 
+const CLI_LABELS: Partial<Record<CliType, string>> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  antigravity: 'Antigravity',
+  opencode: 'OpenCode',
+  cursor: 'Cursor',
+  kilo: 'Kilo',
+  hermes: 'Hermes',
+  pi: 'Pi',
+  commandcode: 'Command Code',
+  cline: 'Cline',
+  grok: 'Grok',
+  ...ADDITIONAL_AGENT_LABELS,
+  gh: 'GitHub',
+  stripe: 'Stripe',
+  supabase: 'Supabase',
+  valyu: 'Valyu',
+  posthog: 'PostHog',
+  elevenlabs: 'ElevenLabs',
+  ramp: 'Ramp',
+  gws: 'Google Workspace',
+  agentmail: 'AgentMail',
+  vercel: 'Vercel',
+};
+
 export const isAgentType = (cli: CliType): cli is AgentType => cli in AGENT_LOGOS;
+
+const MOD_KEY = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
+
+const stopDrag = {
+  onPointerDown: (e: React.PointerEvent) => e.stopPropagation(),
+  onMouseDown: (e: React.MouseEvent) => e.stopPropagation(),
+  onClick: (e: React.MouseEvent) => e.stopPropagation(),
+};
 
 interface TerminalHeaderProps {
   session: TerminalSession;
@@ -69,7 +116,34 @@ interface TerminalHeaderProps {
   onToggleQuickPrompts?: () => void;
   managedCommandState: ManagedTerminalCommandState | null;
   onStopManagedCommand: () => void;
+  onFind?: () => void;
+  onClear?: () => void;
+  onFocusTerminal?: () => void;
 }
+
+const AgentMark: React.FC<{ agent: CliType }> = ({ agent }) => {
+  if (!isAgentType(agent)) {
+    const tool = TOOL_ICON_MAP[agent as ToolCliType];
+    return tool ? <Icon icon={tool.icon} style={{ color: tool.color }} /> : <TerminalWindow size={14} />;
+  }
+  if (agent === 'claude') {
+    return <Icon icon="simple-icons:anthropic" style={{ color: '#D97757' }} />;
+  }
+  const invert = agent === 'opencode' || agent === 'cursor' || agent === 'codex';
+  return (
+    <img
+      src={AGENT_LOGOS[agent]}
+      alt=""
+      className={invert ? 'invert brightness-[3.5] contrast-[1.5]' : 'brightness-[2.2] contrast-[1.2]'}
+    />
+  );
+};
+
+const Kbd: React.FC<{ keys: string[] }> = ({ keys }) => (
+  <span className="term-menu__kbd" aria-hidden="true">
+    {keys.map((key) => <kbd key={key}>{key}</kbd>)}
+  </span>
+);
 
 export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   session,
@@ -84,258 +158,229 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   onNewSession,
   onRunCommand,
   agentOverride,
-  isActive = false,
   showQuickPrompts = false,
   onToggleQuickPrompts,
   managedCommandState,
   onStopManagedCommand,
+  onFind,
+  onClear,
+  onFocusTerminal,
 }) => {
   // The effective agent combines the fleet-assigned agent with a runtime
   // detection of an agent launched manually inside the terminal, so the badge
-  // and New Session button appear in both cases.
+  // and agent actions appear in both cases.
   const effectiveAgent = agentOverride ?? session.agent;
   const isAiAgent = !!effectiveAgent && isAgentType(effectiveAgent);
-  const mouseOn = mouseTrackingEnabled;
-  const managedBusy = managedCommandState?.status === 'Starting'
-    || managedCommandState?.status === 'Running'
-    || managedCommandState?.status === 'Stopping';
-
-  const [commandsOpen, setCommandsOpen] = useState(false);
-  const commandsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!commandsOpen) return;
-    const onPointerDown = (e: MouseEvent) => {
-      if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
-        setCommandsOpen(false);
-      }
-    };
-    window.addEventListener('mousedown', onPointerDown);
-    return () => window.removeEventListener('mousedown', onPointerDown);
-  }, [commandsOpen]);
-
-  const agentCommands = isAiAgent && effectiveAgent ? AGENT_COMMANDS[effectiveAgent as AgentType] : [];
-  const runCommand = (command: string) => {
-    setCommandsOpen(false);
-    onRunCommand?.(command);
-  };
+  const agentCommands = isAiAgent && effectiveAgent ? AGENT_COMMANDS[effectiveAgent as AgentType] ?? [] : [];
+  const agentLabel = effectiveAgent ? CLI_LABELS[effectiveAgent] ?? effectiveAgent : 'Shell';
+  // Radix restores focus to the trigger when the menu closes. Send it to the
+  // terminal instead, unless the chosen action owns focus (the find widget).
+  const keepFocusRef = useRef(false);
 
   return (
-    <div
-      className={`drag-handle flex min-h-8 items-center justify-between border-b px-2 py-1 select-none shrink-0 cursor-grab active:cursor-grabbing ${
-        isActive
-          ? 'border-[var(--accent-border)] bg-[var(--accent-light)]'
-          : 'border-[var(--border-primary)] bg-[var(--bg-secondary)]'
-      }`}
-      {...dragListeners}
-    >
-      <div className="flex items-center gap-2 min-w-0 overflow-hidden">
-        <span className="shrink-0 font-mono text-[10px] font-medium tracking-tight text-[var(--text-primary)]">
-          TTY:{session.index + 1}
+    <div className="drag-handle term-header" {...dragListeners}>
+      <div className="term-header__identity">
+        <span className="term-index" title={`Terminal ${session.index + 1}`}>{session.index + 1}</span>
+
+        <span className="term-agent" title={effectiveAgent ?? session.shell}>
+          <span className="term-agent__logo">
+            {effectiveAgent ? <AgentMark agent={effectiveAgent} /> : <TerminalWindow size={14} />}
+          </span>
+          <span className="term-agent__name">{agentLabel}</span>
         </span>
 
-        <div className="mx-0.5 h-3 w-px bg-[var(--border-primary)]" />
+        <span className="term-sep" aria-hidden="true">/</span>
 
-        {effectiveAgent ? (
-            <div className="flex items-center gap-1.5 min-w-0">
-            <div className="flex items-center gap-1 px-1.5 py-0 shrink-0 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] transition-colors duration-150 hover:border-[var(--text-secondary)] group/agent">
-              {isAgentType(effectiveAgent) ? (
-                effectiveAgent === 'claude' ? (
-                  <Icon
-                    icon="simple-icons:anthropic"
-                    className="w-3 h-3 transition-transform group-hover/agent:scale-110"
-                    style={{ color: '#D97757' }}
-                  />
-                ) : (
-                  <img
-                    src={AGENT_LOGOS[effectiveAgent]}
-                    alt={effectiveAgent}
-                    className={`w-3 h-3 object-contain transition-transform group-hover/agent:scale-110 ${
-                        effectiveAgent === 'opencode' || effectiveAgent === 'cursor' || effectiveAgent === 'codex'
-                          ? 'invert brightness-[3.5] contrast-[1.5]'
-                          : 'brightness-[2.2] contrast-[1.2]'
-                      }`}
-                  />
-                )
-              ) : (
-                <Icon
-                  icon={TOOL_ICON_MAP[effectiveAgent as ToolCliType].icon}
-                  style={{ color: TOOL_ICON_MAP[effectiveAgent as ToolCliType].color }}
-                  className="w-3 h-3"
-                />
-              )}
-                  <span className="max-w-[80px] truncate text-[9px] font-medium text-[var(--text-secondary)]">{effectiveAgent}</span>
-            </div>
-            <div className="flex items-center gap-1.5 animate-in fade-in slide-in-from-left-1 duration-300">
-              {cliStatusBadge}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1 px-1.5 py-0 shrink-0 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)]">
-            <TerminalWindow size={12} className="text-[var(--text-secondary)]" />
-            <span className="text-[9px] font-medium text-[var(--text-secondary)]">Shell</span>
-          </div>
-        )}
-        <div
-          className="flex min-w-0 items-center gap-1 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] px-1.5 py-0 text-[9px] text-[var(--text-secondary)]"
-          title={currentCwd}
-        >
-          <FolderOpen size={11} className="shrink-0" aria-hidden="true" />
-          <span className="max-w-28 truncate">{terminalDirectoryLabel(currentCwd)}</span>
-        </div>
+        <span className="term-cwd" title={currentCwd}>
+          <FolderSimple size={12} aria-hidden="true" />
+          <span>{terminalDirectoryLabel(currentCwd)}</span>
+        </span>
+
+        {effectiveAgent && cliStatusBadge}
       </div>
 
-      <div className="flex items-center shrink-0 gap-1 ml-2">
+      <div className="term-header__actions">
+        {mouseTrackingEnabled && (
+          <button
+            type="button"
+            {...stopDrag}
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleMouseTracking?.();
+            }}
+            className="term-btn term-btn--mouse"
+            title="Mouse mode is on (click to turn off)"
+            aria-label="Turn off mouse mode"
+          >
+            <MouseSimple size={14} weight="fill" aria-hidden="true" />
+          </button>
+        )}
+
+        <QuickActions
+          sessionId={session.id}
+          workspaceId={session.workspaceId}
+          cwd={currentCwd}
+          managedState={managedCommandState}
+          onStop={onStopManagedCommand}
+        />
+
         <TerminalLayoutPicker session={session} />
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleMouseTracking?.();
-          }}
-          aria-pressed={mouseOn}
-          className="app-icon-button relative h-5 w-5 rounded-md border transition-all duration-200 cursor-pointer border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)]"
-          title={mouseOn
-            ? 'Mouse mode enabled (click to disable)'
-            : 'Mouse mode disabled (click to enable manually)'}
-        >
-          <MouseSimple
-            size={14}
-            weight={mouseOn ? 'fill' : 'regular'}
-            aria-hidden="true"
-            className={mouseOn ? 'text-emerald-300' : ''}
-          />
-          <span
-            className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full border border-[var(--bg-primary)] transition-colors duration-200 ${
-              mouseOn ? 'bg-emerald-300 shadow-[0_0_5px_rgba(110,231,183,0.9)]' : 'bg-[var(--text-secondary)]/45'
-            }`}
-            aria-hidden="true"
-          />
-          <span className="sr-only">Mouse mode</span>
-        </button>
+
         {isAiAgent && onNewSession && (
           <button
             type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
+            {...stopDrag}
             onClick={(e) => {
               e.stopPropagation();
               onNewSession();
             }}
-              className="flex h-5 items-center gap-1 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] px-1.5 text-[9px] font-medium text-[var(--text-secondary)] transition-colors cursor-pointer hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-            title="Start a new session"
+            className="term-btn"
+            title="New session"
+            aria-label="New session"
           >
-            <Plus size={10} />
-            New Session
+            <Plus size={14} aria-hidden="true" />
           </button>
         )}
-        {isAiAgent && onRunCommand && (
-          <div className="relative" ref={commandsRef}>
-            <button
-              type="button"
-              onPointerDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                setCommandsOpen((open) => !open);
-              }}
-              className="app-icon-button h-5 w-5 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)]"
-              title="Agent commands"
-            >
-              <ListBullets size={12} />
-            </button>
-            {commandsOpen && agentCommands.length > 0 && (
-              <div className="absolute right-0 top-full z-50 mt-1 w-80 overflow-hidden rounded-md border border-[var(--border-primary)] bg-[var(--bg-secondary)] shadow-[var(--shadow-float)]">
-                <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-3 py-2">
-                  <span className="text-[11px] font-medium text-[var(--text-secondary)]">
-                    {effectiveAgent} · Commands
-                  </span>
-                  <span className="text-[10px] tabular-nums text-[var(--text-secondary)]">{agentCommands.length}</span>
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  {agentCommands.map((cmd) => (
-                    <button
-                      key={cmd.command}
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        runCommand(cmd.command);
-                      }}
-                      className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors duration-100 hover:bg-[var(--bg-tertiary)] cursor-pointer"
-                      title={cmd.description}
-                    >
-                      <span className="flex items-center justify-center w-4 h-4 shrink-0 text-zinc-500 group-hover:text-cyan-400 transition-colors duration-100">
-                        {getCommandIcon(cmd.command)}
-                      </span>
-                      <span className="shrink-0 font-mono text-xs text-[var(--text-primary)] group-hover:text-[var(--text-primary)]">
-                        {cmd.command}
-                      </span>
-                      <span className="truncate text-[10px] text-[var(--text-secondary)]">
-                        {cmd.description}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        {isAiAgent && onToggleQuickPrompts && (
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleQuickPrompts();
-            }}
-            className={`app-icon-button h-5 w-5 rounded border transition-all duration-150 cursor-pointer ${
-              showQuickPrompts
-                ? 'border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent-text)]'
-                : 'border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
-            title={showQuickPrompts ? 'Hide quick prompts' : 'Show quick prompts'}
-          >
-            <Sparkle size={12} />
-          </button>
-        )}
-        <QuickActions sessionId={session.id} workspaceId={session.workspaceId} cwd={currentCwd} managedState={managedCommandState} />
-        {managedBusy && (
-          <button
-            type="button"
-            onPointerDown={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onStopManagedCommand();
-            }}
-            disabled={managedCommandState?.status === 'Stopping'}
-            className="flex h-5 items-center gap-1 rounded border border-rose-400/40 bg-rose-500/10 px-1.5 text-[9px] font-medium text-rose-400 transition-colors cursor-pointer hover:bg-rose-500/20 disabled:cursor-wait disabled:opacity-50"
-            title={managedCommandState?.command ? `Stop: ${managedCommandState.command}` : 'Stop running command'}
-            aria-label="Stop running command"
-          >
-            <Square size={10} weight="fill" aria-hidden="true" />
-            <span>{managedCommandState?.status === 'Stopping' ? 'Stopping' : 'Stop'}</span>
-          </button>
-        )}
-        <div className="h-3 w-px bg-[var(--border-primary)]" />
-        {session.agent && (
-          <button
-            onClick={onRefreshCli}
-            disabled={isRefreshing}
-            className="app-icon-button h-5 w-5"
-            title="Restart CLI"
-          >
-            <ArrowClockwise size={14} className={isRefreshing ? 'animate-spin' : ''} />
-          </button>
-        )}
+
+        <div className="term-divider" aria-hidden="true" />
+
+        <div className="contents" {...stopDrag}>
+          <DropdownMenu.Root modal={false}>
+            <DropdownMenu.Trigger asChild>
+              <button type="button" className="term-btn" title="Terminal options" aria-label="Terminal options">
+                <DotsThree size={18} weight="bold" />
+              </button>
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content
+                className="term-menu"
+                align="end"
+                sideOffset={6}
+                collisionPadding={12}
+                onCloseAutoFocus={(event) => {
+                  event.preventDefault();
+                  if (keepFocusRef.current) {
+                    keepFocusRef.current = false;
+                    return;
+                  }
+                  onFocusTerminal?.();
+                }}
+              >
+                {isAiAgent && (
+                  <>
+                    <DropdownMenu.Label className="term-menu__label">
+                      <span>Agent</span>
+                      <span className="term-menu__label-meta">{agentLabel}</span>
+                    </DropdownMenu.Label>
+                    {onRunCommand && agentCommands.length > 0 && (
+                      <DropdownMenu.Sub>
+                        <DropdownMenu.SubTrigger className="term-menu__item">
+                          <span className="term-menu__icon"><ListBullets size={14} /></span>
+                          <span className="term-menu__text"><span>Agent commands</span></span>
+                          <span className="term-menu__hint">{agentCommands.length}</span>
+                          <CaretRight size={11} className="term-menu__chevron" />
+                        </DropdownMenu.SubTrigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.SubContent className="term-menu term-menu--commands" sideOffset={6} collisionPadding={12}>
+                            {agentCommands.map((cmd) => (
+                              <DropdownMenu.Item
+                                key={cmd.command}
+                                className="term-menu__item"
+                                onSelect={() => onRunCommand(cmd.command)}
+                                title={cmd.description}
+                              >
+                                <span className="term-menu__icon">{getCommandIcon(cmd.command)}</span>
+                                <span className="term-menu__text">
+                                  <span className="term-menu__mono">{cmd.command}</span>
+                                  <span className="term-menu__desc">{cmd.description}</span>
+                                </span>
+                              </DropdownMenu.Item>
+                            ))}
+                          </DropdownMenu.SubContent>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Sub>
+                    )}
+                    {onToggleQuickPrompts && (
+                      <DropdownMenu.CheckboxItem
+                        className="term-menu__item"
+                        checked={showQuickPrompts}
+                        onCheckedChange={onToggleQuickPrompts}
+                      >
+                        <span className="term-menu__icon"><Sparkle size={14} /></span>
+                        <span className="term-menu__text"><span>Quick prompts</span></span>
+                        <span className="term-switch" aria-hidden="true" />
+                      </DropdownMenu.CheckboxItem>
+                    )}
+                    <DropdownMenu.Separator className="term-menu__sep" />
+                  </>
+                )}
+
+                <DropdownMenu.Label className="term-menu__label"><span>Terminal</span></DropdownMenu.Label>
+                {onFind && (
+                  <DropdownMenu.Item
+                    className="term-menu__item"
+                    onSelect={() => {
+                      keepFocusRef.current = true;
+                      onFind();
+                    }}
+                  >
+                    <span className="term-menu__icon"><MagnifyingGlass size={14} /></span>
+                    <span className="term-menu__text"><span>Find</span></span>
+                    <Kbd keys={[MOD_KEY, 'F']} />
+                  </DropdownMenu.Item>
+                )}
+                {onClear && (
+                  <DropdownMenu.Item className="term-menu__item" onSelect={onClear}>
+                    <span className="term-menu__icon"><Broom size={14} /></span>
+                    <span className="term-menu__text"><span>Clear</span></span>
+                    <Kbd keys={[MOD_KEY, 'L']} />
+                  </DropdownMenu.Item>
+                )}
+                {onToggleMouseTracking && (
+                  <DropdownMenu.CheckboxItem
+                    className="term-menu__item"
+                    checked={mouseTrackingEnabled}
+                    onCheckedChange={onToggleMouseTracking}
+                  >
+                    <span className="term-menu__icon"><MouseSimple size={14} /></span>
+                    <span className="term-menu__text">
+                      <span>Mouse mode</span>
+                      <span className="term-menu__desc">Send clicks and scrolls to the running app</span>
+                    </span>
+                    <span className="term-switch" aria-hidden="true" />
+                  </DropdownMenu.CheckboxItem>
+                )}
+                {(session.agent || onClose) && <DropdownMenu.Separator className="term-menu__sep" />}
+                {session.agent && (
+                  <DropdownMenu.Item className="term-menu__item" disabled={isRefreshing} onSelect={onRefreshCli}>
+                    <span className="term-menu__icon">
+                      <ArrowClockwise size={14} className={isRefreshing ? 'term-spin' : ''} />
+                    </span>
+                    <span className="term-menu__text"><span>{isRefreshing ? 'Restarting CLI…' : 'Restart CLI'}</span></span>
+                  </DropdownMenu.Item>
+                )}
+                {onClose && (
+                  <DropdownMenu.Item className="term-menu__item term-menu__item--danger" onSelect={onClose}>
+                    <span className="term-menu__icon"><X size={14} /></span>
+                    <span className="term-menu__text"><span>Close terminal</span></span>
+                  </DropdownMenu.Item>
+                )}
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
+        </div>
+
         {onClose && (
           <button
-            onClick={onClose}
-            className="app-icon-button h-5 w-5 hover:bg-rose-500/10 hover:text-rose-400"
-            title="Terminate process"
+            type="button"
+            {...stopDrag}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="term-btn term-btn--close"
+            title="Close terminal"
+            aria-label="Close terminal"
           >
             <X size={14} />
           </button>

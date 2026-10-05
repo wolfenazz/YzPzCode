@@ -1,4 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { MagnifyingGlass } from '@phosphor-icons/react';
+import {
+  Keys,
+  SettingsEmpty,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+} from '../SettingsKit';
 
 const SHORTCUTS = [
   { category: 'Terminal', items: [
@@ -10,7 +18,7 @@ const SHORTCUTS = [
     { keys: ['Shift', 'Enter'], action: 'Find previous match' },
     { keys: ['Esc'], action: 'Close search' },
   ]},
-  { category: 'Editor & Files', items: [
+  { category: 'Editor and files', items: [
     { keys: ['Ctrl', 'P'], action: 'Quick open file' },
     { keys: ['Ctrl', 'Shift', 'F'], action: 'Find in files' },
     { keys: ['Ctrl', 'S'], action: 'Save file' },
@@ -19,10 +27,10 @@ const SHORTCUTS = [
   ]},
   { category: 'Navigation', items: [
     { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' },
-    { keys: ['Ctrl', 'B'], action: 'Toggle Sidebar' },
-    { keys: ['Ctrl', 'E'], action: 'Toggle View' },
+    { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' },
+    { keys: ['Ctrl', 'E'], action: 'Toggle view' },
     { keys: ['Ctrl', 'W'], action: 'Close tab' },
-    { keys: ['Ctrl', ','], action: 'Open Settings' },
+    { keys: ['Ctrl', ','], action: 'Open settings' },
   ]},
   { category: 'Window', items: [
     { keys: ['F11'], action: 'Toggle fullscreen' },
@@ -30,44 +38,55 @@ const SHORTCUTS = [
 ];
 
 export const SettingsShortcuts: React.FC = () => {
+  const [query, setQuery] = useState('');
+  const needle = query.trim().toLowerCase();
+
+  const groups = SHORTCUTS
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (item) =>
+          !needle ||
+          item.action.toLowerCase().includes(needle) ||
+          item.keys.join('+').toLowerCase().includes(needle),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h2 className="text-sm font-bold text-zinc-100 tracking-widest uppercase font-mono mb-1">Keyboard Shortcuts</h2>
-        <p className="text-[10px] text-[var(--text-secondary)] uppercase tracking-wider font-mono">View all available keyboard shortcuts</p>
+    <SettingsStack>
+      <div style={{ position: 'relative' }}>
+        <MagnifyingGlass
+          aria-hidden="true"
+          size={15}
+          style={{ position: 'absolute', top: '50%', left: '0.75rem', transform: 'translateY(-50%)', color: 'var(--text-secondary)' }}
+        />
+        <input
+          aria-label="Search shortcuts"
+          className="st-input"
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search shortcuts"
+          style={{ paddingLeft: '2.125rem' }}
+          type="search"
+          value={query}
+        />
       </div>
 
-      <div className="space-y-6">
-        {SHORTCUTS.map((group) => (
-          <div key={group.category} className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent to-[var(--accent-border)]"></div>
-              <h3 className="text-[10px] font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">{group.category}</h3>
-              <div className="h-px flex-1 bg-gradient-to-l from-transparent to-[var(--accent-border)]"></div>
-            </div>
-            <div className="grid grid-cols-1 gap-2">
-              {group.items.map((shortcut, i) => (
-                <div key={i} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-transparent hover:border-[var(--border-primary)] hover:bg-[var(--bg-primary)]/60 transition-all duration-200">
-                  <span className="text-xs text-[var(--text-secondary)] font-mono">{shortcut.action}</span>
-                  <div className="flex items-center gap-1.5">
-                    {shortcut.keys.map((key, j) => (
-                      <React.Fragment key={j}>
-                        <kbd className="min-w-[24px] h-6 flex items-center justify-center px-2 text-[10px] font-mono font-bold text-[var(--text-primary)] bg-[var(--bg-primary)] border border-[var(--border-primary)] rounded-md shadow-[0_2px_0_0_#262626]">
-                          {key}
-                        </kbd>
-                        {j < shortcut.keys.length - 1 && (
-                          <span className="text-[#3e3e38] text-xs font-bold">+</span>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent"></div>
-          </div>
-        ))}
-      </div>
-    </div>
+      {groups.map((group) => (
+        <SettingsGroup key={group.category} title={group.category}>
+          {group.items.map((shortcut) => (
+            <SettingsRow key={shortcut.action} label={shortcut.action}>
+              <Keys keys={shortcut.keys} />
+            </SettingsRow>
+          ))}
+        </SettingsGroup>
+      ))}
+
+      {groups.length === 0 && (
+        <SettingsEmpty icon={MagnifyingGlass} title="No shortcuts found">
+          Try a different word, like “save” or “tab”.
+        </SettingsEmpty>
+      )}
+    </SettingsStack>
   );
 };

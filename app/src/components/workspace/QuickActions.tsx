@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
-import { CaretDown, Hammer, Play, X } from '@phosphor-icons/react';
+import { DropdownMenu } from 'radix-ui';
+import { ArrowsClockwise, CaretDown, CaretRight, Check, CircleNotch, GearSix, Hammer, Play, Square, X } from '@phosphor-icons/react';
 import { RunConfigEditor } from '../common/RunConfigEditor';
 import { normalizeRunPath, useRunConfigStore } from '../../stores/runConfigStore';
 import { detectRunTargets, invalidateProjectCache } from '../../utils/projectDetect';
@@ -12,9 +13,12 @@ interface QuickActionsProps {
   workspaceId: string;
   cwd: string;
   managedState: ManagedTerminalCommandState | null;
+  onStop: () => void;
 }
 
-export function QuickActions({ sessionId, workspaceId, cwd, managedState }: QuickActionsProps): React.JSX.Element {
+const stopEvent = (event: { stopPropagation: () => void }): void => event.stopPropagation();
+
+export function QuickActions({ sessionId, workspaceId, cwd, managedState, onStop }: QuickActionsProps): React.JSX.Element {
   const [detection, setDetection] = useState<{ cwd: string; targets: ProjectRunTarget[] } | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -29,7 +33,9 @@ export function QuickActions({ sessionId, workspaceId, cwd, managedState }: Quic
   const selectedId = useRunConfigStore((state) => state.selectedByProject[normalizeRunPath(cwd)]);
   const selectTarget = useRunConfigStore((state) => state.selectTarget);
   const saveConfig = useRunConfigStore((state) => state.saveConfig);
-  const managedBusy = ['Starting', 'Running', 'Stopping'].includes(managedState?.status ?? '') || launching;
+  const commandActive = ['Starting', 'Running', 'Stopping'].includes(managedState?.status ?? '');
+  const stopping = managedState?.status === 'Stopping';
+  const managedBusy = commandActive || launching;
 
   useEffect(() => {
     const request = ++requestRef.current;
@@ -55,6 +61,7 @@ export function QuickActions({ sessionId, workspaceId, cwd, managedState }: Quic
   const targets = [...savedTargets, ...(detection?.cwd === cwd ? detection.targets : [])];
   const selected = targets.find((target) => target.id === selectedId) ?? targets.find((target) => target.command && !target.unavailableReason) ?? targets[0];
   const closeDialog = useCallback(() => { setOpen(false); setEditing(null); }, []);
+  const openDialog = (): void => { setOpen(true); setRefresh((value) => value + 1); };
   const run = async (target: ProjectRunTarget, build = false): Promise<void> => {
     const command = build ? target.buildCommand : target.command;
     if (!command || managedBusy || launchInFlight.current) return;
@@ -71,17 +78,156 @@ export function QuickActions({ sessionId, workspaceId, cwd, managedState }: Quic
       setOpen(true);
     } finally { launchInFlight.current = false; setLaunching(false); }
   };
-  const btnClass = 'flex h-5 items-center gap-1 px-1.5 text-[9px] font-medium rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-40';
   const newConfig = (): ApplicationRunConfig => ({ id: crypto.randomUUID(), name: selected?.label ?? '', projectPath: cwd, workingDirectory: selected?.cwd ?? cwd, command: selected?.command ?? '', buildCommand: selected?.buildCommand ?? '' });
+  const canRun = !!selected?.command && !selected.unavailableReason;
+  const finishedLabel = managedState && !commandActive
+    ? managedState.status === 'Failed'
+      ? 'Failed'
+      : managedState.exitCode !== null ? `Exit ${managedState.exitCode}` : managedState.status
+    : null;
 
   return (
-    <div className="flex items-center gap-1" onPointerDown={(event) => event.stopPropagation()} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-      {managedState && <span role="status" title={managedState.error ?? managedState.command} className="max-w-16 truncate text-[9px] text-[var(--text-secondary)]">{managedState.status}{managedState.exitCode !== null ? ` (${managedState.exitCode})` : ''}</span>}
-      <button type="button" className={btnClass} disabled={managedBusy || loading} title={selected ? `Run ${selected.label}: ${selected.command || 'Configure and build first'}` : 'Configure an application run'} onClick={() => { if (selected?.command && !selected.unavailableReason) void run(selected); else setOpen(true); }}>
-        <Play size={10} weight="fill" aria-hidden="true" /><span>{launching ? 'Starting…' : loading ? 'Detecting…' : 'Run'}</span>
-      </button>
-      <button type="button" className={btnClass} title="Choose or configure an application run" aria-label="Choose or configure an application run" onClick={() => { setOpen(true); setRefresh((value) => value + 1); }}><CaretDown size={10} /></button>
-      {selected?.buildCommand && <button type="button" className={btnClass} disabled={managedBusy || loading} title={`Build: ${selected.buildCommand}`} onClick={() => void run(selected, true)}><Hammer size={10} aria-hidden="true" /><span>Build</span></button>}
+    <div className="term-run-wrap" onPointerDown={stopEvent} onMouseDown={stopEvent} onClick={stopEvent}>
+      {commandActive && managedState && (
+        <span role="status" className="term-pill term-pill--ok" title={`${managedState.status}: ${managedState.command}`}>
+          <span className="term-dot term-dot--live" aria-hidden="true" />
+          <span className="term-pill__text">{managedState.command}</span>
+        </span>
+      )}
+      {finishedLabel && managedState && (
+        <span
+          role="status"
+          className={`term-pill ${managedState.status === 'Failed' || (managedState.exitCode ?? 0) !== 0 ? 'term-pill--danger' : ''}`}
+          title={managedState.error ?? managedState.command}
+        >
+          {finishedLabel}
+        </span>
+      )}
+
+      <div className={`term-run ${commandActive ? 'term-run--busy' : ''}`}>
+        {commandActive ? (
+          <button
+            type="button"
+            className="term-run__main"
+            disabled={stopping}
+            onClick={onStop}
+            title={managedState?.command ? `Stop: ${managedState.command}` : 'Stop running command'}
+            aria-label="Stop running command"
+          >
+            <Square size={9} weight="fill" aria-hidden="true" />
+            <span>{stopping ? 'Stopping…' : 'Stop'}</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="term-run__main"
+            disabled={managedBusy || loading}
+            title={selected ? `Run ${selected.label}: ${selected.command || 'Configure and build first'}` : 'Configure an application run'}
+            onClick={() => { if (canRun && selected) void run(selected); else setOpen(true); }}
+          >
+            {launching || loading
+              ? <CircleNotch size={10} weight="bold" className="term-spin" aria-hidden="true" />
+              : <Play size={10} weight="fill" aria-hidden="true" />}
+            <span>{launching ? 'Starting…' : loading ? 'Detecting…' : 'Run'}</span>
+          </button>
+        )}
+
+        <DropdownMenu.Root modal={false}>
+          <DropdownMenu.Trigger asChild>
+            <button type="button" className="term-run__caret" title="Run options" aria-label="Run options">
+              <CaretDown size={10} weight="bold" />
+            </button>
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              className="term-menu"
+              align="end"
+              sideOffset={6}
+              collisionPadding={12}
+              onCloseAutoFocus={(event) => event.preventDefault()}
+            >
+              <DropdownMenu.Label className="term-menu__label">
+                <span>Application run</span>
+                {selected && <span className="term-menu__label-meta">{selected.label}</span>}
+              </DropdownMenu.Label>
+
+              {commandActive ? (
+                <DropdownMenu.Item className="term-menu__item term-menu__item--danger" disabled={stopping} onSelect={onStop}>
+                  <span className="term-menu__icon"><Square size={12} weight="fill" /></span>
+                  <span className="term-menu__text">
+                    <span>{stopping ? 'Stopping…' : 'Stop'}</span>
+                    {managedState?.command && <span className="term-menu__desc term-menu__mono">{managedState.command}</span>}
+                  </span>
+                </DropdownMenu.Item>
+              ) : (
+                <DropdownMenu.Item
+                  className="term-menu__item"
+                  disabled={managedBusy || loading || !selected}
+                  onSelect={() => { if (canRun && selected) void run(selected); else setOpen(true); }}
+                >
+                  <span className="term-menu__icon"><Play size={13} weight="fill" /></span>
+                  <span className="term-menu__text">
+                    <span>Run</span>
+                    <span className="term-menu__desc term-menu__mono">{selected?.command || 'Not configured'}</span>
+                  </span>
+                </DropdownMenu.Item>
+              )}
+
+              {selected?.buildCommand && (
+                <DropdownMenu.Item
+                  className="term-menu__item"
+                  disabled={managedBusy || loading}
+                  onSelect={() => void run(selected, true)}
+                >
+                  <span className="term-menu__icon"><Hammer size={14} /></span>
+                  <span className="term-menu__text">
+                    <span>Build</span>
+                    <span className="term-menu__desc term-menu__mono">{selected.buildCommand}</span>
+                  </span>
+                </DropdownMenu.Item>
+              )}
+
+              {targets.length > 1 && (
+                <DropdownMenu.Sub>
+                  <DropdownMenu.SubTrigger className="term-menu__item">
+                    <span className="term-menu__icon"><Check size={13} /></span>
+                    <span className="term-menu__text"><span>Run target</span></span>
+                    <CaretRight size={11} className="term-menu__chevron" />
+                  </DropdownMenu.SubTrigger>
+                  <DropdownMenu.Portal>
+                    <DropdownMenu.SubContent className="term-menu" sideOffset={6} collisionPadding={12}>
+                      <DropdownMenu.RadioGroup value={selected?.id ?? ''} onValueChange={(id) => selectTarget(cwd, id)}>
+                        {targets.map((target) => (
+                          <DropdownMenu.RadioItem key={target.id} value={target.id} className="term-menu__item">
+                            <span className="term-menu__icon">
+                              <DropdownMenu.ItemIndicator><Check size={13} weight="bold" /></DropdownMenu.ItemIndicator>
+                            </span>
+                            <span className="term-menu__text">
+                              <span>{target.label}</span>
+                              <span className="term-menu__desc">{target.language}{target.unavailableReason ? ' · unavailable' : ''}</span>
+                            </span>
+                          </DropdownMenu.RadioItem>
+                        ))}
+                      </DropdownMenu.RadioGroup>
+                    </DropdownMenu.SubContent>
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Sub>
+              )}
+
+              <DropdownMenu.Separator className="term-menu__sep" />
+              <DropdownMenu.Item className="term-menu__item" onSelect={openDialog}>
+                <span className="term-menu__icon"><GearSix size={14} /></span>
+                <span className="term-menu__text"><span>Configure run…</span></span>
+              </DropdownMenu.Item>
+              <DropdownMenu.Item className="term-menu__item" disabled={loading} onSelect={() => setRefresh((value) => value + 1)}>
+                <span className="term-menu__icon"><ArrowsClockwise size={14} /></span>
+                <span className="term-menu__text"><span>Refresh targets</span></span>
+              </DropdownMenu.Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      </div>
+
       {open && createPortal(
         <dialog ref={dialogRef} onCancel={closeDialog} onClose={closeDialog} aria-labelledby={`run-title-${sessionId}`} className="m-auto max-h-[85vh] w-[560px] max-w-[calc(100vw-32px)] overflow-y-auto rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-6 text-[var(--text-primary)] backdrop:bg-black/50">
           <div className="mb-4 flex items-center justify-between gap-3"><h2 id={`run-title-${sessionId}`} className="text-lg font-medium">Application run</h2><button type="button" onClick={closeDialog} aria-label="Close application run" className="app-icon-button"><X size={16} /></button></div>

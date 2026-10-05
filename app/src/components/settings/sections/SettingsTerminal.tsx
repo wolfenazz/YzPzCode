@@ -1,8 +1,36 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import {
+  ArrowCounterClockwise,
+  ArrowSquareOut,
+  Bell,
+  ClipboardText,
+  Copy,
+  Cursor,
+  GridFour,
+  Palette,
+  Scroll,
+  SlidersHorizontal,
+  TextAa,
+  TextAlignLeft,
+  TerminalWindow,
+} from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
-import { SettingsToggle } from '../../common/SettingsToggle';
-import { SettingsSlider } from '../../common/SettingsSlider';
+import {
+  Button,
+  ColorInput,
+  Disclosure,
+  Notice,
+  OptionCard,
+  Segmented,
+  SettingsBlock,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+  SettingsTabs,
+  SliderRow,
+  ToggleRow,
+} from '../SettingsKit';
 
 type Platform = 'win' | 'mac' | 'linux';
 
@@ -27,9 +55,9 @@ const FONT_OPTIONS: FontOption[] = [
   {
     name: 'Consolas',
     source: 'win',
-    note: 'ships with Windows; copy the .ttf from a Windows PC for other systems.',
+    note: 'Ships with Windows; copy the .ttf from a Windows PC for other systems.',
   },
-  { name: 'Courier New', source: 'win-mac', note: 'bundled with Windows and macOS.' },
+  { name: 'Courier New', source: 'win-mac', note: 'Bundled with Windows and macOS.' },
   { name: 'Menlo', source: 'mac', note: 'Apple font; only available on macOS.' },
   { name: 'Monaco', source: 'mac', note: 'Apple font; only available on macOS.' },
   { name: 'SF Mono', source: 'mac', note: 'Apple font; ships with macOS (Xcode).' },
@@ -64,7 +92,7 @@ const PLATFORM_LABELS: Record<Platform, string> = {
 };
 
 const INSTALL_STEPS: Record<Platform, string> = {
-  mac: 'Download, unzip, double-click the font and choose "Install Font", then relaunch the app.',
+  mac: 'Download, unzip, double-click the font and choose “Install Font”, then relaunch the app.',
   win: 'Download, unzip, right-click the font and choose Install, then relaunch the app.',
   linux: 'Download, unzip into ~/.local/share/fonts, run fc-cache -f, then relaunch the app.',
 };
@@ -76,21 +104,16 @@ const getPlatform = (): Platform => {
   return 'linux';
 };
 
-const statusOf = (
-  font: FontOption,
-  platform: Platform
-): { label: string; tone: 'good' | 'neutral' | 'warn' } => {
-  if (font.source === 'bundled') return { label: 'Bundled', tone: 'good' };
-  if (font.source === 'fallback') return { label: 'Fallback', tone: 'neutral' };
-  if (NATIVE_PLATFORMS[font.source].includes(platform)) return { label: 'Built-in', tone: 'neutral' };
-  return { label: 'Install', tone: 'warn' };
-};
+const isAvailable = (font: FontOption, platform: Platform): boolean =>
+  NATIVE_PLATFORMS[font.source].includes(platform);
 
 const CURSOR_STYLES = [
   { value: 'block' as const, label: 'Block' },
   { value: 'underline' as const, label: 'Underline' },
   { value: 'bar' as const, label: 'Bar' },
 ];
+
+const TERMINAL_COUNTS = [0, 1, 2, 4, 6, 8];
 
 const DEFAULT_TERMINAL_BACKGROUND = '#262626';
 const DEFAULT_TERMINAL_FOREGROUND = '#c3c1ba';
@@ -103,9 +126,13 @@ const TERMINAL_COLOR_PRESETS = [
   { label: 'Paper', background: '#f4f0e6', foreground: '#2f2a24' },
 ] as const;
 
-const Divider = () => (
-  <div className="h-px bg-gradient-to-r from-transparent via-[var(--accent-border)] to-transparent" />
-);
+type TerminalTab = 'text' | 'colors' | 'behavior';
+
+const TABS = [
+  { id: 'text' as const, label: 'Text', icon: TextAa },
+  { id: 'colors' as const, label: 'Colors', icon: Palette },
+  { id: 'behavior' as const, label: 'Behavior', icon: SlidersHorizontal },
+];
 
 export const SettingsTerminal: React.FC = () => {
   const {
@@ -139,337 +166,310 @@ export const SettingsTerminal: React.FC = () => {
     setIndependentGridResize,
   } = useAppStore();
 
+  const [tab, setTab] = useState<TerminalTab>('text');
   const platform = getPlatform();
-  const needsInstall = FONT_OPTIONS.filter((f) => !NATIVE_PLATFORMS[f.source].includes(platform));
+  const needsInstall = FONT_OPTIONS.filter((font) => !isAvailable(font, platform));
+  const selectedFont = FONT_OPTIONS.find((font) => font.name === terminalFontFamily);
+  const selectedNeedsInstall = selectedFont ? !isAvailable(selectedFont, platform) : false;
+  const colorsCustomized = Boolean(terminalBackgroundColor || terminalForegroundColor);
+
+  const fontGroups: Array<{ label: string; fonts: FontOption[] }> = [
+    { label: 'Included with YzPzCode', fonts: FONT_OPTIONS.filter((f) => f.source === 'bundled' || f.source === 'fallback') },
+    {
+      label: `Built into ${PLATFORM_LABELS[platform]}`,
+      fonts: FONT_OPTIONS.filter((f) => f.source !== 'bundled' && f.source !== 'fallback' && isAvailable(f, platform)),
+    },
+    { label: 'Needs installing', fonts: needsInstall },
+  ].filter((group) => group.fonts.length > 0);
 
   return (
-    <div className="space-y-8 font-mono">
-      <div>
-        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">
-          Terminal
-        </h2>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">
-          Configure terminal appearance and behavior
-        </p>
-      </div>
+    <>
+      <SettingsTabs label="Terminal sections" onChange={setTab} tabs={TABS} value={tab} />
 
-      <div className="space-y-4">
-        <div className="rounded-lg border border-[var(--border-primary)] bg-[var(--bg-secondary)] p-5">
-          <label htmlFor="default-terminal-count" className="mb-2 block text-xs text-[var(--text-primary)]">Terminals in new workspaces</label>
-          <select id="default-terminal-count" value={defaultTerminalCount} onChange={(event) => setDefaultTerminalCount(Number(event.target.value))}
-            className="w-full rounded-lg border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3 py-2 text-sm text-[var(--text-primary)]">
-            {[0, 1, 2, 4, 6, 8].map((count) => <option key={count} value={count}>{count === 0 ? 'No terminals' : `${count} terminal${count === 1 ? '' : 's'}`}</option>)}
-          </select>
-          <p className="mt-2 text-xs leading-5 text-[var(--text-secondary)]">Choose the starting count for workspace setup. No terminals lets you use the editor and extensions without opening shells. Templates can override this choice.</p>
-        </div>
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-            Font
-          </h3>
-
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Font Family</p>
-            <div className="flex items-start gap-2 flex-wrap">
-              {FONT_OPTIONS.map((font) => {
-                const status = statusOf(font, platform);
-                return (
-                  <button
-                    key={font.name}
-                    onClick={() => setTerminalFontFamily(font.name)}
-                    className={`flex flex-col items-center gap-1 px-3 py-2 rounded-md text-[10px] font-mono transition-all duration-150 cursor-pointer ${
-                      terminalFontFamily === font.name
-                        ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                        : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-                    }`}
-                  >
-                    <span style={{ fontFamily: font.name }}>{font.name}</span>
-                    <span
-                      className={`px-1.5 py-px rounded text-[8px] uppercase tracking-wider ${
-                        status.tone === 'good'
-                          ? 'bg-emerald-500/10 text-emerald-400'
-                          : status.tone === 'warn'
-                            ? 'bg-amber-500/10 text-amber-400'
-                            : 'bg-zinc-500/10 text-[var(--text-secondary)]'
-                      }`}
-                    >
-                      {status.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="mt-3 space-y-3">
-              <div className="flex items-center gap-3 flex-wrap text-[9px] font-mono text-[var(--text-secondary)]">
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400/70" />
-                  Bundled — works everywhere
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-zinc-500/70" />
-                  Built-in — included with your OS
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-400/70" />
-                  Install — not included on {PLATFORM_LABELS[platform]}
-                </span>
-              </div>
-
-              {needsInstall.length > 0 && (
-                <div className="border border-amber-500/20 bg-amber-500/5 rounded-md p-3 space-y-2">
-                  <p className="text-[10px] font-mono font-bold text-amber-300 uppercase tracking-wider">
-                    Fonts to install for {PLATFORM_LABELS[platform]}
-                  </p>
-                  <ul className="space-y-1.5">
-                    {needsInstall.map((font) => (
-                      <li key={font.name} className="text-[10px] font-mono text-[var(--text-secondary)] leading-relaxed">
-                        <span className="text-zinc-200">{font.name}</span>
-                        {font.downloadUrl ? (
-                          <>
-                            {' — '}
-                            <button
-                              onClick={() => openUrl(font.downloadUrl as string)}
-                              className="text-[var(--accent)] underline hover:opacity-80 cursor-pointer"
-                            >
-                              {font.downloadLabel ?? 'Download'}
-                            </button>
-                            <span className="text-[var(--text-secondary)]"> {INSTALL_STEPS[platform]}</span>
-                          </>
-                        ) : (
-                          <span> — {font.note}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <Divider />
-
-          <SettingsSlider
-            label="Font Size"
-            description="Terminal text size in pixels"
-            value={terminalFontSize}
-            displayValue={`${terminalFontSize}px`}
-            min={10}
-            max={24}
-            onChange={setTerminalFontSize}
-          />
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-                Colors
-              </h3>
-              <p className="mt-1 text-[10px] text-[var(--text-secondary)]">
-                Personalize the terminal canvas and default text color
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setTerminalBackgroundColor(null);
-                setTerminalForegroundColor(null);
-              }}
-              disabled={!terminalBackgroundColor && !terminalForegroundColor}
-              className="rounded-md border border-[var(--border-primary)] px-2.5 py-1.5 text-[9px] uppercase tracking-wider text-[var(--text-secondary)] transition-colors hover:border-[var(--accent-border)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-35 cursor-pointer"
+      {tab === 'text' && (
+        <SettingsStack>
+          <SettingsGroup title="Font">
+            <SettingsRow
+              description="Monospaced fonts work best in a terminal."
+              icon={<TextAa size={16} aria-hidden="true" />}
+              label="Font family"
             >
-              Reset colors
-            </button>
-          </div>
+              <select
+                aria-label="Terminal font family"
+                className="st-select st-control-w"
+                onChange={(event) => setTerminalFontFamily(event.target.value)}
+                value={terminalFontFamily}
+              >
+                {fontGroups.map((group) => (
+                  <optgroup key={group.label} label={group.label}>
+                    {group.fonts.map((font) => (
+                      <option key={font.name} value={font.name}>{font.name}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </SettingsRow>
+            <SliderRow
+              description="Terminal text size in pixels."
+              format={(value) => `${value}px`}
+              icon={<TextAa size={16} aria-hidden="true" />}
+              label="Font size"
+              max={24}
+              min={10}
+              onChange={setTerminalFontSize}
+              value={terminalFontSize}
+            />
+            <SettingsBlock>
+              <div
+                className="st-terminal-preview"
+                style={{
+                  backgroundColor: terminalBackgroundColor ?? 'var(--bg-terminal)',
+                  color: terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND,
+                  fontFamily: `'${terminalFontFamily}', monospace`,
+                  fontSize: `${terminalFontSize}px`,
+                }}
+              >
+                <p>
+                  <span style={{ color: '#4ade80' }}>user@yzpz</span>
+                  <span style={{ opacity: 0.55 }}>:</span>
+                  <span style={{ color: '#38bdf8' }}>~/workspace</span>
+                  <span style={{ opacity: 0.55 }}>$</span> npm run dev
+                </p>
+                <p style={{ opacity: 0.65 }}>Ready on http://localhost:8745</p>
+              </div>
+            </SettingsBlock>
+          </SettingsGroup>
 
-          <div
-            className="relative overflow-hidden rounded-lg border border-white/10 p-4 shadow-inner"
-            style={{
-              backgroundColor: terminalBackgroundColor ?? 'var(--bg-terminal)',
-              color: terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND,
-            }}
+          {selectedNeedsInstall && selectedFont && (
+            <Notice tone="warning">
+              <strong>{selectedFont.name}</strong> is not included with {PLATFORM_LABELS[platform]}, so the terminal
+              falls back to another font until you install it.{' '}
+              {selectedFont.downloadUrl ? (
+                <>
+                  <button className="st-link" onClick={() => void openUrl(selectedFont.downloadUrl as string)} type="button">
+                    Download from {selectedFont.downloadLabel ?? 'the website'}
+                  </button>
+                  . {INSTALL_STEPS[platform]}
+                </>
+              ) : (
+                selectedFont.note
+              )}
+            </Notice>
+          )}
+
+          {needsInstall.length > 0 && (
+            <SettingsGroup>
+              <Disclosure
+                description="Optional fonts you can add to your system"
+                label={`Fonts you can install on ${PLATFORM_LABELS[platform]}`}
+              >
+                {needsInstall.map((font) => (
+                  <SettingsRow
+                    description={font.downloadUrl ? INSTALL_STEPS[platform] : font.note}
+                    key={font.name}
+                    label={font.name}
+                  >
+                    {font.downloadUrl && (
+                      <Button icon={ArrowSquareOut} onClick={() => void openUrl(font.downloadUrl as string)} size="sm">
+                        {font.downloadLabel ?? 'Download'}
+                      </Button>
+                    )}
+                  </SettingsRow>
+                ))}
+              </Disclosure>
+            </SettingsGroup>
+          )}
+
+          <SettingsGroup title="Cursor">
+            <SettingsRow
+              description="The shape of the text cursor."
+              icon={<Cursor size={16} aria-hidden="true" />}
+              label="Cursor style"
+            >
+              <Segmented label="Cursor style" onChange={setTerminalCursorStyle} options={CURSOR_STYLES} value={terminalCursorStyle} />
+            </SettingsRow>
+            <ToggleRow
+              checked={terminalCursorBlink}
+              description="Animate the cursor while the terminal is focused."
+              icon={<Cursor size={16} aria-hidden="true" />}
+              label="Blinking cursor"
+              onChange={setTerminalCursorBlink}
+            />
+          </SettingsGroup>
+        </SettingsStack>
+      )}
+
+      {tab === 'colors' && (
+        <SettingsStack>
+          <SettingsGroup
+            action={
+              <Button
+                disabled={!colorsCustomized}
+                icon={ArrowCounterClockwise}
+                onClick={() => {
+                  setTerminalBackgroundColor(null);
+                  setTerminalForegroundColor(null);
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                Reset colors
+              </Button>
+            }
+            description="Choose a preset or set your own colors."
+            title="Color scheme"
           >
-            <div className="absolute inset-y-0 left-0 w-0.5 bg-[var(--accent)]" />
-            <p className="text-[9px] uppercase tracking-[0.16em] opacity-55">Live preview</p>
-            <p className="mt-2 text-[12px] leading-relaxed">
-              <span className="text-emerald-400">user@yzpz</span>
-              <span className="opacity-55">:</span>
-              <span className="text-sky-400">~/workspace</span>
-              <span className="opacity-55">$</span> npm run dev
-            </p>
-            <p className="mt-1 text-[10px] opacity-65">Ready on http://localhost:8745</p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 px-3 py-2.5">
-              <span>
-                <span className="block text-[10px] text-[var(--text-primary)]">Background</span>
-                <span className="mt-0.5 block text-[9px] text-[var(--text-secondary)]">
-                  {terminalBackgroundColor ?? 'Theme default'}
-                </span>
-              </span>
-              <input
-                type="color"
-                value={terminalBackgroundColor ?? DEFAULT_TERMINAL_BACKGROUND}
-                onChange={(event) => setTerminalBackgroundColor(event.target.value)}
-                aria-label="Terminal background color"
-                className="h-8 w-11 cursor-pointer rounded border border-[var(--border-primary)] bg-transparent p-0.5"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-3 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)]/55 px-3 py-2.5">
-              <span>
-                <span className="block text-[10px] text-[var(--text-primary)]">Text</span>
-                <span className="mt-0.5 block text-[9px] text-[var(--text-secondary)]">
-                  {terminalForegroundColor ?? 'Theme default'}
-                </span>
-              </span>
-              <input
-                type="color"
-                value={terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND}
-                onChange={(event) => setTerminalForegroundColor(event.target.value)}
-                aria-label="Terminal text color"
-                className="h-8 w-11 cursor-pointer rounded border border-[var(--border-primary)] bg-transparent p-0.5"
-              />
-            </label>
-          </div>
-
-          <div>
-            <p className="mb-2 text-[9px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">Presets</p>
-            <div className="flex flex-wrap gap-2">
-              {TERMINAL_COLOR_PRESETS.map((preset) => {
-                const isActive = terminalBackgroundColor === preset.background
-                  && terminalForegroundColor === preset.foreground;
-                return (
-                  <button
+            <SettingsBlock>
+              <div
+                className="st-terminal-preview"
+                style={{
+                  backgroundColor: terminalBackgroundColor ?? 'var(--bg-terminal)',
+                  color: terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND,
+                  fontFamily: `'${terminalFontFamily}', monospace`,
+                }}
+              >
+                <p>
+                  <span style={{ color: '#4ade80' }}>user@yzpz</span>
+                  <span style={{ opacity: 0.55 }}>:</span>
+                  <span style={{ color: '#38bdf8' }}>~/workspace</span>
+                  <span style={{ opacity: 0.55 }}>$</span> npm run dev
+                </p>
+                <p style={{ opacity: 0.65 }}>Ready on http://localhost:8745</p>
+              </div>
+            </SettingsBlock>
+            <SettingsBlock>
+              <div className="st-options" role="group" aria-label="Color presets">
+                {TERMINAL_COLOR_PRESETS.map((preset) => (
+                  <OptionCard
                     key={preset.label}
-                    type="button"
-                    onClick={() => {
+                    onSelect={() => {
                       setTerminalBackgroundColor(preset.background);
                       setTerminalForegroundColor(preset.foreground);
                     }}
-                    className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-[9px] uppercase tracking-wider transition-colors cursor-pointer ${
-                      isActive
-                        ? 'border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)]'
-                        : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/55 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                  >
-                    <span
-                      className="h-3 w-3 rounded-full border border-white/15"
-                      style={{ backgroundColor: preset.background ?? 'var(--bg-terminal)' }}
-                    />
-                    {preset.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+                    preview={
+                      <span aria-hidden="true" className="st-option__preview" style={{ height: '2.25rem' }}>
+                        <span style={{ background: preset.background ?? 'var(--bg-terminal)', flex: 3 }} />
+                        <span style={{ background: preset.foreground ?? DEFAULT_TERMINAL_FOREGROUND, flex: 1 }} />
+                      </span>
+                    }
+                    selected={terminalBackgroundColor === preset.background && terminalForegroundColor === preset.foreground}
+                    title={preset.label}
+                  />
+                ))}
+              </div>
+            </SettingsBlock>
+          </SettingsGroup>
 
-          <Divider />
-
-          <SettingsSlider
-            label="Background Opacity"
-            description="Transparency of the terminal canvas"
-            value={terminalOpacity}
-            displayValue={`${terminalOpacity}%`}
-            min={70}
-            max={100}
-            onChange={setTerminalOpacity}
-          />
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-            Cursor
-          </h3>
-
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono mb-2">Cursor Style</p>
-            <div className="flex items-center gap-2">
-              {CURSOR_STYLES.map((style) => (
-                <button
-                  key={style.value}
-                  onClick={() => setTerminalCursorStyle(style.value)}
-                  className={`px-3 py-1.5 rounded-md text-[10px] font-mono uppercase tracking-wider transition-all duration-150 cursor-pointer ${
-                    terminalCursorStyle === style.value
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]'
-                  }`}
-                >
-                  {style.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Divider />
-
-          <SettingsToggle
-            enabled={terminalCursorBlink}
-            onToggle={() => setTerminalCursorBlink(!terminalCursorBlink)}
-            label="Blinking Cursor"
-            description="Animate the terminal cursor"
-          />
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">
-            Behavior
-          </h3>
-
-          <SettingsSlider
-            label="Scrollback Buffer"
-            description="Maximum lines to keep in history"
-            value={terminalScrollbackSize}
-            displayValue={`${(terminalScrollbackSize / 1000).toFixed(0)}k`}
-            min={1000}
-            max={100000}
-            step={1000}
-            onChange={setTerminalScrollbackSize}
-          />
-
-          <Divider />
-
-          <div className="space-y-4">
-            <SettingsToggle
-              enabled={terminalCopyOnSelect}
-              onToggle={() => setTerminalCopyOnSelect(!terminalCopyOnSelect)}
-              label="Copy on Select"
-              description="Automatically copy selected text to clipboard"
+          <SettingsGroup title="Custom colors">
+            <SettingsRow description={terminalBackgroundColor ?? 'Using the theme default'} label="Background">
+              <ColorInput
+                label="Terminal background color"
+                onChange={setTerminalBackgroundColor}
+                value={terminalBackgroundColor ?? DEFAULT_TERMINAL_BACKGROUND}
+              />
+            </SettingsRow>
+            <SettingsRow description={terminalForegroundColor ?? 'Using the theme default'} label="Text">
+              <ColorInput
+                label="Terminal text color"
+                onChange={setTerminalForegroundColor}
+                value={terminalForegroundColor ?? DEFAULT_TERMINAL_FOREGROUND}
+              />
+            </SettingsRow>
+            <SliderRow
+              description="Lower values let the workspace background show through."
+              format={(value) => `${value}%`}
+              label="Background opacity"
+              max={100}
+              min={70}
+              onChange={setTerminalOpacity}
+              value={terminalOpacity}
             />
+          </SettingsGroup>
+        </SettingsStack>
+      )}
 
-            <SettingsToggle
-              enabled={terminalPasteOnRightClick}
-              onToggle={() =>
-                setTerminalPasteOnRightClick(!terminalPasteOnRightClick)
-              }
-              label="Paste on Right Click"
-              description="Enable paste via right-click in terminal"
-            />
+      {tab === 'behavior' && (
+        <SettingsStack>
+          <SettingsGroup
+            footer="Templates can override this number when you create a workspace."
+            title="New workspaces"
+          >
+            <SettingsRow
+              description="Choose 0 to use the editor and extensions without opening a shell."
+              icon={<TerminalWindow size={16} aria-hidden="true" />}
+              label="Terminals to open"
+            >
+              <select
+                aria-label="Terminals in new workspaces"
+                className="st-select st-control-w"
+                onChange={(event) => setDefaultTerminalCount(Number(event.target.value))}
+                value={defaultTerminalCount}
+              >
+                {TERMINAL_COUNTS.map((count) => (
+                  <option key={count} value={count}>
+                    {count === 0 ? 'None' : `${count} terminal${count === 1 ? '' : 's'}`}
+                  </option>
+                ))}
+              </select>
+            </SettingsRow>
+          </SettingsGroup>
 
-            <SettingsToggle
-              enabled={terminalBellEnabled}
-              onToggle={() => setTerminalBellEnabled(!terminalBellEnabled)}
-              label="Bell Notifications"
-              description="Visual notification on command complete"
+          <SettingsGroup title="Mouse and clipboard">
+            <ToggleRow
+              checked={terminalCopyOnSelect}
+              description="Copy text to the clipboard as soon as you select it."
+              icon={<Copy size={16} aria-hidden="true" />}
+              label="Copy on select"
+              onChange={setTerminalCopyOnSelect}
             />
+            <ToggleRow
+              checked={terminalPasteOnRightClick}
+              description="Right-click inside a terminal to paste."
+              icon={<ClipboardText size={16} aria-hidden="true" />}
+              label="Paste on right-click"
+              onChange={setTerminalPasteOnRightClick}
+            />
+          </SettingsGroup>
 
-            <SettingsToggle
-              enabled={terminalWordWrap}
-              onToggle={() => setTerminalWordWrap(!terminalWordWrap)}
-              label="Word Wrap"
-              description="Wrap long lines in terminal output"
+          <SettingsGroup title="Output">
+            <SliderRow
+              description="How many lines of history each terminal keeps."
+              format={(value) => `${(value / 1000).toFixed(0)}k lines`}
+              icon={<Scroll size={16} aria-hidden="true" />}
+              label="Scrollback"
+              max={100000}
+              min={1000}
+              onChange={setTerminalScrollbackSize}
+              step={1000}
+              value={terminalScrollbackSize}
             />
+            <ToggleRow
+              checked={terminalWordWrap}
+              description="Wrap long lines instead of scrolling sideways."
+              icon={<TextAlignLeft size={16} aria-hidden="true" />}
+              label="Word wrap"
+              onChange={setTerminalWordWrap}
+            />
+            <ToggleRow
+              checked={terminalBellEnabled}
+              description="Show a visual alert when a command finishes."
+              icon={<Bell size={16} aria-hidden="true" />}
+              label="Bell notifications"
+              onChange={setTerminalBellEnabled}
+            />
+          </SettingsGroup>
 
-            <SettingsToggle
-              enabled={independentGridResize}
-              onToggle={() => setIndependentGridResize(!independentGridResize)}
-              label="Independent Grid Resize"
-              description="Resize dividers affect only the terminals in the same row/column. Turn off for the classic global resize."
+          <SettingsGroup title="Grid">
+            <ToggleRow
+              checked={independentGridResize}
+              description="Dragging a divider only resizes the terminals in that row or column. Turn off for the classic behavior where every pane moves."
+              icon={<GridFour size={16} aria-hidden="true" />}
+              label="Independent resize"
+              onChange={setIndependentGridResize}
             />
-          </div>
-        </div>
-      </div>
-    </div>
+          </SettingsGroup>
+        </SettingsStack>
+      )}
+    </>
   );
 };

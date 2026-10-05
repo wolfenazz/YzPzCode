@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowsIn, ArrowClockwise, FilePlus, FolderPlus, FolderSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
+import { ArrowsIn, ArrowClockwise, Crosshair, FilePlus, FolderPlus, FolderSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
 import { Tree, type NodeApi } from 'react-arborist';
 import { FileEntry } from '../../types';
 import { useFileTree, type TreeNodeData } from '../../hooks/useFileTree';
@@ -40,10 +40,8 @@ const HeaderIconButton: React.FC<{
     onClick={onClick}
     title={title}
     aria-label={title}
-    className={`explorer-header-action app-icon-button h-6 w-6 rounded transition-colors duration-75 cursor-pointer ${
-      active
-        ? 'text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
-        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+    className={`explorer-header-action app-icon-button h-6 w-6 rounded cursor-pointer ${
+      active ? 'is-active' : ''
     }`}
   >
     {children}
@@ -882,6 +880,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   return (
     <div
       className="explorer-pane h-full flex flex-col bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] select-none overflow-hidden"
+      data-explorer-ready
       onContextMenu={handleContainerContextMenu}
     >
       <div className="explorer-pane__header flex h-10 shrink-0 items-center justify-between border-b border-[var(--border-primary)] px-3">
@@ -904,7 +903,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
             onClick={handleRevealActiveFile}
             active={!!activeFilePath}
           >
-            <FolderSimple size={15} aria-hidden="true" />
+            <Crosshair size={15} aria-hidden="true" />
           </HeaderIconButton>
           <HeaderIconButton title="Refresh Explorer" onClick={refreshRoot}>
             <ArrowClockwise size={15} aria-hidden="true" />
@@ -941,7 +940,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
               <X size={13} aria-hidden="true" />
             </button>
           ) : (
-            <span className="text-[10px] text-[var(--text-secondary)] pointer-events-none">/</span>
+            <kbd className="explorer-kbd pointer-events-none">/</kbd>
           )}
         </div>
       </div>

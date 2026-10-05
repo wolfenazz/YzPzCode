@@ -3,7 +3,8 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, AgentSessionSummary, AgentPaneUIMode, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
-import type { FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings } from '../types';
+import type { CustomTheme, FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings } from '../types';
+import { MAX_CUSTOM_THEMES, sanitizeCustomTheme, sanitizeCustomThemes } from '../utils/customTheme';
 import { DEFAULT_LIGHT_RAYS, migrateWorkspaceBackground, normalizeLightRays } from '../utils/workspaceBackground';
 import { DEFAULT_SETUP_GALAXY, normalizeSetupGalaxy } from '../utils/setupBackground';
 import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
@@ -183,6 +184,9 @@ interface AppState {
   toolCliStatuses: Record<ToolCliType, ToolCliInfo | null>;
   toolAuthInfos: Record<ToolCliType, ToolAuthInfo | null>;
   themeMode: ThemeMode;
+  /** User-authored themes. The one in use is `activeCustomThemeId`, whenever `themeMode` is "custom". */
+  customThemes: CustomTheme[];
+  activeCustomThemeId: string | null;
   selectedIdes: IdeType[];
   ideStatuses: Record<IdeType, IdeInfo | null>;
   autoSave: boolean;
@@ -284,6 +288,11 @@ interface AppState {
   setSetupBackground: (background: SetupBackground) => void;
   setSetupGalaxy: (settings: Partial<SetupGalaxySettings>) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  /** Insert or update a custom theme (matched by id). Ignored when the theme limit is reached. */
+  saveCustomTheme: (theme: CustomTheme) => void;
+  deleteCustomTheme: (id: string) => void;
+  /** Switch the app to the given custom theme. */
+  applyCustomTheme: (id: string) => void;
   setAgentSessionFontSize: (size: number) => void;
   setAgentInterfaceScale: (scale: number) => void;
   setAgentConversationWidth: (width: number) => void;
@@ -513,6 +522,8 @@ export const useAppStore = create<AppState>()(
       toolCliStatuses: {} as Record<ToolCliType, ToolCliInfo | null>,
       toolAuthInfos: {} as Record<ToolCliType, ToolAuthInfo | null>,
       themeMode: "dark",
+      customThemes: [],
+      activeCustomThemeId: null,
       selectedIdes: [],
       autoSave: true,
       autoSaveDelay: 1000,
@@ -773,7 +784,37 @@ export const useAppStore = create<AppState>()(
       setSetupGalaxy: (settings) => set((state) => ({
         setupGalaxy: normalizeSetupGalaxy({ ...state.setupGalaxy, ...settings }),
       })),
-      setThemeMode: (mode) => set({ themeMode: mode }),
+      setThemeMode: (mode) =>
+        set((state) => (mode === 'custom' && !state.activeCustomThemeId ? state : { themeMode: mode })),
+      saveCustomTheme: (theme) =>
+        set((state) => {
+          const clean = sanitizeCustomTheme(theme);
+          if (!clean) return state;
+          const exists = state.customThemes.some((item) => item.id === clean.id);
+          if (!exists && state.customThemes.length >= MAX_CUSTOM_THEMES) return state;
+          const saved: CustomTheme = { ...clean, updatedAt: Date.now() };
+          return {
+            customThemes: exists
+              ? state.customThemes.map((item) => (item.id === saved.id ? saved : item))
+              : [...state.customThemes, saved],
+          };
+        }),
+      deleteCustomTheme: (id) =>
+        set((state) => {
+          const target = state.customThemes.find((item) => item.id === id);
+          if (!target) return state;
+          const wasActive = state.activeCustomThemeId === id;
+          return {
+            customThemes: state.customThemes.filter((item) => item.id !== id),
+            activeCustomThemeId: wasActive ? null : state.activeCustomThemeId,
+            // Deleting the theme in use falls back to the built-in theme with the same light/dark base.
+            themeMode: wasActive && state.themeMode === 'custom' ? target.base : state.themeMode,
+          };
+        }),
+      applyCustomTheme: (id) =>
+        set((state) =>
+          state.customThemes.some((item) => item.id === id) ? { themeMode: 'custom', activeCustomThemeId: id } : state,
+        ),
       setAgentSessionFontSize: (size) => set({ agentSessionFontSize: size }),
       setAgentInterfaceScale: (scale) => set({ agentInterfaceScale: scale }),
       setAgentConversationWidth: (width) => set({ agentConversationWidth: width }),
@@ -1938,6 +1979,18 @@ export const useAppStore = create<AppState>()(
         }
         return state;
       },
+      // Custom themes come from disk (and from imports), so re-validate them on every
+      // rehydrate rather than trusting whatever localStorage holds.
+      merge: (persistedState, currentState) => {
+        const persisted = (persistedState ?? {}) as Partial<AppState>;
+        const customThemes = sanitizeCustomThemes(persisted.customThemes);
+        const activeCustomThemeId = customThemes.some((theme) => theme.id === persisted.activeCustomThemeId)
+          ? (persisted.activeCustomThemeId ?? null)
+          : null;
+        const merged = { ...currentState, ...persisted, customThemes, activeCustomThemeId };
+        if (merged.themeMode === 'custom' && !activeCustomThemeId) merged.themeMode = 'dark';
+        return merged;
+      },
       partialize: (state) => {
         const base = {
           cliStatuses: state.cliStatuses,
@@ -1962,6 +2015,8 @@ export const useAppStore = create<AppState>()(
           setupBackground: state.setupBackground,
           setupGalaxy: state.setupGalaxy,
           themeMode: state.themeMode,
+          customThemes: state.customThemes,
+          activeCustomThemeId: state.activeCustomThemeId,
           agentSessionFontSize: state.agentSessionFontSize,
           agentInterfaceScale: state.agentInterfaceScale,
           agentConversationWidth: state.agentConversationWidth,

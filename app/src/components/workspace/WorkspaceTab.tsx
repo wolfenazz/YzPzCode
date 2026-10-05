@@ -1,5 +1,5 @@
 import React from 'react';
-import { FolderSimple, X } from '@phosphor-icons/react';
+import { FolderSimple, Plus, X } from '@phosphor-icons/react';
 import { WorkspaceConfig } from '../../types';
 
 interface WorkspaceTabProps {
@@ -16,50 +16,50 @@ export const WorkspaceTab: React.FC<WorkspaceTabProps> = ({
   sessionsCount,
   onClick,
   onClose,
-}) => {
-  return (
-    <div
-      role="tab"
-      aria-selected={isActive}
-      tabIndex={0}
-      title={workspace.name}
-      className={`
-        workspace-tab group relative flex items-center gap-1.5 h-6.5 pl-2.5 pr-1 cursor-pointer select-none
-        whitespace-nowrap rounded-md border transition-all duration-150
-        ${isActive
-          ? 'is-active border-[var(--border-primary)] bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
-          : 'border-transparent text-[var(--text-secondary)] hover:border-[var(--border-primary)] hover:bg-[var(--bg-secondary)] hover:text-[var(--text-primary)]'
-        }
-      `}
-      onClick={onClick}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-    >
-      <FolderSimple size={13} weight={isActive ? 'fill' : 'regular'} className={`shrink-0 transition-colors duration-150 ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]/60'}`} aria-hidden="true" />
-
-      <span className={`max-w-[150px] truncate text-[11px] font-medium transition-colors duration-150 ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'}`} title={workspace.name}>
-        {workspace.name}
-      </span>
-
+}) => (
+  <div
+    role="tab"
+    aria-selected={isActive}
+    tabIndex={0}
+    title={workspace.path ? `${workspace.name}\n${workspace.path}` : workspace.name}
+    className={`chrome-tab ${isActive ? 'is-active' : ''}`}
+    onClick={onClick}
+    onKeyDown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        onClick();
+      }
+    }}
+  >
+    <FolderSimple size={14} weight={isActive ? 'fill' : 'regular'} className="chrome-tab__icon" aria-hidden="true" />
+    <span className="chrome-tab__label">{workspace.name}</span>
+    {/* The terminal count and the close button share one slot: count at rest, × on hover/focus. */}
+    <span className="chrome-tab__tail">
       {sessionsCount > 0 && (
-        <span className={`workspace-tab__count text-[10px] tabular-nums leading-none transition-colors duration-150 ${isActive ? 'text-[var(--text-secondary)]' : 'text-[var(--text-secondary)]/60'}`}>
+        <span
+          className="chrome-tab__count"
+          title={`${sessionsCount} terminal${sessionsCount === 1 ? '' : 's'}`}
+        >
           {sessionsCount}
         </span>
       )}
-
       <button
+        type="button"
         onClick={onClose}
-        className={`
-          workspace-tab__close flex items-center justify-center w-4 h-4 rounded
-          transition-all duration-150 cursor-pointer
-          ${isActive
-            ? 'text-[var(--text-secondary)]/60 hover:text-rose-400 hover:bg-rose-500/10'
-            : 'text-[var(--text-secondary)]/40 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100'
-          }
-        `}
-        title="Close"
+        className="chrome-tab__close"
+        title="Close workspace"
+        aria-label={`Close ${workspace.name}`}
       >
-        <X size={11} aria-hidden="true" />
+        <X size={12} aria-hidden="true" />
       </button>
-    </div>
-  );
-};
+    </span>
+  </div>
+);
+
+/** The tab shown while the setup screen is the current page, like a browser's "new tab". */
+export const NewWorkspaceTab: React.FC = () => (
+  <div role="tab" aria-selected="true" className="chrome-tab chrome-tab--static is-active">
+    <Plus size={14} className="chrome-tab__icon" aria-hidden="true" />
+    <span className="chrome-tab__label">New workspace</span>
+  </div>
+);

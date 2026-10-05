@@ -1,8 +1,25 @@
 import React from 'react';
+import {
+  ArrowCounterClockwise,
+  ClockCounterClockwise,
+  FolderOpen,
+  FolderSimple,
+  SignOut,
+  Trash,
+} from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
 import { open } from '@tauri-apps/plugin-dialog';
 import { SEED_TEMPLATES } from '../../../hooks/useWorkspace';
-import { SettingsToggle } from '../../common/SettingsToggle';
+import {
+  Button,
+  OptionCard,
+  SettingsBlock,
+  SettingsEmpty,
+  SettingsGroup,
+  SettingsRow,
+  SettingsStack,
+  ToggleRow,
+} from '../SettingsKit';
 
 export const SettingsWorkspace: React.FC = () => {
   const {
@@ -34,101 +51,94 @@ export const SettingsWorkspace: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 font-mono">
-      <div>
-        <h2 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em] mb-1">Workspace</h2>
-        <p className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-wider">Configure workspace defaults and behavior</p>
-      </div>
+    <SettingsStack>
+      <SettingsGroup title="Opening and closing">
+        <ToggleRow
+          checked={saveWorkspaceState}
+          description="Reopen your workspaces and their files the next time you start the app."
+          icon={<ArrowCounterClockwise size={16} aria-hidden="true" />}
+          label="Restore workspaces on launch"
+          onChange={setSaveWorkspaceState}
+        />
+        <ToggleRow
+          checked={confirmBeforeClose}
+          description="Ask before a workspace is closed."
+          icon={<SignOut size={16} aria-hidden="true" />}
+          label="Confirm before closing"
+          onChange={setConfirmBeforeClose}
+        />
+      </SettingsGroup>
 
-      <div className="space-y-5">
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">General</h3>
-          <div className="space-y-3">
-            <SettingsToggle
-              enabled={confirmBeforeClose}
-              onToggle={() => setConfirmBeforeClose(!confirmBeforeClose)}
-              label="Confirm Before Closing"
-              description="Show confirmation dialog when closing workspaces"
-            />
-            <SettingsToggle
-              enabled={saveWorkspaceState}
-              onToggle={() => setSaveWorkspaceState(!saveWorkspaceState)}
-              label="Save Workspace State"
-              description="Restore open workspaces with file on app restart"
-            />
+      <SettingsGroup
+        description="Used when you create a new workspace."
+        title="Default layout"
+      >
+        <SettingsBlock>
+          <div className="st-options st-options--wide" role="group" aria-label="Default layout template">
+            {SEED_TEMPLATES.map((template) => (
+              <OptionCard
+                icon={
+                  <span
+                    aria-hidden="true"
+                    style={{ width: '0.5rem', height: '0.5rem', flex: '0 0 auto', borderRadius: '50%', background: template.iconColor }}
+                  />
+                }
+                key={template.id}
+                onSelect={() => setDefaultLayoutTemplate(template.id)}
+                selected={defaultLayoutTemplate === template.id}
+                subtitle={template.description}
+                title={template.name}
+              />
+            ))}
           </div>
-        </div>
+        </SettingsBlock>
+      </SettingsGroup>
 
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Default Template</h3>
-          <div>
-            <p className="text-xs text-[var(--text-primary)] font-mono mb-3">Layout Template</p>
-            <div className="grid grid-cols-2 gap-2">
-              {SEED_TEMPLATES.map((template) => (
-                <button
-                  key={template.id}
-                  onClick={() => setDefaultLayoutTemplate(template.id)}
-                  className={
-                    'flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[10px] font-mono transition-all duration-150 cursor-pointer text-left ' +
-                    (defaultLayoutTemplate === template.id
-                      ? 'bg-[var(--accent-light)] text-[var(--accent)] border border-[var(--accent-border)]'
-                      : 'bg-[var(--bg-primary)]/60 text-[var(--text-secondary)] border border-[var(--border-primary)]/70 hover:text-[var(--text-primary)] hover:border-[var(--border-primary)]')
-                  }
-                >
-                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: template.iconColor }} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-mono truncate">{template.name}</p>
-                    <p className="text-[9px] text-[var(--text-secondary)] font-mono truncate">{template.description}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Default Directory</h3>
-          <div className="flex items-center gap-2">
+      <SettingsGroup title="Default folder">
+        <SettingsRow
+          description="New workspaces start here. Leave empty to choose each time."
+          icon={<FolderOpen size={16} aria-hidden="true" />}
+          label="Starting folder"
+        />
+        <SettingsBlock>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
             <input
+              aria-label="Default workspace folder"
+              className="st-input"
+              onChange={(event) => setDefaultWorkspaceDirectory(event.target.value)}
+              placeholder="No default folder set"
               type="text"
               value={defaultWorkspaceDirectory}
-              onChange={(e) => setDefaultWorkspaceDirectory(e.target.value)}
-              placeholder="No default directory set"
-              className="flex-1 bg-[var(--bg-primary)]/60 border border-[var(--border-primary)] rounded-md px-3 py-2 text-xs text-[var(--text-primary)] font-mono placeholder-zinc-700 focus:outline-none focus:border-[var(--accent)] transition-colors"
             />
-            <button
-              onClick={handleSelectDirectory}
-              className="px-3 py-2 rounded-md bg-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#303030] transition-colors cursor-pointer text-[10px] font-mono uppercase"
-            >
-              Browse
-            </button>
+            <Button icon={FolderOpen} onClick={() => void handleSelectDirectory()}>Browse…</Button>
           </div>
-        </div>
+        </SettingsBlock>
+      </SettingsGroup>
 
-        <div className="bg-[var(--bg-secondary)]/80 border border-[var(--border-primary)] backdrop-blur-sm rounded-lg p-5 space-y-5">
-          <h3 className="text-xs font-mono font-bold text-[var(--accent-text)] uppercase tracking-[0.2em]">Recent Directories</h3>
-          {recentDirectories.length > 0 ? (
-            <div className="space-y-1.5">
-              {recentDirectories.map((path, index) => (
-                <div
-                  key={index}
-                  className="flex items-center px-3 py-2 rounded-md bg-[var(--bg-primary)]/30 border border-[var(--border-primary)]/20 text-[var(--text-secondary)]"
-                >
-                  <span className="text-[10px] text-[var(--text-secondary)] font-mono truncate flex-1">{path}</span>
-                </div>
-              ))}
-              <button
-                onClick={clearRecentDirectories}
-                className="mt-3 px-3 py-1.5 rounded-md text-[10px] font-mono uppercase text-amber-400/70 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
-              >
-                Clear All
-              </button>
-            </div>
-          ) : (
-            <p className="text-[10px] text-[var(--text-secondary)] font-mono">No recent directories</p>
-          )}
-        </div>
-      </div>
-    </div>
+      <SettingsGroup
+        action={
+          recentDirectories.length > 0 ? (
+            <Button icon={Trash} onClick={clearRecentDirectories} size="sm" variant="ghost">Clear list</Button>
+          ) : undefined
+        }
+        title="Recent folders"
+      >
+        {recentDirectories.length > 0 ? (
+          <div className="st-list custom-scrollbar" style={{ maxHeight: '15rem', overflowY: 'auto' }}>
+            {recentDirectories.map((path) => (
+              <SettingsRow
+                icon={<FolderSimple size={16} aria-hidden="true" />}
+                key={path}
+                label={<span className="st-truncate st-mono" title={path}>{path}</span>}
+              />
+            ))}
+          </div>
+        ) : (
+          <SettingsEmpty icon={ClockCounterClockwise} title="No recent folders">
+            Folders you open will show up here.
+          </SettingsEmpty>
+        )}
+      </SettingsGroup>
+    </SettingsStack>
   );
 };

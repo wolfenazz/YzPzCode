@@ -10,6 +10,7 @@ import { TooltipProvider } from './components/ui/tooltip';
 import { useAppStore } from './stores/appStore';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { useEffectiveTheme } from './hooks/useEffectiveTheme';
+import { useApplyCustomTheme } from './hooks/useCustomTheme';
 import { useDesktopFileOpen } from './hooks/useDesktopFileOpen';
 import { initWindowPlatform } from './utils/window';
 import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
@@ -61,6 +62,7 @@ function App() {
     if (view === 'workspace') setWorkspaceVisited(true);
   }, [view]);
   const effectiveTheme = useEffectiveTheme();
+  const customTheme = useApplyCustomTheme();
   useDiscordPresence();
   useDesktopFileOpen(startupReady);
 
@@ -76,6 +78,8 @@ function App() {
   }, [customCursor]);
 
   useEffect(() => {
+    // A custom theme owns its accent (and every accent tint) via useApplyCustomTheme.
+    if (customTheme) return;
     const usesYzPzPalette = themeMode === 'yzpz' && (accentColor === 'burple' || accentColor === 'default');
     const palette = usesYzPzPalette ? ACCENT_COLOR_MAP.burple : ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
     const usesClaudePalette = themeMode === 'claude' && accentColor === 'default';
@@ -89,7 +93,7 @@ function App() {
     root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.16 : usesYzPzPalette ? 0.28 : 0.3})`);
     root.style.setProperty('--accent-border', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.28 : usesYzPzPalette ? 0.38 : 0.2})`);
     root.style.setProperty('--accent-text', usesClaudePalette ? '#a64d31' : usesYzPzPalette ? '#c7b8f5' : `rgba(${r}, ${g}, ${b}, 0.7)`);
-  }, [accentColor, themeMode]);
+  }, [accentColor, themeMode, customTheme]);
 
   useEffect(() => {
     const root = document.documentElement;

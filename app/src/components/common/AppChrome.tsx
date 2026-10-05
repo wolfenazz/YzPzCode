@@ -1,25 +1,14 @@
+import React from 'react';
 import type { ReactNode } from 'react';
-import { ArrowLeft, GearSix, BookOpenText } from '@phosphor-icons/react';
+import { ArrowLeft, BookOpenText, CaretRight, GearSix } from '@phosphor-icons/react';
 import { useTitlebarDrag } from '../../hooks/useTitlebarDrag';
+import { ChromeBrand, ChromeButton, ChromeDivider } from './ChromeParts';
 import { ThemeModeToggle } from './ThemeModeToggle';
 import { WindowControls } from './WindowControls';
-import logo from '../../assets/YzPzCodeLogo.png';
-
-interface ChromeActionProps {
-  label: string;
-  onClick: () => void;
-  icon: ReactNode;
-}
-
-const ChromeAction = ({ label, onClick, icon }: ChromeActionProps) => (
-  <button className="app-icon-button" onClick={onClick} title={label} type="button">
-    {icon}
-    <span className="sr-only">{label}</span>
-  </button>
-);
 
 interface AppChromeProps {
-  title?: string;
+  /** Where the user is inside the app, shown after the brand: Settings › Appearance. */
+  crumbs?: string[];
   isWindows?: boolean;
   onBack?: () => void;
   onDocs?: () => void;
@@ -32,7 +21,7 @@ interface AppChromeProps {
 }
 
 export const AppChrome = ({
-  title = 'YzPzCode',
+  crumbs = [],
   isWindows = false,
   onBack,
   onDocs,
@@ -46,38 +35,53 @@ export const AppChrome = ({
   const titlebarRef = useTitlebarDrag<HTMLElement>();
 
   return (
-    <header ref={titlebarRef} className="app-chrome select-none">
-      <div className="app-chrome__section">
+    <header ref={titlebarRef} className="chrome">
+      <div className="chrome__start">
         {onBack ? (
-          <div className="pl-2">
-            <ChromeAction icon={<ArrowLeft size={16} weight="regular" />} label="Go back" onClick={onBack} />
-          </div>
+          <ChromeButton label="Back" onClick={onBack}>
+            <ArrowLeft size={16} aria-hidden="true" />
+          </ChromeButton>
         ) : null}
-        <div className="app-chrome__brand">
-          <img src={logo} alt="" className="h-4 w-auto opacity-85" />
-          <span className="app-chrome__title">{title}</span>
-        </div>
-        {onDocs ? (
-          <ChromeAction icon={<BookOpenText size={16} weight="regular" />} label="Documentation" onClick={onDocs} />
+        <ChromeBrand />
+        {crumbs.length > 0 ? (
+          <nav className="chrome-crumbs" aria-label="Breadcrumb">
+            {crumbs.map((crumb, index) => (
+              <React.Fragment key={`${crumb}-${index}`}>
+                <CaretRight size={11} className="chrome-crumbs__sep" aria-hidden="true" />
+                <span
+                  className="chrome-crumbs__item"
+                  aria-current={index === crumbs.length - 1 ? 'page' : undefined}
+                >
+                  {crumb}
+                </span>
+              </React.Fragment>
+            ))}
+          </nav>
+        ) : center ? (
+          <ChromeDivider />
         ) : null}
       </div>
 
-      <div className="app-chrome__section flex-1 justify-center px-3">{center}</div>
+      <div className="chrome__center">{center}</div>
 
-      <div className="app-chrome__section gap-1 pr-2">
+      <div className="chrome__end">
         {actions}
+        {onDocs ? (
+          <ChromeButton label="Documentation" onClick={onDocs}>
+            <BookOpenText size={16} aria-hidden="true" />
+          </ChromeButton>
+        ) : null}
         <ThemeModeToggle />
         {onSettings ? (
-          <ChromeAction icon={<GearSix size={16} weight="regular" />} label="Settings" onClick={onSettings} />
-        ) : null}
-        {isWindows && onMinimize && onMaximize && onClose ? (
-          <WindowControls
-            onMinimize={onMinimize}
-            onMaximize={onMaximize}
-            onClose={onClose}
-          />
+          <ChromeButton label="Settings" onClick={onSettings}>
+            <GearSix size={16} aria-hidden="true" />
+          </ChromeButton>
         ) : null}
       </div>
+
+      {isWindows && onMinimize && onMaximize && onClose ? (
+        <WindowControls onMinimize={onMinimize} onMaximize={onMaximize} onClose={onClose} />
+      ) : null}
     </header>
   );
 };

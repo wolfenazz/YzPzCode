@@ -528,6 +528,39 @@ fn extract_runtime(archive: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
+async fn latest_metadata(app: &AppHandle, id: &str, client: &reqwest::Client) -> Result<Value> {
+    let (namespace, name) = id.split_once('.').context("Invalid extension identifier")?;
+    let (os, arch) = platform()?;
+    let address = format!("https://open-vsx.org/api/{namespace}/{name}/{os}-{arch}/latest");
+    let response = get(app, id, client, &address, "Finding the extension package…").await?;
+    let metadata: Value = if response.status() == reqwest::StatusCode::NOT_FOUND {
+        get(
+            app,
+            id,
+            client,
+            &format!("https://open-vsx.org/api/{namespace}/{name}/universal/latest"),
+            "Finding the universal extension package…",
+        )
+        .await?
+        .error_for_status()?
+        .json()
+        .await?
+    } else {
+        response.error_for_status()?.json().await?
+    };
+    if !extension_identity_matches(&metadata, id) {
+        bail!("The registry returned a different extension");
+    }
+    let expected_platform = format!("{os}-{arch}");
+    if metadata["targetPlatform"]
+        .as_str()
+        .is_some_and(|target| target != "universal" && target != expected_platform)
+    {
+        bail!("This extension package does not support this platform");
+    }
+    Ok(metadata)
+}
+
 impl ExtensionHostManager {
     pub fn catalog(&self, app: &AppHandle) -> Result<Vec<ExtensionInfo>> {
         let base = root(app)?;
@@ -611,6 +644,27 @@ impl ExtensionHostManager {
         Ok(target)
     }
 
+    /// Latest Open VSX version for each installed extension. Entries that cannot
+    /// be checked (offline, not published) are omitted rather than failing.
+    pub async fn latest_versions(&self, app: &AppHandle) -> Result<HashMap<String, String>> {
+        let installed: Vec<String> = self
+            .catalog(app)?
+            .into_iter()
+            .filter(|extension| extension.installed_version.is_some())
+            .map(|extension| extension.id)
+            .collect();
+        let client = client()?;
+        let mut versions = HashMap::new();
+        for id in installed {
+            if let Ok(metadata) = latest_metadata(app, &id, &client).await {
+                if let Some(version) = metadata["version"].as_str() {
+                    versions.insert(id, version.to_string());
+                }
+            }
+        }
+        Ok(versions)
+    }
+
     pub async fn install(&self, app: &AppHandle, id: &str) -> Result<()> {
         entry(id)?;
         let _operation = self.operation.lock().await;
@@ -625,8 +679,6 @@ impl ExtensionHostManager {
         self.ensure_runtime(app, id).await?;
         let base = root(app)?;
         let client = client()?;
-        let (namespace, name) = id.split_once('.').context("Invalid extension identifier")?;
-        let (os, arch) = platform()?;
         progress(
             app,
             id,
@@ -635,33 +687,7 @@ impl ExtensionHostManager {
             0,
             None,
         );
-        let address = format!("https://open-vsx.org/api/{namespace}/{name}/{os}-{arch}/latest");
-        let response = get(app, id, &client, &address, "Finding the extension package…").await?;
-        let metadata: Value = if response.status() == reqwest::StatusCode::NOT_FOUND {
-            get(
-                app,
-                id,
-                &client,
-                &format!("https://open-vsx.org/api/{namespace}/{name}/universal/latest"),
-                "Finding the universal extension package…",
-            )
-            .await?
-            .error_for_status()?
-            .json()
-            .await?
-        } else {
-            response.error_for_status()?.json().await?
-        };
-        if !extension_identity_matches(&metadata, id) {
-            bail!("The registry returned a different extension");
-        }
-        let expected_platform = format!("{os}-{arch}");
-        if metadata["targetPlatform"]
-            .as_str()
-            .is_some_and(|target| target != "universal" && target != expected_platform)
-        {
-            bail!("This extension package does not support this platform");
-        }
+        let metadata = latest_metadata(app, id, &client).await?;
         let version = metadata["version"]
             .as_str()
             .context("Extension is unavailable in Open VSX")?;
@@ -726,9 +752,18 @@ impl ExtensionHostManager {
         fs::create_dir_all(&installed)?;
         let target = installed.join(id);
         if target.exists() {
-            bail!("This extension is already installed");
+            // Update: keep the old copy until the new one is in place. Open panels
+            // run from per-workspace copies, so they are unaffected.
+            let backup = installed.join(format!("{id}.old-{}", Uuid::new_v4()));
+            fs::rename(&target, &backup)?;
+            if let Err(error) = fs::rename(&extracted, &target) {
+                let _ = fs::rename(&backup, &target);
+                return Err(error.into());
+            }
+            let _ = fs::remove_dir_all(backup);
+        } else {
+            fs::rename(extracted, target)?;
         }
-        fs::rename(extracted, target)?;
         progress(
             app,
             id,

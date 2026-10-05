@@ -257,9 +257,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
           e.preventDefault();
           const path = useAppStore.getState().activeFilePath;
           if (path) {
+            const file = useAppStore.getState().openFiles.find((entry) => entry.path === path);
+            if (file?.isDirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
             closeFileTab(path);
           }
-        } else if (e.key === 'p') {
+        } else if (e.key === 'p' && !e.shiftKey) {
           e.preventDefault();
           setShowQuickOpen(true);
         }
