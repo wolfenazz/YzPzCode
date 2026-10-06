@@ -4,6 +4,7 @@ mod browser;
 mod commands;
 mod discord_presence;
 mod extension_host;
+mod external_links;
 mod filesystem;
 mod ide;
 mod open_files;
@@ -138,22 +139,32 @@ pub fn run() {
             managed_command_manager.set_app_handle(app.handle().clone());
             browser_manager.set_app_handle(app.handle().clone());
 
-            // On some Windows/WebView2 installations the configured window can
-            // fail to materialize, leaving yzpzcode.exe alive with no top-level
-            // window. Restore that window explicitly so a failed automatic
-            // creation never looks like the app flashed and exited.
-            let main_window = match app.get_webview_window("main") {
-                Some(window) => window,
+            // The main window is declared with `"create": false` and built here
+            // so it can carry the link guards: any link clicked in the UI opens
+            // in the system browser instead of replacing the app. Building it
+            // explicitly also covers Windows/WebView2 installations where the
+            // automatically created window failed to materialize.
+            let main_window_builder = match app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|config| config.label == "main")
+            {
+                Some(config) => WebviewWindowBuilder::from_config(app, config)?,
                 None => {
-                    eprintln!("Main window was not created from config; creating it explicitly");
                     WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                         .title("YzPzCode")
                         .inner_size(1200.0, 800.0)
                         .min_inner_size(1020.0, 810.0)
                         .decorations(false)
-                        .build()?
+                        .disable_drag_drop_handler()
                 }
             };
+            let main_window = main_window_builder
+                .on_navigation(external_links::navigation_handler(app.handle().clone()))
+                .on_new_window(external_links::new_window_handler(app.handle().clone()))
+                .build()?;
             if let Err(error) = main_window.show() {
                 eprintln!("Warning: failed to show main window: {error}");
             }
