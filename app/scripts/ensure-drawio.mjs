@@ -13,14 +13,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const INDEX = join(ROOT, 'public', 'drawio', 'index.html');
+const DRAWIO = join(ROOT, 'public', 'drawio');
+// The editor links `mxgraph/css/common.css` at runtime; without it every popup
+// menu loses `position: absolute` and renders below the editor. Older fetches
+// stripped the whole `mxgraph/` folder, so treat a missing stylesheet as stale.
+const REQUIRED = [join(DRAWIO, 'index.html'), join(DRAWIO, 'mxgraph', 'css', 'common.css')];
 
-if (existsSync(INDEX)) {
+if (REQUIRED.every((file) => existsSync(file))) {
   console.log('draw.io webapp already present.');
   process.exit(0);
 }
 
-console.log('draw.io webapp not found — fetching it now (requires internet)...');
+console.log('draw.io webapp missing or incomplete — fetching it now (requires internet)...');
 const result = spawnSync(process.execPath, [join(ROOT, 'scripts', 'fetch-drawio.mjs')], {
   stdio: 'inherit',
 });

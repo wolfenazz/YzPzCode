@@ -8,7 +8,7 @@
  * Run manually with: npm run fetch:drawio
  */
 import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,9 +18,20 @@ const WAR_URL = `https://github.com/jgraph/drawio/releases/download/v${VERSION}/
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TMP_DIR = join(ROOT, '.tmp-drawio');
 const WAR_PATH = join(TMP_DIR, 'draw.war');
+const STAGE_DIR = join(TMP_DIR, 'webapp');
 const OUT_DIR = join(ROOT, 'public', 'drawio');
-// Server/debug-only folders that are not needed by the static editor.
-const EXCLUDE = ['WEB-INF', 'META-INF', 'mxgraph', 'connect'];
+// Server/debug-only folders that are not needed by the static editor. Keep the
+// rest of `mxgraph/`: the editor loads `mxgraph/css/common.css` (popup menu and
+// window positioning) and images from `mxgraph/images` at runtime.
+const EXCLUDE = ['WEB-INF', 'META-INF', join('mxgraph', 'src'), 'connect'];
+
+// On Windows, Git Bash's GNU tar can shadow the system bsdtar on PATH and reads
+// `C:\...` as a remote host, so call the bundled Windows tar directly.
+function tarCommand() {
+  if (process.platform !== 'win32') return 'tar';
+  const systemTar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+  return existsSync(systemTar) ? systemTar : 'tar';
+}
 
 function download() {
   console.log(`Downloading draw.io ${VERSION} webapp...`);
@@ -37,15 +48,18 @@ async function main() {
   }
 
   console.log('Extracting webapp to public/drawio ...');
-  rmSync(OUT_DIR, { recursive: true, force: true });
-  mkdirSync(OUT_DIR, { recursive: true });
+  // Extract into a staging folder so a failed extraction keeps the old copy.
+  rmSync(STAGE_DIR, { recursive: true, force: true });
+  mkdirSync(STAGE_DIR, { recursive: true });
 
-  execSync(`tar -xf "${WAR_PATH}" -C "${OUT_DIR}"`, { stdio: 'inherit' });
+  execSync(`"${tarCommand()}" -xf "${WAR_PATH}" -C "${STAGE_DIR}"`, { stdio: 'inherit' });
 
   for (const dir of EXCLUDE) {
-    rmSync(join(OUT_DIR, dir), { recursive: true, force: true });
+    rmSync(join(STAGE_DIR, dir), { recursive: true, force: true });
   }
 
+  rmSync(OUT_DIR, { recursive: true, force: true });
+  renameSync(STAGE_DIR, OUT_DIR);
   rmSync(TMP_DIR, { recursive: true, force: true });
   const sizeMb = (() => {
     let total = 0;
