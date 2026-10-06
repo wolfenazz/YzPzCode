@@ -709,23 +709,15 @@
   box-shadow: 0 0 0 1px var(--border-primary), 0 24px 60px rgb(0 0 0 / 0.28);
 }
 
-.bx-device__frame--phone {
-  border-radius: 2.25rem;
-}
-
-.bx-device__frame--tablet {
-  border-radius: 1.5rem;
-}
-
+/* Corner radius comes from getViewportMetrics: it must clear the square
+   native webview, which cannot be clipped to a rounded screen. */
 .bx-device__frame--desktop {
-  border-radius: 0.375rem;
   background: var(--border-primary);
 }
 
 .bx-device__screen {
   position: absolute;
   overflow: hidden;
-  border-radius: 0.25rem;
   background: var(--bg-secondary);
 }
 

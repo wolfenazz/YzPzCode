@@ -59,7 +59,18 @@ export type DeviceFrameKind = 'responsive' | 'desktop' | 'tablet' | 'phone';
 /** Space reserved around an emulated device: stage padding + caption row. */
 const STAGE_PADDING = 24;
 const CAPTION_HEIGHT = 30;
-const BEZEL: Record<DeviceFrameKind, number> = { responsive: 0, desktop: 1, tablet: 10, phone: 9 };
+/**
+ * The native webview is a plain rectangle drawn above the DOM and cannot be
+ * clipped, so the frame's rounded corner must stay outside the screen's
+ * square corner: (radius - bezel) * √2 <= radius, i.e. radius <= bezel * 3.41.
+ * The radii below keep a few pixels of bezel visible across every corner.
+ */
+const FRAME: Record<DeviceFrameKind, { bezel: number; radius: number }> = {
+  responsive: { bezel: 0, radius: 0 },
+  desktop: { bezel: 1, radius: 2 },
+  tablet: { bezel: 12, radius: 20 },
+  phone: { bezel: 12, radius: 26 },
+};
 
 export interface ViewportMetrics {
   kind: DeviceFrameKind;
@@ -74,6 +85,8 @@ export interface ViewportMetrics {
   /** True when a device preset was scaled down to fit the pane. */
   fitted: boolean;
   bezel: number;
+  /** Outer corner radius of the device frame. */
+  radius: number;
 }
 
 /**
@@ -102,6 +115,7 @@ export const getViewportMetrics = (
       webviewZoom: zoom,
       fitted: false,
       bezel: 0,
+      radius: 0,
     };
   }
 
@@ -110,7 +124,7 @@ export const getViewportMetrics = (
     : device.category === 'tablet'
       ? 'tablet'
       : 'desktop';
-  const bezel = BEZEL[kind];
+  const { bezel, radius } = FRAME[kind];
   const base = device.category === 'custom'
     ? customViewport
     : { width: device.width ?? 1024, height: device.height ?? 768 };
@@ -132,6 +146,7 @@ export const getViewportMetrics = (
     webviewZoom: scale,
     fitted: zoom > fit + 0.005,
     bezel,
+    radius,
   };
 };
 

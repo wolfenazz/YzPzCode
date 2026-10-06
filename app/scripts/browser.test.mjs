@@ -83,6 +83,18 @@ test('device presets lay the page out at the real device width', () => {
   assert.equal(customMetrics.cssHeight, 700);
 });
 
+test('device frame corners never cut into the square native webview', () => {
+  const { getViewportMetrics, findDevice } = model;
+  const custom = { width: 1024, height: 768 };
+  for (const id of ['laptop', 'ipad', 'iphone-15-pro', 'pixel-8', 'custom']) {
+    const metrics = getViewportMetrics(1600, 1200, findDevice(id), 'portrait', 1, custom);
+    // The screen corner sits at (bezel, bezel) from the frame corner; it must
+    // fall inside the frame's corner arc with some bezel still showing there.
+    const inset = metrics.radius - (metrics.radius - metrics.bezel) * Math.SQRT2;
+    assert.ok(inset >= Math.min(2, metrics.bezel / 2), `${id}: radius ${metrics.radius} too large for bezel ${metrics.bezel}`);
+  }
+});
+
 test('responsive mode fills the pane and zoom changes the CSS width', () => {
   const { getViewportMetrics, findDevice } = model;
   const metrics = getViewportMetrics(1000, 700, findDevice('responsive'), 'portrait', 1.25, { width: 1, height: 1 });

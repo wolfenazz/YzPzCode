@@ -1308,6 +1308,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                         width: metrics.viewportWidth,
                         height: metrics.viewportHeight,
                         padding: metrics.bezel,
+                        borderRadius: metrics.radius,
                       }}
                     >
                       <div
