@@ -6,48 +6,68 @@ The browser runs inside your workspace. Open it with the **Browser** view button
 
 ### Browsing
 
-- **URL bar**: Type any URL and press Enter
-- **Multi-tab**: Open, switch, and close multiple browser tabs
-- **Back / Forward**: Standard navigation history
-- **Localhost menu**: The URL bar doubles as a dev-server picker that probes common ports (5173, 3000, 8080, and more) across all your terminals, so you can jump straight to a running dev server
-- **Open externally**: Send the current URL to your system browser
-- **Pop-out / Dock**: Open the browser in a separate app window, or dock it back into the workspace
+- **Start page**: New tabs open a start page that lists the local dev servers it detects (live ones first, rescanned every few seconds), with a search box and a shortcut reference. No page loads until you pick one.
+- **Address bar**: Type a URL, a search, or just a port: \`5173\` opens \`http://localhost:5173\`, \`example.com\` opens over HTTPS, and anything else becomes a web search. A badge shows whether the page is secure, local, or not secure. Press \`Esc\` to undo your edit.
+- **Tabs**: Tabs show each page's favicon and title. Middle-click closes a tab. Links that open a new window (\`target="_blank"\`) open as a new tab. Open tabs are restored the next time you launch the app.
+- **Back / Forward / Stop**: The arrows grey out when there's no history in that direction. While a page loads, Reload becomes Stop.
+- **Localhost menu**: Lists running and stopped dev servers found in any terminal, including ones started outside the app.
+- **More actions** (⋮): Open in system browser, open in a separate window or dock it back, export a page snapshot, and turn auto-reload on or off.
+- **Auto-reload**: Localhost pages reload when workspace files change. Turn it off from the status bar or the ⋮ menu if your dev server already hot-reloads.
 
-### Preview Controls
+### Viewport and Devices
 
-The bottom workbench bar holds the responsive preview controls:
+The viewport menu on the right of the toolbar emulates real device widths. The page lays out at the device's actual CSS size (for example 393 px for iPhone 15 Pro), scaled down to fit the pane when needed.
 
-- **Device presets**: Responsive, iPhone 14 Pro (393×852), iPad (820×1180)
-- **Rotate orientation**: Switch between portrait and landscape (disabled for Responsive)
-- **Zoom**: 50% to 200% with reset
-- **Status metrics**: Viewport size, page load duration, history count, page title, and current URL
+- **Desktop**: Laptop 1280×800, Desktop 1440×900, Full HD 1920×1080
+- **Tablet**: iPad Mini, iPad Air, iPad Pro 12.9"
+- **Mobile**: iPhone SE, iPhone 15 Pro, iPhone 15 Pro Max, Pixel 8, Galaxy S24
+- **Custom**: Any width × height from 240 to 3840
+- **Rotate** and **Zoom** (25% to 200%) live in the same menu
+
+The status bar shows the page's viewport in CSS pixels, the zoom, and the last load time.
+
+### Keyboard Shortcuts
+
+These work while the browser view is open, including when the page itself has focus.
+
+| Action | Shortcut |
+| --- | --- |
+| Focus address bar | \`Ctrl+L\` |
+| New tab / close tab | \`Ctrl+T\` / \`Ctrl+W\` |
+| Next / previous tab | \`Ctrl+PgDn\` / \`Ctrl+PgUp\` |
+| Reload | \`Ctrl+R\` or \`F5\` |
+| Back / forward | \`Alt+←\` / \`Alt+→\` |
+| Zoom in / out / reset | \`Ctrl+=\` / \`Ctrl+-\` / \`Ctrl+0\` |
+| Inspect element | \`Ctrl+Shift+C\` |
+| Cancel the active tool | \`Esc\` |
 
 ### Snapshots
 
-**Export snapshot** saves a full HTML capture of the current page into your workspace, useful as a design reference for agents.
+**Export snapshot** saves a full HTML capture of the current page (plus a JSON file with the URL, device and viewport) to \`.yzpzcode/browser-exports\` in your workspace.
+
+### Security
+
+Web pages open in the browser can only report inspector results back to the app. They can't call any other app command, such as file access or terminal input.
 
 ## Visual Design Inspector
 
-The browser includes four design-inspection modes, available from the browser toolbar.
+The design tools sit in the middle of the browser toolbar. While a tool is active, the status bar shows what to do next and how to cancel it.
 
-### Inspect Mode
+### Inspect
 
-Hover over any element to see its HTML, classes, ID, and CSS selectors. Click the Inspect button to toggle it, or press \`Escape\` to exit.
+Hover over any element to highlight it, then click to open the element inspector: HTML, classes, selectors, attributes and editable styles. Describe a change and send it to an agent terminal with the element's full context.
 
-### Pick Style Mode
+### Pick Style
 
-Click an element to capture its computed CSS styles (including \`::before\` and \`::after\` pseudo-elements). Captures are saved to the **Style clipboard**, shown in a sidebar with a count badge.
+Click an element to capture its computed CSS (including \`::before\` and \`::after\`). Captures go to the **Style clipboard** panel, which previews each style with its colours.
 
-### Copy UI Mode
+### Copy UI
 
-**Copy a UI element from any page and rebuild it in your local project.** Clicking an element captures a full reference: structure tree, layout grid, spacing, typography, colors, shadows, and assets. The capture feeds a rich prompt, which you can:
+**Capture a UI component from any page and rebuild it in your own project.** A capture records the structure tree, layout, spacing, typography, colours, shadows and assets. In the **UI references** panel, choose **Add new** or **Replace** (pick the element to replace on your page), write a brief, and send it to an agent.
 
-- Send to any terminal session running an agent
-- Use in **replace** mode or **insert** mode, depending on whether you are replacing an element in your project or adding a new one
+### Apply Style
 
-### Apply Mode
+Click **Apply** on a captured style, then click an element on the page. Hovering previews the result. Afterwards the status bar offers **Undo**, **Keep** and **Copy CSS**.
 
-Apply captured styles from the Style clipboard to target elements in the page. Hover previews the result before you click, and the undo button reverts applications. Generated CSS classes are injected into the page.
-
-> **Tip:** A common workflow: capture a reference component with Copy UI, send it to an agent session with a prompt describing how to adapt it, then preview the result in the browser's device presets.
+> **Tip:** A common workflow: capture a reference component with Copy UI, send it to an agent with a brief, then check the result at several device sizes from the viewport menu.
 `;

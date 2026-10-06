@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-git-log"
+description = "Enables the git_log command without any pre-configured scope."
+commands.allow = ["git_log"]
+
+[[permission]]
+identifier = "deny-git-log"
+description = "Denies the git_log command without any pre-configured scope."
+commands.deny = ["git_log"]

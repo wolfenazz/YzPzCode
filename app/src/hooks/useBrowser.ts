@@ -39,6 +39,14 @@ export const useBrowser = () => {
     });
   }, []);
 
+  const stopBrowserView = useCallback(async (workspaceId: string) => {
+    await invoke('stop_browser_view', {
+      request: {
+        workspaceId,
+      },
+    });
+  }, []);
+
   const setBrowserViewVisibility = useCallback(async (workspaceId: string, visible: boolean) => {
     await invoke('set_browser_view_visibility', {
       workspaceId,
@@ -179,6 +187,7 @@ export const useBrowser = () => {
     resizeBrowserView,
     navigateBrowserView,
     reloadBrowserView,
+    stopBrowserView,
     setBrowserViewVisibility,
     closeBrowserView,
     popOutBrowserView,

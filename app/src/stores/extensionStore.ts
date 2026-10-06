@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ExtensionInfo, ExtensionInstallProgress, WorkspaceExtensionPanel } from '../types';
+import type { AgentActivityState } from '../utils/agentDoneNotifier';
 import supportedExtensions from '../data/extensions.json';
 
 interface ExtensionStore {
@@ -14,6 +15,9 @@ interface ExtensionStore {
   panelsByWorkspace: Record<string, WorkspaceExtensionPanel[]>;
   paneOrderByWorkspace: Record<string, string[]>;
   latestVersions: Record<string, string>;
+  /** Whether each panel's assistant is working or just finished (not persisted). */
+  activityByPanel: Record<string, AgentActivityState>;
+  setPanelActivity: (panelId: string, activity: AgentActivityState) => void;
   refreshCatalog: () => Promise<void>;
   checkUpdates: () => Promise<void>;
   install: (extensionId: string) => Promise<void>;
@@ -61,7 +65,8 @@ export const useExtensionStore = create<ExtensionStore>()(
     (set, get) => ({
       catalog: supportedExtensions.map((extension) => ({ ...extension, installedVersion: null, registryUrl: `https://open-vsx.org/extension/${extension.id.replace('.', '/')}` })),
       loading: false, backendReady: false, error: null, installing: [], progress: {}, latestVersions: {},
-      panelsByWorkspace: {}, paneOrderByWorkspace: {},
+      panelsByWorkspace: {}, paneOrderByWorkspace: {}, activityByPanel: {},
+      setPanelActivity: (panelId, activity) => set((state) => ({ activityByPanel: { ...state.activityByPanel, [panelId]: activity } })),
       refreshCatalog: async () => {
         set({ loading: true, error: null });
         try {
@@ -122,6 +127,7 @@ export const useExtensionStore = create<ExtensionStore>()(
         set((state) => ({
           panelsByWorkspace: Object.fromEntries(Object.entries(state.panelsByWorkspace).map(([id, panels]) => [id, panels.filter((panel) => panel.id !== panelId)])),
           paneOrderByWorkspace: Object.fromEntries(Object.entries(state.paneOrderByWorkspace).map(([id, order]) => [id, order.filter((id) => id !== panelId)])),
+          activityByPanel: Object.fromEntries(Object.entries(state.activityByPanel).filter(([id]) => id !== panelId)),
         }));
       },
       closeWorkspace: async (workspaceId) => {

@@ -97,6 +97,28 @@ pub async fn reload_browser_view(
 }
 
 #[tauri::command]
+pub async fn stop_browser_view(
+    manager: State<'_, BrowserManager>,
+    request: BrowserWorkspaceRequest,
+) -> Result<(), String> {
+    manager
+        .stop(&request.workspace_id)
+        .map_err(|e| e.to_string())
+}
+
+/// Called by the page bridge for browser shortcuts pressed inside the page.
+#[tauri::command]
+pub async fn browser_shortcut(
+    webview: Webview,
+    manager: State<'_, BrowserManager>,
+    action: String,
+) -> Result<(), String> {
+    manager
+        .handle_shortcut(webview.label(), &action)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn set_browser_view_visibility(
     manager: State<'_, BrowserManager>,
     workspace_id: String,

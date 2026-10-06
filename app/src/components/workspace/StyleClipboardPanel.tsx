@@ -1,5 +1,5 @@
 import React from 'react';
-import { Palette } from '@phosphor-icons/react';
+import { EyedropperSample } from '@phosphor-icons/react';
 import type { CapturedStyle } from '../../types';
 import { StylePreviewCard } from './StylePreviewCard';
 
@@ -9,6 +9,7 @@ interface StyleClipboardPanelProps {
   onRemove: (styleId: string) => void;
   onApply: (style: CapturedStyle) => void;
   onCopyCss: (style: CapturedStyle) => void;
+  onStartPicking: () => void;
 }
 
 export const StyleClipboardPanel: React.FC<StyleClipboardPanelProps> = ({
@@ -17,23 +18,25 @@ export const StyleClipboardPanel: React.FC<StyleClipboardPanelProps> = ({
   onRemove,
   onApply,
   onCopyCss,
+  onStartPicking,
 }) => {
   if (styles.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 px-4 text-center">
-        <Palette size={32} className="text-[var(--accent)]/30 mb-3" aria-hidden="true" />
-        <p className="text-[11px] font-medium text-[var(--accent)]/60 leading-5">
-          no styles captured yet
-        </p>
-        <p className="mt-1 text-[10px] text-[var(--accent)]/40 leading-4">
-          toggle pick style mode and select an element
-        </p>
+      <div className="bx-empty">
+        <span className="bx-empty__icon"><EyedropperSample size={18} aria-hidden="true" /></span>
+        <span className="bx-empty__title">No styles yet</span>
+        <span className="bx-empty__text">
+          Pick an element on any page to copy its look, then apply it to an element on your local site.
+        </span>
+        <button type="button" className="bx-btn bx-btn--outline" onClick={onStartPicking}>
+          <EyedropperSample size={13} aria-hidden="true" /> Pick a style
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2 p-2 overflow-y-auto">
+    <div className="bx-panel__stack">
       {styles.map((style) => (
         <StylePreviewCard
           key={style.id}

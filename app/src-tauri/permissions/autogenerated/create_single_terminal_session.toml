@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-create-single-terminal-session"
+description = "Enables the create_single_terminal_session command without any pre-configured scope."
+commands.allow = ["create_single_terminal_session"]
+
+[[permission]]
+identifier = "deny-create-single-terminal-session"
+description = "Denies the create_single_terminal_session command without any pre-configured scope."
+commands.deny = ["create_single_terminal_session"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-undo-browser-style"
+description = "Enables the undo_browser_style command without any pre-configured scope."
+commands.allow = ["undo_browser_style"]
+
+[[permission]]
+identifier = "deny-undo-browser-style"
+description = "Denies the undo_browser_style command without any pre-configured scope."
+commands.deny = ["undo_browser_style"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-dock-browser-view"
+description = "Enables the dock_browser_view command without any pre-configured scope."
+commands.allow = ["dock_browser_view"]
+
+[[permission]]
+identifier = "deny-dock-browser-view"
+description = "Denies the dock_browser_view command without any pre-configured scope."
+commands.deny = ["dock_browser_view"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-project-run-targets"
+description = "Enables the get_project_run_targets command without any pre-configured scope."
+commands.allow = ["get_project_run_targets"]
+
+[[permission]]
+identifier = "deny-get-project-run-targets"
+description = "Denies the get_project_run_targets command without any pre-configured scope."
+commands.deny = ["get_project_run_targets"]

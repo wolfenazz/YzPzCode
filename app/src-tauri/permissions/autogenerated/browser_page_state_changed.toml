@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-page-state-changed"
+description = "Enables the browser_page_state_changed command without any pre-configured scope."
+commands.allow = ["browser_page_state_changed"]
+
+[[permission]]
+identifier = "deny-browser-page-state-changed"
+description = "Denies the browser_page_state_changed command without any pre-configured scope."
+commands.deny = ["browser_page_state_changed"]

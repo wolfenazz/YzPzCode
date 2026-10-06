@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-kill-session"
+description = "Enables the kill_session command without any pre-configured scope."
+commands.allow = ["kill_session"]
+
+[[permission]]
+identifier = "deny-kill-session"
+description = "Denies the kill_session command without any pre-configured scope."
+commands.deny = ["kill_session"]

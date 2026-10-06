@@ -108,6 +108,8 @@ interface TerminalHeaderProps {
   isRefreshing: boolean;
   onClose?: () => void;
   cliStatusBadge: ReactNode;
+  /** Shown in place of the status badge while an agent works or just finished. */
+  activityChip?: ReactNode;
   dragListeners?: Record<string, unknown>;
   mouseTrackingEnabled?: boolean;
   onToggleMouseTracking?: () => void;
@@ -155,6 +157,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
   isRefreshing,
   onClose,
   cliStatusBadge,
+  activityChip,
   dragListeners,
   mouseTrackingEnabled = false,
   onToggleMouseTracking,
@@ -204,7 +207,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
           <span>{terminalDirectoryLabel(currentCwd)}</span>
         </span>
 
-        {effectiveAgent && cliStatusBadge}
+        {effectiveAgent && (activityChip ?? cliStatusBadge)}
       </div>
 
       <div className="term-header__actions">

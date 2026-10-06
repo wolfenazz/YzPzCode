@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stop-managed-terminal-command"
+description = "Enables the stop_managed_terminal_command command without any pre-configured scope."
+commands.allow = ["stop_managed_terminal_command"]
+
+[[permission]]
+identifier = "deny-stop-managed-terminal-command"
+description = "Denies the stop_managed_terminal_command command without any pre-configured scope."
+commands.deny = ["stop_managed_terminal_command"]

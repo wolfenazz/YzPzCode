@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stop-cli-in-terminal"
+description = "Enables the stop_cli_in_terminal command without any pre-configured scope."
+commands.allow = ["stop_cli_in_terminal"]
+
+[[permission]]
+identifier = "deny-stop-cli-in-terminal"
+description = "Denies the stop_cli_in_terminal command without any pre-configured scope."
+commands.deny = ["stop_cli_in_terminal"]

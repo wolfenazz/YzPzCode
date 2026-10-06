@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-git-stage-file"
+description = "Enables the git_stage_file command without any pre-configured scope."
+commands.allow = ["git_stage_file"]
+
+[[permission]]
+identifier = "deny-git-stage-file"
+description = "Denies the git_stage_file command without any pre-configured scope."
+commands.deny = ["git_stage_file"]

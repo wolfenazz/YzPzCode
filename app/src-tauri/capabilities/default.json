@@ -1,9 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": ["main", "browser-popout-*"],
+  "description": "Capability for the app's own UI (local origin only)",
+  "windows": [
+    "main"
+  ],
   "permissions": [
+    "app-commands",
     "core:default",
     "core:event:default",
     "core:event:allow-emit",

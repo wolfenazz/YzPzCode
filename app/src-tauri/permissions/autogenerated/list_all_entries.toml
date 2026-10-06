@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-all-entries"
+description = "Enables the list_all_entries command without any pre-configured scope."
+commands.allow = ["list_all_entries"]
+
+[[permission]]
+identifier = "deny-list-all-entries"
+description = "Denies the list_all_entries command without any pre-configured scope."
+commands.deny = ["list_all_entries"]

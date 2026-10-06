@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-supported-extensions"
+description = "Enables the list_supported_extensions command without any pre-configured scope."
+commands.allow = ["list_supported_extensions"]
+
+[[permission]]
+identifier = "deny-list-supported-extensions"
+description = "Denies the list_supported_extensions command without any pre-configured scope."
+commands.deny = ["list_supported_extensions"]

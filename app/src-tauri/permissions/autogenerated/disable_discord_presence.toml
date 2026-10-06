@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-disable-discord-presence"
+description = "Enables the disable_discord_presence command without any pre-configured scope."
+commands.allow = ["disable_discord_presence"]
+
+[[permission]]
+identifier = "deny-disable-discord-presence"
+description = "Denies the disable_discord_presence command without any pre-configured scope."
+commands.deny = ["disable_discord_presence"]

@@ -1,7 +1,7 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.18.1",
+  "version": "5.19.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",
@@ -11,9 +11,11 @@
     "test:workspace-setup": "node --test scripts/workspace-setup.test.mjs scripts/test-terminal-session-creation.mjs",
     "test:workspace-background": "node --test scripts/workspace-background.test.mjs scripts/light-rays-lifecycle.test.mjs scripts/setup-background.test.mjs scripts/galaxy-lifecycle.test.mjs",
     "test:custom-theme": "node --test scripts/custom-theme.test.mjs",
+    "test:agent-activity": "node --test scripts/agent-activity.test.mjs",
     "test:context-menu": "node --test scripts/context-menu.test.mjs",
     "test:file-sync": "node --test scripts/test-file-sync.mjs",
     "test:editor": "node --test scripts/test-editor-workbench.mjs",
+    "test:browser": "node --test scripts/browser.test.mjs",
     "preview": "vite preview",
     "fetch:drawio": "node scripts/fetch-drawio.mjs",
     "postinstall": "node scripts/ensure-drawio.mjs",

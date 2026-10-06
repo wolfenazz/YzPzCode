@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-os-version"
+description = "Enables the get_os_version command without any pre-configured scope."
+commands.allow = ["get_os_version"]
+
+[[permission]]
+identifier = "deny-get-os-version"
+description = "Denies the get_os_version command without any pre-configured scope."
+commands.deny = ["get_os_version"]

@@ -12,6 +12,7 @@ import {
   PuzzlePiece,
   Scroll,
   SlidersHorizontal,
+  Sparkle,
   SpeakerHigh,
   TextAa,
   TextAlignLeft,
@@ -159,6 +160,8 @@ export const SettingsTerminal: React.FC = () => {
     setTerminalBellEnabled,
     agentDoneSoundEnabled,
     setAgentDoneSoundEnabled,
+    agentActivityGlowEnabled,
+    setAgentActivityGlowEnabled,
     extensionDoneSoundEnabled,
     setExtensionDoneSoundEnabled,
     notificationSoundVolume,
@@ -465,6 +468,13 @@ export const SettingsTerminal: React.FC = () => {
               icon={<Bell size={16} aria-hidden="true" />}
               label="Bell notifications"
               onChange={setTerminalBellEnabled}
+            />
+            <ToggleRow
+              checked={agentActivityGlowEnabled}
+              description="Light up a terminal's border and header while an AI agent works in it, and mark it when the agent finishes."
+              icon={<Sparkle size={16} aria-hidden="true" />}
+              label="Agent activity glow"
+              onChange={setAgentActivityGlowEnabled}
             />
           </SettingsGroup>
 

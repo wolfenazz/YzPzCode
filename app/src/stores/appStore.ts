@@ -8,6 +8,7 @@ import { MAX_CUSTOM_THEMES, sanitizeCustomTheme, sanitizeCustomThemes } from '..
 import { DEFAULT_LIGHT_RAYS, migrateWorkspaceBackground, normalizeLightRays } from '../utils/workspaceBackground';
 import { DEFAULT_SETUP_GALAXY, migrateSetupBackground, normalizeSetupBackground, normalizeSetupGalaxy } from '../utils/setupBackground';
 import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
+import { BROWSER_NEW_TAB_URL } from '../utils/browserUrl';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
@@ -63,9 +64,19 @@ const getPlatformDefaultTerminalFont = (): string => {
   return 'DejaVu Sans Mono';
 };
 
+const MAX_PERSISTED_BROWSER_TABS = 20;
+
+/** New tabs open on the built-in start page (detected dev servers, search). */
+const createNewBrowserTab = (id = `tab-${Date.now()}`): BrowserTab => ({
+  id,
+  url: BROWSER_NEW_TAB_URL,
+  title: 'New Tab',
+  favicon: null,
+});
+
 const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
-  currentUrl: DEFAULT_BROWSER_URL,
-  draftUrl: DEFAULT_BROWSER_URL,
+  currentUrl: BROWSER_NEW_TAB_URL,
+  draftUrl: BROWSER_NEW_TAB_URL,
   isLoading: false,
   inspectMode: false,
   pickStyleMode: false,
@@ -74,6 +85,8 @@ const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
   zoomFactor: 1,
   deviceId: 'responsive',
   deviceOrientation: 'portrait',
+  customViewport: { width: 1024, height: 768 },
+  autoReload: true,
   selectedElement: null,
   prompt: '',
   instructionSlots: [''],
@@ -81,7 +94,7 @@ const createDefaultBrowserWorkspaceState = (): BrowserWorkspaceState => ({
   uiReferencePrompt: '',
   uiReferenceMode: 'insert',
   targetSessionId: null,
-  browserTabs: [{ id: 'default', url: DEFAULT_BROWSER_URL, title: 'Google' }],
+  browserTabs: [createNewBrowserTab('default')],
   activeTabId: 'default',
   styleClipboard: [],
   uiReferenceClipboard: [],
@@ -222,6 +235,8 @@ interface AppState {
   terminalPasteOnRightClick: boolean;
   terminalBellEnabled: boolean;
   agentDoneSoundEnabled: boolean;
+  /** Rainbow glow while an agent works, plus a finish effect when it is done. */
+  agentActivityGlowEnabled: boolean;
   extensionDoneSoundEnabled: boolean;
   notificationSoundVolume: number;
   terminalOpacity: number;
@@ -306,6 +321,7 @@ interface AppState {
   setTerminalPasteOnRightClick: (enabled: boolean) => void;
   setTerminalBellEnabled: (enabled: boolean) => void;
   setAgentDoneSoundEnabled: (enabled: boolean) => void;
+  setAgentActivityGlowEnabled: (enabled: boolean) => void;
   setExtensionDoneSoundEnabled: (enabled: boolean) => void;
   setNotificationSoundVolume: (volume: number) => void;
   setTerminalOpacity: (opacity: number) => void;
@@ -409,6 +425,10 @@ interface AppState {
   setActiveBrowserInstructionSlot: (workspaceId: string, index: number) => void;
   setBrowserTargetSession: (workspaceId: string, sessionId: string | null) => void;
   clearBrowserSelection: (workspaceId: string) => void;
+  /** Turns off inspect / pick / apply modes (e.g. after Escape in the page). */
+  clearBrowserModes: (workspaceId: string) => void;
+  setBrowserCustomViewport: (workspaceId: string, size: { width: number; height: number }) => void;
+  setBrowserAutoReload: (workspaceId: string, enabled: boolean) => void;
   addBrowserTab: (workspaceId: string, tab: BrowserTab) => void;
   openBrowserTab: (workspaceId: string, url: string, title?: string) => void;
   removeBrowserTab: (workspaceId: string, tabId: string) => void;
@@ -546,6 +566,7 @@ export const useAppStore = create<AppState>()(
       terminalPasteOnRightClick: false,
       terminalBellEnabled: true,
       agentDoneSoundEnabled: true,
+      agentActivityGlowEnabled: true,
       extensionDoneSoundEnabled: true,
       notificationSoundVolume: 70,
       terminalOpacity: 100,
@@ -819,6 +840,7 @@ export const useAppStore = create<AppState>()(
       setTerminalPasteOnRightClick: (enabled) => set({ terminalPasteOnRightClick: enabled }),
       setTerminalBellEnabled: (enabled) => set({ terminalBellEnabled: enabled }),
       setAgentDoneSoundEnabled: (enabled) => set({ agentDoneSoundEnabled: enabled }),
+      setAgentActivityGlowEnabled: (enabled) => set({ agentActivityGlowEnabled: enabled }),
       setExtensionDoneSoundEnabled: (enabled) => set({ extensionDoneSoundEnabled: enabled }),
       setNotificationSoundVolume: (volume) => set({ notificationSoundVolume: volume }),
       setTerminalOpacity: (opacity) => set({ terminalOpacity: opacity }),
@@ -1274,6 +1296,45 @@ export const useAppStore = create<AppState>()(
           },
         })),
 
+      clearBrowserModes: (workspaceId) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              inspectMode: false,
+              pickStyleMode: false,
+              pickUiElementMode: false,
+              applyMode: false,
+            },
+          },
+        })),
+
+      setBrowserCustomViewport: (workspaceId, size) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              customViewport: {
+                width: Math.min(3840, Math.max(240, Math.round(size.width))),
+                height: Math.min(3840, Math.max(240, Math.round(size.height))),
+              },
+            },
+          },
+        })),
+
+      setBrowserAutoReload: (workspaceId, enabled) =>
+        set((state) => ({
+          browserStateByWorkspace: {
+            ...state.browserStateByWorkspace,
+            [workspaceId]: {
+              ...(state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState()),
+              autoReload: enabled,
+            },
+          },
+        })),
+
       setBrowserSelectedElement: (workspaceId, element) =>
         set((state) => ({
           browserStateByWorkspace: {
@@ -1372,6 +1433,19 @@ export const useAppStore = create<AppState>()(
               },
             };
           }
+          // An untouched start page is simply navigated instead of left behind.
+          const activeTab = bs.browserTabs.find((t) => t.id === bs.activeTabId);
+          if (activeTab && activeTab.url === BROWSER_NEW_TAB_URL) {
+            return {
+              browserStateByWorkspace: {
+                ...state.browserStateByWorkspace,
+                [workspaceId]: {
+                  ...bs,
+                  browserTabs: bs.browserTabs.map((t) => (t.id === activeTab.id ? { ...t, url, title, favicon: null } : t)),
+                },
+              },
+            };
+          }
           const tab: BrowserTab = { id: `tab-${Date.now()}`, url, title };
           return {
             browserStateByWorkspace: {
@@ -1384,8 +1458,13 @@ export const useAppStore = create<AppState>()(
       removeBrowserTab: (workspaceId, tabId) =>
         set((state) => {
           const bs = state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState();
-          const tabs = bs.browserTabs.filter((t) => t.id !== tabId);
-          const activeTabId = bs.activeTabId === tabId ? (tabs[0]?.id ?? null) : bs.activeTabId;
+          const closedIndex = bs.browserTabs.findIndex((t) => t.id === tabId);
+          if (closedIndex < 0) return {};
+          let tabs = bs.browserTabs.filter((t) => t.id !== tabId);
+          if (tabs.length === 0) tabs = [createNewBrowserTab()];
+          const activeTabId = bs.activeTabId === tabId
+            ? tabs[Math.min(closedIndex, tabs.length - 1)].id
+            : bs.activeTabId;
           return {
             browserStateByWorkspace: {
               ...state.browserStateByWorkspace,
@@ -1943,6 +2022,7 @@ export const useAppStore = create<AppState>()(
           terminalPasteOnRightClick: state.terminalPasteOnRightClick,
           terminalBellEnabled: state.terminalBellEnabled,
           agentDoneSoundEnabled: state.agentDoneSoundEnabled,
+          agentActivityGlowEnabled: state.agentActivityGlowEnabled,
           extensionDoneSoundEnabled: state.extensionDoneSoundEnabled,
           notificationSoundVolume: state.notificationSoundVolume,
           terminalOpacity: state.terminalOpacity,
@@ -1995,6 +2075,16 @@ export const useAppStore = create<AppState>()(
                   zoomFactor: browserState.zoomFactor,
                   deviceId: browserState.deviceId,
                   deviceOrientation: browserState.deviceOrientation,
+                  customViewport: browserState.customViewport,
+                  autoReload: browserState.autoReload,
+                  // Restore open tabs so the persisted URL isn't replaced by
+                  // a default tab on the next launch.
+                  browserTabs: browserState.browserTabs.slice(0, MAX_PERSISTED_BROWSER_TABS),
+                  activeTabId: browserState.browserTabs
+                    .slice(0, MAX_PERSISTED_BROWSER_TABS)
+                    .some((tab) => tab.id === browserState.activeTabId)
+                    ? browserState.activeTabId
+                    : browserState.browserTabs[0]?.id ?? null,
                 },
               ])
             ),

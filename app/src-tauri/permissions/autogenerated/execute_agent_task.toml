@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-execute-agent-task"
+description = "Enables the execute_agent_task command without any pre-configured scope."
+commands.allow = ["execute_agent_task"]
+
+[[permission]]
+identifier = "deny-execute-agent-task"
+description = "Denies the execute_agent_task command without any pre-configured scope."
+commands.deny = ["execute_agent_task"]

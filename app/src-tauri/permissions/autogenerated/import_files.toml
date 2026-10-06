@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-import-files"
+description = "Enables the import_files command without any pre-configured scope."
+commands.allow = ["import_files"]
+
+[[permission]]
+identifier = "deny-import-files"
+description = "Denies the import_files command without any pre-configured scope."
+commands.deny = ["import_files"]

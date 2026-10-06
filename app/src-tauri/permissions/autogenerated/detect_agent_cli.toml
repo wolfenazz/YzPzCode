@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-detect-agent-cli"
+description = "Enables the detect_agent_cli command without any pre-configured scope."
+commands.allow = ["detect_agent_cli"]
+
+[[permission]]
+identifier = "deny-detect-agent-cli"
+description = "Denies the detect_agent_cli command without any pre-configured scope."
+commands.deny = ["detect_agent_cli"]

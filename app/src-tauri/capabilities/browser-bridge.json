@@ -1,0 +1,27 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "browser-bridge",
+  "description": "Web pages shown in the in-app browser may only report back to the inspector bridge. Everything else is denied for remote origins.",
+  "webviews": [
+    "browser-*"
+  ],
+  "windows": [
+    "browser-popout-*"
+  ],
+  "remote": {
+    "urls": [
+      "http://*:*",
+      "https://*:*"
+    ]
+  },
+  "permissions": [
+    "allow-browser-element-selected",
+    "allow-browser-inspect-cancelled",
+    "allow-browser-page-state-changed",
+    "allow-browser-snapshot-exported",
+    "allow-browser-style-captured",
+    "allow-browser-ui-element-captured",
+    "allow-browser-style-applied",
+    "allow-browser-shortcut"
+  ]
+}

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-git-push"
+description = "Enables the git_push command without any pre-configured scope."
+commands.allow = ["git_push"]
+
+[[permission]]
+identifier = "deny-git-push"
+description = "Denies the git_push command without any pre-configured scope."
+commands.deny = ["git_push"]

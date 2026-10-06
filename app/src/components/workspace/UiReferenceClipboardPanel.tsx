@@ -1,5 +1,5 @@
 import React from 'react';
-import { Crosshair } from '@phosphor-icons/react';
+import { SelectionAll } from '@phosphor-icons/react';
 import type { CapturedUiElementReference } from '../../types';
 import { UiReferenceCard } from './UiReferenceCard';
 
@@ -9,6 +9,7 @@ interface UiReferenceClipboardPanelProps {
   onSelect: (referenceId: string) => void;
   onRemove: (referenceId: string) => void;
   onCopyJson: (reference: CapturedUiElementReference) => void;
+  onStartCapture: () => void;
 }
 
 export const UiReferenceClipboardPanel: React.FC<UiReferenceClipboardPanelProps> = ({
@@ -17,23 +18,25 @@ export const UiReferenceClipboardPanel: React.FC<UiReferenceClipboardPanelProps>
   onSelect,
   onRemove,
   onCopyJson,
+  onStartCapture,
 }) => {
   if (references.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center px-4 py-10 text-center">
-        <Crosshair size={32} className="mb-3 h-8 w-8 text-cyan-300/25" aria-hidden="true" />
-        <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]/60 leading-5">
-          nothing captured yet
-        </p>
-        <p className="mt-1 text-[10px] text-[var(--text-secondary)]/40 leading-4">
-          press copy UI, then click any element on this page to capture it
-        </p>
+      <div className="bx-empty">
+        <span className="bx-empty__icon"><SelectionAll size={18} aria-hidden="true" /></span>
+        <span className="bx-empty__title">No components captured</span>
+        <span className="bx-empty__text">
+          Capture a component from any website, then have an agent rebuild it in your project.
+        </span>
+        <button type="button" className="bx-btn bx-btn--outline" onClick={onStartCapture}>
+          <SelectionAll size={13} aria-hidden="true" /> Capture a component
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-2 p-2">
+    <div className="bx-panel__stack">
       {references.map((reference) => (
         <UiReferenceCard
           key={reference.id}

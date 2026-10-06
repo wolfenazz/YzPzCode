@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stop-browser-view"
+description = "Enables the stop_browser_view command without any pre-configured scope."
+commands.allow = ["stop_browser_view"]
+
+[[permission]]
+identifier = "deny-stop-browser-view"
+description = "Denies the stop_browser_view command without any pre-configured scope."
+commands.deny = ["stop_browser_view"]

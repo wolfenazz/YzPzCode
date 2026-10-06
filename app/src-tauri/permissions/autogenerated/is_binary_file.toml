@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-is-binary-file"
+description = "Enables the is_binary_file command without any pre-configured scope."
+commands.allow = ["is_binary_file"]
+
+[[permission]]
+identifier = "deny-is-binary-file"
+description = "Denies the is_binary_file command without any pre-configured scope."
+commands.deny = ["is_binary_file"]

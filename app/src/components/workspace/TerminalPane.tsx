@@ -21,13 +21,14 @@ import { observeTerminalLayout, refreshTerminalAtlases, registerTerminalRenderer
 import { detectTerminalCwd } from '../../utils/terminalCwd';
 import { buildMouseModeSequence, DEFAULT_MOUSE_TRACKING_MODES, registerTerminalMouseModes } from '../../utils/terminalMouseModes';
 import { ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
-import { AgentActivityTracker, playAgentDoneSound } from '../../utils/agentDoneNotifier';
+import { AgentActivityTracker, playAgentDoneSound, type AgentActivityState } from '../../utils/agentDoneNotifier';
 import { CaretDown, CaretUp, MagnifyingGlass, Warning, X } from '@phosphor-icons/react';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
 import { TerminalHeader, isAgentType } from './TerminalHeader';
 import { CliStatusBadge } from './CliStatusBadge';
+import { AgentActivityAura, AgentActivityChip } from './AgentActivityIndicator';
 import { AuthModal } from './AuthModal';
 import { QuickPromptChips } from '../common/QuickPromptChips';
 
@@ -82,6 +83,9 @@ const LIGHT_TERMINAL_ANSI = {
   brightCyan: '#137a94',
   brightWhite: '#1a1a1a',
 };
+
+/** How long a finished pane keeps its done state once the user can see it. */
+const DONE_HOLD_MS = 6000;
 
 const withOpacity = (color: string, opacityPercent: number): string => {
   const alpha = Math.min(1, Math.max(0, opacityPercent / 100));
@@ -315,10 +319,16 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     pasteOnRightClickRef.current = terminalPasteOnRightClick;
   }, [terminalPasteOnRightClick]);
 
-  // Plays the notification sound when an AI agent in this pane finishes a task.
+  // Tracks whether an AI agent in this pane is working on a task, and plays
+  // the notification sound when it finishes.
   const agentActivityRef = useRef<AgentActivityTracker | null>(null);
+  const [agentActivity, setAgentActivity] = useState<AgentActivityState>({ phase: 'idle' });
+  const agentActivityGlowEnabled = useAppStore((state) => state.agentActivityGlowEnabled);
   useEffect(() => {
-    const tracker = new AgentActivityTracker(() => {
+    setAgentActivity({ phase: 'idle' });
+    const tracker = new AgentActivityTracker((state) => {
+      setAgentActivity(state);
+      if (state.phase !== 'done') return;
       const { agentDoneSoundEnabled, notificationSoundVolume } = useAppStore.getState();
       if (agentDoneSoundEnabled) playAgentDoneSound(notificationSoundVolume);
     });
@@ -328,6 +338,25 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       if (agentActivityRef.current === tracker) agentActivityRef.current = null;
     };
   }, [session.id]);
+
+  // A finished pane stays marked until the user has had it in front of them
+  // for a moment: background panes keep the mark until they are focused.
+  useEffect(() => {
+    if (agentActivity.phase !== 'done' || !isActive) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const startHold = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        setAgentActivity((current) => (current.phase === 'done' ? { phase: 'idle' } : current));
+      }, DONE_HOLD_MS);
+    };
+    if (document.hasFocus()) startHold();
+    window.addEventListener('focus', startHold);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('focus', startHold);
+    };
+  }, [agentActivity.phase, isActive]);
 
   const terminalFontFamily = useAppStore((s) => s.terminalFontFamily);
   const terminalFontStack = useMemo(() => getTerminalFontStack(terminalFontFamily), [terminalFontFamily]);
@@ -908,8 +937,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     xterm.onData((data) => {
       const agent = effectiveAgentRef.current;
       if (agent && isAgentType(agent)) {
-        if (data === '\u001b' || data.includes('\u0003')) agentActivityRef.current?.disarm();
-        else if (/[\r\n]/.test(data)) agentActivityRef.current?.arm();
+        const activity = agentActivityRef.current;
+        if (data === '\u001b' || data.includes('\u0003')) activity?.disarm();
+        // Esc-prefixed Enter (Alt/Shift+Enter) inserts a newline in agent prompts.
+        else if (data.includes('\r') && !data.startsWith('\u001b')) activity?.arm();
+        else activity?.typed(data);
       }
 
       // xterm normally reports Enter as CR, but some shells/keymaps emit LF.
@@ -1319,9 +1351,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     setPendingPasteText('');
   }, []);
 
+  const showAgentActivity = agentActivityGlowEnabled && !!effectiveAgent && isAgentType(effectiveAgent);
+  const activityClass = showAgentActivity && agentActivity.phase !== 'idle' ? ` term-pane--${agentActivity.phase}` : '';
+
   return (
     <div
-      className={`term-pane ${isActive ? 'term-pane--active' : ''}`}
+      className={`term-pane${isActive ? ' term-pane--active' : ''}${activityClass}`}
       style={terminalBackgroundColor ? ({ '--term-surface': terminalBackgroundColor } as React.CSSProperties) : undefined}
       onMouseDown={() => setActiveSession(session.id)}
     >
@@ -1344,6 +1379,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         onFind={handleOpenSearch}
         onClear={handleClearTerminal}
         onFocusTerminal={focusTerminal}
+        activityChip={showAgentActivity && agentActivity.phase !== 'idle' ? <AgentActivityChip activity={agentActivity} /> : null}
         cliStatusBadge={
           <CliStatusBadge
             cliInfo={cliInfo}
@@ -1458,6 +1494,8 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           </div>
         </div>
       )}
+
+      {showAgentActivity && <AgentActivityAura activity={agentActivity} />}
     </div>
   );
 };

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-shortcut"
+description = "Enables the browser_shortcut command without any pre-configured scope."
+commands.allow = ["browser_shortcut"]
+
+[[permission]]
+identifier = "deny-browser-shortcut"
+description = "Denies the browser_shortcut command without any pre-configured scope."
+commands.deny = ["browser_shortcut"]

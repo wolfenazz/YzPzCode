@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-restore-from-trash"
+description = "Enables the restore_from_trash command without any pre-configured scope."
+commands.allow = ["restore_from_trash"]
+
+[[permission]]
+identifier = "deny-restore-from-trash"
+description = "Denies the restore_from_trash command without any pre-configured scope."
+commands.deny = ["restore_from_trash"]

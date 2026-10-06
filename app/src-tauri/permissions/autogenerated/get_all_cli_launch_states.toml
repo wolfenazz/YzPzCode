@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-all-cli-launch-states"
+description = "Enables the get_all_cli_launch_states command without any pre-configured scope."
+commands.allow = ["get_all_cli_launch_states"]
+
+[[permission]]
+identifier = "deny-get-all-cli-launch-states"
+description = "Denies the get_all_cli_launch_states command without any pre-configured scope."
+commands.deny = ["get_all_cli_launch_states"]

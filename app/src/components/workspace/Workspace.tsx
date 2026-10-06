@@ -255,7 +255,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         } else if (e.key === 'e') {
           e.preventDefault();
           setActiveView(activeView === 'terminal' ? 'editor' : 'terminal');
-        } else if (e.key === 'w') {
+        } else if (e.key === 'w' && activeView === 'editor') {
+          // Other views (e.g. the browser) own Ctrl+W for their own tabs.
           e.preventDefault();
           const path = useAppStore.getState().activeFilePath;
           if (path) {

@@ -260,7 +260,7 @@ function installAdapter(panel) {
                 saveTrust(process.env.YZPZ_WORKSPACE_TRUST_FILE, process.env.YZPZ_WORKSPACE_PATH, false);
             }
           } else if (address.pathname.endsWith('/event')) {
-            if (value.event !== 'task-complete') throw new Error('Unsupported event');
+            if (!['task-busy', 'task-idle', 'task-complete'].includes(value.event)) throw new Error('Unsupported event');
             process.stdout.write(`${PANEL_EVENT_PREFIX}${value.event}\n`);
           } else if (address.pathname.endsWith('/diagnostic')) {
             if (!['configuration', 'read', 'restore', 'capture', 'import'].includes(value.stage) ||

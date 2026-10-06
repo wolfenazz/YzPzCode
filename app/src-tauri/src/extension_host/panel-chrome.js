@@ -229,21 +229,32 @@
   }
   schedule(); void poll();
 
-  // Webview frames report a finished assistant task (webview-activity.js).
-  // Only hashed webview subdomains of this pane may send it.
+  // Webview frames report assistant activity (webview-activity.js): a request
+  // underway, one that ended early, and a finished task. Only hashed webview
+  // subdomains of this pane may send it.
+  const TASK_EVENTS = ['task-busy', 'task-idle', 'task-complete'];
   let lastTaskEvent = 0;
+  let lastActivityEvent = 'task-idle';
+  // Sent one at a time so busy, idle and complete arrive in order.
+  let taskEvents = Promise.resolve();
   window.addEventListener('message', event => {
-    if (event.data?.yzpzPanelEvent !== 'task-complete') return;
+    let name = event.data?.yzpzPanelEvent;
+    if (!TASK_EVENTS.includes(name)) return;
     const suffix = `.${location.hostname}:${location.port}`;
     if (!event.origin.startsWith('http://') || !event.origin.endsWith(suffix) ||
         !/^[0-9a-v]{52}$/.test(event.origin.slice('http://'.length, -suffix.length))) return;
-    const now = Date.now();
-    if (now - lastTaskEvent < 2000) return;
-    lastTaskEvent = now;
-    void fetch('/yzpz-panel/event', {
+    if (name === 'task-complete') {
+      const now = Date.now();
+      // A repeat completion still has to end the working state.
+      if (now - lastTaskEvent < 2000) name = 'task-idle';
+      else lastTaskEvent = now;
+    }
+    if (name !== 'task-complete' && name === lastActivityEvent) return;
+    lastActivityEvent = name === 'task-busy' ? name : 'task-idle';
+    taskEvents = taskEvents.then(() => fetch('/yzpz-panel/event', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'task-complete' }),
-    }).catch(() => undefined);
+      body: JSON.stringify({ event: name }),
+    })).catch(() => undefined);
   });
 })();

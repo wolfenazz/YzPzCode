@@ -68,6 +68,7 @@ The app uses Tauri's IPC (Inter-Process Communication) for all frontend-backend 
 - Each AI CLI or shell gets its own PTY session with real-time I/O
 - Per-workspace session isolation (sessionsByWorkspace)
 - Terminal mouse mode tracking per session
+- Agent activity: `utils/agentDoneNotifier.ts` (`AgentActivityTracker`, tested by `npm run test:agent-activity`) infers idle → busy → done from submits and PTY output; it drives the done sound and the pane's Gemini-colored working ring / emerald finish effect (`AgentActivityIndicator.tsx` + `AgentActivity.css`, setting `agentActivityGlowEnabled`). Extension panes get the same effect: `extension_host/webview-activity.js` posts `task-busy` / `task-idle` / `task-complete` → `panel-chrome.js` → host → Rust emits `extension-panel-activity` / `extension-panel-task-complete` → `hooks/useExtensionActivity.ts` stores it in `extensionStore.activityByPanel`. The assistant is a native webview, so `ExtensionPane` leaves a 2px rim around it for the ring
 
 ### Agent CLI System
 The app supports multiple AI coding agents and SaaS tool CLIs through a provider-based architecture:
@@ -92,28 +93,24 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 
 ### In-App Browser & Visual Design Tools
 **Backend** (`src-tauri/src/browser.rs`):
-- Webview-based in-app browser managed via `BrowserManager`
-- Embedded JavaScript bridge (`BROWSER_INIT_SCRIPT`) for element inspection, style capture, UI component capture
+- Webview-based in-app browser managed via `BrowserManager`; one native child webview per workspace (tabs share it and navigate it)
+- Embedded JavaScript bridge (`BROWSER_INIT_SCRIPT`) for element inspection, style capture, UI component capture, page state (title, URL, favicon, `canGoBack`/`canGoForward` via the Navigation API, SPA `pushState` tracking) and forwarding browser shortcuts pressed inside the page (`browser_shortcut`, whitelisted in `BROWSER_SHORTCUT_ACTIONS`)
 - **Inspect Mode**: Hover to inspect element HTML/CSS attributes
 - **Pick Style Mode**: Click to capture computed styles (with pseudo-element support, diff from baseline)
 - **Pick UI Element Mode**: Deep capture of full UI components — structure tree (max depth 8, max 140 nodes), layout, spacing, typography, visuals, pseudo-elements, assets (images/icons), design intent inference, hover selectors, component labeling
 - **Apply Mode**: Apply captured styles to target elements with CSS class generation, undo stack
-- **Preview Chrome**: Device frame overlays (iPhone with notch/island), border-radius clipping
+- `target="_blank"` / `window.open` become in-app tabs (`browser-open-tab`); Esc in the page cancels every tool mode (`browser-modes-cleared`)
 - **Snapshot Export**: Full document HTML capture
-- Events: `browser-element-selected`, `browser-page-load`, `browser-inspect-mode-changed`, `browser-page-state`, `browser-snapshot-ready`, `browser-style-captured`, `browser-ui-element-captured`, `browser-style-applied`, `browser-popout-state`
-- URL canonicalization, page state tracking (title, URL, history length)
+- Events: `browser-element-selected`, `browser-page-load`, `browser-inspect-mode-changed`, `browser-page-state`, `browser-snapshot-ready`, `browser-style-captured`, `browser-ui-element-captured`, `browser-style-applied` (the three capture events carry `workspaceId`), `browser-popout-state`, `browser-modes-cleared`, `browser-shortcut`, `browser-open-tab`
+- **IPC security**: `build.rs` declares an app ACL manifest generated from `generate_handler!` (it writes `permissions/app-commands.toml`), so app commands are capability-checked. `capabilities/default.json` grants the `app-commands` set to the local `main` UI only; `capabilities/browser-bridge.json` lets remote pages call just the bridge callbacks. A new command needs no manual permission entry; a new bridge callback must be added to `browser-bridge.json` (tests in `browser.rs` guard both files)
 
-**Frontend** (`app/src/components/workspace/`):
-- `BrowserPane.tsx`: Full browser UI with URL bar, tabs, navigation, zoom, device presets
-- `BrowserTabBar.tsx`: Multi-tab browser management
-- `StyleClipboardPanel.tsx`: Captured style management
-- `UiReferenceClipboardPanel.tsx`: UI component reference clipboard
-- `UiReferenceCard.tsx`: Display captured UI components
-- `ApplyModeToolbar.tsx`: Style apply toolbar
-- `StylePreviewCard.tsx`: Visual style preview
-- Device presets: responsive, iPhone 14 Pro (393×852), iPad (820×1180)
-- Device orientation: portrait/landscape with proper chrome frames
-- Multi-tab browser tabs per workspace
+**Frontend** (`app/src/components/workspace/`, styles in `browser/browser.css`, `.bx-*` classes, theme tokens only):
+- `BrowserPane.tsx`: Orchestrator — native webview sync queue, events, shortcuts, inspector/agent handoff
+- `browser/BrowserToolbar.tsx`, `BrowserOmnibox.tsx` (address bar: ports → localhost, domains → https, else search, via `utils/browserUrl.ts`), `BrowserDeviceMenu.tsx`, `BrowserStatusBar.tsx` (tool hints, messages, applied-style Undo/Keep/Copy CSS), `BrowserStartPage.tsx` (new tab: live dev servers), `UiReferencesPanel.tsx`
+- `browser/BrowserMenu.tsx`: popover primitive. The native webview is drawn above the DOM, so nothing may overlap the preview rect: open menus register through `NativeOverlayContext` and the pane hides the webview until they close
+- `browser/browserModel.ts`: device presets (desktop/tablet/mobile/custom), `getViewportMetrics` (device emulation: webview drawn at `size × scale` and zoomed by `scale`, so the page lays out at the real device width), snapshot paths, prompt formatting. Tested with `utils/browserUrl.ts` by `npm run test:browser`
+- `BrowserTabBar.tsx`, `StyleClipboardPanel.tsx`, `StylePreviewCard.tsx`, `UiReferenceClipboardPanel.tsx`, `UiReferenceCard.tsx`
+- Start page sentinel URL `yzpz://newtab` never reaches the native webview; tabs, device, custom viewport and auto-reload are persisted per workspace
 
 ### AI-Powered Designer
 **Frontend** (`app/src/components/designer/`):

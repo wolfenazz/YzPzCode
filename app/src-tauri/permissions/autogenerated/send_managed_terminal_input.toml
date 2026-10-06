@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-send-managed-terminal-input"
+description = "Enables the send_managed_terminal_input command without any pre-configured scope."
+commands.allow = ["send_managed_terminal_input"]
+
+[[permission]]
+identifier = "deny-send-managed-terminal-input"
+description = "Denies the send_managed_terminal_input command without any pre-configured scope."
+commands.deny = ["send_managed_terminal_input"]

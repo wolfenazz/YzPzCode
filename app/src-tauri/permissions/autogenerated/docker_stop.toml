@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-docker-stop"
+description = "Enables the docker_stop command without any pre-configured scope."
+commands.allow = ["docker_stop"]
+
+[[permission]]
+identifier = "deny-docker-stop"
+description = "Denies the docker_stop command without any pre-configured scope."
+commands.deny = ["docker_stop"]

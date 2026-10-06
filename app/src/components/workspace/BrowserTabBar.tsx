@@ -1,66 +1,128 @@
-import React, { useCallback } from 'react';
-import { GlobeSimple, Plus, X } from '@phosphor-icons/react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CircleNotch, GlobeSimple, House, Plus, X } from '@phosphor-icons/react';
 import type { BrowserTab } from '../../types';
+import { getUrlTabLabel, isNewTabUrl } from '../../utils/browserUrl';
 
 interface BrowserTabBarProps {
   tabs: BrowserTab[];
   activeTabId: string | null;
+  isLoading: boolean;
   onAddTab: () => void;
   onSelectTab: (tabId: string) => void;
   onCloseTab: (tabId: string) => void;
+  /** Extra controls rendered at the end of the strip. */
+  children?: React.ReactNode;
 }
+
+/** Page favicon with a globe fallback for pages that have none (or 404). */
+export const BrowserFavicon: React.FC<{ url: string; favicon?: string | null; loading?: boolean }> = ({
+  url,
+  favicon,
+  loading = false,
+}) => {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [favicon]);
+
+  if (loading) {
+    return (
+      <span className="bx-favicon" aria-hidden="true">
+        <CircleNotch size={14} className="bx-spinner" />
+      </span>
+    );
+  }
+  if (isNewTabUrl(url)) {
+    return (
+      <span className="bx-favicon" aria-hidden="true">
+        <House size={14} />
+      </span>
+    );
+  }
+  return (
+    <span className="bx-favicon" aria-hidden="true">
+      {favicon && !failed ? (
+        <img src={favicon} alt="" referrerPolicy="no-referrer" draggable={false} onError={() => setFailed(true)} />
+      ) : (
+        <GlobeSimple size={14} />
+      )}
+    </span>
+  );
+};
 
 export const BrowserTabBar: React.FC<BrowserTabBarProps> = ({
   tabs,
   activeTabId,
+  isLoading,
   onAddTab,
   onSelectTab,
   onCloseTab,
+  children,
 }) => {
-  const handleClose = useCallback((e: React.MouseEvent, tabId: string) => {
-    e.stopPropagation();
-    onCloseTab(tabId);
-  }, [onCloseTab]);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // Keep the active tab in view when it changes (e.g. Ctrl+PageDown).
+  useEffect(() => {
+    const active = listRef.current?.querySelector<HTMLElement>('.bx-tab.is-active');
+    active?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [activeTabId, tabs.length]);
+
+  // Vertical wheel scrolls the strip horizontally.
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    const list = listRef.current;
+    if (!list || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+    list.scrollLeft += event.deltaY;
+  };
 
   return (
-    <nav className="browser-tabs flex items-center gap-0.5 overflow-x-auto overflow-y-hidden scrollbar-none border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 py-1" aria-label="Browser tabs">
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTabId;
-        return (
-          <button
-            key={tab.id}
-            onClick={() => onSelectTab(tab.id)}
-            className={`browser-tab group flex items-center gap-1.5 rounded px-2.5 py-1 text-[11px] font-medium transition-colors whitespace-nowrap cursor-pointer ${
-              isActive
-                ? 'is-active bg-[var(--bg-tertiary)] text-[var(--text-primary)]'
-                : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]'
-            }`}
-          >
-            <GlobeSimple
-              size={12}
-              className={`shrink-0 ${isActive ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]/60'}`}
-              aria-hidden="true"
-            />
-            <span className="truncate max-w-[120px]">{tab.title || tab.url}</span>
-            {tabs.length > 1 && (
-              <span
-                onClick={(e) => handleClose(e, tab.id)}
-                className="browser-tab__close ml-0.5 flex h-4 w-4 items-center justify-center rounded-sm opacity-0 transition-opacity group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-400 cursor-pointer"
-                aria-label={`Close tab ${tab.title || tab.url}`}
+    <div className="bx-tabs">
+      <div ref={listRef} className="bx-tabs__list" role="tablist" aria-label="Browser tabs" onWheel={handleWheel}>
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTabId;
+          const title = tab.title || getUrlTabLabel(tab.url);
+          return (
+            <div
+              key={tab.id}
+              className={`bx-tab${isActive ? ' is-active' : ''}`}
+              onAuxClick={(event) => {
+                if (event.button === 1) {
+                  event.preventDefault();
+                  onCloseTab(tab.id);
+                }
+              }}
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className="bx-tab__main"
+                title={isNewTabUrl(tab.url) ? title : `${title}\n${tab.url}`}
+                onClick={() => onSelectTab(tab.id)}
+              >
+                <BrowserFavicon url={tab.url} favicon={tab.favicon} loading={isActive && isLoading} />
+                <span className="bx-tab__title">{title}</span>
+              </button>
+              <button
+                type="button"
+                className="bx-btn bx-btn--sm bx-tab__close"
+                onClick={() => onCloseTab(tab.id)}
+                aria-label={`Close ${title}`}
+                title="Close tab (Ctrl+W)"
               >
                 <X size={12} aria-hidden="true" />
-              </span>
-            )}
-          </button>
-        );
-      })}
+              </button>
+            </div>
+          );
+        })}
+      </div>
       <button
+        type="button"
+        className="bx-btn"
         onClick={onAddTab}
-        className="browser-tab__add app-icon-button ml-0.5 h-6 w-6 shrink-0 rounded border border-[var(--border-primary)]"
         aria-label="New tab"
+        title="New tab (Ctrl+T)"
       >
-        <Plus size={14} aria-hidden="true" />
+        <Plus size={15} aria-hidden="true" />
       </button>
-    </nav>
+      {children && <div style={{ marginLeft: 'auto' }} className="bx-group">{children}</div>}
+    </div>
   );
 };

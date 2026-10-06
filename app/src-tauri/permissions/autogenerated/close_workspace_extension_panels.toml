@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-close-workspace-extension-panels"
+description = "Enables the close_workspace_extension_panels command without any pre-configured scope."
+commands.allow = ["close_workspace_extension_panels"]
+
+[[permission]]
+identifier = "deny-close-workspace-extension-panels"
+description = "Denies the close_workspace_extension_panels command without any pre-configured scope."
+commands.deny = ["close_workspace_extension_panels"]

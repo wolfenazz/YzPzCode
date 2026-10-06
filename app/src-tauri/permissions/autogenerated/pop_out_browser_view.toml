@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-pop-out-browser-view"
+description = "Enables the pop_out_browser_view command without any pre-configured scope."
+commands.allow = ["pop_out_browser_view"]
+
+[[permission]]
+identifier = "deny-pop-out-browser-view"
+description = "Denies the pop_out_browser_view command without any pre-configured scope."
+commands.deny = ["pop_out_browser_view"]

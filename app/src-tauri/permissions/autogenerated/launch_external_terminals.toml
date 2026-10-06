@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-launch-external-terminals"
+description = "Enables the launch_external_terminals command without any pre-configured scope."
+commands.allow = ["launch_external_terminals"]
+
+[[permission]]
+identifier = "deny-launch-external-terminals"
+description = "Denies the launch_external_terminals command without any pre-configured scope."
+commands.deny = ["launch_external_terminals"]

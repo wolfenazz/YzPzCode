@@ -234,6 +234,8 @@ pub fn run() {
                 commands::resize_browser_view,
                 commands::navigate_browser_view,
                 commands::reload_browser_view,
+                commands::stop_browser_view,
+                commands::browser_shortcut,
                 commands::set_browser_view_visibility,
                 commands::close_browser_view,
                 commands::pop_out_browser_view,

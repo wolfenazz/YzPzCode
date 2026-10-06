@@ -18,6 +18,26 @@ const BROWSER_STYLE_CAPTURED_EVENT: &str = "browser-style-captured";
 const BROWSER_UI_ELEMENT_CAPTURED_EVENT: &str = "browser-ui-element-captured";
 const BROWSER_STYLE_APPLIED_EVENT: &str = "browser-style-applied";
 const BROWSER_POPOUT_STATE_EVENT: &str = "browser-popout-state";
+const BROWSER_MODES_CLEARED_EVENT: &str = "browser-modes-cleared";
+const BROWSER_SHORTCUT_EVENT: &str = "browser-shortcut";
+const BROWSER_OPEN_TAB_EVENT: &str = "browser-open-tab";
+/// Shortcuts the page bridge may forward while the native webview has focus.
+const BROWSER_SHORTCUT_ACTIONS: &[&str] = &[
+    "focus-address",
+    "reload",
+    "hard-reload",
+    "stop",
+    "back",
+    "forward",
+    "new-tab",
+    "close-tab",
+    "next-tab",
+    "previous-tab",
+    "zoom-in",
+    "zoom-out",
+    "zoom-reset",
+    "toggle-inspect",
+];
 const DEFAULT_BROWSER_URL: &str = "http://localhost:3000";
 
 fn resolve_browser_url(url: &str) -> String {
@@ -735,16 +755,52 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     invoke('browser_element_selected', { payload });
   };
 
+  // Browser-style shortcuts keep working while focus is inside the page,
+  // where the app's own key handlers never see the event.
+  const resolveShortcut = (event) => {
+    const mod = event.ctrlKey || event.metaKey;
+    const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+    if (event.key === 'F5') return event.ctrlKey || event.shiftKey ? 'hard-reload' : 'reload';
+    if (event.altKey && !mod && key === 'ArrowLeft') return 'back';
+    if (event.altKey && !mod && key === 'ArrowRight') return 'forward';
+    if (!mod || event.altKey) return null;
+    if (event.shiftKey && key === 'c') return 'toggle-inspect';
+    if (event.shiftKey && key === 'r') return 'hard-reload';
+    if (key === 'PageDown') return 'next-tab';
+    if (key === 'PageUp') return 'previous-tab';
+    if (event.shiftKey) return null;
+    switch (key) {
+      case 'l': return 'focus-address';
+      case 'r': return 'reload';
+      case 't': return 'new-tab';
+      case 'w': return 'close-tab';
+      case '=':
+      case '+': return 'zoom-in';
+      case '-': return 'zoom-out';
+      case '0': return 'zoom-reset';
+      default: return null;
+    }
+  };
+
   const handleKeyDown = (event) => {
-    if (!inspectMode && !pickUiElementMode && !pickStyleMode) return;
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && (inspectMode || pickUiElementMode || pickStyleMode || applyMode)) {
+      event.preventDefault();
+      if (applyMode) {
+        window.__YZPZ_BROWSER_BRIDGE__.setApplyMode(null);
+      }
       inspectMode = false;
       pickUiElementMode = false;
       pickStyleMode = false;
       document.documentElement.style.cursor = '';
       clearOverlay();
       invoke('browser_inspect_cancelled');
+      return;
     }
+    const action = resolveShortcut(event);
+    if (!action) return;
+    event.preventDefault();
+    event.stopPropagation();
+    invoke('browser_shortcut', { action });
   };
 
   const getDocumentHtml = () => {
@@ -754,11 +810,27 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     return `${doctype}\n${document.documentElement.outerHTML}`;
   };
 
+  const resolveFavicon = () => {
+    try {
+      const link = document.querySelector('link[rel~="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]');
+      const href = link && link.getAttribute('href');
+      if (href && !/^data:/i.test(href)) return new URL(href, document.baseURI).href;
+      if (/^https?:$/.test(window.location.protocol)) return `${window.location.origin}/favicon.ico`;
+    } catch (_) {}
+    return null;
+  };
+
   const emitPageState = () => {
+    // The Navigation API (Chromium/WebView2) knows the real back/forward
+    // state; other engines report null and the toolbar keeps both enabled.
+    const nav = window.navigation;
     const payload = {
       title: document.title || '',
       url: window.location.href,
-      historyLength: window.history.length
+      historyLength: window.history.length,
+      canGoBack: nav && typeof nav.canGoBack === 'boolean' ? nav.canGoBack : null,
+      canGoForward: nav && typeof nav.canGoForward === 'boolean' ? nav.canGoForward : null,
+      favicon: resolveFavicon()
     };
     const payloadKey = JSON.stringify(payload);
     if (payloadKey === lastPageStateKey) {
@@ -1314,11 +1386,51 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   window.addEventListener('load', scheduleEmitPageState, true);
   window.addEventListener('pageshow', scheduleEmitPageState, true);
   window.addEventListener('popstate', scheduleEmitPageState, true);
+  window.addEventListener('hashchange', scheduleEmitPageState, true);
 
-  const titleElement = document.querySelector('title');
-  if (titleElement) {
-    const titleObserver = new MutationObserver(() => scheduleEmitPageState());
-    titleObserver.observe(titleElement, { childList: true, subtree: true, characterData: true });
+  // Client-side routers navigate with pushState/replaceState, which fires no
+  // event. Wrap both so the address bar follows SPA navigation.
+  ['pushState', 'replaceState'].forEach((method) => {
+    const original = window.history[method];
+    if (typeof original !== 'function') return;
+    window.history[method] = function (...args) {
+      const result = original.apply(this, args);
+      scheduleEmitPageState();
+      return result;
+    };
+  });
+
+  // This script runs before the document is parsed, so <title> does not exist
+  // yet. Watch <head> for the title (and favicon links) once it is available.
+  const observeHead = () => {
+    const head = document.head;
+    if (!head) return;
+    const isRelevant = (node) => !!node && (node.nodeName === 'TITLE' || node.nodeName === 'LINK');
+    // CSS-in-JS libraries add <style> tags to <head> constantly; only title
+    // and icon changes matter here.
+    const headObserver = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        const target = mutation.target;
+        const node = target.nodeType === 3 ? target.parentNode : target;
+        if (
+          (node !== head && isRelevant(node))
+          || Array.prototype.some.call(mutation.addedNodes, isRelevant)
+          || Array.prototype.some.call(mutation.removedNodes, isRelevant)
+        ) {
+          scheduleEmitPageState();
+          return;
+        }
+      }
+    });
+    headObserver.observe(head, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['href'] });
+  };
+  if (document.head) {
+    observeHead();
+  } else {
+    document.addEventListener('DOMContentLoaded', () => {
+      observeHead();
+      scheduleEmitPageState();
+    }, { once: true });
   }
 
   window.__YZPZ_BROWSER_BRIDGE__ = {
@@ -1466,6 +1578,9 @@ pub struct BrowserPageStatePayload {
     pub url: String,
     pub title: String,
     pub history_length: i32,
+    pub can_go_back: Option<bool>,
+    pub can_go_forward: Option<bool>,
+    pub favicon: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1474,6 +1589,43 @@ pub struct BrowserPageStateCommandPayload {
     pub url: String,
     pub title: String,
     pub history_length: i32,
+    #[serde(default)]
+    pub can_go_back: Option<bool>,
+    #[serde(default)]
+    pub can_go_forward: Option<bool>,
+    #[serde(default)]
+    pub favicon: Option<String>,
+}
+
+/// Event payloads captured inside a page carry the owning workspace so a
+/// capture in one workspace's (possibly popped-out) browser never lands in
+/// another workspace's clipboard.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceScopedPayload<'a, T: Serialize> {
+    workspace_id: &'a str,
+    #[serde(flatten)]
+    payload: &'a T,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserWorkspaceEventPayload {
+    pub workspace_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserShortcutPayload {
+    pub workspace_id: String,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserOpenTabPayload {
+    pub workspace_id: String,
+    pub url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1832,11 +1984,17 @@ impl BrowserManager {
             let parsed_url = Url::parse(&resolved_url)
                 .with_context(|| format!("Invalid browser URL: {resolved_url}"))?;
             let workspace_id_owned = workspace_id.to_string();
+            let workspace_for_popup = workspace_id.to_string();
             let manager = self.clone();
+            let manager_for_popup = self.clone();
 
             let builder = WebviewBuilder::new(label.clone(), WebviewUrl::External(parsed_url))
                 .initialization_script(BROWSER_INIT_SCRIPT)
                 .accept_first_mouse(true)
+                .on_new_window(move |url, _| {
+                    manager_for_popup.open_in_new_tab(&workspace_for_popup, &url);
+                    tauri::webview::NewWindowResponse::Deny
+                })
                 .on_page_load(move |webview, payload| {
                     let _ = manager.handle_page_load(
                         workspace_id_owned.clone(),
@@ -2030,6 +2188,8 @@ impl BrowserManager {
             let popout_for_close = popout_label.clone();
             let manager_for_load = self.clone();
             let manager_for_close = self.clone();
+            let manager_for_popup = self.clone();
+            let workspace_for_popup = workspace_id.to_string();
 
             let window = WebviewWindowBuilder::new(
                 &app,
@@ -2043,6 +2203,10 @@ impl BrowserManager {
             .decorations(true)
             .accept_first_mouse(true)
             .initialization_script(BROWSER_INIT_SCRIPT)
+            .on_new_window(move |url, _| {
+                manager_for_popup.open_in_new_tab(&workspace_for_popup, &url);
+                tauri::webview::NewWindowResponse::Deny
+            })
             .on_page_load(move |window, payload| {
                 let _ = manager_for_load.handle_page_load(
                     workspace_for_load.clone(),
@@ -2227,10 +2391,36 @@ impl BrowserManager {
         self.emit_event(
             BROWSER_INSPECT_MODE_EVENT,
             &BrowserInspectModePayload {
-                workspace_id,
+                workspace_id: workspace_id.clone(),
                 enabled: false,
             },
         )?;
+        // Escape inside the page also cancels pick/apply modes, which the
+        // toolbar would otherwise keep showing as active.
+        self.emit_event(
+            BROWSER_MODES_CLEARED_EVENT,
+            &BrowserWorkspaceEventPayload { workspace_id },
+        )?;
+        Ok(())
+    }
+
+    pub fn handle_shortcut(&self, webview_label: &str, action: &str) -> Result<()> {
+        if !BROWSER_SHORTCUT_ACTIONS.contains(&action) {
+            anyhow::bail!("Unknown browser shortcut: {action}");
+        }
+        let workspace_id = self.workspace_for_label(webview_label)?;
+        self.emit_event(
+            BROWSER_SHORTCUT_EVENT,
+            &BrowserShortcutPayload {
+                workspace_id,
+                action: action.to_string(),
+            },
+        )
+    }
+
+    pub fn stop(&self, workspace_id: &str) -> Result<()> {
+        self.webview_for_workspace(workspace_id)?
+            .eval("window.stop();")?;
         Ok(())
     }
 
@@ -2252,6 +2442,9 @@ impl BrowserManager {
                 url: payload.url,
                 title: payload.title,
                 history_length: payload.history_length,
+                can_go_back: payload.can_go_back,
+                can_go_forward: payload.can_go_forward,
+                favicon: payload.favicon.filter(|value| is_safe_favicon_url(value)),
             },
         )?;
         Ok(())
@@ -2353,7 +2546,13 @@ impl BrowserManager {
 
     pub fn handle_style_captured(&self, webview_label: &str, payload: CapturedStyle) -> Result<()> {
         let workspace_id = self.workspace_for_label(webview_label)?;
-        self.emit_event(BROWSER_STYLE_CAPTURED_EVENT, &payload)?;
+        self.emit_event(
+            BROWSER_STYLE_CAPTURED_EVENT,
+            &WorkspaceScopedPayload {
+                workspace_id: &workspace_id,
+                payload: &payload,
+            },
+        )?;
         self.emit_event(
             BROWSER_INSPECT_MODE_EVENT,
             &BrowserInspectModePayload {
@@ -2370,7 +2569,13 @@ impl BrowserManager {
         payload: BrowserUiElementReference,
     ) -> Result<()> {
         let workspace_id = self.workspace_for_label(webview_label)?;
-        self.emit_event(BROWSER_UI_ELEMENT_CAPTURED_EVENT, &payload)?;
+        self.emit_event(
+            BROWSER_UI_ELEMENT_CAPTURED_EVENT,
+            &WorkspaceScopedPayload {
+                workspace_id: &workspace_id,
+                payload: &payload,
+            },
+        )?;
         self.emit_event(
             BROWSER_INSPECT_MODE_EVENT,
             &BrowserInspectModePayload {
@@ -2386,8 +2591,14 @@ impl BrowserManager {
         webview_label: &str,
         payload: StyleApplyPayload,
     ) -> Result<()> {
-        let _workspace_id = self.workspace_for_label(webview_label)?;
-        self.emit_event(BROWSER_STYLE_APPLIED_EVENT, &payload)?;
+        let workspace_id = self.workspace_for_label(webview_label)?;
+        self.emit_event(
+            BROWSER_STYLE_APPLIED_EVENT,
+            &WorkspaceScopedPayload {
+                workspace_id: &workspace_id,
+                payload: &payload,
+            },
+        )?;
         Ok(())
     }
 
@@ -2449,6 +2660,23 @@ impl BrowserManager {
         }
 
         Ok(())
+    }
+
+    /// `target="_blank"` links and `window.open` become in-app tabs instead
+    /// of untracked native popups. Other schemes (mailto:, etc.) go to the OS.
+    fn open_in_new_tab(&self, workspace_id: &str, url: &Url) {
+        if matches!(url.scheme(), "http" | "https") {
+            let _ = self.emit_event(
+                BROWSER_OPEN_TAB_EVENT,
+                &BrowserOpenTabPayload {
+                    workspace_id: workspace_id.to_string(),
+                    url: url.to_string(),
+                },
+            );
+        } else if let Ok(app) = self.app_handle() {
+            use tauri_plugin_opener::OpenerExt;
+            let _ = app.opener().open_url(url.as_str(), None::<&str>);
+        }
     }
 
     fn apply_bounds(&self, webview: &Webview, bounds: &BrowserBounds) -> Result<()> {
@@ -2584,6 +2812,15 @@ impl Default for BrowserManager {
     }
 }
 
+/// Favicons are rendered by the app UI, so only accept plain web URLs (no
+/// `javascript:` or oversized `data:` payloads from the page).
+fn is_safe_favicon_url(value: &str) -> bool {
+    value.len() <= 2048
+        && Url::parse(value)
+            .map(|url| matches!(url.scheme(), "http" | "https"))
+            .unwrap_or(false)
+}
+
 fn inspect_mode_script(enabled: bool) -> String {
     format!(
         "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.setInspectMode({enabled});"
@@ -2676,5 +2913,65 @@ mod tests {
             "http://localhost:3000/"
         ));
         assert!(browser_urls_match("about:blank", &resolve_browser_url("")));
+    }
+
+    fn browser_bridge_capability() -> serde_json::Value {
+        let raw = include_str!("../capabilities/browser-bridge.json");
+        serde_json::from_str(raw).expect("browser-bridge capability should be valid JSON")
+    }
+
+    #[test]
+    fn remote_pages_reach_the_bridge_on_any_port() {
+        let capability = browser_bridge_capability();
+        let patterns: Vec<tauri::utils::acl::RemoteUrlPattern> = capability["remote"]["urls"]
+            .as_array()
+            .expect("remote urls")
+            .iter()
+            .map(|value| value.as_str().unwrap().parse().expect("valid pattern"))
+            .collect();
+
+        for url in [
+            "http://localhost:5173/",
+            "http://127.0.0.1:3000/dashboard?tab=1#top",
+            "https://example.com/",
+            "https://sub.example.com/a/b/c",
+            "http://example.com:8080/path",
+        ] {
+            let url = url::Url::parse(url).unwrap();
+            assert!(
+                patterns.iter().any(|pattern| pattern.test(&url)),
+                "{url} should reach the inspector bridge"
+            );
+        }
+    }
+
+    #[test]
+    fn remote_pages_only_get_bridge_callbacks() {
+        let capability = browser_bridge_capability();
+        let permissions = capability["permissions"].as_array().expect("permissions");
+        let bridge_callbacks = [
+            "allow-browser-element-selected",
+            "allow-browser-inspect-cancelled",
+            "allow-browser-page-state-changed",
+            "allow-browser-snapshot-exported",
+            "allow-browser-style-captured",
+            "allow-browser-ui-element-captured",
+            "allow-browser-style-applied",
+            "allow-browser-shortcut",
+        ];
+        for permission in permissions {
+            let permission = permission.as_str().unwrap();
+            assert!(
+                bridge_callbacks.contains(&permission),
+                "remote pages must not be granted {permission}"
+            );
+        }
+
+        let default: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        assert!(
+            default.get("remote").is_none(),
+            "the full app capability must stay local-only"
+        );
     }
 }

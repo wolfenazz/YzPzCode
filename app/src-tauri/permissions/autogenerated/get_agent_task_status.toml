@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-agent-task-status"
+description = "Enables the get_agent_task_status command without any pre-configured scope."
+commands.allow = ["get_agent_task_status"]
+
+[[permission]]
+identifier = "deny-get-agent-task-status"
+description = "Denies the get_agent_task_status command without any pre-configured scope."
+commands.deny = ["get_agent_task_status"]

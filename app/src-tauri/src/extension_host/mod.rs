@@ -241,6 +241,14 @@ struct PanelTaskComplete {
     panel_id: String,
 }
 
+/// An assistant request is underway (`busy`) or ended without finishing (`idle`).
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PanelActivity {
+    panel_id: String,
+    busy: bool,
+}
+
 /// Copies the host's stdout into its log and turns panel event markers into
 /// app events. Ends when the host exits and closes the pipe.
 fn forward_host_output(
@@ -266,6 +274,15 @@ fn forward_host_output(
                         "extension-panel-task-complete",
                         PanelTaskComplete {
                             panel_id: panel_id.clone(),
+                        },
+                    );
+                }
+                Some(event @ ("task-busy" | "task-idle")) => {
+                    let _ = app.emit(
+                        "extension-panel-activity",
+                        PanelActivity {
+                            panel_id: panel_id.clone(),
+                            busy: event == "task-busy",
                         },
                     );
                 }

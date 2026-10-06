@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-style-applied"
+description = "Enables the browser_style_applied command without any pre-configured scope."
+commands.allow = ["browser_style_applied"]
+
+[[permission]]
+identifier = "deny-browser-style-applied"
+description = "Denies the browser_style_applied command without any pre-configured scope."
+commands.deny = ["browser_style_applied"]

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Code, Copy, LinkSimple, X } from '@phosphor-icons/react';
+import { Copy, LinkSimple, PaintBrush, Trash } from '@phosphor-icons/react';
 import type { CapturedStyle } from '../../types';
 
 interface StylePreviewCardProps {
@@ -10,6 +10,9 @@ interface StylePreviewCardProps {
   isActive: boolean;
 }
 
+const isVisibleColor = (value: string | undefined): value is string =>
+  !!value && value !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(value);
+
 export const StylePreviewCard: React.FC<StylePreviewCardProps> = ({
   style,
   onRemove,
@@ -17,69 +20,76 @@ export const StylePreviewCard: React.FC<StylePreviewCardProps> = ({
   onCopyCss,
   isActive,
 }) => {
+  const css = style.computedStyles;
   const previewStyles: React.CSSProperties = {
-    display: 'inline-block',
-    padding: '6px 10px',
-    borderRadius: '4px',
-    background: style.computedStyles['background-color'] || style.computedStyles['background'] || '#3e3e38',
-    color: style.computedStyles['color'] || '#faf8f1',
-    fontFamily: style.computedStyles['font-family'] || 'inherit',
-    fontSize: style.computedStyles['font-size'] || '11px',
-    border: style.computedStyles['border'] || '1px solid transparent',
-    boxShadow: style.computedStyles['box-shadow'] || 'none',
+    display: 'inline-flex',
+    alignItems: 'center',
+    maxWidth: '100%',
+    padding: css['padding'] || '6px 12px',
+    borderRadius: css['border-radius'] || '6px',
+    background: css['background-color'] || css['background'] || 'transparent',
+    color: css['color'] || 'inherit',
+    fontFamily: css['font-family'] || 'inherit',
+    fontSize: css['font-size'] || '12px',
+    fontWeight: css['font-weight'] as React.CSSProperties['fontWeight'],
+    letterSpacing: css['letter-spacing'],
+    border: css['border'] || undefined,
+    boxShadow: css['box-shadow'] || 'none',
   };
+  const swatches = [
+    { label: 'text', value: css['color'] },
+    { label: 'fill', value: css['background-color'] },
+    { label: 'border', value: css['border-color'] },
+  ].filter((entry): entry is { label: string; value: string } => isVisibleColor(entry.value));
+  const propertyCount = Object.keys(css).length;
 
   return (
-    <div className={`rounded-lg border p-2.5 transition-colors ${
-      isActive
-        ? 'border-emerald-500/30 bg-emerald-500/8 shadow-[0_0_12px_rgba(52,211,153,0.08)]'
-        : 'border-[var(--border-primary)] bg-[var(--bg-primary)]/60'
-    }`}>
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-1.5">
-          <Code size={12} className="text-[var(--accent)]/60" aria-hidden="true" />
-          <span className="text-[9px] font-bold uppercase tracking-[0.18em] text-[var(--accent)]">
-            {style.tagName}{style.selector ? ` ${style.selector.slice(0, 20)}${style.selector.length > 20 ? '…' : ''}` : ''}
-          </span>
-        </div>
-        <button
-          onClick={onRemove}
-          className="inline-flex items-center justify-center w-5 h-5 rounded-sm text-[var(--accent)]/50 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-          aria-label="Remove style"
-        >
-          <X size={14} aria-hidden="true" />
-        </button>
-      </div>
-
-      <div className="mb-2">
-        <div className="rounded border border-[var(--border-primary)] p-1.5 bg-[var(--bg-primary)]">
-          <div style={previewStyles}>
-            <span className="text-[10px] font-medium">preview</span>
+    <article className={`bx-card${isActive ? ' is-active' : ''}`}>
+      <div className="bx-card__head">
+        <div className="bx-card__titles">
+          <div className="bx-card__title bx-mono" title={style.selector}>
+            {style.tagName}{style.selector ? ` ${style.selector}` : ''}
+          </div>
+          <div className="bx-card__meta">
+            {propertyCount} properties
+            {css['font-size'] && <span>· {css['font-size']} {css['font-weight'] ?? ''}</span>}
           </div>
         </div>
-      </div>
-
-      <div className="flex items-center gap-1 text-[9px] text-[var(--accent)]/50 truncate mb-2.5">
-        <LinkSimple size={10} className="shrink-0" aria-hidden="true" />
-        <span className="truncate">{style.sourceUrl.replace(/^https?:\/\//, '')}</span>
-      </div>
-
-      <div className="flex gap-1.5">
-        <button
-          onClick={onApply}
-          className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] hover:border-emerald-500/30 hover:bg-emerald-500/8 hover:text-emerald-300 transition-all cursor-pointer"
-        >
-          <Check size={12} aria-hidden="true" />
-          apply
-        </button>
-        <button
-          onClick={onCopyCss}
-          className="flex-1 inline-flex items-center justify-center gap-1 rounded-md border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.15em] text-[var(--text-primary)] hover:border-sky-500/30 hover:bg-sky-500/8 hover:text-sky-300 transition-all cursor-pointer"
-        >
-          <Copy size={12} aria-hidden="true" />
-          copy css
+        <button type="button" className="bx-btn bx-btn--sm bx-btn--danger" onClick={onRemove} aria-label="Remove style" title="Remove">
+          <Trash size={13} aria-hidden="true" />
         </button>
       </div>
-    </div>
+
+      <div className="bx-card__preview">
+        <span style={previewStyles}>Aa · Preview</span>
+      </div>
+
+      {swatches.length > 0 && (
+        <div className="bx-card__swatches">
+          {swatches.map((swatch) => (
+            <span key={swatch.label} className="bx-swatch" title={`${swatch.label}: ${swatch.value}`}>
+              <span className="bx-swatch__color" style={{ background: swatch.value }} />
+              {swatch.label}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="bx-card__source">
+        <LinkSimple size={11} aria-hidden="true" />
+        <span>{style.sourceUrl.replace(/^https?:\/\//, '')}</span>
+      </div>
+
+      <div className="bx-card__actions">
+        <button type="button" className="bx-btn bx-btn--outline" onClick={onApply} aria-pressed={isActive}>
+          <PaintBrush size={13} aria-hidden="true" />
+          {isActive ? 'Applying…' : 'Apply'}
+        </button>
+        <button type="button" className="bx-btn bx-btn--outline" onClick={onCopyCss}>
+          <Copy size={13} aria-hidden="true" />
+          Copy CSS
+        </button>
+      </div>
+    </article>
   );
 };

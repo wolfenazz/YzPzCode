@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-check-nodejs"
+description = "Enables the check_nodejs command without any pre-configured scope."
+commands.allow = ["check_nodejs"]
+
+[[permission]]
+identifier = "deny-check-nodejs"
+description = "Denies the check_nodejs command without any pre-configured scope."
+commands.deny = ["check_nodejs"]

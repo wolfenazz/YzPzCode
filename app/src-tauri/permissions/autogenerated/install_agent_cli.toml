@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-install-agent-cli"
+description = "Enables the install_agent_cli command without any pre-configured scope."
+commands.allow = ["install_agent_cli"]
+
+[[permission]]
+identifier = "deny-install-agent-cli"
+description = "Denies the install_agent_cli command without any pre-configured scope."
+commands.deny = ["install_agent_cli"]

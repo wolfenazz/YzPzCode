@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reveal-in-file-manager"
+description = "Enables the reveal_in_file_manager command without any pre-configured scope."
+commands.allow = ["reveal_in_file_manager"]
+
+[[permission]]
+identifier = "deny-reveal-in-file-manager"
+description = "Denies the reveal_in_file_manager command without any pre-configured scope."
+commands.deny = ["reveal_in_file_manager"]

@@ -260,22 +260,30 @@ export interface BrowserPopoutStatePayload {
 
 export type BrowserDeviceId =
   | "responsive"
+  | "laptop"
   | "desktop"
-  | "tablet"
-  | "ipad"
+  | "desktop-hd"
   | "ipad-mini"
+  | "ipad"
+  | "ipad-pro"
   | "iphone-se"
-  | "iphone-14-pro"
-  | "pixel-7"
-  | "galaxy-s20";
+  | "iphone-15-pro"
+  | "iphone-15-pro-max"
+  | "pixel-8"
+  | "galaxy-s24"
+  | "custom";
 
 export interface BrowserDevicePreset {
   id: BrowserDeviceId;
   label: string;
   width: number | null;
   height: number | null;
-  category: "desktop" | "tablet" | "mobile";
-  chromeScale?: number;
+  category: "responsive" | "desktop" | "tablet" | "mobile" | "custom";
+}
+
+export interface BrowserViewportSize {
+  width: number;
+  height: number;
 }
 
 export type BrowserDeviceOrientation = "portrait" | "landscape";
@@ -334,7 +342,7 @@ export interface BrowserTab {
   id: string;
   url: string;
   title: string;
-  favicon?: string;
+  favicon?: string | null;
 }
 
 export type InspectorQuickPromptGroup = 'enhance' | 'adjust';
@@ -479,6 +487,10 @@ export interface BrowserWorkspaceState {
   zoomFactor: number;
   deviceId: BrowserDeviceId;
   deviceOrientation: BrowserDeviceOrientation;
+  /** Viewport used by the "custom" device preset (CSS pixels). */
+  customViewport: BrowserViewportSize;
+  /** Reload localhost pages when workspace files change. */
+  autoReload: boolean;
   selectedElement: BrowserSelectedElement | null;
   prompt: string;
   /** Multi-instruction queue: each slot holds its own HTML draft for a UI edit. */
@@ -501,7 +513,45 @@ export interface BrowserPageStatePayload {
   url: string;
   title: string;
   historyLength: number;
+  /** null when the engine has no Navigation API (back/forward stay enabled). */
+  canGoBack: boolean | null;
+  canGoForward: boolean | null;
+  favicon: string | null;
 }
+
+/** Payload of events that only identify their workspace. */
+export interface BrowserWorkspaceEventPayload {
+  workspaceId: string;
+}
+
+export type BrowserShortcutAction =
+  | "focus-address"
+  | "reload"
+  | "hard-reload"
+  | "stop"
+  | "back"
+  | "forward"
+  | "new-tab"
+  | "close-tab"
+  | "next-tab"
+  | "previous-tab"
+  | "zoom-in"
+  | "zoom-out"
+  | "zoom-reset"
+  | "toggle-inspect";
+
+export interface BrowserShortcutPayload {
+  workspaceId: string;
+  action: BrowserShortcutAction;
+}
+
+export interface BrowserOpenTabPayload {
+  workspaceId: string;
+  url: string;
+}
+
+/** Page-captured payloads are tagged with the workspace that captured them. */
+export type WorkspaceScoped<T> = T & { workspaceId: string };
 
 export interface BrowserSnapshotPayload {
   workspaceId: string;

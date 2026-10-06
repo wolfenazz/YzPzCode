@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-kill-workspace-sessions"
+description = "Enables the kill_workspace_sessions command without any pre-configured scope."
+commands.allow = ["kill_workspace_sessions"]
+
+[[permission]]
+identifier = "deny-kill-workspace-sessions"
+description = "Denies the kill_workspace_sessions command without any pre-configured scope."
+commands.deny = ["kill_workspace_sessions"]

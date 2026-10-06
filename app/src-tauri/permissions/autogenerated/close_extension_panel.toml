@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-close-extension-panel"
+description = "Enables the close_extension_panel command without any pre-configured scope."
+commands.allow = ["close_extension_panel"]
+
+[[permission]]
+identifier = "deny-close-extension-panel"
+description = "Denies the close_extension_panel command without any pre-configured scope."
+commands.deny = ["close_extension_panel"]

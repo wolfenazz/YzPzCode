@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-detect-all-agent-clis"
+description = "Enables the detect_all_agent_clis command without any pre-configured scope."
+commands.allow = ["detect_all_agent_clis"]
+
+[[permission]]
+identifier = "deny-detect-all-agent-clis"
+description = "Denies the detect_all_agent_clis command without any pre-configured scope."
+commands.deny = ["detect_all_agent_clis"]

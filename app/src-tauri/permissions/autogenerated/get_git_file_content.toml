@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-git-file-content"
+description = "Enables the get_git_file_content command without any pre-configured scope."
+commands.allow = ["get_git_file_content"]
+
+[[permission]]
+identifier = "deny-get-git-file-content"
+description = "Denies the get_git_file_content command without any pre-configured scope."
+commands.deny = ["get_git_file_content"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-browser-inspect-mode"
+description = "Enables the set_browser_inspect_mode command without any pre-configured scope."
+commands.allow = ["set_browser_inspect_mode"]
+
+[[permission]]
+identifier = "deny-set-browser-inspect-mode"
+description = "Denies the set_browser_inspect_mode command without any pre-configured scope."
+commands.deny = ["set_browser_inspect_mode"]

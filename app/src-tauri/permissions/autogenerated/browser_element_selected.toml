@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-element-selected"
+description = "Enables the browser_element_selected command without any pre-configured scope."
+commands.allow = ["browser_element_selected"]
+
+[[permission]]
+identifier = "deny-browser-element-selected"
+description = "Denies the browser_element_selected command without any pre-configured scope."
+commands.deny = ["browser_element_selected"]

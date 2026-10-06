@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-snapshot-exported"
+description = "Enables the browser_snapshot_exported command without any pre-configured scope."
+commands.allow = ["browser_snapshot_exported"]
+
+[[permission]]
+identifier = "deny-browser-snapshot-exported"
+description = "Denies the browser_snapshot_exported command without any pre-configured scope."
+commands.deny = ["browser_snapshot_exported"]
