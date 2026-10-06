@@ -9,13 +9,16 @@ import {
   Cursor,
   GridFour,
   Palette,
+  PuzzlePiece,
   Scroll,
   SlidersHorizontal,
+  SpeakerHigh,
   TextAa,
   TextAlignLeft,
   TerminalWindow,
 } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
+import { playAgentDoneSound, playExtensionDoneSound } from '../../../utils/agentDoneNotifier';
 import {
   Button,
   ColorInput,
@@ -154,6 +157,12 @@ export const SettingsTerminal: React.FC = () => {
     setTerminalPasteOnRightClick,
     terminalBellEnabled,
     setTerminalBellEnabled,
+    agentDoneSoundEnabled,
+    setAgentDoneSoundEnabled,
+    extensionDoneSoundEnabled,
+    setExtensionDoneSoundEnabled,
+    notificationSoundVolume,
+    setNotificationSoundVolume,
     terminalOpacity,
     setTerminalOpacity,
     terminalBackgroundColor,
@@ -457,6 +466,46 @@ export const SettingsTerminal: React.FC = () => {
               label="Bell notifications"
               onChange={setTerminalBellEnabled}
             />
+          </SettingsGroup>
+
+          <SettingsGroup title="Sounds">
+            <ToggleRow
+              checked={agentDoneSoundEnabled}
+              description="Play a sound when an AI agent CLI (Claude, Codex, OpenCode, Kilo, ...) finishes a task."
+              icon={<SpeakerHigh size={16} aria-hidden="true" />}
+              label="Agent done sound"
+              onChange={(enabled) => {
+                setAgentDoneSoundEnabled(enabled);
+                if (enabled) playAgentDoneSound(notificationSoundVolume);
+              }}
+            />
+            <ToggleRow
+              checked={extensionDoneSoundEnabled}
+              description="Play a sound when an extension panel (Claude Code, Codex, Cline, Kilo Code, ...) finishes a task."
+              icon={<PuzzlePiece size={16} aria-hidden="true" />}
+              label="Extension done sound"
+              onChange={(enabled) => {
+                setExtensionDoneSoundEnabled(enabled);
+                if (enabled) playExtensionDoneSound(notificationSoundVolume);
+              }}
+            />
+            {(agentDoneSoundEnabled || extensionDoneSoundEnabled) && (
+              <SliderRow
+                description="Volume of the agent and extension done sounds."
+                format={(value) => `${value}%`}
+                icon={<SpeakerHigh size={16} aria-hidden="true" />}
+                label="Sound volume"
+                max={100}
+                min={0}
+                onChange={(value) => {
+                  setNotificationSoundVolume(value);
+                  if (agentDoneSoundEnabled) playAgentDoneSound(value);
+                  else playExtensionDoneSound(value);
+                }}
+                step={5}
+                value={notificationSoundVolume}
+              />
+            )}
           </SettingsGroup>
 
           <SettingsGroup title="Grid">

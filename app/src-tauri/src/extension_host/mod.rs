@@ -17,6 +17,8 @@ const BRIDGE_ID: &str = "yzpzcode.panel-bridge";
 const MAX_DOWNLOAD: u64 = 512 * 1024 * 1024;
 const MAX_EXTRACTED: u64 = 2 * 1024 * 1024 * 1024;
 const DOWNLOAD_ATTEMPTS: u32 = 3;
+/// Written to stdout by host-preload.cjs when a pane reports an event.
+const PANEL_EVENT_PREFIX: &str = "[YzPzCode panel event] ";
 
 #[derive(Deserialize)]
 struct RuntimeRelease {
@@ -82,6 +84,8 @@ struct HostProcess {
     url: url::Url,
     browser_data: PathBuf,
     workspace_id: String,
+    extension_id: String,
+    slot: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,6 +233,48 @@ async fn get(
         }
     }
     unreachable!("download attempts always return a response or error")
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PanelTaskComplete {
+    panel_id: String,
+}
+
+/// Copies the host's stdout into its log and turns panel event markers into
+/// app events. Ends when the host exits and closes the pipe.
+fn forward_host_output(
+    app: AppHandle,
+    panel_id: String,
+    stdout: std::process::ChildStdout,
+    mut log: File,
+) {
+    use std::io::{BufRead, BufReader, Write};
+    std::thread::spawn(move || {
+        let mut reader = BufReader::new(stdout);
+        let mut line = Vec::new();
+        loop {
+            line.clear();
+            match reader.read_until(b'\n', &mut line) {
+                Ok(0) | Err(_) => break,
+                Ok(_) => {}
+            }
+            let text = String::from_utf8_lossy(&line);
+            match text.trim_end().strip_prefix(PANEL_EVENT_PREFIX) {
+                Some("task-complete") => {
+                    let _ = app.emit(
+                        "extension-panel-task-complete",
+                        PanelTaskComplete {
+                            panel_id: panel_id.clone(),
+                        },
+                    );
+                }
+                _ => {
+                    let _ = log.write_all(&line);
+                }
+            }
+        }
+    });
 }
 
 fn progress(
@@ -390,6 +436,26 @@ fn host_workspace_path(path: &Path) -> Result<PathBuf> {
         }
     }
     Ok(PathBuf::from(value))
+}
+
+/// Run files, port and browser origin of one concurrently open pane. The first
+/// pane keeps the profile's original files, so its saved origin is unchanged.
+/// Extensions, server data and workbench state stay shared across panes.
+fn instance_directory(profile: &Path, slot: usize) -> PathBuf {
+    if slot == 0 {
+        profile.to_path_buf()
+    } else {
+        profile.join("instances").join(slot.to_string())
+    }
+}
+
+/// Leaves identical files untouched: another pane's host may be reading them.
+fn write_if_changed(path: &Path, contents: &[u8]) -> Result<()> {
+    if fs::read(path).is_ok_and(|current| current == contents) {
+        return Ok(());
+    }
+    fs::write(path, contents)?;
+    Ok(())
 }
 
 fn panel_url(origin_id: &str, port: u16, token: &str) -> Result<url::Url> {
@@ -864,35 +930,47 @@ impl ExtensionHostManager {
             "containers": manifest["contributes"]["viewsContainers"],
             "views": manifest["contributes"]["views"],
         });
-        let preload = profile.join("host-preload.cjs");
-        fs::write(&preload, include_str!("host-preload.cjs"))?;
-        fs::write(
-            profile.join("panel-chrome.js"),
-            include_str!("panel-chrome.js"),
-        )?;
-        fs::write(
-            profile.join("panel-storage.cjs"),
-            include_str!("panel-storage.cjs"),
-        )?;
-        fs::write(
-            profile.join("panel-workbench.mjs"),
-            include_str!("panel-workbench.mjs"),
-        )?;
-        fs::write(
-            profile.join("panel-tunnel.cjs"),
-            include_str!("panel-tunnel.cjs"),
-        )?;
-        fs::write(
-            profile.join("antigravity-compat.cjs"),
-            include_str!("antigravity-compat.cjs"),
-        )?;
-        fs::write(
-            profile.join("provider-access.cjs"),
-            include_str!("provider-access.cjs"),
-        )?;
-        let state_file = profile.join("panel-state.json");
+        // Panes of the same assistant run side by side. Each needs its own
+        // port, browser origin and run files; the lowest free slot is reused so
+        // reopened panes keep their saved origins.
+        let slot = {
+            let hosts = self
+                .hosts
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Extension host lock failed"))?;
+            let used: HashSet<usize> = hosts
+                .values()
+                .filter(|host| {
+                    host.workspace_id == workspace_id
+                        && host.extension_id.eq_ignore_ascii_case(extension_id)
+                })
+                .map(|host| host.slot)
+                .collect();
+            (0..).find(|slot| !used.contains(slot)).unwrap_or_default()
+        };
+        let instance = instance_directory(&profile, slot);
+        fs::create_dir_all(&instance)?;
+        let preload = instance.join("host-preload.cjs");
+        for (name, contents) in [
+            ("host-preload.cjs", include_str!("host-preload.cjs")),
+            ("panel-chrome.js", include_str!("panel-chrome.js")),
+            ("panel-storage.cjs", include_str!("panel-storage.cjs")),
+            ("panel-workbench.mjs", include_str!("panel-workbench.mjs")),
+            ("webview-activity.js", include_str!("webview-activity.js")),
+            ("panel-tunnel.cjs", include_str!("panel-tunnel.cjs")),
+            (
+                "antigravity-compat.cjs",
+                include_str!("antigravity-compat.cjs"),
+            ),
+            ("provider-access.cjs", include_str!("provider-access.cjs")),
+        ] {
+            write_if_changed(&instance.join(name), contents.as_bytes())?;
+        }
+        let state_file = instance.join("panel-state.json");
+        let action_file = instance.join("panel-action.json");
+        let host_log = instance.join("host.log");
         fs::write(&state_file, br#"{"stage":"starting"}"#)?;
-        fs::write(profile.join("panel-action.json"), b"{}")?;
+        fs::write(&action_file, b"{}")?;
         let user_data = profile.join("user-data");
         let settings_dir = user_data.join("data").join("Machine");
         fs::create_dir_all(&settings_dir)?;
@@ -909,14 +987,14 @@ impl ExtensionHostManager {
                 }))?,
             )?;
         }
-        let (origin, listener) = reserve_panel_origin(&profile)?;
+        let (origin, listener) = reserve_panel_origin(&instance)?;
         let port = origin.port;
         let token = Uuid::new_v4().simple().to_string();
         // Cookies are scoped by hostname, not TCP port. Separate pane origins
         // prevent one host's vscode-tkn cookie from authenticating another.
         let hostname = format!("panel-{}.localhost", origin.id);
         let (node, server) = runtime_paths(&runtime);
-        let log = File::create(profile.join("host.log"))?;
+        let log = File::create(&host_log)?;
         let mut command = Command::new(node);
         command
             .arg("--require")
@@ -941,7 +1019,7 @@ impl ExtensionHostManager {
             .env("YZPZ_EXTENSION_ID", extension_id)
             .env("YZPZ_PANEL_CONFIG", serde_json::to_string(&panel_config)?)
             .env("YZPZ_PANEL_STATE_FILE", &state_file)
-            .env("YZPZ_PANEL_ACTION_FILE", profile.join("panel-action.json"))
+            .env("YZPZ_PANEL_ACTION_FILE", &action_file)
             .env("YZPZ_PANEL_HOSTNAME", &hostname)
             // The adapter serves this file at reh-web's original static URL,
             // retaining relative worker and resource resolution. Its embedding
@@ -970,8 +1048,8 @@ impl ExtensionHostManager {
             )
             .current_dir(&host_path)
             .stdin(Stdio::null())
-            .stdout(log.try_clone()?)
-            .stderr(log);
+            .stdout(Stdio::piped())
+            .stderr(log.try_clone()?);
         configure_process(&mut command);
         if let Some(main) = manifest["main"].as_str() {
             command.env("YZPZ_EXTENSION_ENTRY", destination.join(main));
@@ -1000,7 +1078,7 @@ impl ExtensionHostManager {
         #[cfg(windows)]
         let browser_data = {
             let browser_root = app.path().app_local_data_dir()?.join("webviews");
-            let legacy_browser_data = profile.join("webview-data");
+            let legacy_browser_data = instance.join("webview-data");
             let origin_id = origin.id.clone();
             tokio::task::spawn_blocking(move || {
                 prepare_browser_data(&browser_root, &origin_id, &legacy_browser_data)
@@ -1008,7 +1086,7 @@ impl ExtensionHostManager {
             .await??
         };
         #[cfg(not(windows))]
-        let browser_data = profile.join("webview-data");
+        let browser_data = instance.join("webview-data");
         drop(listener);
         let mut host = HostProcess {
             child: command
@@ -1017,7 +1095,12 @@ impl ExtensionHostManager {
             url,
             browser_data,
             workspace_id: workspace_id.to_string(),
+            extension_id: extension_id.to_string(),
+            slot,
         };
+        if let Some(stdout) = host.child.stdout.take() {
+            forward_host_output(app.clone(), panel_id.to_string(), stdout, log);
+        }
         let probe = reqwest::Client::builder()
             .no_proxy()
             .redirect(reqwest::redirect::Policy::none())
@@ -1036,7 +1119,7 @@ impl ExtensionHostManager {
             if host.child.try_wait()?.is_some() {
                 bail!(
                     "The extension runtime stopped during startup. See {}",
-                    profile.join("host.log").display()
+                    host_log.display()
                 );
             }
             if probe
@@ -1055,7 +1138,7 @@ impl ExtensionHostManager {
         if !ready {
             bail!(
                 "The graphical extension runtime did not become ready. See {}",
-                profile.join("host.log").display()
+                host_log.display()
             );
         }
         let closed = self
@@ -1284,23 +1367,26 @@ fn prepare_browser_data(root: &Path, origin_id: &str, legacy: &Path) -> Result<P
 fn write_bridge(extensions: &Path) -> Result<()> {
     let bridge = extensions.join(format!("{BRIDGE_ID}-1.0.0"));
     fs::create_dir_all(&bridge)?;
-    fs::write(
-        bridge.join("package.json"),
-        serde_json::to_vec_pretty(&json!({
+    write_if_changed(
+        &bridge.join("package.json"),
+        &serde_json::to_vec_pretty(&json!({
             "name": "panel-bridge", "publisher": "yzpzcode", "version": "1.0.0",
             "engines": { "vscode": "^1.85.0" }, "main": "./extension.js",
             "capabilities": { "untrustedWorkspaces": { "supported": true } },
             "extensionKind": ["workspace"], "activationEvents": ["onStartupFinished"]
         }))?,
     )?;
-    fs::write(bridge.join("extension.js"), include_str!("panel-bridge.js"))?;
-    fs::write(
-        bridge.join("provider-access.cjs"),
-        include_str!("provider-access.cjs"),
+    write_if_changed(
+        &bridge.join("extension.js"),
+        include_str!("panel-bridge.js").as_bytes(),
     )?;
-    fs::write(
-        bridge.join("panel-storage.cjs"),
-        include_str!("panel-storage.cjs"),
+    write_if_changed(
+        &bridge.join("provider-access.cjs"),
+        include_str!("provider-access.cjs").as_bytes(),
+    )?;
+    write_if_changed(
+        &bridge.join("panel-storage.cjs"),
+        include_str!("panel-storage.cjs").as_bytes(),
     )?;
     Ok(())
 }
@@ -1520,6 +1606,24 @@ mod tests {
                 .join(format!("http_panel-{id}.localhost_65535.indexeddb.leveldb"))
                 .join("MANIFEST-000001");
         assert!(indexed_db_file.as_os_str().len() < 260);
+    }
+
+    #[test]
+    fn concurrent_panes_of_one_assistant_get_separate_persistent_origins() {
+        let profile = StagingDirectory::new(&std::env::temp_dir(), "yzpz-panel-instances")
+            .expect("profile directory");
+        assert_eq!(instance_directory(&profile.0, 0), profile.0);
+        let (first, _first) =
+            reserve_panel_origin(&instance_directory(&profile.0, 0)).expect("first pane");
+        let (second, second_reservation) =
+            reserve_panel_origin(&instance_directory(&profile.0, 1)).expect("second pane");
+        assert_ne!(first.id, second.id);
+        assert_ne!(first.port, second.port);
+        drop(second_reservation);
+        let (reopened, _) =
+            reserve_panel_origin(&instance_directory(&profile.0, 1)).expect("reopened pane");
+        assert_eq!(reopened.id, second.id);
+        assert_eq!(reopened.port, second.port);
     }
 
     #[test]

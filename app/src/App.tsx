@@ -9,6 +9,7 @@ import { BoxLoader } from './components/common/BoxLoader';
 import { TooltipProvider } from './components/ui/tooltip';
 import { useAppStore } from './stores/appStore';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
+import { useExtensionDoneSound } from './hooks/useExtensionDoneSound';
 import { useEffectiveTheme } from './hooks/useEffectiveTheme';
 import { useApplyCustomTheme } from './hooks/useCustomTheme';
 import { useDesktopFileOpen } from './hooks/useDesktopFileOpen';
@@ -64,6 +65,7 @@ function App() {
   const effectiveTheme = useEffectiveTheme();
   const customTheme = useApplyCustomTheme();
   useDiscordPresence();
+  useExtensionDoneSound();
   useDesktopFileOpen(startupReady);
 
   useEffect(() => {

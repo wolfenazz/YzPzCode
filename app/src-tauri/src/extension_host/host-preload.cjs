@@ -50,6 +50,14 @@ function adaptWorkbenchHtml(html, panel, onConfiguration) {
       '$1/yzpz-panel/workbench.mjs$2');
 }
 
+// The Tauri side reads this marker from the host's stdout (see mod.rs).
+const PANEL_EVENT_PREFIX = '[YzPzCode panel event] ';
+
+function adaptWebviewHtml(html) {
+  // The bootstrap CSP allows 'self' scripts, so no hash needs to change.
+  return html.replace('</head>', '<script src="./yzpz-activity.js"></script></head>');
+}
+
 function adaptWorkbenchCsp(csp, port) {
   return csp.replace(/frame-src [^;]*;/, `frame-src 'self' http://*.localhost:${port} data:;`);
 }
@@ -129,12 +137,15 @@ function installAdapter(panel) {
     });
     if (address.pathname.startsWith('/yzpz-webview/')) {
       // Hashed iframe origins do not receive the parent host's auth cookie.
-      // Serve only the three public runtime bootstrap files here. Workspace
+      // Serve only the three public runtime bootstrap files (plus the
+      // app's activity script) here. Workspace
       // files, extension files, status/actions, and all host APIs remain private.
+      const runtimeAsset = name => path.join(process.env.YZPZ_WEBVIEW_ASSETS_DIR, name);
       const allowed = {
-        '/yzpz-webview/index.html': ['index.html', 'text/html; charset=utf-8'],
-        '/yzpz-webview/fake.html': ['fake.html', 'text/html; charset=utf-8'],
-        '/yzpz-webview/service-worker.js': ['service-worker.js', 'application/javascript; charset=utf-8'],
+        '/yzpz-webview/index.html': [runtimeAsset('index.html'), 'text/html; charset=utf-8'],
+        '/yzpz-webview/fake.html': [runtimeAsset('fake.html'), 'text/html; charset=utf-8'],
+        '/yzpz-webview/service-worker.js': [runtimeAsset('service-worker.js'), 'application/javascript; charset=utf-8'],
+        '/yzpz-webview/yzpz-activity.js': [path.join(__dirname, 'webview-activity.js'), 'application/javascript; charset=utf-8'],
       };
       const asset = allowed[address.pathname];
       const assetHost = (request.headers.host || '').toLowerCase();
@@ -144,7 +155,8 @@ function installAdapter(panel) {
         response.writeHead(403); response.end(); return true;
       }
       try {
-        const bytes = fs.readFileSync(path.join(process.env.YZPZ_WEBVIEW_ASSETS_DIR, asset[0]));
+        let bytes = fs.readFileSync(asset[0]);
+        if (address.pathname === '/yzpz-webview/index.html') bytes = Buffer.from(adaptWebviewHtml(bytes.toString('utf8')));
         response.writeHead(200, { 'Content-Type': asset[1], 'Content-Length': bytes.length,
           'Cache-Control': 'no-cache', 'Cross-Origin-Resource-Policy': 'cross-origin',
           'Service-Worker-Allowed': '/yzpz-webview/' });
@@ -188,7 +200,7 @@ function installAdapter(panel) {
       catch { response.end('{"stage":"starting"}'); }
       return true;
     }
-    if (request.method === 'POST' && ['/yzpz-panel/action', '/yzpz-panel/storage', '/yzpz-panel/diagnostic', '/yzpz-panel/tunnel'].includes(address.pathname)) {
+    if (request.method === 'POST' && ['/yzpz-panel/action', '/yzpz-panel/storage', '/yzpz-panel/diagnostic', '/yzpz-panel/tunnel', '/yzpz-panel/event'].includes(address.pathname)) {
       // Accept only the host's own UI, with a bounded JSON body and a fixed
       // command allowlist. This never grants trust on the user's behalf.
       const origin = request.headers.origin;
@@ -247,6 +259,9 @@ function installAdapter(panel) {
                   (trust && folderUri && !folderIsTrusted(JSON.parse(trust[1]).uriTrustInfo, folderUri)))
                 saveTrust(process.env.YZPZ_WORKSPACE_TRUST_FILE, process.env.YZPZ_WORKSPACE_PATH, false);
             }
+          } else if (address.pathname.endsWith('/event')) {
+            if (value.event !== 'task-complete') throw new Error('Unsupported event');
+            process.stdout.write(`${PANEL_EVENT_PREFIX}${value.event}\n`);
           } else if (address.pathname.endsWith('/diagnostic')) {
             if (!['configuration', 'read', 'restore', 'capture', 'import'].includes(value.stage) ||
                 typeof value.name !== 'string' || typeof value.message !== 'string' ||
@@ -267,5 +282,5 @@ function installAdapter(panel) {
   };
 }
 
-module.exports = { adaptWorkbenchHtml, adaptWorkbenchCsp, adaptWorkbenchModule, isWorkbenchModule };
+module.exports = { adaptWorkbenchHtml, adaptWebviewHtml, adaptWorkbenchCsp, adaptWorkbenchModule, isWorkbenchModule };
 if (process.env.YZPZ_PANEL_CONFIG && process.argv.includes('--start-server')) installAdapter(JSON.parse(process.env.YZPZ_PANEL_CONFIG));

@@ -171,7 +171,7 @@ fn detect_mime_type(path: &Path) -> &'static str {
         "csv" => "text/csv",
         "pptx" => "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "ppt" => "application/vnd.ms-powerpoint",
-        _ => "application/octet-stream",
+        other => super::media_protocol::mime_type(other),
     }
 }
 
@@ -207,7 +207,8 @@ pub fn is_binary_file(file_path: &str) -> Result<bool, String> {
 
     let binary_extensions: &[&str] = &[
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "avif", "tiff", "tif", "pdf", "docx",
-        "doc", "xlsx", "xls", "pptx", "ppt",
+        "doc", "xlsx", "xls", "pptx", "ppt", "mp3", "wav", "ogg", "oga", "opus", "flac", "m4a",
+        "aac", "weba", "mp4", "m4v", "webm", "ogv", "mov", "mkv", "avi",
     ];
 
     if binary_extensions.contains(&ext.as_str()) {

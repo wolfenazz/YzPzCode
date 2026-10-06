@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { useAppStore } from '../stores/appStore';
 import { normalizeFilePath, pathAffectedByChanges } from '../utils/fileSync';
+import { AUDIO_EXTENSIONS, VIDEO_EXTENSIONS } from '../utils/mediaFiles';
 import type { FileSystemChangedPayload } from '../utils/fileSync';
 import type { FileContent, GitDiffStat, GitFileStatus } from '../types';
 
@@ -22,7 +23,7 @@ function scheduleWatcherOperation(operation: () => Promise<unknown>): Promise<un
   return next;
 }
 
-const PREVIEW_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif', 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt']);
+const PREVIEW_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif', 'pdf', 'docx', 'doc', 'xlsx', 'xls', 'csv', 'pptx', 'ppt', ...AUDIO_EXTENSIONS, ...VIDEO_EXTENSIONS]);
 
 export const useFileWatcher = (workspacePath: string | null): FileWatcherState => {
   const [isRefreshingGit, setIsRefreshingGit] = useState(false);
@@ -88,7 +89,7 @@ export const useFileWatcher = (workspacePath: string | null): FileWatcherState =
           if (!workspace || normalizeFilePath(workspace.path) !== normalizeFilePath(workspacePath)) return;
           const workspaceId = workspace.id;
           const files = (state.filesByWorkspace[workspaceId] ?? []).filter((file) =>
-            !PREVIEW_EXTENSIONS.has(file.name.split('.').pop()?.toLowerCase() ?? '') && pathAffectedByChanges(file.path, paths));
+            !file.binary && !PREVIEW_EXTENSIONS.has(file.name.split('.').pop()?.toLowerCase() ?? '') && pathAffectedByChanges(file.path, paths));
           const results = await Promise.allSettled(files.map(async (file) => {
             let disk: FileContent | null;
             try {

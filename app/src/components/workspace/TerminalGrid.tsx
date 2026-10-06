@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, useMemo } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -28,7 +28,8 @@ import { Plus, PuzzlePiece, TerminalWindow } from '@phosphor-icons/react';
 import { TerminalLayoutContext } from './TerminalLayoutContext';
 import { DEFAULT_TERMINAL_ARRANGEMENT, useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { getTerminalLayoutRects } from '../../utils/terminalLayouts';
-import type { TerminalLayoutPreset } from '../../utils/terminalLayouts';
+import type { TerminalLayoutPreset, TerminalLayoutRect } from '../../utils/terminalLayouts';
+import './terminal-grid.css';
 import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
 
 interface TerminalGridProps {
@@ -66,6 +67,31 @@ function makeEqualSizes(n: number): number[] {
 const MIN_SIZE = 12;
 const DIVIDER = 3;
 const GAP_PX = 8;
+/** Maximize preset: minimized panes keep just their header (plus borders) visible. */
+const STRIP_PX = 38;
+/** Keep in sync with the transition duration in terminal-grid.css. */
+const MORPH_MS = 560;
+const MORPH_STAGGER_MS = 40;
+const MORPH_MAX_DELAY_MS = 200;
+
+/** Absolute placement for a preset cell; the inset math surrenders each cell's share of the gutters. */
+function presetCellStyle(rect: TerminalLayoutRect): React.CSSProperties {
+  if (rect.maximized) {
+    return { left: 'calc(0% + 0px)', top: 'calc(0% + 0px)', width: 'calc(100% - 0px)', height: `calc(100% - ${STRIP_PX + GAP_PX}px)` };
+  }
+  const horizontal = {
+    left: `calc(${rect.x * 100}% + ${rect.x * GAP_PX}px)`,
+    width: `calc(${rect.width * 100}% - ${(1 - rect.width) * GAP_PX}px)`,
+  };
+  if (rect.minimized) {
+    return { ...horizontal, top: `calc(100% - ${STRIP_PX}px)`, height: `calc(0% + ${STRIP_PX}px)` };
+  }
+  return {
+    ...horizontal,
+    top: `calc(${rect.y * 100}% + ${rect.y * GAP_PX}px)`,
+    height: `calc(${rect.height * 100}% - ${(1 - rect.height) * GAP_PX}px)`,
+  };
+}
 
 /** Width of `.terminal-drag-preview` (19rem) — keep in sync with premium-system.css. */
 const DRAG_PREVIEW_WIDTH_REM = 19;
@@ -159,14 +185,44 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     setColSizes(null);
     setRowSizes(null);
   }, [layoutId, setArrangement, setActiveSession, sessions]);
-  const layoutControls = useMemo(() => ({ preset, focusedSessionId, selectPreset }), [preset, focusedSessionId, selectPreset]);
+  const restorePreset = arrangement.restorePreset ?? 'grid';
+  const toggleMaximize = useCallback((sessionId: string) => {
+    const maximized = preset === 'maximize' && focusedSessionId === sessionId;
+    selectPreset(maximized ? restorePreset : 'maximize', sessionId);
+  }, [preset, focusedSessionId, restorePreset, selectPreset]);
+  const paneIdsKey = sorted.map((pane) => pane.id).join(',');
+  const layoutControls = useMemo(
+    () => ({ preset, focusedSessionId, paneIds: paneIdsKey ? paneIdsKey.split(',') : [], selectPreset, toggleMaximize }),
+    [preset, focusedSessionId, paneIdsKey, selectPreset, toggleMaximize],
+  );
+
+  // Morph: when the arrangement changes (preset, focus, panes added, removed or
+  // reordered) the cells glide to their new rects instead of jumping. The class
+  // must land in the same commit as the new rects, so a pending change counts as
+  // morphing during render; the timer then keeps it on until the last cell lands.
+  // Divider drags are not part of the key, so resizing stays immediate.
+  const layoutKey = `${preset}|${focusedSessionId ?? ''}|${paneIdsKey}`;
+  const committedLayoutKey = useRef(layoutKey);
+  const [morphActive, setMorphActive] = useState(false);
+  const morphTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const morphing = morphActive || committedLayoutKey.current !== layoutKey;
+  useLayoutEffect(() => {
+    if (committedLayoutKey.current === layoutKey) return;
+    committedLayoutKey.current = layoutKey;
+    setMorphActive(true);
+    if (morphTimer.current) clearTimeout(morphTimer.current);
+    morphTimer.current = setTimeout(() => setMorphActive(false), MORPH_MS + MORPH_MAX_DELAY_MS + 80);
+  }, [layoutKey]);
+  useEffect(() => () => { if (morphTimer.current) clearTimeout(morphTimer.current); }, []);
   // Scroll when a preset would otherwise make the smaller terminals unusable.
   const focusBeside = preset === 'focus-left' || preset === 'focus-right';
   const focusAbove = preset === 'focus-top' || preset === 'focus-bottom';
   const minSurfaceWidth = sorted.length <= 1 ? 0 : preset === 'columns' ? sorted.length * 320
-    : focusBeside ? 1080 : focusAbove ? (sorted.length - 1) * 320 : 0;
+    : focusBeside ? 1080 : focusAbove ? (sorted.length - 1) * 320
+    : preset === 'maximize' ? (sorted.length - 1) * 220 : 0;
   const minSurfaceHeight = sorted.length <= 1 ? 0 : preset === 'rows' ? sorted.length * 140
-    : focusBeside ? (sorted.length - 1) * 140 : focusAbove ? 480 : 0;
+    : focusBeside ? (sorted.length - 1) * 140 : focusAbove ? 480
+    : preset === 'maximize' ? 320 : 0;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -491,7 +547,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     >
       <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
         <div
-          className="absolute z-0"
+          className={`terminal-grid-surface absolute z-0${morphing ? ' terminal-grid-surface--morphing' : ''}`}
           style={{
             top: GAP_PX,
             right: GAP_PX,
@@ -506,22 +562,27 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
             const c = idx % cols;
             const leftPct = cellRowColSizes[r].slice(0, c).reduce((a, b) => a + b, 0);
             const topPct = cellColRowSizes[c].slice(0, r).reduce((a, b) => a + b, 0);
+            const minimized = customLayout && presetRects[idx].minimized === true;
+            // The focused pane leads the morph; the rest follow outward from it.
+            const morphDelay = Math.min(Math.abs(idx - focusedIndex) * MORPH_STAGGER_MS, MORPH_MAX_DELAY_MS);
             return (
               <div
                 key={session.id}
-                className="absolute overflow-hidden"
+                className={`terminal-cell absolute overflow-hidden${idx === focusedIndex ? ' terminal-cell--lead' : ''}${minimized ? ' terminal-cell--minimized' : ''}`}
                 data-terminal-session={session.id}
+                title={minimized ? 'Click to maximize this pane' : undefined}
+                onClick={minimized ? (event) => {
+                  // Header controls keep working; clicking anywhere else swaps this pane in.
+                  if ((event.target as Element).closest('button, a, input, select, textarea, [role="menuitem"]')) return;
+                  selectPreset('maximize', session.id);
+                } : undefined}
                 style={{
                   left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
                   top: `calc(${topPct}% + ${r * GAP_PX}px)`,
                   width: `calc(${cellRowColSizes[r][c]}% - ${cellWidthGap}px)`,
                   height: `calc(${cellColRowSizes[c][r]}% - ${cellHeightGap}px)`,
-                  ...(customLayout ? {
-                    left: `calc(${presetRects[idx].x * 100}% + ${presetRects[idx].x * GAP_PX}px)`,
-                    top: `calc(${presetRects[idx].y * 100}% + ${presetRects[idx].y * GAP_PX}px)`,
-                    width: `calc(${presetRects[idx].width * 100}% - ${(1 - presetRects[idx].width) * GAP_PX}px)`,
-                    height: `calc(${presetRects[idx].height * 100}% - ${(1 - presetRects[idx].height) * GAP_PX}px)`,
-                  } : {}),
+                  ...(customLayout ? presetCellStyle(presetRects[idx]) : {}),
+                  ['--morph-delay' as string]: `${morphDelay}ms`,
                 }}
               >
                 {session.terminal ? (
@@ -534,7 +595,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
                     panel={session.extension}
                     workspace={workspace}
                     visible={visible}
-                    suspended={activeId !== null || showNewDialog}
+                    suspended={activeId !== null || showNewDialog || morphing}
                   />
                 ) : null}
               </div>
@@ -549,7 +610,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
               const topPct = cellColRowSizes[c].slice(0, r).reduce((a, b) => a + b, 0);
               return (
                 <div
-                  className={`absolute overflow-hidden rounded-[10px] border bg-zinc-950/30 border-zinc-800`}
+                  className="terminal-cell terminal-cell--placeholder absolute overflow-hidden rounded-[10px] border bg-zinc-950/30 border-zinc-800"
                   style={{
                     left: `calc(${leftPct}% + ${c * GAP_PX}px)`,
                     top: `calc(${topPct}% + ${r * GAP_PX}px)`,

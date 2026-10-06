@@ -183,6 +183,7 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 - `ImagePreview.tsx`: Image file preview
 - `SpreadsheetPreview.tsx`: Excel/CSV preview (xlsx)
 - `DocxPreview.tsx`: Word document preview (mammoth)
+- `MediaPreview.tsx`: Audio (waveform, transport, speed, loop) and video player; `BinaryPreview.tsx`: hex view for any other non-UTF-8 file. Both stream through the `yzpzmedia` URI scheme (`src-tauri/src/filesystem/media_protocol.rs`, HTTP range support, served only to the `main` webview); build URLs with `localFileUrl()` from `utils/mediaFiles.ts`
 - Language support: JS, TS, Python, Rust, Java, C++, HTML, CSS, JSON, Markdown, and more
 - Features: minimap, search, word wrap, bracket colorization, format on save, line numbers (on/off/relative), auto-save, dirty state tracking
 

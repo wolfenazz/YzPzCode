@@ -110,6 +110,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .register_asynchronous_uri_scheme_protocol(
+            filesystem::media_protocol::SCHEME,
+            |ctx, request, responder| {
+                let label = ctx.webview_label().to_string();
+                tauri::async_runtime::spawn_blocking(move || {
+                    responder.respond(filesystem::media_protocol::handle(&label, &request));
+                });
+            },
+        )
         .manage(terminal_manager.clone())
         .manage(agent_executor.clone())
         .manage(cli_detector.clone())

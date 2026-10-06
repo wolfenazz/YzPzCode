@@ -34,7 +34,7 @@ const result = await build({
         export const useEffect = (...args) => globalThis.fileFixture.hooks.useEffect(...args);`
       : path.endsWith('/event') ? 'export const listen = (...args) => globalThis.fileFixture.listen(...args);'
       : path.includes('appStore') ? 'export const useAppStore = Object.assign(selector => selector(globalThis.fileFixture.state), { getState: () => globalThis.fileFixture.state });'
-      : 'export const invoke = (...args) => globalThis.fileFixture.invoke(...args);', loader: 'js' }));
+      : 'export const invoke = (...args) => globalThis.fileFixture.invoke(...args); export const convertFileSrc = (...args) => "";', loader: 'js' }));
     localModules(builder);
   } }],
 });

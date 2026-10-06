@@ -27,6 +27,9 @@ import { DocxPreview } from './DocxPreview';
 import { SpreadsheetEditor } from './SpreadsheetEditor';
 import { PptxPreview } from './PptxPreview';
 import { DrawioPreview } from './DrawioPreview';
+import { MediaPreview } from './MediaPreview';
+import { BinaryPreview } from './BinaryPreview';
+import { getMediaKind } from '../../utils/mediaFiles';
 import { toMonacoLanguage } from '../../utils/monacoLanguage';
 import { toMonacoThemeColor } from '../../utils/monacoThemeColor';
 
@@ -120,7 +123,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
   const isSpreadsheet = fileExt === "xlsx" || fileExt === "xls" || fileExt === "csv";
   const isPptx = fileExt === "pptx" || fileExt === "ppt";
   const isDrawio = fileExt === "drawio" || fileExt === "dio";
-  const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet || isPptx || isDrawio;
+  const mediaKind = getMediaKind(fileExt);
+  const isBinary = Boolean(activeFile?.binary) && !mediaKind;
+  const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet || isPptx || isDrawio || mediaKind !== null || isBinary;
   const showEditor = Boolean(activeFile && !isPreviewable && !(isMarkdown && mdPreview));
   const mountContextRef = useRef({ focused, showEditor });
   mountContextRef.current = { focused, showEditor };
@@ -491,7 +496,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
             <EditorActionButton label="Markdown source" active={markdownMode === 'source'} onClick={() => setMarkdownMode('source')}><Code size={14} /><span>Source</span></EditorActionButton>
             <EditorActionButton label="Markdown preview" active={markdownMode === 'preview'} onClick={() => setMarkdownMode('preview')}><Eye size={14} /><span>Read</span></EditorActionButton>
             <EditorActionButton label="Markdown source with live preview" active={markdownMode === 'live'} onClick={() => setMarkdownMode('live')}><BracketsCurly size={14} /><span>Live</span></EditorActionButton>
-          </div> : <span className="px-1 text-[11px] text-[var(--text-secondary)]">{isPreviewable ? 'File preview' : toMonacoLanguage(activeFile.language)}</span>}
+          </div> : <span className="px-1 text-[11px] text-[var(--text-secondary)]">{mediaKind === 'audio' ? 'Audio' : mediaKind === 'video' ? 'Video' : isBinary ? 'Binary' : isPreviewable ? 'File preview' : toMonacoLanguage(activeFile.language)}</span>}
         </div>
         <div className="flex items-center gap-0.5">
           {showEditor && <>
@@ -546,6 +551,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
       {activeFile && isSpreadsheet && <SpreadsheetEditor filePath={activeFile.path} fileName={activeFile.name} />}
       {activeFile && isPptx && <PptxPreview filePath={activeFile.path} fileName={activeFile.name} />}
       {activeFile && isDrawio && <DrawioPreview filePath={activeFile.path} content={activeFile.content} />}
+      {activeFile && mediaKind && <MediaPreview key={activeFile.path} filePath={activeFile.path} fileName={activeFile.name} kind={mediaKind} />}
+      {activeFile && isBinary && <BinaryPreview key={activeFile.path} filePath={activeFile.path} fileName={activeFile.name} />}
       {!activeFile && <div className="flex h-full items-center justify-center px-6">
         <div className="w-full max-w-sm">
           <Code size={32} weight="light" className="mb-5 text-[var(--text-secondary)]" />

@@ -18,7 +18,7 @@ import {
 import { Icon } from '@iconify/react';
 import { CliType, AgentType, ToolCliType, TerminalSession, ManagedTerminalCommandState } from '../../types';
 import { QuickActions } from './QuickActions';
-import { TerminalLayoutPicker } from './TerminalLayoutPicker';
+import { PaneMaximizeButton, TerminalLayoutPicker } from './TerminalLayoutPicker';
 import { AGENT_COMMANDS, getCommandIcon } from '../../data/agentCommands';
 import { terminalDirectoryLabel } from '../../utils/terminalCwd';
 
@@ -235,6 +235,7 @@ export const TerminalHeader: React.FC<TerminalHeaderProps> = ({
         )}
 
         <TerminalLayoutPicker session={session} />
+        <PaneMaximizeButton session={session} />
 
         {isAiAgent && onNewSession && (
           <button

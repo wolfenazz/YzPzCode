@@ -99,8 +99,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
 
   const handleOpenExtension = useCallback((extension: ExtensionInfo): void => {
     if (!currentWorkspace) return;
-    useExtensionStore.getState().openPanel(currentWorkspace.id, extension);
-    const panel = useExtensionStore.getState().panelsByWorkspace[currentWorkspace.id]?.find((entry) => entry.extensionId === extension.id);
+    const panel = useExtensionStore.getState().openPanel(currentWorkspace.id, extension);
     if (!panel) return;
     const layouts = useTerminalLayoutStore.getState();
     const layoutId = `extensions:${currentWorkspace.id}`;

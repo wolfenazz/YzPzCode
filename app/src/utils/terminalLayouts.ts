@@ -1,10 +1,14 @@
-export type TerminalLayoutPreset = 'grid' | 'columns' | 'rows' | 'focus-left' | 'focus-right' | 'focus-top' | 'focus-bottom';
+export type TerminalLayoutPreset = 'grid' | 'columns' | 'rows' | 'focus-left' | 'focus-right' | 'focus-top' | 'focus-bottom' | 'maximize';
 
 export interface TerminalLayoutRect {
   x: number;
   y: number;
   width: number;
   height: number;
+  /** Maximize preset: the pane that fills the surface above the strip. */
+  maximized?: boolean;
+  /** Maximize preset: collapsed to its header in the bottom strip. */
+  minimized?: boolean;
 }
 
 export const TERMINAL_LAYOUT_PRESETS: { id: TerminalLayoutPreset; label: string }[] = [
@@ -15,13 +19,28 @@ export const TERMINAL_LAYOUT_PRESETS: { id: TerminalLayoutPreset; label: string 
   { id: 'focus-right', label: 'Focus right' },
   { id: 'focus-top', label: 'Focus top' },
   { id: 'focus-bottom', label: 'Focus bottom' },
+  { id: 'maximize', label: 'Maximize' },
 ];
+
+/** Presets that single out one pane (the focused one) from the rest. */
+export function isFocusPreset(preset: TerminalLayoutPreset): boolean {
+  return preset === 'maximize' || preset.startsWith('focus-');
+}
 
 /** Unit rectangles; callers inset the cells to create pixel-sized gutters. */
 export function getTerminalLayoutRects(preset: TerminalLayoutPreset, count: number, focusedIndex: number): TerminalLayoutRect[] {
   if (count <= 0) return [];
   if (count === 1) return [{ x: 0, y: 0, width: 1, height: 1 }];
   const focus = Math.max(0, Math.min(count - 1, focusedIndex));
+  if (preset === 'maximize') {
+    // Unit sizes only drive the picker thumbnail; the grid pins the strip to
+    // a header-tall pixel height.
+    return Array.from({ length: count }, (_, index) => {
+      if (index === focus) return { x: 0, y: 0, width: 1, height: 0.8, maximized: true };
+      const otherIndex = index < focus ? index : index - 1;
+      return { x: otherIndex / (count - 1), y: 0.8, width: 1 / (count - 1), height: 0.2, minimized: true };
+    });
+  }
   const columns = preset === 'columns' ? count : preset === 'rows' ? 1 : Math.ceil(Math.sqrt(count));
   const rows = Math.ceil(count / columns);
   return Array.from({ length: count }, (_, index) => {

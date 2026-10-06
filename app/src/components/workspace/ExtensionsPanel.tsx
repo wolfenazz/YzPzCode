@@ -52,7 +52,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
           const latest = latestVersions[extension.id];
           const updatable = isNewerVersion(latest, extension.installedVersion);
           const status = progress[extension.id];
-          const opened = panels?.some((panel) => panel.extensionId === extension.id) ?? false;
+          const opened = panels?.filter((panel) => panel.extensionId === extension.id).length ?? 0;
           const percent = status?.totalBytes ? Math.min(100, Math.round(status.downloadedBytes / status.totalBytes * 100)) : null;
           return (
             <article key={extension.id} className="border-t border-[var(--border-primary)] px-3 py-4">
@@ -63,7 +63,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
               </div>
               <p className="mt-2 text-[11px] leading-5 text-[var(--text-secondary)]">{extension.description}</p>
               <div className="mt-3 flex items-center justify-between gap-2">
-                <span className="text-[10px] text-[var(--text-secondary)]">{!backendReady ? 'Checking availability' : updatable ? `Update available · v${latest}` : extension.installedVersion ? (opened ? 'Open in workspace' : 'Installed') : 'Available from Open VSX'}</span>
+                <span className="text-[10px] text-[var(--text-secondary)]">{!backendReady ? 'Checking availability' : updatable ? `Update available · v${latest}` : extension.installedVersion ? (opened ? `${opened} open in workspace` : 'Installed') : 'Available from Open VSX'}</span>
                 <div className="flex shrink-0 items-center gap-1.5">
                   {updatable && (
                     <button type="button" disabled={busy || !backendReady} onClick={() => void install(extension.id)} className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60" title={`Update ${extension.name} to v${latest}`}>
@@ -73,7 +73,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
                   {!(busy && updatable) && (
                     <button type="button" disabled={busy || !backendReady} onClick={() => extension.installedVersion ? onOpen(extension) : void install(extension.id)} className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60">
                       {!extension.installedVersion && !busy && <DownloadSimple size={13} />}
-                      {busy ? 'Installing…' : extension.installedVersion ? (opened ? 'Show panel' : 'Open') : status?.stage === 'failed' ? 'Retry install' : 'Install'}
+                      {busy ? 'Installing…' : extension.installedVersion ? (opened ? 'Open another' : 'Open') : status?.stage === 'failed' ? 'Retry install' : 'Install'}
                     </button>
                   )}
                 </div>

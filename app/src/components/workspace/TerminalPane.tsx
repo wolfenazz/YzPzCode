@@ -21,11 +21,12 @@ import { observeTerminalLayout, refreshTerminalAtlases, registerTerminalRenderer
 import { detectTerminalCwd } from '../../utils/terminalCwd';
 import { buildMouseModeSequence, DEFAULT_MOUSE_TRACKING_MODES, registerTerminalMouseModes } from '../../utils/terminalMouseModes';
 import { ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
+import { AgentActivityTracker, playAgentDoneSound } from '../../utils/agentDoneNotifier';
 import { CaretDown, CaretUp, MagnifyingGlass, Warning, X } from '@phosphor-icons/react';
 import '@xterm/xterm/css/xterm.css';
 import './TerminalPane.css';
 
-import { TerminalHeader } from './TerminalHeader';
+import { TerminalHeader, isAgentType } from './TerminalHeader';
 import { CliStatusBadge } from './CliStatusBadge';
 import { AuthModal } from './AuthModal';
 import { QuickPromptChips } from '../common/QuickPromptChips';
@@ -313,6 +314,20 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   useEffect(() => {
     pasteOnRightClickRef.current = terminalPasteOnRightClick;
   }, [terminalPasteOnRightClick]);
+
+  // Plays the notification sound when an AI agent in this pane finishes a task.
+  const agentActivityRef = useRef<AgentActivityTracker | null>(null);
+  useEffect(() => {
+    const tracker = new AgentActivityTracker(() => {
+      const { agentDoneSoundEnabled, notificationSoundVolume } = useAppStore.getState();
+      if (agentDoneSoundEnabled) playAgentDoneSound(notificationSoundVolume);
+    });
+    agentActivityRef.current = tracker;
+    return () => {
+      tracker.dispose();
+      if (agentActivityRef.current === tracker) agentActivityRef.current = null;
+    };
+  }, [session.id]);
 
   const terminalFontFamily = useAppStore((s) => s.terminalFontFamily);
   const terminalFontStack = useMemo(() => getTerminalFontStack(terminalFontFamily), [terminalFontFamily]);
@@ -891,6 +906,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     let inputWrites: Promise<unknown> = Promise.resolve();
 
     xterm.onData((data) => {
+      const agent = effectiveAgentRef.current;
+      if (agent && isAgentType(agent)) {
+        if (data === '\u001b' || data.includes('\u0003')) agentActivityRef.current?.disarm();
+        else if (/[\r\n]/.test(data)) agentActivityRef.current?.arm();
+      }
+
       // xterm normally reports Enter as CR, but some shells/keymaps emit LF.
       // Detect both so manually typed AI commands promote the terminal header
       // consistently across Windows, macOS, and Linux shells.
@@ -988,8 +1009,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
         return false;
       }
 
-      if (isCtrl && event.key === 'f' && isKeydown) {
-        setShowSearch(prev => !prev);
+      // Returning false only stops xterm from emitting bytes; without
+      // preventDefault the WebView's own find bar opens on top of ours.
+      if (isCtrl && !event.altKey && !event.shiftKey
+        && (event.key.toLowerCase() === 'f' || event.code === 'KeyF')) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (isKeydown) setShowSearch(prev => !prev);
         return false;
       }
 
@@ -1115,6 +1141,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
     const setupListener = async () => {
       const unlisten = await listen<string>(`terminal-output:${session.id}`, (event) => {
         if (!mounted) return;
+        agentActivityRef.current?.output();
         cwdOutputBufferRef.current = `${cwdOutputBufferRef.current}${event.payload}`.slice(-8192);
         const detectedCwd = detectTerminalCwd(
           cwdOutputBufferRef.current,
@@ -1352,7 +1379,13 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
                 handleSearch('next', e.target.value, true);
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
+                if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
+                  && (e.key.toLowerCase() === 'f' || e.code === 'KeyF')) {
+                  // Keep Ctrl+F inside our find bar instead of the WebView's.
+                  e.preventDefault();
+                  e.stopPropagation();
+                  e.currentTarget.select();
+                } else if (e.key === 'Enter') {
                   handleSearch(e.shiftKey ? 'prev' : 'next');
                 } else if (e.key === 'Escape') {
                   handleClearSearch();

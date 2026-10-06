@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
 import { ExtensionLogo } from '../common/ExtensionLogo';
-import { TerminalLayoutPicker } from './TerminalLayoutPicker';
+import { PaneMaximizeButton, TerminalLayoutPicker } from './TerminalLayoutPicker';
 import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
 
 interface ExtensionPaneProps {
@@ -133,6 +133,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{panel.name}</span>
         <span className="text-[9px] text-[var(--text-secondary)]">Extension</span>
         <TerminalLayoutPicker panelId={panel.id} panelName={panel.name} />
+        <PaneMaximizeButton panelId={panel.id} panelName={panel.name} />
         <button type="button" className="app-icon-button app-icon-button--compact" onClick={() => void handleClose()} disabled={closing} aria-label={`Close ${panel.name}`} title={`Close ${panel.name}`}><X size={14} /></button>
       </header>
       <div ref={contentRef} className="relative min-h-0 flex-1 overflow-hidden">

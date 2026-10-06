@@ -221,6 +221,9 @@ interface AppState {
   terminalCopyOnSelect: boolean;
   terminalPasteOnRightClick: boolean;
   terminalBellEnabled: boolean;
+  agentDoneSoundEnabled: boolean;
+  extensionDoneSoundEnabled: boolean;
+  notificationSoundVolume: number;
   terminalOpacity: number;
   terminalBackgroundColor: string | null;
   terminalForegroundColor: string | null;
@@ -302,6 +305,9 @@ interface AppState {
   setTerminalCopyOnSelect: (enabled: boolean) => void;
   setTerminalPasteOnRightClick: (enabled: boolean) => void;
   setTerminalBellEnabled: (enabled: boolean) => void;
+  setAgentDoneSoundEnabled: (enabled: boolean) => void;
+  setExtensionDoneSoundEnabled: (enabled: boolean) => void;
+  setNotificationSoundVolume: (volume: number) => void;
   setTerminalOpacity: (opacity: number) => void;
   setTerminalBackgroundColor: (color: string | null) => void;
   setTerminalForegroundColor: (color: string | null) => void;
@@ -539,6 +545,9 @@ export const useAppStore = create<AppState>()(
       terminalCopyOnSelect: false,
       terminalPasteOnRightClick: false,
       terminalBellEnabled: true,
+      agentDoneSoundEnabled: true,
+      extensionDoneSoundEnabled: true,
+      notificationSoundVolume: 70,
       terminalOpacity: 100,
       terminalBackgroundColor: null,
       terminalForegroundColor: null,
@@ -809,6 +818,9 @@ export const useAppStore = create<AppState>()(
       setTerminalCopyOnSelect: (enabled) => set({ terminalCopyOnSelect: enabled }),
       setTerminalPasteOnRightClick: (enabled) => set({ terminalPasteOnRightClick: enabled }),
       setTerminalBellEnabled: (enabled) => set({ terminalBellEnabled: enabled }),
+      setAgentDoneSoundEnabled: (enabled) => set({ agentDoneSoundEnabled: enabled }),
+      setExtensionDoneSoundEnabled: (enabled) => set({ extensionDoneSoundEnabled: enabled }),
+      setNotificationSoundVolume: (volume) => set({ notificationSoundVolume: volume }),
       setTerminalOpacity: (opacity) => set({ terminalOpacity: opacity }),
       setTerminalBackgroundColor: (color) => set({ terminalBackgroundColor: color }),
       setTerminalForegroundColor: (color) => set({ terminalForegroundColor: color }),
@@ -1930,6 +1942,9 @@ export const useAppStore = create<AppState>()(
           terminalCopyOnSelect: state.terminalCopyOnSelect,
           terminalPasteOnRightClick: state.terminalPasteOnRightClick,
           terminalBellEnabled: state.terminalBellEnabled,
+          agentDoneSoundEnabled: state.agentDoneSoundEnabled,
+          extensionDoneSoundEnabled: state.extensionDoneSoundEnabled,
+          notificationSoundVolume: state.notificationSoundVolume,
           terminalOpacity: state.terminalOpacity,
           terminalBackgroundColor: state.terminalBackgroundColor,
           terminalForegroundColor: state.terminalForegroundColor,

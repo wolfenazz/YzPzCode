@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FileEntry, FileContent, FileTab } from '../types';
 import { useAppStore } from '../stores/appStore';
+import { getMediaKind } from '../utils/mediaFiles';
 
 const BINARY_EXTENSIONS = new Set([
   'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif', 'tiff', 'tif',
@@ -14,7 +15,7 @@ function isLikelyBinary(entry: FileEntry): boolean {
   if (entry.extension && BINARY_EXTENSIONS.has(entry.extension.toLowerCase())) {
     return true;
   }
-  return false;
+  return getMediaKind(entry.extension) !== null;
 }
 
 function formatFileSize(bytes: number): string {
@@ -38,7 +39,7 @@ export const useFileEditor = () => {
     const existing = openFiles.find((f) => f.path === entry.path);
     if (existing) {
       openTab(existing);
-      if (workspaceId && !isLikelyBinary(entry)) {
+      if (workspaceId && !isLikelyBinary(entry) && !existing.binary) {
         try {
           const disk = await invoke<FileContent>('read_file_content', { path: entry.path });
           useAppStore.getState().reconcileFileDisk(workspaceId, entry.path, disk);
@@ -104,16 +105,29 @@ export const useFileEditor = () => {
             return;
           }
         }
-        const result = await invoke<FileContent>('read_file_content', { path: entry.path });
-        const tab: FileTab = {
-          path: entry.path,
-          name: entry.name,
-          language: result.language,
-          content: result.content,
-          originalContent: result.content,
-          isDirty: false,
-        };
-        openTab(tab);
+        try {
+          const result = await invoke<FileContent>('read_file_content', { path: entry.path });
+          openTab({
+            path: entry.path,
+            name: entry.name,
+            language: result.language,
+            content: result.content,
+            originalContent: result.content,
+            isDirty: false,
+          });
+        } catch (err) {
+          // Any other non-text file (fonts, archives, executables…) opens in the hex viewer.
+          if (!/valid UTF-8/i.test(String(err))) throw err;
+          openTab({
+            path: entry.path,
+            name: entry.name,
+            language: 'plaintext',
+            content: '',
+            originalContent: '',
+            isDirty: false,
+            binary: true,
+          });
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

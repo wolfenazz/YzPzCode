@@ -228,4 +228,22 @@
     schedule(); setTimeout(poll, 500);
   }
   schedule(); void poll();
+
+  // Webview frames report a finished assistant task (webview-activity.js).
+  // Only hashed webview subdomains of this pane may send it.
+  let lastTaskEvent = 0;
+  window.addEventListener('message', event => {
+    if (event.data?.yzpzPanelEvent !== 'task-complete') return;
+    const suffix = `.${location.hostname}:${location.port}`;
+    if (!event.origin.startsWith('http://') || !event.origin.endsWith(suffix) ||
+        !/^[0-9a-v]{52}$/.test(event.origin.slice('http://'.length, -suffix.length))) return;
+    const now = Date.now();
+    if (now - lastTaskEvent < 2000) return;
+    lastTaskEvent = now;
+    void fetch('/yzpz-panel/event', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'task-complete' }),
+    }).catch(() => undefined);
+  });
 })();

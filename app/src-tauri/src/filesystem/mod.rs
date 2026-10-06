@@ -3,6 +3,7 @@ pub mod git_diff_stats;
 pub mod git_ops;
 pub mod git_status;
 pub mod history;
+pub mod media_protocol;
 pub mod operations;
 pub mod reader;
 pub mod search;

@@ -626,6 +626,8 @@ export interface FileTab {
   diskContent?: string | null;
   recreateOnSave?: boolean;
   gitChange?: 'added' | 'modified' | 'deleted' | 'untracked';
+  /** Not valid UTF-8 text and no dedicated previewer; shown in the hex viewer. */
+  binary?: boolean;
 }
 
 export interface ProjectRunTarget {

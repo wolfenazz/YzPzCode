@@ -802,8 +802,66 @@ html.animations-disabled *::after {
   font-style: italic;
 }
 
+/* Raw-HTML images (README badges, logos) flow inline like on GitHub; Tailwind's
+   preflight makes every img a block, which stacks badge rows vertically. */
+.markdown-dark .md-content img {
+  display: inline;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+/* Raw-HTML links and tables (not produced by the markdown renderer) */
+.markdown-dark .md-content a:not(.md-link):not(.md-anchor) {
+  color: var(--md-link);
+  text-decoration: none;
+}
+
+.markdown-dark .md-content a:not(.md-link):not(.md-anchor):hover {
+  color: var(--md-link-hover);
+  text-decoration: underline;
+}
+
+.markdown-dark .md-content table:not(.md-table) {
+  margin: 1.25em auto;
+  border-collapse: collapse;
+}
+
+.markdown-dark .md-content table:not(.md-table) td,
+.markdown-dark .md-content table:not(.md-table) th {
+  padding: 0.6em 0.9em;
+  border: 1px solid var(--md-pre-border);
+  vertical-align: top;
+}
+
+/* GitHub alerts: > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] */
+.markdown-dark .md-content blockquote.md-alert {
+  border-left-color: var(--md-alert);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--md-alert) 10%, transparent), transparent 72%);
+}
+
+.markdown-dark .md-content .md-alert-note { --md-alert: #4493f8; }
+.markdown-dark .md-content .md-alert-tip { --md-alert: #3fb950; }
+.markdown-dark .md-content .md-alert-important { --md-alert: #ab7df8; }
+.markdown-dark .md-content .md-alert-warning { --md-alert: #d29922; }
+.markdown-dark .md-content .md-alert-caution { --md-alert: #f85149; }
+
+.markdown-dark .md-content .md-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  margin-bottom: 0.4em;
+  color: var(--md-alert);
+  font-weight: 600;
+}
+
+.markdown-dark .md-content .md-alert-title svg {
+  width: 1.05em;
+  height: 1.05em;
+  flex-shrink: 0;
+}
+
 /* Local-image hydration states (placeholder → loaded / error) */
-.markdown-dark .md-content img[data-md-image-src] {
+.markdown-dark .md-content img[data-md-image-src]:not([src]) {
   min-height: 64px;
   min-width: 160px;
 }

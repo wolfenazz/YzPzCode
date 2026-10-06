@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { Marked, Renderer, type Tokens } from 'marked';
+import { Marked, type RendererObject, type Tokens } from 'marked';
 import hljs from 'highlight.js';
 
 interface MarkdownPreviewProps {
@@ -167,12 +167,12 @@ function resolveLocalImageRef(
   let segments: string;
   if (decoded.startsWith('/')) {
     if (!workspaceRoot) return null;
-    segments = normalizePathSeparators(workspaceRoot) + decoded;
+    segments = normalizePathSeparators(workspaceRoot) + normalizePathSeparators(decoded);
   } else if (/^[A-Za-z]:/.test(decoded)) {
     // Already-absolute Windows path — use as-is.
     segments = normalizePathSeparators(decoded);
   } else {
-    segments = normalizePathSeparators(markdownDir).replace(/\/+$/, '') + '/' + decoded;
+    segments = normalizePathSeparators(markdownDir).replace(/\/+$/, '') + '/' + normalizePathSeparators(decoded);
   }
 
   return {
@@ -260,17 +260,41 @@ function rewriteRawHtmlImages(rawHtml: string): string {
   });
 }
 
+/**
+ * Heading slug counts for the current parse, reset around each `marked.parse()`
+ * (same synchronous-slot reasoning as `activeImageContext`).
+ */
+let activeSlugCounts = new Map<string, number>();
+
+/**
+ * GitHub-compatible heading slugs (github-slugger rules): punctuation and emoji
+ * are dropped but each space still becomes a hyphen, so "⚡ Why X?" → "-why-x"
+ * and "Run & Build" → "run--build". README tables of contents link to these.
+ */
 function slugify(text: string): string {
-  return text
-    .toLowerCase()
+  const base = text
     .replace(/<[^>]+>/g, '')
-    .replace(/[`*_~[\]()#!+]/g, '')
-    .replace(/[^\w\s-]/g, '')
     .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '');
+    .toLowerCase()
+    // Emoji presentation selectors / joiners are marks, but belong to the emoji.
+    .replace(/[\uFE0E\uFE0F\u200D\u20E3]/g, '')
+    .replace(/[^\p{L}\p{M}\p{N}\p{Pc} -]/gu, '')
+    .replace(/ /g, '-');
+  const seen = activeSlugCounts.get(base) ?? 0;
+  activeSlugCounts.set(base, seen + 1);
+  return seen === 0 ? base : `${base}-${seen}`;
 }
+
+const ALERT_ICONS: Record<string, string> = {
+  note: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  tip: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/>',
+  important: '<path d="M4 4h16v12H8l-4 4z"/><path d="M12 7v4M12 13.5h.01"/>',
+  warning: '<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>',
+  caution: '<path d="M8 3h8l5 5v8l-5 5H8l-5-5V8z"/><path d="M12 8v5M12 16h.01"/>',
+};
+
+/** Leading `[!NOTE]` marker of a GitHub alert, as rendered inside the first paragraph. */
+const ALERT_MARKER = /^<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*(?:<br\s*\/?>)?\s*/i;
 
 const COPY_ICON =
   '<svg class="md-copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">' +
@@ -278,7 +302,9 @@ const COPY_ICON =
   '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />' +
   '</svg>';
 
-class PreviewRenderer extends Renderer {
+// Overrides go in a plain object: Marked.use() copies them with for…in, which
+// skips class prototype methods, so a Renderer subclass is silently ignored.
+const renderer: RendererObject = {
   code({ text, lang }: Tokens.Code): string {
     const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext';
     const highlighted = hljs.highlight(text, { language }).value;
@@ -292,13 +318,31 @@ class PreviewRenderer extends Renderer {
       `<pre class="md-code-block"><code class="hljs language-${language}">${highlighted}</code></pre>` +
       '</div>'
     );
-  }
+  },
 
   heading({ tokens, depth, text }: Tokens.Heading): string {
     const slug = slugify(text);
     const inner = this.parser.parseInline(tokens) as string;
     return `<h${depth} id="${slug}"><a class="md-anchor" href="#${slug}" aria-hidden="true"></a>${inner}</h${depth}>`;
-  }
+  },
+
+  blockquote({ tokens }: Tokens.Blockquote): string {
+    const body = this.parser.parse(tokens);
+    const marker = body.match(ALERT_MARKER);
+    if (!marker) return `<blockquote>${body}</blockquote>`;
+    const kind = marker[1].toLowerCase();
+    // The marker is either alone in its paragraph or followed by a line break.
+    const after = body.slice(marker[0].length);
+    const content = after.startsWith('</p>') ? after.slice(4).trimStart() : `<p>${after}`;
+    return (
+      `<blockquote class="md-alert md-alert-${kind}">` +
+      '<p class="md-alert-title">' +
+      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ALERT_ICONS[kind]}</svg>` +
+      `${kind.charAt(0).toUpperCase()}${kind.slice(1)}</p>` +
+      content +
+      '</blockquote>'
+    );
+  },
 
   link({ href, title, tokens }: Tokens.Link): string {
     const inner = this.parser.parseInline(tokens) as string;
@@ -307,7 +351,7 @@ class PreviewRenderer extends Renderer {
     const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
     const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
     return `<a class="md-link" href="${escapeAttr(safeHref)}"${titleAttr}${target}>${inner}</a>`;
-  }
+  },
 
   image({ href, title, text }: Tokens.Image): string {
     const altAttr = ` alt="${escapeAttr(text)}"`;
@@ -335,7 +379,7 @@ class PreviewRenderer extends Renderer {
 
     const src = isSafeImageSrc(href) ? href : '';
     return `<figure class="md-image"><img src="${escapeAttr(src)}"${altAttr}${titleAttr} loading="lazy" referrerPolicy="no-referrer" />${caption}</figure>`;
-  }
+  },
 
   table(token: Tokens.Table): string {
     const renderCell = (cell: Tokens.TableCell): string => {
@@ -355,10 +399,8 @@ class PreviewRenderer extends Renderer {
       '</div>' +
       '</div>'
     );
-  }
-}
-
-const renderer = new PreviewRenderer();
+  },
+};
 
 const marked = new Marked({
   gfm: true,
@@ -414,6 +456,7 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
     }
 
     activeImageContext = { markdownDir, workspaceRoot: workspacePath ?? null };
+    activeSlugCounts = new Map();
     try {
       const parsed = marked.parse(debouncedContent) as string;
       return rewriteRawHtmlImages(parsed);
@@ -423,6 +466,11 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
       activeImageContext = null;
     }
   }, [debouncedContent, filePath, workspacePath]);
+
+  // React 19 diffs `dangerouslySetInnerHTML` by object identity, so a fresh
+  // `{ __html }` per render would rebuild the article on every re-render (e.g.
+  // the headings update below) and wipe the hydrated image `src`s.
+  const innerHtml = useMemo(() => ({ __html: html }), [html]);
 
   useEffect(() => {
     const elements = containerRef.current?.querySelectorAll<HTMLHeadingElement>('h1, h2, h3');
@@ -540,7 +588,7 @@ const MarkdownPreviewInner: React.FC<MarkdownPreviewProps> = ({ content, filePat
           {headings.map((heading, index) => <option key={index} value={index}>{`${'\u00a0\u00a0'.repeat(Math.max(0, heading.level - 1))}${heading.text}`}</option>)}
         </select>}
       </div>
-      <article ref={containerRef} className="md-content" dangerouslySetInnerHTML={{ __html: html }} />
+      <article ref={containerRef} className="md-content" dangerouslySetInnerHTML={innerHtml} />
     </div>
   );
 };

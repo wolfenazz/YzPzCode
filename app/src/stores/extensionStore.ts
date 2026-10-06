@@ -18,7 +18,7 @@ interface ExtensionStore {
   checkUpdates: () => Promise<void>;
   install: (extensionId: string) => Promise<void>;
   setProgress: (progress: ExtensionInstallProgress) => void;
-  openPanel: (workspaceId: string, extension: ExtensionInfo) => void;
+  openPanel: (workspaceId: string, extension: ExtensionInfo) => WorkspaceExtensionPanel | null;
   closePanel: (panelId: string) => Promise<void>;
   closeWorkspace: (workspaceId: string) => Promise<void>;
   setPaneOrder: (workspaceId: string, ids: string[]) => void;
@@ -104,12 +104,18 @@ export const useExtensionStore = create<ExtensionStore>()(
       },
       setProgress: (progress) => set((state) => ({ progress: { ...state.progress, [progress.extensionId]: progress } })),
       openPanel: (workspaceId, extension) => {
-        if (!supportedIds.has(extension.id.toLowerCase())) return;
-        if (!extension.installedVersion) return;
+        if (!supportedIds.has(extension.id.toLowerCase())) return null;
+        if (!extension.installedVersion) return null;
         const existing = get().panelsByWorkspace[workspaceId] ?? [];
-        if (existing.some((panel) => panel.extensionId === extension.id)) return;
-        const panel: WorkspaceExtensionPanel = { id: crypto.randomUUID(), workspaceId, extensionId: extension.id, name: extension.name };
+        // Each pane runs its own host, so the same assistant can be open several times.
+        // Later copies are numbered with the lowest free number to tell them apart.
+        const names = new Set(existing.filter((panel) => panel.extensionId === extension.id).map((panel) => panel.name));
+        let copy = 1;
+        while (names.has(copy === 1 ? extension.name : `${extension.name} ${copy}`)) copy += 1;
+        const name = copy === 1 ? extension.name : `${extension.name} ${copy}`;
+        const panel: WorkspaceExtensionPanel = { id: crypto.randomUUID(), workspaceId, extensionId: extension.id, name };
         set((state) => ({ panelsByWorkspace: { ...state.panelsByWorkspace, [workspaceId]: [...existing, panel] } }));
+        return panel;
       },
       closePanel: async (panelId) => {
         await invoke('close_extension_panel', { panelId });
