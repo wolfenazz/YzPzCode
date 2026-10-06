@@ -1,5 +1,13 @@
 <div align="center">
 
+<a href="docs/capture/yzpzcode-showreel.mp4">
+  <img src="docs/capture/yzpzcode-showreel-preview.gif" width="100%" alt="YzPzCode showreel" />
+</a>
+
+<sub>▶ <a href="docs/capture/yzpzcode-showreel.mp4"><b>Watch the full 45-second showreel with sound</b></a></sub>
+
+<br /><br />
+
 <img src="app/src/assets/YzPzCodeLogo.png" alt="YzPzCode Logo" width="96" />
 
 # YzPzCode

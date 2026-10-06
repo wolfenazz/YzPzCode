@@ -1,0 +1,10 @@
+const {chromium}=require('playwright');const path=require('path');
+(async()=>{const b=await chromium.launch();const p=await b.newPage({viewport:{width:1920,height:1080}});
+await p.goto('file://'+path.resolve('reel.html')+'?render');await p.evaluate(()=>document.fonts.ready);await p.waitForTimeout(300);
+const cdp=await p.context().newCDPSession(p);
+const run=async(name,fn)=>{const t0=Date.now();for(let i=0;i<20;i++){await p.evaluate(t=>seek(t),5+i/60);await fn();}console.log(name,((Date.now()-t0)/20).toFixed(0),'ms/shot');};
+await run('pw-png',()=>p.screenshot({type:'png'}));
+await run('cdp-png',()=>cdp.send('Page.captureScreenshot',{format:'png',optimizeForSpeed:true}));
+await run('cdp-jpeg',()=>cdp.send('Page.captureScreenshot',{format:'jpeg',quality:94,optimizeForSpeed:true}));
+await run('seek-only',async()=>{});
+await b.close();})();
