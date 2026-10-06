@@ -63,7 +63,7 @@ const TOOL_ICON_MAP: Record<ToolCliType, { icon: string; color: string }> = {
   vercel: { icon: 'simple-icons:vercel', color: '#ffffff' },
 };
 
-const CLI_LABELS: Partial<Record<CliType, string>> = {
+export const CLI_LABELS: Partial<Record<CliType, string>> = {
   claude: 'Claude',
   codex: 'Codex',
   antigravity: 'Antigravity',

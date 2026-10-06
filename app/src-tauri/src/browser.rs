@@ -88,6 +88,17 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   if (window.__YZPZ_BROWSER_BRIDGE__) {
     return;
   }
+  // Initialization scripts also run inside every iframe (Google embeds the
+  // ogs.google.com account widget, ads, captchas...). Those frames must not
+  // report their own URL/title as the page state or the address bar and tab
+  // would jump to the widget URL, and the webview would navigate to it.
+  try {
+    if (window.top !== window) {
+      return;
+    }
+  } catch (_) {
+    return;
+  }
 
   const overlay = document.createElement('div');
   const badge = document.createElement('div');
@@ -2887,8 +2898,22 @@ fn clear_inspector_preview_script() -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        browser_urls_match, canonicalize_browser_url, resolve_browser_url, DEFAULT_BROWSER_URL,
+        browser_urls_match, canonicalize_browser_url, resolve_browser_url, BROWSER_INIT_SCRIPT,
+        DEFAULT_BROWSER_URL,
     };
+
+    #[test]
+    fn init_script_skips_iframes() {
+        // The script is injected into every frame; sub-frames must bail out
+        // before they can report their own URL as the page state.
+        let guard = BROWSER_INIT_SCRIPT
+            .find("window.top !== window")
+            .expect("init script must have a top-frame guard");
+        let first_report = BROWSER_INIT_SCRIPT
+            .find("browser_page_state_changed")
+            .expect("init script reports page state");
+        assert!(guard < first_report);
+    }
 
     #[test]
     fn canonicalizes_default_url_variants() {

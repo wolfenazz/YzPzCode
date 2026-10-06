@@ -1,0 +1,598 @@
+/*
+ * Editor side panel (ExtensionDock.tsx). `.xd-*` classes, theme tokens only.
+ * The outer <aside> animates its width while the frame stays anchored to the
+ * right edge at full width, so the panel slides in from the window edge rather
+ * than squeezing its content.
+ */
+
+.xd {
+  position: relative;
+  flex: none;
+  height: 100%;
+  overflow: hidden;
+}
+
+.xd > .xd__frame {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  box-shadow: -22px 0 44px -34px rgba(0, 0, 0, 0.55);
+}
+
+.xd .term-aura {
+  border-radius: 0;
+}
+
+/* ── Resize handle ──────────────────────────────────────────────────────── */
+
+.xd__resizer {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.xd__resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: transparent;
+  transition: background-color 160ms ease, width 160ms ease, box-shadow 160ms ease;
+}
+
+.xd__resizer:hover::after,
+.xd__resizer:focus-visible::after,
+.xd--resizing .xd__resizer::after {
+  width: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+/* Like VS Code, hovering lights the edge only after a short pause. */
+.xd__resizer:hover::after {
+  transition-delay: 140ms;
+}
+
+/* ── Tab bar ────────────────────────────────────────────────────────────── */
+
+.xd__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 6px 0 10px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.xd__tabs {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.xd__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.xd__tab {
+  position: relative;
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  height: 28px;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.xd__tab:hover:not(.is-selected) {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--bg-tertiary) 60%, transparent);
+}
+
+.xd__tab.is-selected {
+  color: var(--text-primary);
+}
+
+.xd__tab-pill {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--bg-tertiary);
+  box-shadow: inset 0 0 0 1px var(--border-primary);
+}
+
+.xd__tab-main {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 100%;
+  padding: 0 4px 0 8px;
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 520;
+  outline: none;
+}
+
+.xd__tab-main:focus-visible {
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.xd__tab-label {
+  overflow: hidden;
+  max-width: 150px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xd__tab:not(.is-selected) .xd__tab-label {
+  max-width: 96px;
+}
+
+.xd__tab-logo {
+  position: relative;
+  display: inline-flex;
+}
+
+.xd__tab-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+.xd__tab[data-phase="busy"] .xd__tab-dot {
+  background: conic-gradient(#4f8df7, #9b72cb, #d96570, #f5b11a, #3dbe6a, #22b8cf, #4f8df7);
+  animation: xd-spin 1.4s linear infinite;
+}
+
+.xd__tab[data-phase="done"] .xd__tab-dot {
+  background: #34d399;
+  animation: xd-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.xd__tab-close {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-right: 5px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text-secondary);
+  background: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.xd__tab:hover .xd__tab-close,
+.xd__tab.is-selected .xd__tab-close,
+.xd__tab-close:focus-visible {
+  opacity: 1;
+}
+
+.xd__tab-close:hover {
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--text-secondary) 18%, transparent);
+}
+
+.xd__add {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  background: none;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease, transform 200ms var(--ease-product, ease);
+}
+
+.xd__add:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.xd__add.is-active {
+  color: var(--accent);
+  background: var(--accent-light);
+  transform: rotate(45deg);
+}
+
+.xd__add:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.xd__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+/* Clears the resize handle on the left; the rim keeps the activity ring visible
+   around the native webview. */
+.xd__body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 2px 2px 5px;
+}
+
+.xd__view {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+
+.xd__view.is-active {
+  visibility: visible;
+}
+
+.xd__splash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  background: radial-gradient(ellipse 70% 45% at 50% 42%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 70%);
+}
+
+.xd__splash-logo {
+  position: relative;
+  display: inline-flex;
+  animation: xd-float 3.2s ease-in-out infinite;
+}
+
+.xd__splash.is-starting .xd__splash-logo::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: xd-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.xd__splash-title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.xd__splash-hint {
+  color: transparent;
+  background: linear-gradient(90deg, var(--text-secondary) 0%, var(--text-secondary) 38%, var(--text-primary) 50%, var(--text-secondary) 62%, var(--text-secondary) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  font-size: 11px;
+  animation: xd-shimmer 2.2s linear infinite;
+}
+
+.xd__error {
+  max-width: 34ch;
+  color: #f43f5e;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* ── Launcher ───────────────────────────────────────────────────────────── */
+
+.xd__launcher {
+  position: absolute;
+  z-index: 5;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+}
+
+.xd__launcher-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px 12px 14px 14px;
+}
+
+.xd__launcher-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.xd__launcher-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.xd__launcher-sub {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.xd__launcher-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  padding: 2px 10px 12px;
+  overflow-y: auto;
+}
+
+.xd__card {
+  position: relative;
+  flex: none;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--bg-primary) 65%, var(--bg-secondary));
+  /* `translate`, not `transform`: framer-motion owns the inline transform. */
+  transition: border-color 160ms ease, background-color 160ms ease, translate 200ms var(--ease-product, ease);
+}
+
+.xd__card:has(.xd__card-main:not(:disabled)):hover {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-primary));
+  background: color-mix(in srgb, var(--bg-tertiary) 55%, var(--bg-secondary));
+  translate: 0 -1px;
+}
+
+.xd__card-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  color: inherit;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+}
+
+.xd__card-main:focus-visible {
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.xd__card-main:disabled {
+  cursor: default;
+}
+
+.xd__card-name {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 560;
+}
+
+.xd__card-meta {
+  display: block;
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.xd__card-cta {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 7px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-weight: 560;
+  transition: color 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+
+.xd__card-cta.is-open {
+  border-color: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--accent);
+  background: var(--accent-light);
+}
+
+.xd__card-cta svg {
+  transition: transform 200ms var(--ease-product, ease);
+}
+
+.xd__card:hover .xd__card-cta.is-open svg {
+  transform: translateX(2px);
+}
+
+.xd__card-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: var(--xd-progress, 0%);
+  height: 2px;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+.xd__spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: xd-spin 0.8s linear infinite;
+}
+
+.xd__launcher-note {
+  padding: 10px 4px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.xd__launcher-note--error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  color: #f43f5e;
+  overflow-wrap: anywhere;
+}
+
+.xd__launcher-browse {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  margin: 0 10px 12px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 9px;
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.xd__launcher-browse:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.xd__kbd {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 5px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+}
+
+/* ── Editor header toggle ───────────────────────────────────────────────── */
+
+.xd-toggle {
+  position: relative;
+  display: inline-flex;
+}
+
+.xd-toggle__dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+.xd-toggle__dot[data-phase="busy"] {
+  background: conic-gradient(#4f8df7, #9b72cb, #d96570, #f5b11a, #3dbe6a, #22b8cf, #4f8df7);
+  animation: xd-spin 1.4s linear infinite;
+}
+
+.xd-toggle__dot[data-phase="done"] {
+  background: #34d399;
+  animation: xd-pop 520ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+
+@keyframes xd-spin {
+  to { rotate: 360deg; }
+}
+
+@keyframes xd-pop {
+  from { opacity: 0; scale: 0.3; }
+  to { opacity: 1; scale: 1; }
+}
+
+@keyframes xd-float {
+  0%, 100% { translate: 0 0; }
+  50% { translate: 0 -4px; }
+}
+
+@keyframes xd-ring {
+  0% { opacity: 0.9; scale: 0.92; }
+  100% { opacity: 0; scale: 1.25; }
+}
+
+@keyframes xd-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+
+html.animations-disabled :is(.xd, .xd-toggle) *,
+html.animations-disabled :is(.xd, .xd-toggle) *::after {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.xd, .xd-toggle) *,
+  :is(.xd, .xd-toggle) *::after {
+    animation: none !important;
+  }
+}

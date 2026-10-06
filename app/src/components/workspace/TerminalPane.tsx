@@ -37,6 +37,14 @@ interface TerminalPaneProps {
   onResize?: (cols: number, rows: number) => void;
   onClose?: () => void;
   dragListeners?: Record<string, unknown>;
+  /**
+   * 'embedded' drops the pane header for hosts that draw their own tabs (the
+   * editor's terminal panel). Embedded panes leave the grid's active session
+   * alone and take their focus state from `embeddedActive`.
+   */
+  variant?: 'grid' | 'embedded';
+  embeddedActive?: boolean;
+  onAgentActivityChange?: (activity: AgentActivityState) => void;
 }
 
 const DARK_TERMINAL_THEME = {
@@ -253,7 +261,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   onResize,
   onClose,
   dragListeners,
+  variant = 'grid',
+  embeddedActive = false,
+  onAgentActivityChange,
 }) => {
+  const embedded = variant === 'embedded';
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -292,7 +304,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const view = useAppStore((state) => state.view);
   const activeWorkspaceId = useAppStore((state) => state.activeWorkspaceId);
   const setActiveSession = useAppStore((state) => state.setActiveSession);
-  const isActive = activeSessionId === session.id;
+  const isActive = embedded ? embeddedActive : activeSessionId === session.id;
 
   // Resize coalescing: we only send the latest size to the PTY, debounced, so
   // rapid ResizeObserver/window resize events don't flood ConPTY with resizes.
@@ -338,6 +350,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       if (agentActivityRef.current === tracker) agentActivityRef.current = null;
     };
   }, [session.id]);
+
+  const onAgentActivityChangeRef = useRef(onAgentActivityChange);
+  onAgentActivityChangeRef.current = onAgentActivityChange;
+  useEffect(() => {
+    onAgentActivityChangeRef.current?.(agentActivity);
+  }, [agentActivity]);
 
   // A finished pane stays marked until the user has had it in front of them
   // for a moment: background panes keep the mark until they are focused.
@@ -1013,6 +1031,12 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
       const isCtrl = event.ctrlKey || event.metaKey;
       const isKeydown = event.type === 'keydown';
 
+      // Ctrl+` (toggle) and Ctrl+Shift+` (new terminal) belong to the editor's
+      // terminal panel; let them reach the window instead of the shell.
+      if (event.ctrlKey && !event.altKey && event.code === 'Backquote') {
+        return false;
+      }
+
       if (isCtrl && !event.altKey && !event.shiftKey
         && (event.key.toLowerCase() === 'c' || event.code === 'KeyC')
         && xterm.hasSelection() && isKeydown) {
@@ -1356,11 +1380,11 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   return (
     <div
-      className={`term-pane${isActive ? ' term-pane--active' : ''}${activityClass}`}
+      className={`term-pane${embedded ? ' term-pane--embedded' : ''}${isActive ? ' term-pane--active' : ''}${activityClass}`}
       style={terminalBackgroundColor ? ({ '--term-surface': terminalBackgroundColor } as React.CSSProperties) : undefined}
-      onMouseDown={() => setActiveSession(session.id)}
+      onMouseDown={embedded ? undefined : () => setActiveSession(session.id)}
     >
-      <TerminalHeader
+      {!embedded && <TerminalHeader
         session={session}
         currentCwd={currentCwd}
         isActive={isActive}
@@ -1391,9 +1415,9 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
           />
         }
         dragListeners={dragListeners}
-      />
+      />}
 
-      {showQuickPrompts && effectiveAgent && (
+      {!embedded && showQuickPrompts && effectiveAgent && (
         <div className="term-strip">
           <QuickPromptChips
             compact

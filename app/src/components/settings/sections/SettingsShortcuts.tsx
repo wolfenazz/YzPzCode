@@ -28,6 +28,9 @@ const SHORTCUTS = [
   { category: 'Navigation', items: [
     { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' },
     { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' },
+    { keys: ['Ctrl', 'Alt', 'B'], action: 'Toggle editor side panel' },
+    { keys: ['Ctrl', '`'], action: 'Toggle editor terminal panel' },
+    { keys: ['Ctrl', 'Shift', '`'], action: 'New terminal in editor panel' },
     { keys: ['Ctrl', 'E'], action: 'Toggle view' },
     { keys: ['Ctrl', 'W'], action: 'Close tab' },
     { keys: ['Ctrl', ','], action: 'Open settings' },

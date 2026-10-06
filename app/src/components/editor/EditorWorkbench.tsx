@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Columns, Rows, ArrowsLeftRight, MagnifyingGlass, X } from '@phosphor-icons/react';
+import { Columns, Rows, ArrowsLeftRight, MagnifyingGlass, SidebarSimple, TerminalWindow, X } from '@phosphor-icons/react';
 import { useAppStore } from '../../stores/appStore';
+import { useEditorTerminalStore } from '../../stores/editorTerminalStore';
+import { isSidePanel, useExtensionStore } from '../../stores/extensionStore';
+import '../workspace/ExtensionDock.css';
 import { createEditorGroups, reconcileEditorGroups, useEditorLayoutStore } from '../../stores/editorLayoutStore';
 import type { EditorGroup, EditorLayout } from '../../stores/editorLayoutStore';
 import { EditorPane } from './EditorPane';
@@ -27,6 +30,14 @@ export function FileEditor({ diskSyncError }: { diskSyncError?: string | null })
   const [dropTarget, setDropTarget] = useState<EditorGroup | null>(null);
   const [quickOpen, setQuickOpen] = useState(false);
   const { openFile, openError } = useFileEditor();
+  const terminalOpen = useEditorTerminalStore((state) => state.layoutByWorkspace[workspaceId]?.open ?? false);
+  const toggleTerminal = useEditorTerminalStore((state) => state.toggle);
+  const dockOpen = useExtensionStore((state) => state.dockByWorkspace[workspaceId]?.open ?? false);
+  const toggleDock = useExtensionStore((state) => state.toggleDock);
+  const dockPhase = useExtensionStore((state) => {
+    const phases = (state.panelsByWorkspace[workspaceId] ?? []).filter(isSidePanel).map((panel) => state.activityByPanel[panel.id]?.phase);
+    return phases.includes('busy') ? 'busy' : phases.includes('done') ? 'done' : 'idle';
+  });
 
   // Explorer, quick-open, and search navigation target the focused pane.
   useEffect(() => {
@@ -110,6 +121,13 @@ export function FileEditor({ diskSyncError }: { diskSyncError?: string | null })
           <EditorActionButton label="Swap panes" onClick={() => { updateGroups(workspaceId, { primary: groups.secondary, secondary: groups.primary }); const next = groups.focused === 'primary' ? groups.secondary : groups.primary; if (next) setActiveFile(next); }}><ArrowsLeftRight size={16} /></EditorActionButton>
           <EditorActionButton label="Close split; keep focused file" onClick={closeSplit}><X size={16} /></EditorActionButton>
         </>}
+        <span className="mx-1 h-4 w-px bg-[var(--border-primary)]" />
+        <EditorActionButton label={terminalOpen ? 'Hide terminal (Ctrl+`)' : 'Show terminal (Ctrl+`)'} active={terminalOpen} disabled={!workspacePath} onClick={() => toggleTerminal(workspaceId)}><TerminalWindow size={16} /></EditorActionButton>
+        <span className="xd-toggle">
+          <EditorActionButton label={dockOpen ? 'Hide side panel (Ctrl+Alt+B)' : 'Show side panel (Ctrl+Alt+B)'} active={dockOpen} onClick={() => toggleDock(workspaceId)}><SidebarSimple size={16} mirrored /></EditorActionButton>
+          {/* While the panel is hidden, show that an assistant is working or done. */}
+          {!dockOpen && dockPhase !== 'idle' && <span className="xd-toggle__dot" data-phase={dockPhase} aria-hidden="true" />}
+        </span>
       </div>
     </header>
     {(diskSyncError || openError) && <p role="alert" className="border-b border-[var(--border-primary)] px-3 py-2 text-xs text-rose-400">{diskSyncError ?? openError}</p>}

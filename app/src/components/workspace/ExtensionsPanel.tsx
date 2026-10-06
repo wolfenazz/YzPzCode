@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowClockwise, ArrowSquareOut, DownloadSimple, MagnifyingGlass, PuzzlePiece, X } from '@phosphor-icons/react';
+import { ArrowClockwise, ArrowSquareOut, DownloadSimple, MagnifyingGlass, PuzzlePiece, SidebarSimple, X } from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { isNewerVersion, useExtensionStore } from '../../stores/extensionStore';
 import { ExtensionLogo } from '../common/ExtensionLogo';
@@ -8,10 +8,11 @@ import type { ExtensionInfo } from '../../types';
 interface ExtensionsPanelProps {
   workspaceId: string;
   onOpen: (extension: ExtensionInfo) => void;
+  onOpenInSidePanel: (extension: ExtensionInfo) => void;
   onClose: () => void;
 }
 
-export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPanelProps): React.JSX.Element {
+export function ExtensionsPanel({ workspaceId, onOpen, onOpenInSidePanel, onClose }: ExtensionsPanelProps): React.JSX.Element {
   const catalog = useExtensionStore((state) => state.catalog);
   const loading = useExtensionStore((state) => state.loading);
   const backendReady = useExtensionStore((state) => state.backendReady);
@@ -41,7 +42,7 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
           <MagnifyingGlass size={14} className="shrink-0 text-[var(--text-secondary)]" />
           <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} className="w-full min-w-0 bg-transparent text-xs outline-none" placeholder="Search extensions" aria-label="Search extensions" />
         </label>
-        <p className="mt-3 text-[11px] leading-5 text-[var(--text-secondary)]">Install an assistant, then open its graphical panel in the Extensions workspace.</p>
+        <p className="mt-3 text-[11px] leading-5 text-[var(--text-secondary)]">Install an assistant, then open its graphical panel in the Extensions workspace or beside your code in the editor side panel.</p>
       </div>
       <div className="flex-1 overflow-y-auto" aria-busy={loading}>
         {error && <div role="alert" className="m-3 space-y-2 text-xs text-rose-500"><p className="break-words">{error}</p><button type="button" className="app-button" onClick={() => void refreshCatalog()}>Retry</button></div>}
@@ -68,6 +69,11 @@ export function ExtensionsPanel({ workspaceId, onOpen, onClose }: ExtensionsPane
                   {updatable && (
                     <button type="button" disabled={busy || !backendReady} onClick={() => void install(extension.id)} className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60" title={`Update ${extension.name} to v${latest}`}>
                       {!busy && <ArrowClockwise size={13} />}{busy ? 'Updating…' : 'Update'}
+                    </button>
+                  )}
+                  {extension.installedVersion && !busy && (
+                    <button type="button" disabled={!backendReady} onClick={() => onOpenInSidePanel(extension)} className="app-icon-button app-icon-button--compact h-7 w-7 disabled:cursor-not-allowed disabled:opacity-60" title={`Open ${extension.name} in the editor side panel`} aria-label={`Open ${extension.name} in the editor side panel`}>
+                      <SidebarSimple size={14} mirrored />
                     </button>
                   )}
                   {!(busy && updatable) && (

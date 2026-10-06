@@ -4,6 +4,9 @@ import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceBackground } from './WorkspaceBackground';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { ExtensionsPanel } from './ExtensionsPanel';
+import { ExtensionDock } from './ExtensionDock';
+import { EditorTerminalPanel } from './EditorTerminalPanel';
+import { useEditorTerminalStore } from '../../stores/editorTerminalStore';
 import { BrowserPane } from './BrowserPane';
 import { AppFooter } from '../common/AppFooter';
 import { FileExplorer } from '../explorer/FileExplorer';
@@ -21,6 +24,7 @@ import { useExtensionStore } from '../../stores/extensionStore';
 import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import type { ExtensionInfo, ExtensionInstallProgress } from '../../types';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
+import { getTerminalForTarget } from '../../utils/terminalRegistry';
 import { FileEntry, WorkspaceView } from '../../types';
 
 interface WorkspaceProps {
@@ -81,7 +85,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const [isResizing, setIsResizing] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [extensionsOpen, setExtensionsOpen] = useState(false);
+  const [editorMounted, setEditorMounted] = useState(activeView === 'editor');
   const isDragging = useRef(false);
+
+  useEffect(() => {
+    if (activeView === 'editor') setEditorMounted(true);
+  }, [activeView]);
   const rafIdRef = useRef<number | null>(null);
 
   const showEmpty = !currentWorkspace && openWorkspaces.length === 0;
@@ -105,6 +114,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     const layoutId = `extensions:${currentWorkspace.id}`;
     layouts.setArrangement(layoutId, layouts.arrangements[layoutId]?.preset ?? 'grid', panel.id);
     setActiveView('extensions');
+  }, [currentWorkspace, setActiveView]);
+
+  const handleOpenExtensionInSidePanel = useCallback((extension: ExtensionInfo): void => {
+    if (!currentWorkspace) return;
+    if (!useExtensionStore.getState().openPanel(currentWorkspace.id, extension, 'side')) return;
+    setActiveView('editor');
   }, [currentWorkspace, setActiveView]);
 
   const handleExplorerClick = useCallback((): void => {
@@ -248,6 +263,33 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         if (e.shiftKey && e.key.toLowerCase() === 'x') {
           e.preventDefault();
           setExtensionsOpen((open) => !open);
+        } else if (e.ctrlKey && !e.altKey && e.code === 'Backquote') {
+          // Ctrl+` toggles the editor's terminal panel; Ctrl+Shift+` opens a new shell (VS Code).
+          e.preventDefault();
+          const state = useAppStore.getState();
+          const workspace = state.currentWorkspace;
+          if (!workspace) return;
+          const terminals = useEditorTerminalStore.getState();
+          if (activeView !== 'editor') setActiveView('editor');
+          if (e.shiftKey) {
+            terminals.setOpen(workspace.id, true);
+            if ((terminals.sessionsByWorkspace[workspace.id]?.length ?? 0) > 0) void terminals.createTerminal(workspace);
+          } else if (activeView !== 'editor') {
+            terminals.setOpen(workspace.id, true);
+          } else {
+            terminals.toggle(workspace.id);
+          }
+        } else if (e.altKey && e.code === 'KeyB') {
+          // Ctrl+Alt+B toggles the editor side panel, as in VS Code.
+          e.preventDefault();
+          const workspaceId = useAppStore.getState().activeWorkspaceId;
+          if (!workspaceId) return;
+          if (activeView !== 'editor') {
+            setActiveView('editor');
+            useExtensionStore.getState().setDockOpen(workspaceId, true);
+          } else {
+            useExtensionStore.getState().toggleDock(workspaceId);
+          }
         } else if (e.key === 'b') {
           e.preventDefault();
           setExtensionsOpen(false);
@@ -256,7 +298,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
           e.preventDefault();
           setActiveView(activeView === 'terminal' ? 'editor' : 'terminal');
         } else if (e.key === 'w' && activeView === 'editor') {
-          // Other views (e.g. the browser) own Ctrl+W for their own tabs.
+          // Other views (e.g. the browser) own Ctrl+W for their own tabs, and
+          // in the editor's terminal panel it is the shell's delete-word.
+          if (getTerminalForTarget(e.target)) return;
           e.preventDefault();
           const path = useAppStore.getState().activeFilePath;
           if (path) {
@@ -306,6 +350,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     await useExtensionStore.getState().closeWorkspace(workspaceId).catch((error: unknown) => {
       console.error('Could not close workspace extensions:', error);
     });
+    void useEditorTerminalStore.getState().closeWorkspace(workspaceId);
     closeWorkspace(workspaceId);
     delete hasInitialized.current[workspaceId];
     closeBrowserView(workspaceId).catch((err) => {
@@ -441,6 +486,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                       <ExtensionsPanel
                         workspaceId={currentWorkspace.id}
                         onOpen={handleOpenExtension}
+                        onOpenInSidePanel={handleOpenExtensionInSidePanel}
                         onClose={() => setExtensionsOpen(false)}
                       />
                     ) : sourceControlOpen ? (
@@ -528,19 +574,43 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                     <BrowserPane workspaceId={currentWorkspace.id} sessions={sessions} />
                   </motion.div>
                 )}
-                {activeView === "editor" && (
-                  <motion.div
-                    key="editor"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-                    className="absolute inset-0"
-                  >
-                    <FileEditor diskSyncError={fileSyncError} />
-                  </motion.div>
-                )}
               </AnimatePresence>
+
+              {/*
+                The editor layer stays mounted once visited (hidden, not
+                unmounted, in other views) so the bottom terminal panel keeps
+                its shells' scrollback, like the terminal grid above.
+              */}
+              {editorMounted && (
+                <div
+                  className={activeView === 'editor' ? 'workspace-editor-layer absolute inset-0 flex' : 'hidden'}
+                  aria-hidden={activeView !== 'editor'}
+                >
+                  <div className="workspace-editor-column flex h-full min-w-0 flex-1 flex-col">
+                    <div className="relative min-h-0 flex-1">
+                      <div className="absolute inset-0">
+                        <FileEditor diskSyncError={fileSyncError} />
+                      </div>
+                    </div>
+                    {openWorkspaces.map((workspace) => (
+                      <div key={workspace.id} className={workspace.id === activeWorkspaceId ? 'contents' : 'hidden'}>
+                        <EditorTerminalPanel
+                          workspace={workspace}
+                          visible={workspace.id === activeWorkspaceId && activeView === 'editor' && view === 'workspace'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  {currentWorkspace && (
+                    <ExtensionDock
+                      key={currentWorkspace.id}
+                      workspace={currentWorkspace}
+                      visible={activeView === 'editor' && view === 'workspace'}
+                      onBrowseExtensions={() => setExtensionsOpen(true)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : (

@@ -1312,12 +1312,6 @@ body {
    indent guides, and spring-driven disclosure instead of loud coloured rows. */
 .explorer-pane {
   background: var(--bg-secondary) !important;
-  animation: explorer-pane-in 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes explorer-pane-in {
-  from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: none; }
 }
 
 .explorer-pane__header {
@@ -1432,10 +1426,9 @@ body {
 .explorer-open-file {
   position: relative;
   min-height: 1.75rem;
-  margin-inline: 0.375rem;
-  border-radius: 0.4375rem;
+  margin-inline: 4px;
+  border-radius: 4px;
   transition: background-color 120ms ease, color 120ms ease;
-  animation: explorer-row-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .explorer-open-file:hover {
@@ -1447,22 +1440,18 @@ body {
 }
 
 .explorer-pane__tree {
-  padding-top: 0.125rem;
-}
-
-/* Rows are virtualised, so each one eases in as it mounts — this is what makes
-   a folder feel like it unfolds when opened. */
-@keyframes explorer-row-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: none; }
+  padding-top: 2px;
 }
 
 .explorer-tree-row {
-  margin-inline: 0.375rem;
-  border-radius: 0.4375rem;
-  color: var(--text-secondary) !important;
-  transition: color 120ms ease, background-color 120ms ease;
-  animation: explorer-row-in 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  margin-inline: 4px;
+  border-radius: 4px;
+  color: var(--text-primary) !important;
+  transition: background-color 120ms ease;
+  transform: none !important;
+  filter: none !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .explorer-tree-row::before {
@@ -1569,13 +1558,6 @@ body {
   transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 140ms ease;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .explorer-pane,
-  .explorer-tree-row,
-  .explorer-open-file {
-    animation: none;
-  }
-}
 
 /* Setup is a composed starting surface, not a terminal command form. */
 .setup-shell {

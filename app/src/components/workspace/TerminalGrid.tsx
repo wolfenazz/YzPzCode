@@ -21,7 +21,7 @@ import { ExtensionPane } from './ExtensionPane';
 import { NewTerminalDialog } from './NewTerminalDialog';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppStore } from '../../stores/appStore';
-import { EMPTY_EXTENSION_PANELS, useExtensionStore } from '../../stores/extensionStore';
+import { EMPTY_EXTENSION_PANELS, isSidePanel, useExtensionStore } from '../../stores/extensionStore';
 import { BoxLoader } from '../common/BoxLoader';
 import { ExtensionLogo } from '../common/ExtensionLogo';
 import { Plus, PuzzlePiece, TerminalWindow } from '@phosphor-icons/react';
@@ -152,7 +152,8 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
   const isExtensions = mode === 'extensions';
   const layoutId = isExtensions ? `extensions:${workspaceId}` : workspaceId;
   const allExtensionPanels = useExtensionStore((state) => state.panelsByWorkspace[workspaceId] ?? EMPTY_EXTENSION_PANELS);
-  const extensionPanels = isExtensions ? allExtensionPanels : EMPTY_EXTENSION_PANELS;
+  // Panels docked in the editor's side panel are hosted there, not in the grid.
+  const extensionPanels = useMemo(() => isExtensions ? allExtensionPanels.filter((panel) => !isSidePanel(panel)) : EMPTY_EXTENSION_PANELS, [isExtensions, allExtensionPanels]);
   const paneOrder = useExtensionStore((state) => state.paneOrderByWorkspace[layoutId] ?? (isExtensions ? state.paneOrderByWorkspace[workspaceId] : undefined));
   const setPaneOrder = useExtensionStore((state) => state.setPaneOrder);
   const arrangement = useTerminalLayoutStore((s) => s.arrangements[layoutId] ?? DEFAULT_TERMINAL_ARRANGEMENT);

@@ -10,7 +10,8 @@ import { Editor } from '@monaco-editor/react';
 import type { BeforeMount, OnChange, OnMount } from '@monaco-editor/react';
 import type { editor as MonacoEditorNamespace } from 'monaco-editor';
 import { useAppStore } from '../../stores/appStore';
-import { BracketsCurly, CaretRight, Code, DotsThree, Eye, FloppyDisk, MagnifyingGlass, TextAlignLeft, WarningCircle } from '@phosphor-icons/react';
+import { BracketsCurly, CaretRight, Code, DotsThree, Eye, FloppyDisk, MagnifyingGlass, TerminalWindow, TextAlignLeft, WarningCircle } from '@phosphor-icons/react';
+import { useEditorTerminalStore } from '../../stores/editorTerminalStore';
 import monaco from '../../lib/monaco';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
 import { useActiveCustomTheme } from '../../hooks/useCustomTheme';
@@ -34,6 +35,21 @@ import { toMonacoLanguage } from '../../utils/monacoLanguage';
 import { toMonacoThemeColor } from '../../utils/monacoThemeColor';
 
 type MonacoEditor = Parameters<OnMount>[0];
+
+/** Status-bar shortcut to the bottom terminal panel, shown in the first pane only. */
+function TerminalPanelToggle(): React.JSX.Element | null {
+  const workspaceId = useAppStore((s) => s.activeWorkspaceId);
+  const open = useEditorTerminalStore((s) => (workspaceId ? s.layoutByWorkspace[workspaceId]?.open : false) ?? false);
+  const count = useEditorTerminalStore((s) => (workspaceId ? s.sessionsByWorkspace[workspaceId]?.length : 0) ?? 0);
+  const toggle = useEditorTerminalStore((s) => s.toggle);
+  if (!workspaceId) return null;
+  return (
+    <button type="button" onClick={() => toggle(workspaceId)} aria-pressed={open} title={open ? 'Hide terminal (Ctrl+`)' : 'Show terminal (Ctrl+`)'}
+      className={`flex items-center gap-1 rounded px-1 py-1 cursor-pointer hover:bg-[var(--bg-tertiary)] ${open ? 'text-[var(--text-primary)]' : ''}`}>
+      <TerminalWindow size={12} />Terminal{count > 0 ? ` ${count}` : ''}
+    </button>
+  );
+}
 
 interface CursorStatus {
   line: number;
@@ -567,6 +583,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
     {showProblems && showEditor && <EditorProblems markers={markers} onReveal={revealPosition} onClose={() => setShowProblems(false)} />}
     <footer className="flex min-h-7 shrink-0 flex-wrap items-center justify-between gap-x-2 border-t border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2 text-[10px] text-[var(--text-secondary)] tabular-nums">
       <div className="flex items-center gap-2">
+        {groupLabel === '01' && <TerminalPanelToggle />}
         {showEditor && <button type="button" onClick={() => setShowProblems(!showProblems)} aria-label={`Problems: ${markers.length}`} aria-expanded={showProblems} className="flex items-center gap-1 rounded px-1 py-1 hover:bg-[var(--bg-tertiary)] cursor-pointer"><WarningCircle size={12} />{markers.length}</button>}
         <button type="button" onClick={() => setAutoSave(!autoSave)} aria-pressed={autoSave} className="rounded px-1 py-1 hover:bg-[var(--bg-tertiary)] cursor-pointer">{autoSave ? 'Auto-save' : activeFile?.isDirty ? 'Unsaved' : 'Saved'}</button>
         {showEditor && <span>{cursorStatus.lineCount.toLocaleString()} lines</span>}

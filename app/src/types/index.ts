@@ -71,6 +71,14 @@ export interface WorkspaceExtensionPanel {
   workspaceId: string;
   extensionId: string;
   name: string;
+  /** 'side' docks the panel in the editor's right side panel instead of the Extensions view. */
+  dock?: 'side';
+}
+
+export interface ExtensionDockState {
+  open: boolean;
+  width: number;
+  activePanelId: string | null;
 }
 export type WorkspaceAuroraPalette = 'gemini' | 'sage' | 'accent' | 'custom';
 export type WorkspaceBackground = 'none' | 'aurora' | 'light-rays';
