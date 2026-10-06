@@ -52,6 +52,25 @@ function adaptWorkbenchHtml(html, panel, onConfiguration) {
 
 // The Tauri side reads this marker from the host's stdout (see mod.rs).
 const PANEL_EVENT_PREFIX = '[YzPzCode panel event] ';
+const TASK_EVENTS = ['task-busy', 'task-idle', 'task-complete'];
+// Outcomes of a prompt handed to the assistant (panel-chrome.js, panel-prompt.js).
+const PROMPT_STATUSES = ['submitted', 'inserted', 'no-input', 'failed', 'not-ready', 'no-view', 'timeout', 'unavailable'];
+const PROMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validates a pane event body and returns its stdout line for mod.rs. */
+function panelEventLine(value) {
+  if (TASK_EVENTS.includes(value?.event)) return `${PANEL_EVENT_PREFIX}${value.event}\n`;
+  if (value?.event === 'prompt-result' && typeof value.id === 'string' && PROMPT_ID.test(value.id) &&
+      PROMPT_STATUSES.includes(value.status))
+    return `${PANEL_EVENT_PREFIX}prompt-result ${value.id.toLowerCase()} ${value.status}\n`;
+  throw new Error('Unsupported event');
+}
+
+/** The script every webview frame loads: activity reporting plus prompt delivery. */
+function webviewScript(directory = __dirname) {
+  const read = name => fs.readFileSync(path.join(directory, name), 'utf8');
+  return `${read('webview-activity.js')}\n;${read('panel-prompt.js').trim()}({ mode: 'webview' });\n`;
+}
 
 function adaptWebviewHtml(html) {
   // The bootstrap CSP allows 'self' scripts, so no hash needs to change.
@@ -138,14 +157,14 @@ function installAdapter(panel) {
     if (address.pathname.startsWith('/yzpz-webview/')) {
       // Hashed iframe origins do not receive the parent host's auth cookie.
       // Serve only the three public runtime bootstrap files (plus the
-      // app's activity script) here. Workspace
+      // app's activity and prompt script) here. Workspace
       // files, extension files, status/actions, and all host APIs remain private.
       const runtimeAsset = name => path.join(process.env.YZPZ_WEBVIEW_ASSETS_DIR, name);
       const allowed = {
         '/yzpz-webview/index.html': [runtimeAsset('index.html'), 'text/html; charset=utf-8'],
         '/yzpz-webview/fake.html': [runtimeAsset('fake.html'), 'text/html; charset=utf-8'],
         '/yzpz-webview/service-worker.js': [runtimeAsset('service-worker.js'), 'application/javascript; charset=utf-8'],
-        '/yzpz-webview/yzpz-activity.js': [path.join(__dirname, 'webview-activity.js'), 'application/javascript; charset=utf-8'],
+        '/yzpz-webview/yzpz-activity.js': [null, 'application/javascript; charset=utf-8'],
       };
       const asset = allowed[address.pathname];
       const assetHost = (request.headers.host || '').toLowerCase();
@@ -155,7 +174,7 @@ function installAdapter(panel) {
         response.writeHead(403); response.end(); return true;
       }
       try {
-        let bytes = fs.readFileSync(asset[0]);
+        let bytes = asset[0] ? fs.readFileSync(asset[0]) : Buffer.from(webviewScript());
         if (address.pathname === '/yzpz-webview/index.html') bytes = Buffer.from(adaptWebviewHtml(bytes.toString('utf8')));
         response.writeHead(200, { 'Content-Type': asset[1], 'Content-Length': bytes.length,
           'Cache-Control': 'no-cache', 'Cross-Origin-Resource-Policy': 'cross-origin',
@@ -260,8 +279,7 @@ function installAdapter(panel) {
                 saveTrust(process.env.YZPZ_WORKSPACE_TRUST_FILE, process.env.YZPZ_WORKSPACE_PATH, false);
             }
           } else if (address.pathname.endsWith('/event')) {
-            if (!['task-busy', 'task-idle', 'task-complete'].includes(value.event)) throw new Error('Unsupported event');
-            process.stdout.write(`${PANEL_EVENT_PREFIX}${value.event}\n`);
+            process.stdout.write(panelEventLine(value));
           } else if (address.pathname.endsWith('/diagnostic')) {
             if (!['configuration', 'read', 'restore', 'capture', 'import'].includes(value.stage) ||
                 typeof value.name !== 'string' || typeof value.message !== 'string' ||
@@ -282,5 +300,5 @@ function installAdapter(panel) {
   };
 }
 
-module.exports = { adaptWorkbenchHtml, adaptWebviewHtml, adaptWorkbenchCsp, adaptWorkbenchModule, isWorkbenchModule };
+module.exports = { adaptWorkbenchHtml, adaptWebviewHtml, adaptWorkbenchCsp, adaptWorkbenchModule, isWorkbenchModule, panelEventLine, webviewScript };
 if (process.env.YZPZ_PANEL_CONFIG && process.argv.includes('--start-server')) installAdapter(JSON.parse(process.env.YZPZ_PANEL_CONFIG));

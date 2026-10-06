@@ -7,6 +7,7 @@ import { useExtensionPanelHost } from '../../hooks/useExtensionPanelHost';
 import { ExtensionLogo } from '../common/ExtensionLogo';
 import { PaneMaximizeButton, TerminalLayoutPicker } from './TerminalLayoutPicker';
 import { AgentActivityAura, AgentActivityChip } from './AgentActivityIndicator';
+import { ExtensionPromptNotice } from './ExtensionPromptNotice';
 import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
 
 interface ExtensionPaneProps {
@@ -40,6 +41,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
         <ExtensionLogo extensionId={panel.extensionId} name={panel.name} small />
         <span className="min-w-0 truncate text-xs font-medium">{panel.name}</span>
         {activityGlowEnabled && <AgentActivityChip activity={activity} />}
+        <ExtensionPromptNotice panelId={panel.id} />
         <span className="flex-1" aria-hidden="true" />
         <span className="text-[9px] text-[var(--text-secondary)]">Extension</span>
         <button type="button" className="app-icon-button app-icon-button--compact" onClick={moveToSidePanel} disabled={closing} aria-label={`Move ${panel.name} to the editor side panel`} title="Move to editor side panel"><SidebarSimple size={14} mirrored /></button>

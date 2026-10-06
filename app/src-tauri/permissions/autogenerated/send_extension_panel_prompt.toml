@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-send-extension-panel-prompt"
+description = "Enables the send_extension_panel_prompt command without any pre-configured scope."
+commands.allow = ["send_extension_panel_prompt"]
+
+[[permission]]
+identifier = "deny-send-extension-panel-prompt"
+description = "Denies the send_extension_panel_prompt command without any pre-configured scope."
+commands.deny = ["send_extension_panel_prompt"]

@@ -55,7 +55,7 @@ The design tools sit in the middle of the browser toolbar. While a tool is activ
 
 ### Inspect
 
-Hover over any element to highlight it, then click to open the element inspector: HTML, classes, selectors, attributes and editable styles. Describe a change and send it to an agent terminal with the element's full context.
+Hover over any element to highlight it, then click to open the element inspector: HTML, classes, selectors, attributes and editable styles. Describe a change and send it, with the element's full context, to an agent terminal or to an extension panel (Claude Code, Codex, Kilo Code, Antigravity…). Extensions receive the prompt in their chat box and submit it; one that hasn't started yet opens first.
 
 ### Pick Style
 

@@ -19,6 +19,20 @@ const MAX_EXTRACTED: u64 = 2 * 1024 * 1024 * 1024;
 const DOWNLOAD_ATTEMPTS: u32 = 3;
 /// Written to stdout by host-preload.cjs when a pane reports an event.
 const PANEL_EVENT_PREFIX: &str = "[YzPzCode panel event] ";
+/// Outcomes of a prompt handed to an assistant (see panel-prompt.js).
+const PROMPT_STATUSES: &[&str] = &[
+    "submitted",
+    "inserted",
+    "no-input",
+    "failed",
+    "not-ready",
+    "no-view",
+    "timeout",
+    "unavailable",
+];
+const MAX_PROMPT_BYTES: usize = 256 * 1024;
+/// The frontend matches this text to start a panel before handing it a prompt.
+const PANEL_NOT_RUNNING: &str = "The extension panel is not running";
 
 #[derive(Deserialize)]
 struct RuntimeRelease {
@@ -249,6 +263,56 @@ struct PanelActivity {
     busy: bool,
 }
 
+/// The outcome of a prompt handed to a panel's assistant.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PanelPromptResult {
+    panel_id: String,
+    request_id: String,
+    status: String,
+}
+
+#[derive(Debug, PartialEq)]
+enum PanelEvent {
+    TaskComplete,
+    Activity { busy: bool },
+    PromptResult { request_id: String, status: String },
+}
+
+/// Reads a host stdout line written by host-preload.cjs `panelEventLine`.
+fn parse_panel_event(line: &str) -> Option<PanelEvent> {
+    match line.trim_end().strip_prefix(PANEL_EVENT_PREFIX)? {
+        "task-complete" => Some(PanelEvent::TaskComplete),
+        "task-busy" => Some(PanelEvent::Activity { busy: true }),
+        "task-idle" => Some(PanelEvent::Activity { busy: false }),
+        other => {
+            let mut parts = other.strip_prefix("prompt-result ")?.split(' ');
+            let (request_id, status) = (parts.next()?, parts.next()?);
+            (parts.next().is_none()
+                && Uuid::parse_str(request_id).is_ok()
+                && PROMPT_STATUSES.contains(&status))
+            .then(|| PanelEvent::PromptResult {
+                request_id: request_id.to_string(),
+                status: status.to_string(),
+            })
+        }
+    }
+}
+
+/// Script evaluated in a panel's workbench page to hand it a prompt. Pages
+/// that have not loaded panel-chrome.js yet report `unavailable` at once.
+fn prompt_script(request_id: &str, text: &str, submit: bool) -> String {
+    // serde_json output is a valid JavaScript literal, so the text cannot
+    // break out of the call.
+    let request = json!({ "id": request_id, "text": text, "submit": submit });
+    format!(
+        "(window.__yzpzPanelPrompt || (request => fetch('/yzpz-panel/event', {{ \
+         method: 'POST', credentials: 'same-origin', headers: {{ 'Content-Type': 'application/json' }}, \
+         body: JSON.stringify({{ event: 'prompt-result', id: request.id, status: 'unavailable' }}) \
+         }}).catch(() => {{}})))({request});"
+    )
+}
+
 /// Copies the host's stdout into its log and turns panel event markers into
 /// app events. Ends when the host exits and closes the pipe.
 fn forward_host_output(
@@ -268,8 +332,8 @@ fn forward_host_output(
                 Ok(_) => {}
             }
             let text = String::from_utf8_lossy(&line);
-            match text.trim_end().strip_prefix(PANEL_EVENT_PREFIX) {
-                Some("task-complete") => {
+            match parse_panel_event(&text) {
+                Some(PanelEvent::TaskComplete) => {
                     let _ = app.emit(
                         "extension-panel-task-complete",
                         PanelTaskComplete {
@@ -277,16 +341,26 @@ fn forward_host_output(
                         },
                     );
                 }
-                Some(event @ ("task-busy" | "task-idle")) => {
+                Some(PanelEvent::Activity { busy }) => {
                     let _ = app.emit(
                         "extension-panel-activity",
                         PanelActivity {
                             panel_id: panel_id.clone(),
-                            busy: event == "task-busy",
+                            busy,
                         },
                     );
                 }
-                _ => {
+                Some(PanelEvent::PromptResult { request_id, status }) => {
+                    let _ = app.emit(
+                        "extension-panel-prompt-result",
+                        PanelPromptResult {
+                            panel_id: panel_id.clone(),
+                            request_id,
+                            status,
+                        },
+                    );
+                }
+                None => {
                     let _ = log.write_all(&line);
                 }
             }
@@ -974,6 +1048,7 @@ impl ExtensionHostManager {
             ("panel-storage.cjs", include_str!("panel-storage.cjs")),
             ("panel-workbench.mjs", include_str!("panel-workbench.mjs")),
             ("webview-activity.js", include_str!("webview-activity.js")),
+            ("panel-prompt.js", include_str!("panel-prompt.js")),
             ("panel-tunnel.cjs", include_str!("panel-tunnel.cjs")),
             (
                 "antigravity-compat.cjs",
@@ -1238,6 +1313,39 @@ impl ExtensionHostManager {
         webview.set_position(LogicalPosition::new(bounds.x.max(0.0), bounds.y.max(0.0)))?;
         webview.set_size(LogicalSize::new(bounds.width, bounds.height))?;
         webview.show()?;
+        Ok(())
+    }
+
+    /// Hands `text` to the panel's assistant chat and, with `submit`, sends it.
+    /// The outcome arrives as an `extension-panel-prompt-result` event.
+    pub fn send_prompt(
+        &self,
+        app: &AppHandle,
+        panel_id: &str,
+        request_id: &str,
+        text: &str,
+        submit: bool,
+    ) -> Result<()> {
+        check_uuid(panel_id)?;
+        check_uuid(request_id)?;
+        if text.trim().is_empty() {
+            bail!("The prompt is empty");
+        }
+        if text.len() > MAX_PROMPT_BYTES {
+            bail!("The prompt is too long for an extension panel");
+        }
+        let running = self
+            .hosts
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Extension host lock failed"))?
+            .contains_key(panel_id);
+        // The webview exists once the panel has been on screen; a hidden one
+        // still runs its page, so the prompt lands without showing it.
+        let webview = app
+            .get_webview(&format!("extension-panel-{panel_id}"))
+            .filter(|_| running)
+            .context(PANEL_NOT_RUNNING)?;
+        webview.eval(prompt_script(request_id, text, submit))?;
         Ok(())
     }
 
@@ -1797,5 +1905,49 @@ mod tests {
         fs::write(path.join("partial.vsix"), "partial download").expect("partial file");
         drop(temp);
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn panel_events_include_validated_prompt_results() {
+        let id = "0b6f8c1e-3c2a-4f5e-9d7b-1a2b3c4d5e6f";
+        let line = |rest: &str| format!("{PANEL_EVENT_PREFIX}{rest}\n");
+        assert_eq!(
+            parse_panel_event(&line("task-complete")),
+            Some(PanelEvent::TaskComplete)
+        );
+        assert_eq!(
+            parse_panel_event(&line("task-busy")),
+            Some(PanelEvent::Activity { busy: true })
+        );
+        assert_eq!(
+            parse_panel_event(&line(&format!("prompt-result {id} submitted"))),
+            Some(PanelEvent::PromptResult {
+                request_id: id.to_string(),
+                status: "submitted".to_string(),
+            })
+        );
+        for rejected in [
+            format!("prompt-result {id} deleted-files"),
+            "prompt-result not-a-uuid submitted".to_string(),
+            format!("prompt-result {id} submitted extra"),
+            format!("prompt-result {id}"),
+        ] {
+            assert_eq!(parse_panel_event(&line(&rejected)), None, "{rejected}");
+        }
+        assert_eq!(parse_panel_event("ordinary host log line\n"), None);
+    }
+
+    #[test]
+    fn prompt_script_embeds_text_as_a_single_json_literal() {
+        let id = "0b6f8c1e-3c2a-4f5e-9d7b-1a2b3c4d5e6f";
+        let text = "line one\n'quote' \"double\" `tick` ${x} </script>\u{2028}\\";
+        let script = prompt_script(id, text, true);
+        let start = script.rfind(")({").expect("call") + 2;
+        let literal = script[start..].strip_suffix(");").expect("call end");
+        let request: Value = serde_json::from_str(literal).expect("request literal");
+        assert_eq!(request["id"], id);
+        assert_eq!(request["text"], text);
+        assert_eq!(request["submit"], true);
+        assert!(script.starts_with("(window.__yzpzPanelPrompt || "));
     }
 }

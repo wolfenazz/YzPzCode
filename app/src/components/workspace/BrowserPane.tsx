@@ -24,6 +24,9 @@ import type {
   WorkspaceScoped,
 } from '../../types';
 import { useAppStore } from '../../stores/appStore';
+import { EMPTY_EXTENSION_PANELS, useExtensionStore } from '../../stores/extensionStore';
+import { getExtensionIcon } from '../../data/extensionIcons';
+import { extensionPanelIdFromTarget, extensionTargetId, sendPromptToExtensionPanel } from '../../utils/extensionPrompt';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useBrowserAutoReload } from '../../hooks/useBrowserAutoReload';
 import { useTerminal } from '../../hooks/useTerminal';
@@ -131,6 +134,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
   const browserState = useAppStore((state) => state.browserStateByWorkspace[workspaceId]);
   const devServerUrls = useAppStore((state) => state.devServerUrlsByWorkspace[workspaceId] ?? EMPTY_DEV_SERVER_URLS);
+  const extensionPanels = useExtensionStore((state) => state.panelsByWorkspace[workspaceId] ?? EMPTY_EXTENSION_PANELS);
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspacePath = useAppStore((state) => state.currentWorkspace?.path ?? null);
   const appZoom = useAppStore((state) => state.appZoom);
@@ -256,19 +260,34 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   }, [message]);
 
   // ── Agent targets ────────────────────────────────────────────────────
+  // Agent terminals (shells only when no agent runs) and extension panels
+  // (Claude Code, Codex, Kilo Code… in the Extensions view or side panel).
   const sessionOptions = useMemo<AgentTargetOption[]>(() => {
     const agentSessions = sessions.filter((session) => session.agent);
-    return (agentSessions.length > 0 ? agentSessions : sessions).map((session) => ({
+    const terminals = (agentSessions.length > 0 ? agentSessions : sessions).map((session) => ({
       id: session.id,
       label: sessionDisplayName(session),
       agent: session.agent ?? null,
     }));
-  }, [sessions]);
+    const extensions = extensionPanels.map((panel) => ({
+      id: extensionTargetId(panel.id),
+      label: panel.name,
+      agent: null,
+      logo: getExtensionIcon(panel.extensionId),
+      detail: panel.dock === 'side' ? 'Side panel' : 'Extension',
+    }));
+    return [...terminals, ...extensions];
+  }, [extensionPanels, sessions]);
 
   const defaultSessionId = useMemo(() => {
     if (activeSessionId && sessionOptions.some((option) => option.id === activeSessionId)) return activeSessionId;
     return sessionOptions[0]?.id ?? null;
   }, [activeSessionId, sessionOptions]);
+
+  // A saved target whose terminal or panel has since closed falls back to the default.
+  const targetSessionId = state.targetSessionId && sessionOptions.some((option) => option.id === state.targetSessionId)
+    ? state.targetSessionId
+    : defaultSessionId;
 
   useEffect(() => {
     if (!state.targetSessionId && defaultSessionId) setBrowserTargetSession(workspaceId, defaultSessionId);
@@ -809,11 +828,25 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   }, [copyText]);
 
   // ── Inspector handoff ────────────────────────────────────────────────
+  /** Pastes into an agent terminal, or hands the prompt to an extension panel's chat. */
+  const deliverPrompt = useCallback(async (targetId: string, prompt: string, sentText: string): Promise<void> => {
+    const panelId = extensionPanelIdFromTarget(targetId);
+    if (!panelId) {
+      await submitBracketedPaste(targetId, prompt, writeToTerminal);
+      showMessage('success', sentText);
+      return;
+    }
+    const panel = extensionPanels.find((entry) => entry.id === panelId);
+    if (!panel) throw new Error('That extension panel was closed. Pick another target.');
+    const outcome = await sendPromptToExtensionPanel(panel, prompt);
+    if (outcome === 'submitted') showMessage('success', `Sent to ${panel.name}`);
+    else showMessage('info', `Added to ${panel.name}'s message box. Press Enter there to send.`);
+  }, [extensionPanels, showMessage, writeToTerminal]);
+
   const handleInspectorSend = useCallback(async (promptText?: string, styleOverrides: Record<string, string> = {}) => {
     if (!state.selectedElement) return;
-    const targetSessionId = state.targetSessionId ?? defaultSessionId;
     if (!targetSessionId) {
-      const text = 'Open an agent terminal to send this request.';
+      const text = 'Open an agent terminal or extension panel to send this request.';
       showMessage('error', text);
       throw new Error(text);
     }
@@ -834,10 +867,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
     setIsSubmitting(true);
     try {
-      await submitBracketedPaste(targetSessionId, formattedPrompt, writeToTerminal);
+      await deliverPrompt(targetSessionId, formattedPrompt, 'Sent to agent');
       setBrowserInstructionSlots(workspaceId, ['']);
       setActiveBrowserInstructionSlot(workspaceId, 0);
-      showMessage('success', 'Sent to agent');
     } catch (err) {
       reportError(err);
       throw new Error(errorText(err));
@@ -845,7 +877,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       setIsSubmitting(false);
     }
   }, [
-    defaultSessionId,
+    deliverPrompt,
     deviceLabel,
     effectiveZoom,
     reportError,
@@ -854,9 +886,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     showMessage,
     state.instructionSlots,
     state.selectedElement,
-    state.targetSessionId,
+    targetSessionId,
     workspaceId,
-    writeToTerminal,
   ]);
 
   const handleInspectorPreviewStylesChange = useCallback((styles: Record<string, string>) => {
@@ -907,9 +938,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       showMessage('error', 'Capture or select a UI reference first.');
       return;
     }
-    const targetSessionId = state.targetSessionId ?? defaultSessionId;
     if (!targetSessionId) {
-      showMessage('error', 'Open an agent terminal to send this reference.');
+      showMessage('error', 'Open an agent terminal or extension panel to send this reference.');
       return;
     }
     const brief = htmlToPlainText(state.uiReferencePrompt).trim();
@@ -924,13 +954,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
     setIsSubmitting(true);
     try {
-      await submitBracketedPaste(
+      await deliverPrompt(
         targetSessionId,
         formatUiReferencePrompt(activeUiReference, brief, state.uiReferenceMode, state.selectedElement),
-        writeToTerminal,
+        'Reference sent to agent',
       );
       setBrowserUiReferencePrompt(workspaceId, '');
-      showMessage('success', 'Reference sent to agent');
     } catch (err) {
       reportError(err);
     } finally {
@@ -938,16 +967,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     }
   }, [
     activeUiReference,
-    defaultSessionId,
+    deliverPrompt,
     reportError,
     setBrowserUiReferencePrompt,
     showMessage,
     state.selectedElement,
-    state.targetSessionId,
     state.uiReferenceMode,
     state.uiReferencePrompt,
+    targetSessionId,
     workspaceId,
-    writeToTerminal,
   ]);
 
   // ── Zoom & device ────────────────────────────────────────────────────
@@ -1360,7 +1388,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   selectedElement={selectedElement}
                   inspectMode={state.inspectMode}
                   sessionOptions={sessionOptions}
-                  targetSessionId={state.targetSessionId}
+                  targetSessionId={targetSessionId}
                   promptHtml={state.uiReferencePrompt}
                   promptLength={uiReferencePromptLength}
                   isSubmitting={isSubmitting}
@@ -1382,7 +1410,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 <ElementInspectorPanel
                   element={selectedElement}
                   pageTitle={selectedElement.pageTitle || pageTitle || 'Untitled page'}
-                  targetSessionId={state.targetSessionId}
+                  targetSessionId={targetSessionId}
                   sessionOptions={sessionOptions}
                   isSubmitting={isSubmitting}
                   deviceLabel={deviceLabel}

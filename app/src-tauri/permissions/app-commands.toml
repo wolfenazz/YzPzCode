@@ -118,6 +118,7 @@ permissions = [
   "allow-reveal-in-file-manager",
   "allow-run-managed-terminal-command",
   "allow-search-files",
+  "allow-send-extension-panel-prompt",
   "allow-send-managed-terminal-input",
   "allow-set-browser-apply-mode",
   "allow-set-browser-inspect-mode",

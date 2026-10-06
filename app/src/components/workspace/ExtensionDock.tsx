@@ -8,6 +8,7 @@ import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { useExtensionPanelHost } from '../../hooks/useExtensionPanelHost';
 import { ExtensionLogo } from '../common/ExtensionLogo';
 import { AgentActivityAura } from './AgentActivityIndicator';
+import { ExtensionPromptNotice } from './ExtensionPromptNotice';
 import type { AgentActivityState } from '../../utils/agentDoneNotifier';
 import type { ExtensionInfo, WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
 import './ExtensionDock.css';
@@ -220,6 +221,7 @@ function DockFrame({ workspace, visible, onBrowseExtensions }: ExtensionDockProp
             </button>
           </div>
           <div className="xd__actions">
+            {activePanel && !showLauncher && <ExtensionPromptNotice panelId={activePanel.id} />}
             {activePanel && !showLauncher && (
               <button type="button" className="app-icon-button app-icon-button--compact" onClick={() => moveToExtensionsView(activePanel)} title="Move to Extensions view" aria-label={`Move ${activePanel.name} to the Extensions view`}>
                 <SquaresFour size={14} />

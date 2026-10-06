@@ -106,6 +106,12 @@
     } catch { state = { stage: 'error', message: 'Could not contact the extension host. Close and reopen this pane.' }; schedule(); }
   }
 
+  function assistantComposite() {
+    const candidates = state.container ? [state.container, ...containers] : containers;
+    return candidates.map(id => document.getElementById(id))
+      .find(element => element?.getBoundingClientRect().height > 0 && getComputedStyle(element).display !== 'none');
+  }
+
   function assistantFrame(composite) {
     if (!composite) return undefined;
     const frames = [...document.querySelectorAll('iframe.webview')].filter(element => {
@@ -168,9 +174,7 @@
           editorOverlay.style.setProperty(`--yzpz-editor-${name}`, pixels);
       }
     }
-    const candidates = state.container ? [state.container, ...containers] : containers;
-    const composite = candidates.map(id => document.getElementById(id))
-      .find(element => element?.getBoundingClientRect().height > 0 && getComputedStyle(element).display !== 'none');
+    const composite = assistantComposite();
     const part = composite?.closest('.part');
     const viewOpened = !bootError && state.stage === 'ready' && Boolean(part);
     const iframe = assistantFrame(composite);
@@ -237,12 +241,54 @@
   let lastActivityEvent = 'task-idle';
   // Sent one at a time so busy, idle and complete arrive in order.
   let taskEvents = Promise.resolve();
+  const fromWebview = origin => {
+    const suffix = `.${location.hostname}:${location.port}`;
+    return origin.startsWith('http://') && origin.endsWith(suffix) &&
+      /^[0-9a-v]{52}$/.test(origin.slice('http://'.length, -suffix.length));
+  };
+
+  // YzPzCode hands prompts (browser inspector, UI references) to the assistant:
+  // the app evaluates __yzpzPanelPrompt in this page, the assistant's webview
+  // inserts and submits the text (panel-prompt.js), and the outcome returns to
+  // the app through /yzpz-panel/event.
+  const pendingPrompts = new Map();
+  const PROMPT_TIMEOUT_MS = 15000;
+  function reportPrompt(id, status) {
+    void fetch('/yzpz-panel/event', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'prompt-result', id, status }),
+    }).catch(() => undefined);
+  }
+  function sendPrompt(request) {
+    const { id, text, submit } = request || {};
+    if (typeof id !== 'string' || typeof text !== 'string' || typeof submit !== 'boolean') return;
+    if (bootError || !['ready', 'editor'].includes(state.stage)) return reportPrompt(id, 'not-ready');
+    const iframe = assistantFrame(assistantComposite());
+    let origin;
+    try { origin = new URL(iframe.src).origin; } catch { /* No assistant webview yet. */ }
+    if (!origin || !iframe.contentWindow || !iframe.classList.contains('ready')) return reportPrompt(id, 'no-view');
+    const timer = setTimeout(() => { if (pendingPrompts.delete(id)) reportPrompt(id, 'timeout'); }, PROMPT_TIMEOUT_MS);
+    pendingPrompts.set(id, { source: iframe.contentWindow, timer });
+    // A settings page or diff covers the chat: bring the assistant back.
+    if (state.stage === 'editor') void action('back');
+    iframe.contentWindow.postMessage({ yzpzPanelPrompt: { id, text, submit } }, origin);
+  }
+  Object.defineProperty(window, '__yzpzPanelPrompt', { value: sendPrompt });
+
   window.addEventListener('message', event => {
+    const result = event.data?.yzpzPanelPromptResult;
+    if (result) {
+      const pending = pendingPrompts.get(result.id);
+      if (!pending || event.source !== pending.source || !fromWebview(event.origin)) return;
+      clearTimeout(pending.timer);
+      pendingPrompts.delete(result.id);
+      reportPrompt(result.id, String(result.status));
+      return;
+    }
     let name = event.data?.yzpzPanelEvent;
     if (!TASK_EVENTS.includes(name)) return;
-    const suffix = `.${location.hostname}:${location.port}`;
-    if (!event.origin.startsWith('http://') || !event.origin.endsWith(suffix) ||
-        !/^[0-9a-v]{52}$/.test(event.origin.slice('http://'.length, -suffix.length))) return;
+    if (!fromWebview(event.origin)) return;
     if (name === 'task-complete') {
       const now = Date.now();
       // A repeat completion still has to end the working state.

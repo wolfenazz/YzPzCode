@@ -217,6 +217,7 @@ pub fn run() {
                 commands::start_extension_panel,
                 commands::sync_extension_panel,
                 commands::close_extension_panel,
+                commands::send_extension_panel_prompt,
                 commands::close_workspace_extension_panels,
                 commands::create_terminal_sessions,
                 commands::create_single_terminal_session,

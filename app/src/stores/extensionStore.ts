@@ -7,6 +7,13 @@ import supportedExtensions from '../data/extensions.json';
 
 type PanelDock = 'side' | 'grid';
 
+/** The outcome of a prompt handed to a panel (utils/extensionPrompt.ts), shown on the panel. */
+export interface ExtensionPromptNotice {
+  tone: 'pending' | 'success' | 'info' | 'error';
+  text: string;
+  at: number;
+}
+
 interface ExtensionStore {
   catalog: ExtensionInfo[];
   loading: boolean;
@@ -22,6 +29,9 @@ interface ExtensionStore {
   /** Whether each panel's assistant is working or just finished (not persisted). */
   activityByPanel: Record<string, AgentActivityState>;
   setPanelActivity: (panelId: string, activity: AgentActivityState) => void;
+  /** Latest prompt handoff outcome per panel (not persisted). */
+  promptNoticeByPanel: Record<string, ExtensionPromptNotice>;
+  setPromptNotice: (panelId: string, notice: Omit<ExtensionPromptNotice, 'at'> | null) => void;
   refreshCatalog: () => Promise<void>;
   checkUpdates: () => Promise<void>;
   install: (extensionId: string) => Promise<void>;
@@ -89,8 +99,12 @@ export const useExtensionStore = create<ExtensionStore>()(
       return {
         catalog: supportedExtensions.map((extension) => ({ ...extension, installedVersion: null, registryUrl: `https://open-vsx.org/extension/${extension.id.replace('.', '/')}` })),
         loading: false, backendReady: false, error: null, installing: [], progress: {}, latestVersions: {},
-        panelsByWorkspace: {}, paneOrderByWorkspace: {}, dockByWorkspace: {}, activityByPanel: {},
+        panelsByWorkspace: {}, paneOrderByWorkspace: {}, dockByWorkspace: {}, activityByPanel: {}, promptNoticeByPanel: {},
         setPanelActivity: (panelId, activity) => set((state) => ({ activityByPanel: { ...state.activityByPanel, [panelId]: activity } })),
+        setPromptNotice: (panelId, notice) => set((state) => {
+          const { [panelId]: _previous, ...rest } = state.promptNoticeByPanel;
+          return { promptNoticeByPanel: notice ? { ...rest, [panelId]: { ...notice, at: Date.now() } } : rest };
+        }),
         refreshCatalog: async () => {
           set({ loading: true, error: null });
           try {
@@ -170,6 +184,7 @@ export const useExtensionStore = create<ExtensionStore>()(
             panelsByWorkspace: Object.fromEntries(Object.entries(state.panelsByWorkspace).map(([id, panels]) => [id, panels.filter((panel) => panel.id !== panelId)])),
             paneOrderByWorkspace: Object.fromEntries(Object.entries(state.paneOrderByWorkspace).map(([id, order]) => [id, order.filter((id) => id !== panelId)])),
             activityByPanel: Object.fromEntries(Object.entries(state.activityByPanel).filter(([id]) => id !== panelId)),
+            promptNoticeByPanel: Object.fromEntries(Object.entries(state.promptNoticeByPanel).filter(([id]) => id !== panelId)),
           }));
         },
         closeWorkspace: async (workspaceId) => {

@@ -17,6 +17,10 @@ export interface AgentTargetOption {
   id: string;
   label: string;
   agent: CliType | null;
+  /** Overrides the agent logo (extension panels). */
+  logo?: string;
+  /** Short muted tag after the label, e.g. "Extension". */
+  detail?: string;
 }
 
 const AGENT_LOGO: Record<string, string> = {
@@ -33,7 +37,7 @@ const AGENT_LOGO: Record<string, string> = {
 };
 
 const optionLogo = (option: AgentTargetOption): string | null => {
-  return option.agent ? AGENT_LOGO[option.agent] : null;
+  return option.logo ?? (option.agent ? AGENT_LOGO[option.agent] : null);
 };
 
 interface AgentTargetSelectProps {
@@ -54,6 +58,12 @@ const POPUP_GAP = 6;
 const POPUP_MAX_HEIGHT = 360;
 const POPUP_MIN_HEIGHT = 120;
 const SEARCH_ROW_HEIGHT = 34;
+
+const OptionDetail: React.FC<{ text: string }> = ({ text }) => (
+  <span className="shrink-0 rounded border border-[var(--border-primary)] px-1 py-px text-[9px] leading-3 text-[var(--text-secondary)]/70">
+    {text}
+  </span>
+);
 
 export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, options, onChange }) => {
   const [open, setOpen] = useState(false);
@@ -105,7 +115,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
 
     const queryTokens = normalizedQuery.split(/\s+/);
     return options.filter((option) => {
-      const searchableLabel = option.label.toLowerCase();
+      const searchableLabel = `${option.label} ${option.detail ?? ''}`.toLowerCase();
       return queryTokens.every((token) => searchableLabel.includes(token));
     });
   }, [options, query]);
@@ -240,6 +250,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
         <span className="min-w-0 flex-1 truncate" title={selected?.label}>
           {selected ? selected.label : options.length === 0 ? 'no session' : 'select agent…'}
         </span>
+        {selected?.detail && <OptionDetail text={selected.detail} />}
         <CaretDown
           size={16}
           className={`shrink-0 text-[var(--text-secondary)]/60 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
@@ -295,7 +306,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
             >
               {filteredOptions.length === 0 && (
                 <div className="px-2.5 py-2 text-[10px] text-[var(--text-secondary)]/50">
-                  {query ? 'No matching agent sessions' : 'No agent sessions available'}
+                  {query ? 'No matching agents' : 'No agent sessions or extensions open'}
                 </div>
               )}
               {filteredOptions.map((option, index) => {
@@ -328,6 +339,7 @@ export const AgentTargetSelect: React.FC<AgentTargetSelectProps> = ({ value, opt
                     <span className="min-w-0 flex-1 truncate" title={option.label}>
                       {option.label}
                     </span>
+                    {option.detail && <OptionDetail text={option.detail} />}
                     {isSelected && <Check size={14} weight="bold" className="shrink-0 text-[var(--accent)]" aria-hidden="true" />}
                   </button>
                 );

@@ -15,19 +15,16 @@ import {
   Target,
   X,
 } from '@phosphor-icons/react';
-import type { BrowserSelectedElement, CliType, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
+import type { BrowserSelectedElement, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
 import { htmlToPlainText } from '../../utils/richText';
 import { formatElementPrompt } from '../../utils/inspectorPrompt';
 import { RichPromptEditor } from './RichPromptEditor';
 import { useAppStore } from '../../stores/appStore';
-import { AgentTargetSelect } from './AgentTargetSelect';
+import { AgentTargetSelect, type AgentTargetOption } from './AgentTargetSelect';
 import { InspectorStyleEditor } from './InspectorStyleEditor';
 
-export interface SessionOption {
-  id: string;
-  label: string;
-  agent: CliType | null;
-}
+/** An agent terminal, shell, or extension panel the request can be sent to. */
+export type SessionOption = AgentTargetOption;
 
 interface ElementInspectorPanelProps {
   element: BrowserSelectedElement;
@@ -534,7 +531,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
         <SectionCard icon={<Target size={13} />} title="Target agent" meta={countPill(`${sessionOptions.length} avail`)}>
           <AgentTargetSelect value={targetSessionId ?? ''} options={sessionOptions} onChange={onTargetSessionChange} />
           <p className="mt-2 text-[9px] leading-4 text-[var(--text-secondary)]/60">
-            Handoff goes directly into the chosen terminal or agent session
+            Handoff goes directly into the chosen agent terminal or extension chat
           </p>
         </SectionCard>
 

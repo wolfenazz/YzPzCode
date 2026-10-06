@@ -1,6 +1,8 @@
 // Same-machine extension services need no remote TCP forwarding. Antigravity
 // additionally limits iframe ancestors to plain localhost. Keep its backend
 // loopback-only and add just this pane's isolated origins to that policy.
+const fs = require('node:fs');
+const path = require('node:path');
 const http = require('node:http');
 const crypto = require('node:crypto');
 
@@ -47,6 +49,12 @@ function diagnosticScript(route) {
   })();`;
 }
 
+/** Lets the pane's webview hand prompts to the assistant's chat (panel-prompt.js). */
+function promptScript(paneOrigin) {
+  const source = fs.readFileSync(path.join(__dirname, 'panel-prompt.js'), 'utf8').trim();
+  return `${source}(${JSON.stringify({ mode: 'nested', upstreamSuffix: `.${new URL(paneOrigin).host}` })});\n`;
+}
+
 function embeddingPolicy(policy, paneOrigin) {
   const pane = new URL(paneOrigin);
   if (pane.protocol !== 'http:' || !/^panel-[a-f0-9-]+\.localhost$/.test(pane.hostname) || !pane.port)
@@ -78,6 +86,7 @@ async function createTunnel(remotePort, paneOrigin, onDiagnostic) {
   const sockets = new Set();
   let localOrigin;
   const diagnosticRoute = `/__yzpz-startup-${crypto.randomUUID()}`;
+  const promptRoute = `/__yzpz-prompt-${crypto.randomUUID()}.js`;
   const server = http.createServer((request, response) => {
     if (request.headers.host !== new URL(localOrigin).host) {
       response.writeHead(403); response.end(); return;
@@ -86,6 +95,10 @@ async function createTunnel(remotePort, paneOrigin, onDiagnostic) {
     if (onDiagnostic && route === diagnosticRoute + '.js' && request.method === 'GET') {
       response.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' });
       response.end(diagnosticScript(diagnosticRoute)); return;
+    }
+    if (route === promptRoute && request.method === 'GET') {
+      response.writeHead(200, { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-store' });
+      response.end(promptScript(paneOrigin)); return;
     }
     if (onDiagnostic && route === diagnosticRoute && request.method === 'POST') {
       if (request.headers.origin !== localOrigin || !request.headers['content-type']?.startsWith('application/json')) {
@@ -120,7 +133,7 @@ async function createTunnel(remotePort, paneOrigin, onDiagnostic) {
         // The backend gzips HTML when browsers request compression. Request
         // identity for documents so the startup hook can precede its bundle;
         // keep compression for the large script and other resource responses.
-        ...(scopedScript || (onDiagnostic && request.method === 'GET' &&
+        ...(scopedScript || (request.method === 'GET' &&
           (route === '/' || ['iframe', 'document'].includes(request.headers['sec-fetch-dest']))
           ) ? { 'accept-encoding': 'identity' } : {}),
       },
@@ -149,14 +162,15 @@ async function createTunnel(remotePort, paneOrigin, onDiagnostic) {
         });
         reply.on('error', () => response.destroy()); return;
       }
-      if (onDiagnostic && reply.statusCode === 200 && headers['content-type']?.startsWith('text/html') && !headers['content-encoding']) {
+      if (reply.statusCode === 200 && headers['content-type']?.startsWith('text/html') && !headers['content-encoding']) {
         let html = ''; reply.setEncoding('utf8');
         reply.on('data', chunk => { html += chunk; });
         reply.on('end', () => {
           delete headers['content-length']; delete headers.etag;
           headers['cache-control'] = 'no-store';
           response.writeHead(reply.statusCode, headers);
-          response.end(html.replace(/<head>/i, `<head><script src="${diagnosticRoute}.js"></script>`)
+          const scripts = `${onDiagnostic ? `<script src="${diagnosticRoute}.js"></script>` : ''}<script src="${promptRoute}"></script>`;
+          response.end(html.replace(/<head>/i, `<head>${scripts}`)
             .replace(/src="\/main\.js"/g, 'src="/main.js?yzpz-scope=1"'));
         });
         reply.on('error', () => response.destroy()); return;
@@ -218,4 +232,4 @@ async function createTunnel(remotePort, paneOrigin, onDiagnostic) {
   } };
 }
 
-module.exports = { embeddingPolicy, backendHeaders, createTunnel, scopeBundle };
+module.exports = { embeddingPolicy, backendHeaders, createTunnel, scopeBundle, promptScript };

@@ -87,3 +87,19 @@ pub async fn close_workspace_extension_panels(
         .close_workspace(&app, &workspace_id)
         .map_err(|error| format!("{error:#}"))
 }
+
+/// Hands a prompt to the panel's assistant chat. The outcome arrives as an
+/// `extension-panel-prompt-result` event carrying `request_id`.
+#[tauri::command]
+pub async fn send_extension_panel_prompt(
+    app: AppHandle,
+    manager: State<'_, ExtensionHostManager>,
+    panel_id: String,
+    request_id: String,
+    text: String,
+    submit: bool,
+) -> Result<(), String> {
+    manager
+        .send_prompt(&app, &panel_id, &request_id, &text, submit)
+        .map_err(|error| format!("{error:#}"))
+}

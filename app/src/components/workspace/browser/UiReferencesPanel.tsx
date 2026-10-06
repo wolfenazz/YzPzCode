@@ -183,7 +183,7 @@ export const UiReferencesPanel: React.FC<UiReferencesPanelProps> = ({
                   onChange={onTargetSessionChange}
                 />
                 {sessionOptions.length === 0 && (
-                  <p className="bx-muted" style={{ margin: 0 }}>Open an agent terminal (Claude, Codex, Gemini…) to send this reference.</p>
+                  <p className="bx-muted" style={{ margin: 0 }}>Open an agent terminal (Claude, Codex, Gemini…) or an extension (Claude Code, Codex, Kilo Code…) to send this reference.</p>
                 )}
 
                 <RichPromptEditor
