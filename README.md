@@ -198,6 +198,10 @@ Run your favorite graphical coding assistants and visual extension webviews dire
 | **Tabby** | TabbyML | Self-hosted coding assistant connected to a private Tabby server. |
 | **Windsurf Plugin** | Windsurf | Codeium assistant with AI code chat and codebase index. |
 | **Mistral Vibe** | Mistral AI | Mistral's visual coding agent with context, conversations, and tools. |
+| **Roo Code** | Roo Code | Cline-family agent with custom modes, multi-model support, and per-step approvals. |
+| **Qoder CN** | Alibaba Cloud | Alibaba Cloud's agentic coding assistant, formerly Lingma, with chat and agent modes; requires sign-in. |
+| **Augment** | Augment Code | Augment Code's coding agent with a context engine built for large codebases; requires sign-in. |
+| **Nexrall Code** | Nexrall | Autonomous coding agent with per-step approvals, checkpoints, and MCP tools; requires an account. |
 
 - 🎛️ **Side-by-Side Grid Layouts**: Extension panels mount right inside the terminal grid with drag-and-drop reordering, interactive resizing, focus presets (`focus-left`, `focus-right`), and split layouts.
 - 📦 **Zero-Config Managed Runtime**: Automatically provisions a verified VSCodium `reh-web` runtime using pinned SHA-256 digests and Open VSX packages. No external VS Code or Node installation needed.
@@ -255,7 +259,7 @@ See [the application runs guide](docs/application-runs.md) for full configuratio
 - **Saved Configurations**: Scoped run configurations customizable in Settings with custom arguments and environment variables
 
 ### 🧩 3. Graphical Workspace Extensions
-- **Curated Open VSX Catalog**: 1-click install for leading visual coding extensions (Google Antigravity, Kilo Code, Cline, Codex, Claude Code, Continue, Amazon Q, Tabby, Windsurf, Mistral Vibe)
+- **Curated Open VSX Catalog**: 1-click install for leading visual coding extensions (Google Antigravity, Kilo Code, Cline, Codex, Claude Code, Continue, Amazon Q, Tabby, Windsurf, Mistral Vibe, Roo Code, Qoder CN, Augment, Nexrall Code)
 - **Grid Layout Integration**: Open AI assistant panels in a dedicated Extensions view with independent layouts
 - **Strict Security Boundaries**: Isolated child webviews with connection tokens, local origins, and app command rejection
 - **Durable Profile Persistence**: Workspace-scoped profiles, persistent authentication, and synchronized trust gates

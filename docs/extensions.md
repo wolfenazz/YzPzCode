@@ -18,10 +18,10 @@ preferences.
 
 The catalog contains Kilo Code, Cline, OpenAI Codex (`openai.chatgpt`), Claude
 Code, Continue, Google Antigravity, Amazon Q Developer, Tabby, Windsurf Plugin,
-and Mistral Vibe. Packages come from Open VSX. An extension's availability and behavior depend
-on its published package, operating system, and compatibility with VSCodium.
-This is a curated catalog; arbitrary Marketplace or VSIX installation is not
-exposed.
+Mistral Vibe, Roo Code, Qoder CN, Augment, and Nexrall Code. Packages come from
+Open VSX. An extension's availability and behavior depend on its published
+package, operating system, and compatibility with VSCodium. This is a curated
+catalog; arbitrary Marketplace or VSIX installation is not exposed.
 
 Gemini Code Assist was removed from the catalog after Google ended consumer
 access on June 18, 2026. Existing Gemini panes are removed from restored layouts;
@@ -185,10 +185,13 @@ preferences and authentication are retained. Explicit Antigravity permission
 rules and project overrides still take precedence over its global preset.
 The native Windows Antigravity hub retains its separate internet access policy.
 Kilo's native auto-approval setting excludes sandbox escalation prompts.
-The installed Continue, Amazon Q, Tabby, Windsurf Plugin and Mistral Vibe
-packages do not expose an equivalent startup approval setting through their
-VS Code configuration contributions; their provider-owned controls remain
-available through the original UI.
+The installed Continue, Amazon Q, Tabby, Windsurf Plugin, and Mistral Vibe
+packages do not expose an equivalent startup approval setting through their VS
+Code configuration contributions; their provider-owned controls remain
+available through the original UI. The Roo Code, Qoder CN, Augment, and
+Nexrall Code entries keep their default provider settings and are not seeded
+with a startup approval preset; their provider-owned controls remain available
+through the original UI.
 
 The pane reveals the runtime editor when an assistant opens or focuses a tab.
 This supports Antigravity's custom settings editor, Codex's settings and

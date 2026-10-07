@@ -8,5 +8,9 @@
   { "id": "amazonwebservices.amazon-q-vscode", "name": "Amazon Q Developer", "publisher": "Amazon Web Services", "description": "Chat about your code and build features with Amazon Q. Requires AWS sign-in." },
   { "id": "TabbyML.vscode-tabby", "name": "Tabby", "publisher": "TabbyML", "description": "Chat about code with a self-hosted Tabby server. Requires a Tabby endpoint." },
   { "id": "Codeium.codeium", "name": "Windsurf Plugin", "publisher": "Windsurf", "description": "The Codeium extension with AI code chat and assistance. Requires Windsurf sign-in." },
-  { "id": "mistralai.mistral-vibe-code", "name": "Mistral Vibe", "publisher": "Mistral AI", "description": "Mistral's graphical coding agent with code context, conversations, and tool use." }
+  { "id": "mistralai.mistral-vibe-code", "name": "Mistral Vibe", "publisher": "Mistral AI", "description": "Mistral's graphical coding agent with code context, conversations, and tool use." },
+  { "id": "RooVeterinaryInc.roo-cline", "name": "Roo Code", "publisher": "Roo Code", "description": "A whole dev team of AI agents with custom modes, multi-model support, and per-step approvals." },
+  { "id": "Alibaba-Cloud.tongyi-lingma", "name": "Qoder CN", "publisher": "Alibaba Cloud", "description": "Alibaba Cloud's agentic coding assistant, formerly Lingma, with chat and agent modes. Requires sign-in." },
+  { "id": "Augment.vscode-augment", "name": "Augment", "publisher": "Augment Code", "description": "Augment Code's chat and coding agent with a context engine built for large codebases. Requires Augment sign-in." },
+  { "id": "NexrallCode.nexrall-code-vscode", "name": "Nexrall Code", "publisher": "Nexrall", "description": "Autonomous coding agent with per-step approvals, checkpoints, and MCP tools. Requires an account." }
 ]

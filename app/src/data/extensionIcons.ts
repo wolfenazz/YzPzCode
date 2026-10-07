@@ -16,6 +16,10 @@ const extensionIcons: Record<string, string> = {
   'TabbyML.vscode-tabby': '/assets/extensions/tabby.png',
   'Codeium.codeium': windsurfIcon,
   'mistralai.mistral-vibe-code': '/assets/mistralvibe.png',
+  'RooVeterinaryInc.roo-cline': '/assets/extensions/roo-code.png',
+  'Alibaba-Cloud.tongyi-lingma': '/assets/extensions/qoder-cn.png',
+  'Augment.vscode-augment': '/assets/extensions/augment.png',
+  'NexrallCode.nexrall-code-vscode': '/assets/extensions/nexrall.png',
 };
 
 export function getExtensionIcon(extensionId: string): string | undefined {
