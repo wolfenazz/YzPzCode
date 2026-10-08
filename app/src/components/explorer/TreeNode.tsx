@@ -5,17 +5,11 @@ import type { TreeNodeData } from '../../hooks/useFileTree';
 import { FileIcon } from './FileIcon';
 import { GitStatusBadge } from './GitStatusBadge';
 import type { FileEntry } from '../../types';
+import type { AppClipboard, ExplorerClipboardEntry } from '../../utils/explorerClipboard';
 
-export type ExplorerClipboardEntry = {
-  path: string;
-  name: string;
-  isDir: boolean;
-};
+export type { ExplorerClipboardEntry };
 
-export type ExplorerClipboard = {
-  operation: 'copy' | 'cut';
-  entries: ExplorerClipboardEntry[];
-} | null;
+export type ExplorerClipboard = AppClipboard | null;
 
 export const isClipboardPath = (
   clipboard: ExplorerClipboard,
@@ -34,6 +28,8 @@ interface ExplorerContextValue {
   searchTerm?: string;
   nativeDropTarget: string | null;
   nativeDragging: boolean;
+  /** Naming was cancelled (Escape, or left unchanged) for this entry. */
+  onEditCancel: (path: string) => void;
 }
 
 export const ExplorerContext = React.createContext<ExplorerContextValue>({
@@ -46,6 +42,7 @@ export const ExplorerContext = React.createContext<ExplorerContextValue>({
   searchTerm: undefined,
   nativeDropTarget: null,
   nativeDragging: false,
+  onEditCancel: () => {},
 });
 
 const ChevronIcon: React.FC<{ isOpen: boolean }> = memo(({ isOpen }) => (
@@ -169,6 +166,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
     searchTerm,
     nativeDropTarget,
     nativeDragging,
+    onEditCancel,
   } = ctx;
   const data = node.data;
   const isActive = activeFilePath === data.id;
@@ -204,7 +202,20 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
-      node.handleClick(e);
+      // react-arborist only treats ⌘ (metaKey) as multi-select, so Ctrl+click
+      // on Windows/Linux would replace the selection. Modifier clicks only
+      // change the selection; they never open a file or toggle a folder.
+      if (e.ctrlKey || e.metaKey) {
+        if (node.isSelected) node.deselect();
+        else node.selectMulti();
+        return;
+      }
+      if (e.shiftKey) {
+        node.selectContiguous();
+        return;
+      }
+      node.select();
+      node.activate();
       if (data.isDir) {
         node.toggle();
       } else {
@@ -237,14 +248,16 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
         node.submit(value.trim());
       } else {
         node.reset();
+        onEditCancel(data.path);
       }
     },
-    [node, data.name]
+    [node, data.name, data.path, onEditCancel]
   );
 
   const handleCancelEdit = useCallback(() => {
     node.reset();
-  }, [node]);
+    onEditCancel(data.path);
+  }, [node, data.path, onEditCancel]);
 
   const dropHighlight = isDropTarget;
 
@@ -313,7 +326,7 @@ const TreeNodeInner: React.FC<NodeRendererProps<TreeNodeData>> = ({
 
         {isCut && !node.isEditing && (
           <span className="shrink-0 text-[10px] text-[var(--text-secondary)]">
-            moved
+            cut
           </span>
         )}
 

@@ -38,6 +38,8 @@ export async function saveEditorFile(workspaceId: string, path: string): Promise
     }
     await invoke('write_file_content', { path, content });
     useAppStore.getState().markFileSaved(path, content, workspaceId);
+    // Lets save-driven tools (Flutter hot reload, pub get) react without a store dependency.
+    window.dispatchEvent(new CustomEvent('yzpz:file-saved', { detail: { workspaceId, path } }));
   })();
   pendingSaves.set(key, operation);
   try { await operation; } finally { if (pendingSaves.get(key) === operation) pendingSaves.delete(key); }

@@ -29,6 +29,7 @@ const SHORTCUTS = [
     { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' },
     { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' },
     { keys: ['Ctrl', 'Alt', 'B'], action: 'Toggle editor side panel' },
+    { keys: ['Ctrl', 'Alt', 'M'], action: 'Show or hide the device window (Android emulator, iOS simulator)' },
     { keys: ['Ctrl', '`'], action: 'Toggle editor terminal panel' },
     { keys: ['Ctrl', 'Shift', '`'], action: 'New terminal in editor panel' },
     { keys: ['Ctrl', 'E'], action: 'Toggle view' },

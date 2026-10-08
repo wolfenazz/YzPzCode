@@ -1,0 +1,9 @@
+[package]
+name = "yzpz-frame-codec"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Encodes emulator frames to JPEG. A separate crate so it is always built optimized (see the dev profile overrides in the app's Cargo.toml)."
+
+[dependencies]
+jpeg-encoder = { version = "0.6", features = ["simd"] }

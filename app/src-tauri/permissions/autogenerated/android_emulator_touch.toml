@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-emulator-touch"
+description = "Enables the android_emulator_touch command without any pre-configured scope."
+commands.allow = ["android_emulator_touch"]
+
+[[permission]]
+identifier = "deny-android-emulator-touch"
+description = "Denies the android_emulator_touch command without any pre-configured scope."
+commands.deny = ["android_emulator_touch"]

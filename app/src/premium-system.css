@@ -1476,9 +1476,18 @@ body {
   color: var(--text-primary) !important;
 }
 
+/* Selection must read clearly against hover (5%) so a Ctrl/Shift
+   multi-selection is visible at a glance. */
 .explorer-tree-row.is-selected {
   color: var(--text-primary) !important;
-  background: color-mix(in srgb, var(--text-primary) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--accent) 16%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Stronger edge while the tree has keyboard focus, so it is clear where
+   Ctrl+C / Ctrl+V / Delete will act. */
+[role='tree']:focus .explorer-tree-row.is-selected {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
 }
 
 .explorer-tree-row.is-active {
@@ -1498,6 +1507,60 @@ body {
 .explorer-drop-ring {
   border-radius: 0.4375rem;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 35%, transparent);
+}
+
+/* Paste results and failures, floating over the bottom of the tree. */
+.explorer-notice {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  z-index: 45;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.625rem;
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 11px;
+  line-height: 1.4;
+  background: var(--bg-primary);
+  box-shadow: inset 0 0 0 1px var(--border-primary), 0 6px 18px rgba(0, 0, 0, 0.18);
+  cursor: default;
+}
+
+.explorer-notice.is-error {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e5484d 45%, transparent), 0 6px 18px rgba(0, 0, 0, 0.18);
+}
+
+.explorer-notice.is-error svg {
+  color: #e5484d;
+}
+
+/* Selection count and clipboard state under the tree. */
+.explorer-status {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.625rem;
+  padding: 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  box-shadow: 0 -1px 0 var(--border-primary);
+}
+
+.explorer-status__item {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.3125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.explorer-status__clip {
+  margin-left: auto;
 }
 
 .explorer-chevron {

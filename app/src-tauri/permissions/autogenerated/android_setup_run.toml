@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-setup-run"
+description = "Enables the android_setup_run command without any pre-configured scope."
+commands.allow = ["android_setup_run"]
+
+[[permission]]
+identifier = "deny-android-setup-run"
+description = "Denies the android_setup_run command without any pre-configured scope."
+commands.deny = ["android_setup_run"]

@@ -19,6 +19,7 @@ import {
   SettingsRow,
   SettingsStack,
 } from '../SettingsKit';
+import { SettingsFlutter } from './SettingsFlutter';
 
 type Health = 'ok' | 'outdated' | 'missing';
 
@@ -173,6 +174,8 @@ export const SettingsEnvironment: React.FC = () => {
           })
         )}
       </SettingsGroup>
+
+      <SettingsFlutter />
     </SettingsStack>
   );
 };

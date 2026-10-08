@@ -1,16 +1,24 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowsIn, ArrowClockwise, Crosshair, FilePlus, FolderPlus, FolderSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
+import { ArrowsIn, ArrowClockwise, Crosshair, FilePlus, FolderPlus, FolderSimple, MagnifyingGlass, Scissors, Copy, CheckCircle, WarningCircle, X } from '@phosphor-icons/react';
 import { Tree, type NodeApi } from 'react-arborist';
-import { FileEntry } from '../../types';
+import type { FileEntry, TerminalSession } from '../../types';
 import { useFileTree, type TreeNodeData } from '../../hooks/useFileTree';
+import { useExplorerClipboard } from '../../hooks/useExplorerClipboard';
+import {
+  describeClipboard,
+  formatPaths,
+  pasteTargetDir,
+  type ExplorerNotice,
+  type PasteSource,
+} from '../../utils/explorerClipboard';
 import { TreeNode, ExplorerContext, type ExplorerClipboardEntry } from './TreeNode';
 import { FileIcon } from './FileIcon';
 import { MemoryPanel } from './MemoryPanel';
 import { SearchPanel } from './SearchPanel';
 import { DockerPanel } from './DockerPanel';
 import { DbPanel } from './DbPanel';
-import { ExplorerContextMenu } from './ExplorerContextMenu';
+import { ExplorerContextMenu, type ExplorerMenuActions, type ExplorerMenuState } from './ExplorerContextMenu';
 import { useAppStore } from '../../stores/appStore';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -29,6 +37,24 @@ const findParentPath = (path: string): string | null => {
   if (lastSep <= 0) return null;
   return path.substring(0, lastSep);
 };
+
+/** A tree drag drops as a move; holding Ctrl (Option on macOS) copies. */
+const isCopyDrag = (e: { ctrlKey: boolean; altKey: boolean }): boolean => e.ctrlKey || e.altKey;
+
+const entryOf = (data: TreeNodeData): ExplorerClipboardEntry => ({
+  path: data.path,
+  name: data.name,
+  isDir: data.isDir,
+});
+
+/** An "Open editors" row as a tree entry, so it gets the same commands. */
+const openEditorNode = (file: { path: string; name: string }): TreeNodeData => ({
+  id: file.path,
+  name: file.name,
+  path: file.path,
+  extension: file.name.includes('.') ? file.name.split('.').pop() ?? null : null,
+  isDir: false,
+});
 
 const HeaderIconButton: React.FC<{
   title: string;
@@ -55,13 +81,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 }) => {
   const gitStatuses = useAppStore((s) => s.gitStatuses);
   const activeFilePath = useAppStore((s) => s.activeFilePath);
-  const setExplorerClipboard = useAppStore((s) => s.setExplorerClipboard);
   const explorerClipboard = useAppStore((s) => s.explorerClipboard);
   const currentWorkspace = useAppStore((s) => s.currentWorkspace);
   const addSession = useAppStore((s) => s.addSession);
+  const setActiveSession = useAppStore((s) => s.setActiveSession);
+  const setActiveView = useAppStore((s) => s.setActiveView);
   const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
   const openFiles = useAppStore((s) => s.openFiles);
   const closeFileTab = useAppStore((s) => s.closeFileTab);
+  const closeOtherFiles = useAppStore((s) => s.closeOtherFiles);
+  const closeSavedFiles = useAppStore((s) => s.closeSavedFiles);
+  const closeAllFiles = useAppStore((s) => s.closeAllFiles);
   const [searchSignal, setSearchSignal] = useState(0);
 
   const {
@@ -73,25 +103,43 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     moveEntries,
     handleRename,
     createNewEntry,
+    discardCreatedEntry,
     deleteEntry,
     revealInFileManager,
     refreshRoot,
+    refreshPath,
     refreshChangedPaths,
     importExternalFiles,
     undoExplorerOp,
     pushUndoOp,
   } = useFileTree(workspacePath);
+  const { copyEntries, clearClipboard, peekPasteSource, pasteInto, copyInto } = useExplorerClipboard(pushUndoOp);
+
+  // Short-lived status line for paste results and failures, which used to
+  // go only to the console.
+  const [notice, setNotice] = useState<ExplorerNotice | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(null), notice.tone === 'error' ? 6000 : 2500);
+    return () => clearTimeout(timer);
+  }, [notice]);
+  const notifyError = useCallback((prefix: string, err: unknown) => {
+    console.error(prefix, err);
+    setNotice({ tone: 'error', text: `${prefix} ${String(err).replace(/^Error:\s*/, '')}` });
+  }, []);
+
+  /** What Paste would insert, refreshed whenever a context menu opens. */
+  const [pasteSource, setPasteSource] = useState<PasteSource | null>(null);
+  /** A New File/Folder placeholder still waiting for its name. */
+  const pendingCreateRef = useRef<{ path: string; isDir: boolean } | null>(null);
+  const confirmDeleteRef = useRef<(paths: string[]) => Promise<void>>(async () => {});
 
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FileEntry[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [filesystemRevision, setFilesystemRevision] = useState(0);
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    node: TreeNodeData | null;
-  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ExplorerMenuState | null>(null);
   const [externalDropTarget, setExternalDropTarget] = useState<string | null>(null);
   const [isExternalDrag, setIsExternalDrag] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{
@@ -211,16 +259,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     if (!pendingDelete) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setPendingDelete(null);
+      else if (e.key === 'Enter') {
+        e.preventDefault();
+        void confirmDeleteRef.current(pendingDelete.paths);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [pendingDelete]);
 
+  const openContextMenu = useCallback(
+    (e: React.MouseEvent, nodeData: TreeNodeData | null, source: ExplorerMenuState['source'] = 'tree') => {
+      setContextMenu({ x: e.clientX, y: e.clientY, node: nodeData, source });
+      // The Paste item reflects the OS clipboard too (files copied in the
+      // system file manager, a screenshot), so ask for it on every open.
+      void peekPasteSource().then(setPasteSource);
+    },
+    [peekPasteSource]
+  );
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, nodeData: TreeNodeData | null) => {
-      setContextMenu({ x: e.clientX, y: e.clientY, node: nodeData });
+      // Right-clicking outside the selection selects that row first, so
+      // keyboard shortcuts afterwards act on what the menu showed.
+      const tree = treeRef.current;
+      if (tree && nodeData && !tree.get(nodeData.id)?.isSelected) tree.select(nodeData.id, { focus: true });
+      openContextMenu(e, nodeData);
     },
-    []
+    [openContextMenu, treeRef]
   );
 
   const [selectedEntries, setSelectedEntries] = useState<ExplorerClipboardEntry[]>([]);
@@ -252,12 +318,39 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     );
   }, []);
 
-  const nativeMoveEntries = useCallback(
-    async (entries: ExplorerClipboardEntry[], destDir: string) => {
-      const paths = entries.map((e) => e.path);
-      await moveEntries(paths, destDir);
+  /** Reloads the tree, opens `destDir` and selects the pasted entries. */
+  const revealPasted = useCallback(
+    async (paths: string[], destDir: string) => {
+      await refreshRoot();
+      if (paths.length === 0) return;
+      if (destDir !== workspacePath) {
+        await refreshPath(destDir);
+        treeRef.current?.openParents(destDir);
+        treeRef.current?.open(destDir);
+      }
+      setTimeout(() => {
+        const tree = treeRef.current;
+        if (!tree) return;
+        tree.select(paths[0]);
+        for (const path of paths.slice(1)) tree.selectMulti(path);
+        tree.scrollTo(paths[0]);
+      }, 80);
     },
-    [moveEntries]
+    [refreshRoot, refreshPath, treeRef, workspacePath]
+  );
+
+  const nativeDropEntries = useCallback(
+    async (entries: ExplorerClipboardEntry[], destDir: string, copy: boolean) => {
+      const paths = entries.map((e) => e.path);
+      if (!copy) {
+        await moveEntries(paths, destDir);
+        return;
+      }
+      const result = await copyInto(paths, destDir);
+      setNotice(result.notice);
+      await revealPasted(result.created, destDir);
+    },
+    [moveEntries, copyInto, revealPasted]
   );
 
   // Native drag & drop listeners attached directly to the tree container (not
@@ -288,7 +381,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           ? selected
           : [{ path, name, isDir }];
       if (e.dataTransfer) {
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'copyMove';
         e.dataTransfer.setData('text/plain', path);
       }
       nativeDragRef.current = entries;
@@ -300,7 +393,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     const onDragOver = (e: DragEvent) => {
       if (!nativeDragRef.current) return;
       e.preventDefault();
-      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (e.dataTransfer) e.dataTransfer.dropEffect = isCopyDrag(e) ? 'copy' : 'move';
       const row = getRow(e.target);
       let targetPath = workspacePath;
       if (row) {
@@ -327,7 +420,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       nativeDragRef.current = null;
       setNativeDrag(null);
       setNativeDropTarget(null);
-      void nativeMoveEntries(entries, destDir);
+      void nativeDropEntries(entries, destDir, isCopyDrag(e));
     };
 
     const onDragEnd = () => {
@@ -346,7 +439,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       el.removeEventListener('drop', onDrop);
       el.removeEventListener('dragend', onDragEnd);
     };
-  }, [workspacePath, nativeMoveEntries]);
+  }, [workspacePath, nativeDropEntries]);
 
   // Neutralize react-dnd's HTML5 backend by pointing its event listeners at a
   // detached element. Without this, react-dnd's window-level dragover handler
@@ -357,38 +450,110 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
   const handleContainerContextMenu = useCallback(
     (e: React.MouseEvent) => {
       e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY, node: null });
+      openContextMenu(e, null);
     },
-    []
+    [openContextMenu]
   );
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
 
-  const handleNewFile = useCallback(
-    (parentPath: string | null) => {
-      const dir = parentPath || workspacePath;
-      createNewEntry(dir, 'untitled', 'file');
+  const openEntryInEditor = useCallback(
+    (entry: { name: string; path: string; extension: string | null }) => {
+      setGitDiffFile(null);
+      onFileClick({
+        name: entry.name,
+        path: entry.path,
+        isDir: false,
+        size: 0,
+        modifiedAt: 0,
+        extension: entry.extension,
+      });
     },
-    [workspacePath, createNewEntry]
+    [onFileClick, setGitDiffFile]
+  );
+
+  const startCreate = useCallback(
+    async (parentPath: string | null, type: 'file' | 'directory') => {
+      try {
+        const created = await createNewEntry(parentPath || workspacePath, 'untitled', type);
+        if (created) pendingCreateRef.current = { path: created, isDir: type === 'directory' };
+      } catch (err) {
+        notifyError(`Couldn't create the ${type === 'file' ? 'file' : 'folder'}:`, err);
+      }
+    },
+    [workspacePath, createNewEntry, notifyError]
+  );
+
+  const handleNewFile = useCallback(
+    (parentPath: string | null) => void startCreate(parentPath, 'file'),
+    [startCreate]
   );
 
   const handleNewFolder = useCallback(
-    (parentPath: string | null) => {
-      const dir = parentPath || workspacePath;
-      createNewEntry(dir, 'untitled', 'directory');
+    (parentPath: string | null) => void startCreate(parentPath, 'directory'),
+    [startCreate]
+  );
+
+  // Wraps the tree's rename so a failure shows a notice instead of leaving
+  // the row stuck in edit mode, and a newly named file opens in the editor.
+  const handleTreeRename = useCallback(
+    async (args: { id: string; name: string }) => {
+      const pending = pendingCreateRef.current?.path === args.id ? pendingCreateRef.current : null;
+      if (pending) pendingCreateRef.current = null;
+      try {
+        const newPath = await handleRename(args);
+        if (pending && newPath && !pending.isDir) {
+          const name = newPath.split(/[\\/]/).pop() ?? args.name;
+          openEntryInEditor({ name, path: newPath, extension: name.includes('.') ? name.split('.').pop() ?? null : null });
+        }
+      } catch (err) {
+        notifyError(`Couldn't rename to "${args.name}":`, err);
+      }
     },
-    [workspacePath, createNewEntry]
+    [handleRename, openEntryInEditor, notifyError]
+  );
+
+  const handleEditCancel = useCallback(
+    (path: string) => {
+      if (pendingCreateRef.current?.path !== path) return;
+      pendingCreateRef.current = null;
+      void discardCreatedEntry(path);
+    },
+    [discardCreatedEntry]
+  );
+
+  /**
+   * Opens every folder above `path` (loading folders that were never
+   * expanded), then selects and scrolls to it.
+   */
+  const revealPath = useCallback(
+    async (path: string): Promise<void> => {
+      const tree = treeRef.current;
+      if (!tree) return;
+      const root = workspacePath.replace(/[\\/]+$/, '');
+      const sep = path.includes('\\') ? '\\' : '/';
+      if (normalizeFilePath(path).startsWith(`${normalizeFilePath(root)}/`)) {
+        let dir = root;
+        for (const segment of path.slice(root.length + 1).split(/[\\/]/).slice(0, -1)) {
+          dir = `${dir}${sep}${segment}`;
+          await refreshPath(dir);
+          treeRef.current?.open(dir);
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      treeRef.current?.select(path);
+      treeRef.current?.scrollTo(path);
+    },
+    [treeRef, workspacePath, refreshPath]
   );
 
   const handleRenameFromMenu = useCallback(
     (node: TreeNodeData) => {
-      if (treeRef.current) {
-        treeRef.current.edit(node.id);
-      }
+      void revealPath(node.path).then(() => treeRef.current?.edit(node.path));
     },
-    [treeRef]
+    [revealPath, treeRef]
   );
 
   const handleDeleteFromMenu = useCallback(
@@ -410,147 +575,171 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
     },
     [deleteEntry]
   );
+  // The dialog's key listener is registered before this callback exists.
+  confirmDeleteRef.current = confirmDelete;
+
+  /** The tree's current selection (read live, not from React state). */
+  const getSelection = useCallback(
+    (): ExplorerClipboardEntry[] =>
+      (treeRef.current?.selectedNodes ?? []).map((n) => entryOf(n.data as TreeNodeData)),
+    [treeRef]
+  );
 
   const handleCopy = useCallback(
-    (node: TreeNodeData) => {
-      const entries: ExplorerClipboardEntry[] = [{ path: node.path, name: node.name, isDir: node.isDir }];
-      setExplorerClipboard({ operation: 'copy', entries });
-    },
-    [setExplorerClipboard]
+    (node: TreeNodeData) => void copyEntries([entryOf(node)], 'copy'),
+    [copyEntries]
   );
 
   const handleCut = useCallback(
-    (node: TreeNodeData) => {
-      const entries: ExplorerClipboardEntry[] = [{ path: node.path, name: node.name, isDir: node.isDir }];
-      setExplorerClipboard({ operation: 'cut', entries });
-    },
-    [setExplorerClipboard]
+    (node: TreeNodeData) => void copyEntries([entryOf(node)], 'cut'),
+    [copyEntries]
   );
 
-  const copySelectionToClipboard = useCallback(
-    (operation: 'copy' | 'cut') => {
-      const tree = treeRef.current;
-      if (!tree) return;
-      const nodes = tree.selectedNodes;
-      if (nodes.length === 0) return;
-      const entries: ExplorerClipboardEntry[] = nodes.map((n) => {
-        const data = n.data as TreeNodeData;
-        return { path: data.path, name: data.name, isDir: data.isDir };
-      });
-      setExplorerClipboard({ operation, entries });
+  const copyText = useCallback((text: string, what: string) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => setNotice({ tone: 'info', text: `${what} copied` }))
+      .catch((err) => notifyError(`Couldn't copy the ${what.toLowerCase()}:`, err));
+  }, [notifyError]);
+
+  const copyPaths = useCallback(
+    (paths: string[], relative: boolean) => {
+      if (paths.length === 0) return;
+      const label = `${relative ? 'Relative path' : 'Path'}${paths.length > 1 ? 's' : ''}`;
+      copyText(formatPaths(paths, workspacePath, relative), label);
     },
-    [treeRef, setExplorerClipboard]
+    [copyText, workspacePath]
   );
 
   const handleCopyPath = useCallback(
-    (node: TreeNodeData) => {
-      navigator.clipboard.writeText(node.path).catch(console.error);
-    },
-    []
+    (node: TreeNodeData) => copyPaths([node.path], false),
+    [copyPaths]
   );
 
   const handleCopyRelativePath = useCallback(
-    (node: TreeNodeData) => {
-      const relative = node.path.startsWith(workspacePath)
-        ? node.path.slice(workspacePath.length).replace(/^[\\/]/, '')
-        : node.path;
-      navigator.clipboard.writeText(relative).catch(console.error);
-    },
+    (node: TreeNodeData) => copyPaths([node.path], true),
+    [copyPaths]
+  );
+
+  const terminalDirOf = useCallback(
+    (node: TreeNodeData) => (node.isDir ? node.path : findParentPath(node.path) ?? workspacePath),
     [workspacePath]
   );
 
+  // A new shell pane in the workspace's terminal grid, started in the folder,
+  // then switch to the terminal view and focus it. The index is the next
+  // grid slot (it used to send -1, which the backend's unsigned index
+  // rejected, so this always failed).
   const handleOpenInTerminal = useCallback(
     async (node: TreeNodeData) => {
-      if (!currentWorkspace || !node.isDir) return;
+      if (!currentWorkspace) return;
       try {
-        const session = await invoke<{ id: string }>('create_single_terminal_session', {
+        const session = await invoke<TerminalSession>('create_single_terminal_session', {
           request: {
             workspaceId: currentWorkspace.id,
-            workspacePath: node.path,
-            index: -1,
+            workspacePath: terminalDirOf(node),
+            index: useAppStore.getState().sessions.length,
             agent: null,
+            shell: null,
           },
         });
-        addSession({
-          id: session.id,
-          workspaceId: currentWorkspace.id,
-          index: -1,
-          cwd: node.path,
-          status: 'idle',
-          shell: '',
-        });
+        addSession(session);
+        setActiveSession(session.id);
+        setActiveView('terminal');
       } catch (err) {
-        console.error('Failed to open terminal:', err);
+        notifyError("Couldn't open a terminal:", err);
       }
     },
-    [currentWorkspace, addSession]
+    [currentWorkspace, terminalDirOf, addSession, setActiveSession, setActiveView, notifyError]
+  );
+
+  const handleOpenInExternalTerminal = useCallback(
+    async (node: TreeNodeData) => {
+      try {
+        await invoke('open_external_terminal', { directory: terminalDirOf(node) });
+      } catch (err) {
+        notifyError("Couldn't open an external terminal:", err);
+      }
+    },
+    [terminalDirOf, notifyError]
+  );
+
+  const duplicateEntries = useCallback(
+    async (entries: ExplorerClipboardEntry[]) => {
+      const created: string[] = [];
+      try {
+        for (const entry of entries) {
+          const createdPath = await invoke<string>('duplicate_entry', { path: entry.path });
+          pushUndoOp({ kind: 'duplicate', sourcePath: entry.path, createdPath });
+          created.push(createdPath);
+        }
+      } catch (err) {
+        notifyError("Couldn't duplicate:", err);
+      }
+      await refreshRoot();
+      if (created.length) {
+        treeRef.current?.select(created[0]);
+        for (const path of created.slice(1)) treeRef.current?.selectMulti(path);
+      }
+    },
+    [pushUndoOp, refreshRoot, treeRef, notifyError]
   );
 
   const handleDuplicate = useCallback(
-    async (node: TreeNodeData) => {
-      try {
-        const createdPath = await invoke<string>('duplicate_entry', { path: node.path });
-        pushUndoOp({ kind: 'duplicate', sourcePath: node.path, createdPath });
-        refreshRoot();
-      } catch (err) {
-        console.error('Failed to duplicate:', err);
-      }
-    },
-    [refreshRoot, pushUndoOp]
+    (node: TreeNodeData) => void duplicateEntries([entryOf(node)]),
+    [duplicateEntries]
   );
 
-  const handleMultiDuplicate = useCallback(async () => {
-    try {
-      for (const entry of selectedEntries) {
-        const createdPath = await invoke<string>('duplicate_entry', { path: entry.path });
-        pushUndoOp({ kind: 'duplicate', sourcePath: entry.path, createdPath });
-      }
-      refreshRoot();
-    } catch (err) {
-      console.error('Failed to duplicate selection:', err);
-    }
-  }, [selectedEntries, refreshRoot, pushUndoOp]);
+  const handleMultiDuplicate = useCallback(
+    () => void duplicateEntries(getSelection()),
+    [duplicateEntries, getSelection]
+  );
 
   const handleMultiDelete = useCallback(() => {
-    if (selectedEntries.length === 0) return;
+    const selection = getSelection();
+    if (selection.length === 0) return;
     setPendingDelete({
-      paths: selectedEntries.map((e) => e.path),
-      names: selectedEntries.map((e) => e.name),
-      isDir: selectedEntries[0]?.isDir ?? false,
+      paths: selection.map((e) => e.path),
+      names: selection.map((e) => e.name),
+      isDir: selection[0]?.isDir ?? false,
     });
-  }, [selectedEntries]);
+  }, [getSelection]);
 
-  const handleMultiCopy = useCallback(() => {
-    if (selectedEntries.length === 0) return;
-    setExplorerClipboard({ operation: 'copy', entries: selectedEntries });
-  }, [selectedEntries, setExplorerClipboard]);
+  const handleMultiCopy = useCallback(
+    () => void copyEntries(getSelection(), 'copy'),
+    [copyEntries, getSelection]
+  );
 
-  const handleMultiCut = useCallback(() => {
-    if (selectedEntries.length === 0) return;
-    setExplorerClipboard({ operation: 'cut', entries: selectedEntries });
-  }, [selectedEntries, setExplorerClipboard]);
+  const handleMultiCut = useCallback(
+    () => void copyEntries(getSelection(), 'cut'),
+    [copyEntries, getSelection]
+  );
 
-  const handleCopyName = useCallback((node: TreeNodeData) => {
-    navigator.clipboard.writeText(node.name).catch(console.error);
-  }, []);
+  const handleMultiOpen = useCallback(() => {
+    for (const node of treeRef.current?.selectedNodes ?? []) {
+      const data = node.data as TreeNodeData;
+      if (!data.isDir) openEntryInEditor(data);
+    }
+  }, [treeRef, openEntryInEditor]);
+
+  const handleMultiCopyPaths = useCallback(
+    (relative: boolean) => copyPaths(getSelection().map((e) => e.path), relative),
+    [copyPaths, getSelection]
+  );
+
+  const handleCopyName = useCallback(
+    (node: TreeNodeData) => copyText(node.name, 'Name'),
+    [copyText]
+  );
 
   // "Open to the Side" (VS Code parity): open the file in the editor. The
   // editor is tab-based, so the file opens in its own tab alongside the
   // current one — the closest equivalent to a side-by-side editor group.
   const handleOpenToSide = useCallback(
     (node: TreeNodeData) => {
-      if (node.isDir) return;
-      setGitDiffFile(null);
-      onFileClick({
-        name: node.name,
-        path: node.path,
-        isDir: false,
-        size: 0,
-        modifiedAt: 0,
-        extension: node.extension,
-      });
+      if (!node.isDir) openEntryInEditor(node);
     },
-    [onFileClick, setGitDiffFile]
+    [openEntryInEditor]
   );
 
   const handleFindInFolder = useCallback((node: TreeNodeData) => {
@@ -563,56 +752,34 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleCopyAsImportPath = useCallback(
     (node: TreeNodeData) => {
-      const relative = node.path.startsWith(workspacePath)
-        ? node.path.slice(workspacePath.length).replace(/^[\\/]/, '')
-        : node.path;
-      const withoutExt = relative.replace(/\.[^.]+$/, '');
-      const withSlashes = withoutExt.replace(/\\/g, '/');
-      navigator.clipboard.writeText(withSlashes).catch(console.error);
+      const relative = formatPaths([node.path], workspacePath, true);
+      copyText(relative.replace(/\.[^./\\]+$/, '').replace(/\\/g, '/'), 'Import path');
     },
-    [workspacePath]
+    [workspacePath, copyText]
   );
 
   const handlePaste = useCallback(
-    async (targetDir: string | null) => {
-      const clip = explorerClipboard;
-      if (!clip) return;
-      const destDir = targetDir || workspacePath;
-      try {
-        for (const entry of clip.entries) {
-          if (clip.operation === 'copy') {
-            const createdPath = await invoke<string>('copy_entry', { sourcePath: entry.path, destinationDir: destDir });
-            pushUndoOp({ kind: 'duplicate', sourcePath: entry.path, createdPath });
-          } else {
-            await invoke('move_entry', { sourcePath: entry.path, destinationDir: destDir });
-            pushUndoOp({ kind: 'move', sourcePath: entry.path, destinationDir: destDir, name: entry.name });
-          }
-        }
-        if (clip.operation === 'cut') {
-          setExplorerClipboard(null);
-        }
-        refreshRoot();
-        if (destDir && destDir !== workspacePath) {
-          setTimeout(() => treeRef.current?.open(destDir), 50);
-        }
-      } catch (err) {
-        console.error('Failed to paste:', err);
-        refreshRoot();
-      }
+    async (destDir: string) => {
+      const result = await pasteInto(destDir);
+      if (result.notice) setNotice(result.notice);
+      await revealPasted(result.created, destDir);
     },
-    [explorerClipboard, workspacePath, setExplorerClipboard, refreshRoot, treeRef, pushUndoOp]
+    [pasteInto, revealPasted]
   );
 
   const handlePasteFromMenu = useCallback(
-    (node: TreeNodeData | null) => {
-      let targetDir: string | null = null;
-      if (node) {
-        targetDir = node.isDir ? node.path : findParentPath(node.path);
-      }
-      handlePaste(targetDir);
-    },
-    [handlePaste]
+    (node: TreeNodeData | null) => void handlePaste(pasteTargetDir(node, workspacePath)),
+    [handlePaste, workspacePath]
   );
+
+  const handleUndo = useCallback(async () => {
+    try {
+      const undone = await undoExplorerOp();
+      setNotice({ tone: 'info', text: undone ? 'Undone' : 'Nothing to undo' });
+    } catch (err) {
+      notifyError("Couldn't undo:", err);
+    }
+  }, [undoExplorerOp, notifyError]);
 
   const handleCollapseAll = useCallback(() => {
     treeRef.current?.closeAll();
@@ -620,17 +787,88 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
 
   const handleRevealActiveFile = useCallback(() => {
     if (!activeFilePath) return;
-    const tree = treeRef.current;
-    if (!tree) return;
-    try {
-      tree.openParents(activeFilePath);
-      tree.scrollTo(activeFilePath);
-      tree.select(activeFilePath);
-      tree.focus(activeFilePath);
-    } catch (err) {
-      console.error('Failed to reveal active file:', err);
-    }
-  }, [activeFilePath, treeRef]);
+    void revealPath(activeFilePath).then(() => treeRef.current?.focus(activeFilePath));
+  }, [activeFilePath, revealPath, treeRef]);
+
+  // ---- Open editors -------------------------------------------------------
+  const confirmDiscard = useCallback(
+    (paths: string[]): boolean => {
+      const dirty = openFiles.filter((file) => file.isDirty && paths.includes(file.path));
+      if (dirty.length === 0) return true;
+      const what = dirty.length === 1 ? dirty[0].name : `${dirty.length} files`;
+      return window.confirm(`Discard unsaved changes to ${what}?`);
+    },
+    [openFiles]
+  );
+
+  const handleCloseEditor = useCallback(
+    (path: string) => {
+      if (confirmDiscard([path])) closeFileTab(path);
+    },
+    [confirmDiscard, closeFileTab]
+  );
+
+  const handleCloseOtherEditors = useCallback(
+    (path: string) => {
+      if (confirmDiscard(openFiles.filter((file) => file.path !== path).map((file) => file.path))) closeOtherFiles(path);
+    },
+    [confirmDiscard, openFiles, closeOtherFiles]
+  );
+
+  const handleCloseAllEditors = useCallback(() => {
+    if (confirmDiscard(openFiles.map((file) => file.path))) closeAllFiles();
+  }, [confirmDiscard, openFiles, closeAllFiles]);
+
+  const handleRevealInTree = useCallback(
+    (node: TreeNodeData) => {
+      setSearchQuery('');
+      void revealPath(node.path).then(() => treeRef.current?.focus(node.path));
+    },
+    [revealPath, treeRef]
+  );
+
+  const menuActions = useMemo<ExplorerMenuActions>(
+    () => ({
+      newFile: handleNewFile,
+      newFolder: handleNewFolder,
+      rename: handleRenameFromMenu,
+      delete: handleDeleteFromMenu,
+      reveal: revealInFileManager,
+      refresh: refreshRoot,
+      collapseAll: handleCollapseAll,
+      copy: handleCopy,
+      cut: handleCut,
+      paste: handlePasteFromMenu,
+      duplicate: handleDuplicate,
+      copyPath: handleCopyPath,
+      copyRelativePath: handleCopyRelativePath,
+      copyName: handleCopyName,
+      copyAsImportPath: handleCopyAsImportPath,
+      openInTerminal: handleOpenInTerminal,
+      openInExternalTerminal: handleOpenInExternalTerminal,
+      openToSide: handleOpenToSide,
+      findInFolder: handleFindInFolder,
+      revealInTree: handleRevealInTree,
+      closeEditor: handleCloseEditor,
+      closeOtherEditors: handleCloseOtherEditors,
+      closeSavedEditors: closeSavedFiles,
+      closeAllEditors: handleCloseAllEditors,
+      multiOpen: handleMultiOpen,
+      multiCopy: handleMultiCopy,
+      multiCut: handleMultiCut,
+      multiDelete: handleMultiDelete,
+      multiDuplicate: handleMultiDuplicate,
+      multiCopyPaths: handleMultiCopyPaths,
+    }),
+    [
+      handleNewFile, handleNewFolder, handleRenameFromMenu, handleDeleteFromMenu, revealInFileManager,
+      refreshRoot, handleCollapseAll, handleCopy, handleCut, handlePasteFromMenu, handleDuplicate,
+      handleCopyPath, handleCopyRelativePath, handleCopyName, handleCopyAsImportPath, handleOpenInTerminal, handleOpenInExternalTerminal,
+      handleOpenToSide, handleFindInFolder, handleRevealInTree, handleCloseEditor, handleCloseOtherEditors,
+      closeSavedFiles, handleCloseAllEditors, handleMultiOpen, handleMultiCopy, handleMultiCut,
+      handleMultiDelete, handleMultiDuplicate, handleMultiCopyPaths,
+    ]
+  );
 
   const handleKeyDownCapture = useCallback(
     (e: React.KeyboardEvent) => {
@@ -650,25 +888,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       const node = tree?.focusedNode;
       if (!node || node.isEditing) return;
       const data = node.data as TreeNodeData;
-      if (!data.isDir) {
-        e.preventDefault();
-        e.stopPropagation();
-        setGitDiffFile(null);
-        onFileClick({
-          name: data.name,
-          path: data.path,
-          isDir: false,
-          size: 0,
-          modifiedAt: 0,
-          extension: data.extension,
-        });
-      } else {
-        e.preventDefault();
-        e.stopPropagation();
-        tree?.toggle(node.id);
-      }
+      e.preventDefault();
+      e.stopPropagation();
+      if (!data.isDir) openEntryInEditor(data);
+      else tree?.toggle(node.id);
     },
-    [onFileClick, treeRef]
+    [openEntryInEditor, treeRef]
   );
 
   const handleKeyDown = useCallback(
@@ -682,58 +907,71 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         return;
       }
       const tree = treeRef.current;
-      if (!tree) return;
+      if (!tree || tree.isEditing) return;
 
       const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+      const focused = (tree.focusedNode ?? tree.mostRecentNode)?.data as TreeNodeData | undefined;
+      const selection = getSelection();
 
       if (e.key === 'F2') {
-        const node = tree.focusedNode ?? tree.mostRecentNode;
-        if (node) {
+        if (focused) {
           e.preventDefault();
-          tree.edit(node.id);
+          tree.edit(focused.id);
         }
       } else if (e.key === 'Delete') {
-        const nodes = tree.selectedNodes;
-        if (nodes.length > 0) {
+        if (selection.length > 0) {
           e.preventDefault();
-          const data = nodes.map((n) => n.data as TreeNodeData);
           setPendingDelete({
-            paths: data.map((d) => d.path),
-            names: data.map((d) => d.name),
-            isDir: data[0]?.isDir ?? false,
+            paths: selection.map((d) => d.path),
+            names: selection.map((d) => d.name),
+            isDir: selection[0]?.isDir ?? false,
           });
         }
-      } else if (mod && e.key.toLowerCase() === 'c') {
-        if (tree.selectedNodes.length > 0) {
+      } else if (e.key === 'Escape') {
+        // Esc first cancels a pending cut, then clears the selection.
+        if (explorerClipboard?.operation === 'cut') {
           e.preventDefault();
-          copySelectionToClipboard('copy');
-        }
-      } else if (mod && e.key.toLowerCase() === 'x') {
-        if (tree.selectedNodes.length > 0) {
+          void clearClipboard();
+        } else if (selection.length > 0) {
           e.preventDefault();
-          copySelectionToClipboard('cut');
+          tree.deselectAll();
         }
-      } else if (mod && e.key.toLowerCase() === 'v') {
-        const node = tree.focusedNode ?? tree.mostRecentNode;
-        const data = node?.data as TreeNodeData | undefined;
-        if (data) {
-          const targetDir = data.isDir ? data.path : findParentPath(data.path);
-          handlePaste(targetDir);
-        } else {
-          handlePaste(workspacePath);
-        }
-      } else if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        if (explorerClipboard === null) {
+      } else if (!mod) {
+        return;
+      } else if (e.code === 'KeyC' && e.altKey) {
+        e.preventDefault();
+        copyPaths(selection.map((d) => d.path), true);
+      } else if (key === 'c' && e.shiftKey) {
+        e.preventDefault();
+        copyPaths(selection.map((d) => d.path), false);
+      } else if (key === 'c') {
+        if (selection.length > 0) {
           e.preventDefault();
-          undoExplorerOp();
+          void copyEntries(selection, 'copy');
         }
-      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+      } else if (key === 'x') {
+        if (selection.length > 0) {
+          e.preventDefault();
+          void copyEntries(selection, 'cut');
+        }
+      } else if (key === 'v') {
+        e.preventDefault();
+        void handlePaste(pasteTargetDir(focused ?? null, workspacePath));
+      } else if (key === 'a' && !e.shiftKey) {
+        // react-arborist only binds ⌘A; Ctrl+A selects all on Windows/Linux.
+        e.preventDefault();
+        tree.selectAll();
+      } else if (key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        void handleUndo();
+      } else if (e.shiftKey && key === 'f') {
         // Find in Files (VS Code parity).
         e.preventDefault();
         setSearchSignal((s) => s + 1);
       }
     },
-    [handlePaste, workspacePath, copySelectionToClipboard, undoExplorerOp, explorerClipboard]
+    [treeRef, getSelection, explorerClipboard, clearClipboard, copyPaths, copyEntries, handlePaste, workspacePath, handleUndo]
   );
 
   const findExternalDropTarget = useCallback(
@@ -813,7 +1051,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         const row = (e.target as HTMLElement).closest('[data-file-path]');
         if (row) return; // the row's own dragover handler manages it
         e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
+        e.dataTransfer.dropEffect = isCopyDrag(e) ? 'copy' : 'move';
         setNativeDropTarget(workspacePath);
         return;
       }
@@ -831,12 +1069,12 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         nativeDragRef.current = null;
         setNativeDrag(null);
         setNativeDropTarget(null);
-        await nativeMoveEntries(entries, workspacePath);
+        await nativeDropEntries(entries, workspacePath, isCopyDrag(e));
         return;
       }
       await handleExternalDrop(e);
     },
-    [workspacePath, nativeMoveEntries, handleExternalDrop]
+    [workspacePath, nativeDropEntries, handleExternalDrop]
   );
 
   const handleContainerDragLeave = useCallback(
@@ -863,6 +1101,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       searchTerm: debouncedSearchQuery || undefined,
       nativeDropTarget,
       nativeDragging: !!nativeDrag,
+      onEditCancel: handleEditCancel,
     }),
     [
       onFileClick,
@@ -874,8 +1113,11 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
       debouncedSearchQuery,
       nativeDropTarget,
       nativeDrag,
+      handleEditCancel,
     ]
   );
+
+  const clipboardLabel = describeClipboard(explorerClipboard);
 
   return (
     <div
@@ -960,6 +1202,17 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 <div
                   key={file.path}
                   onClick={() => onFileClick({ name: file.name, path: file.path, isDir: false, size: 0, modifiedAt: 0, extension: file.language } as FileEntry)}
+                  onAuxClick={(e) => {
+                    // Middle-click closes, as on editor tabs.
+                    if (e.button !== 1) return;
+                    e.preventDefault();
+                    handleCloseEditor(file.path);
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    openContextMenu(e, openEditorNode(file), 'openEditors');
+                  }}
                   className={`explorer-open-file group/openfile flex items-center gap-2 pl-3 pr-1.5 py-1 cursor-pointer transition-colors duration-75 ${
                     isActiveOpen ? 'is-active bg-[var(--bg-tertiary)] text-[var(--text-primary)]' : 'text-[var(--text-secondary)] hover:bg-[var(--bg-primary)] hover:text-[var(--text-primary)]'
                   }`}
@@ -971,7 +1224,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      closeFileTab(file.path);
+                      handleCloseEditor(file.path);
                     }}
                     className="app-icon-button h-5 w-5 rounded-sm text-[var(--text-secondary)] opacity-0 group-hover/openfile:opacity-100"
                     title="Close File"
@@ -1103,7 +1356,7 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
           </div>
         ) : (
           <ExplorerContext.Provider value={explorerContextValue}>
-            <div role="tree" aria-label="File explorer" className="h-full w-full">
+            <div aria-label="File explorer" className="h-full w-full">
               <Tree<TreeNodeData>
                 ref={treeRef}
                 data={treeData}
@@ -1120,8 +1373,13 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
                 }}
                 onToggle={handleToggle}
                 onMove={handleMove}
-                onRename={handleRename}
+                onRename={handleTreeRename}
                 onSelect={handleTreeSelect}
+                onClick={(e) => {
+                  // Rows stop their own clicks, so this is empty space:
+                  // clear the selection, as in VS Code.
+                  if (!(e.target as HTMLElement).closest('[data-file-path]')) treeRef.current?.deselectAll();
+                }}
                 onDelete={({ nodes }) => {
                   const data = nodes.map((n) => n.data as TreeNodeData);
                   if (data.length > 0) {
@@ -1145,36 +1403,68 @@ export const FileExplorer: React.FC<FileExplorerProps> = ({
         <ExplorerContextMenu
           menu={contextMenu}
           onClose={closeContextMenu}
-          onNewFile={handleNewFile}
-          onNewFolder={handleNewFolder}
-          onRename={handleRenameFromMenu}
-          onDelete={handleDeleteFromMenu}
-          onReveal={revealInFileManager}
-          onRefresh={refreshRoot}
-          onCopy={handleCopy}
-          onCut={handleCut}
-          onCopyPath={handleCopyPath}
-          onCopyRelativePath={handleCopyRelativePath}
-          onOpenInTerminal={handleOpenInTerminal}
-          onDuplicate={handleDuplicate}
-          onCopyAsImportPath={handleCopyAsImportPath}
-          onCopyName={handleCopyName}
-          onOpenToSide={handleOpenToSide}
-          onFindInFolder={handleFindInFolder}
-          onPaste={handlePasteFromMenu}
-          onMultiCopy={handleMultiCopy}
-          onMultiCut={handleMultiCut}
-          onMultiDelete={handleMultiDelete}
-          onMultiDuplicate={handleMultiDuplicate}
+          actions={menuActions}
           selectedEntries={selectedEntries}
-          clipboard={explorerClipboard}
-          containerRef={containerRef}
+          pasteSource={pasteSource}
+          openEditorCount={openFiles.length}
         />
 
         {isExternalDrag && (
           <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-zinc-500/40 rounded-md z-40 bg-zinc-500/5" />
         )}
+
+        <AnimatePresence>
+          {notice && (
+            <motion.div
+              key={notice.text}
+              role={notice.tone === 'error' ? 'alert' : 'status'}
+              className={`explorer-notice ${notice.tone === 'error' ? 'is-error' : ''}`}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 4 }}
+              transition={{ duration: 0.12 }}
+              onClick={() => setNotice(null)}
+            >
+              {notice.tone === 'error' ? (
+                <WarningCircle size={14} className="shrink-0" aria-hidden="true" />
+              ) : (
+                <CheckCircle size={14} className="shrink-0" aria-hidden="true" />
+              )}
+              <span className="min-w-0 flex-1">{notice.text}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      {(selectedEntries.length > 1 || clipboardLabel) && (
+        <div className="explorer-status" aria-live="polite">
+          {selectedEntries.length > 1 && (
+            <span className="explorer-status__item">{selectedEntries.length} selected</span>
+          )}
+          {clipboardLabel && (
+            <span
+              className="explorer-status__item explorer-status__clip"
+              title="Paste with Ctrl+V here or in your file manager"
+            >
+              {explorerClipboard?.operation === 'cut' ? (
+                <Scissors size={12} aria-hidden="true" />
+              ) : (
+                <Copy size={12} aria-hidden="true" />
+              )}
+              <span className="truncate">{clipboardLabel}</span>
+              <button
+                type="button"
+                className="app-icon-button h-4 w-4 rounded-sm"
+                title="Clear clipboard"
+                aria-label="Clear clipboard"
+                onClick={() => void clearClipboard()}
+              >
+                <X size={10} aria-hidden="true" />
+              </button>
+            </span>
+          )}
+        </div>
+      )}
 
       <MemoryPanel workspacePath={workspacePath} />
 

@@ -706,3 +706,163 @@ export interface ApplicationRunConfig {
   command: string;
   buildCommand: string;
 }
+
+// ── Android emulator & Flutter ─────────────────────────────────────────────
+
+export type DevicePlatform = 'android' | 'ios';
+
+/** A camera cutout over the top of an iPhone screen, in fractions of the screen width. */
+export interface IosCutout {
+  kind: 'island' | 'notch';
+  width: number;
+  height: number;
+  top: number;
+}
+
+export interface IosFrame {
+  /** Display corner radius in screen pixels. */
+  cornerRadius: number;
+  cutout: IosCutout | null;
+  homeButton: boolean;
+  tablet: boolean;
+}
+
+/** An Android AVD or an iOS simulator (`platform: 'ios'`, `name` is its UDID). */
+export interface AvdInfo {
+  name: string;
+  displayName: string;
+  apiLevel: number | null;
+  abi: string | null;
+  variant: string | null;
+  device: string | null;
+  width: number | null;
+  height: number | null;
+  density: number | null;
+  path: string;
+  platform?: DevicePlatform;
+  /** iOS: simctl state (Booted, Shutdown, ...). */
+  state?: string;
+  frame?: IosFrame | null;
+}
+
+export type EmulatorPhase = 'Booting' | 'Running' | 'Stopping' | 'Stopped' | 'Failed';
+
+export interface EmulatorInfo {
+  serial: string;
+  avdName: string;
+  displayName: string;
+  consolePort: number;
+  grpcPort: number | null;
+  phase: EmulatorPhase;
+  /** Started by YzPzCode (hidden window, embedded screen). */
+  owned: boolean;
+  /** The screen can be shown in the app. */
+  embeddable: boolean;
+  width: number;
+  height: number;
+  error: string | null;
+  /** Absent for Android emulators. */
+  platform?: DevicePlatform;
+}
+
+export interface IosSnapshot {
+  /** Xcode's simulator tools are usable (always false off macOS). */
+  available: boolean;
+  companionInstalled: boolean;
+  devices: AvdInfo[];
+  simulators: EmulatorInfo[];
+  error: string | null;
+}
+
+export interface FlutterDevice {
+  id: string;
+  name: string;
+  targetPlatform: string;
+  category: string | null;
+  emulator: boolean;
+  sdk: string | null;
+  supported: boolean;
+}
+
+export type FlutterRunPhase = 'Starting' | 'Running' | 'Reloading' | 'Restarting' | 'Stopping' | 'Stopped' | 'Failed';
+export type FlutterRunMode = 'debug' | 'profile' | 'release';
+
+export interface FlutterRunState {
+  workspaceId: string;
+  runId: string;
+  cwd: string;
+  deviceId: string;
+  deviceName: string;
+  mode: FlutterRunMode;
+  phase: FlutterRunPhase;
+  appId: string | null;
+  supportsRestart: boolean;
+  vmServiceUri: string | null;
+  webUrl: string | null;
+  message: string | null;
+  error: string | null;
+  exitCode: number | null;
+}
+
+export type FlutterLogLevel = 'stdout' | 'stderr' | 'error' | 'progress' | 'info';
+
+export interface FlutterLogLine {
+  workspaceId: string;
+  runId: string;
+  text: string;
+  level: FlutterLogLevel;
+}
+
+export type SetupItemStatus = 'ok' | 'missing' | 'warning';
+
+export interface SetupItem {
+  id: string;
+  label: string;
+  status: SetupItemStatus;
+  version: string | null;
+  detail: string | null;
+  path: string | null;
+  fixStep: string | null;
+}
+
+export interface SetupReport {
+  items: SetupItem[];
+  ready: boolean;
+  androidSdk: string;
+  flutterRoot: string | null;
+  javaHome: string | null;
+  runningStep: string | null;
+  /** macOS only: Xcode, a simulator and CocoaPods are ready. */
+  iosReady: boolean | null;
+}
+
+export type SetupStepPhase = 'running' | 'done' | 'skipped' | 'failed';
+
+export interface SetupProgressEvent {
+  step: string;
+  phase: SetupStepPhase;
+  message: string | null;
+  percent: number | null;
+}
+
+export interface SetupLogEvent {
+  step: string;
+  text: string;
+  level: 'stdout' | 'stderr' | 'error' | 'info';
+}
+
+/** An AVD's device frame from its SDK skin (skin pixels, natural orientation). */
+export interface DeviceSkin {
+  name: string;
+  frameWidth: number;
+  frameHeight: number;
+  screenX: number;
+  screenY: number;
+  screenWidth: number;
+  screenHeight: number;
+  cornerRadius: number | null;
+  /** Data URLs. */
+  background: string | null;
+  mask: string | null;
+  overlay: string | null;
+}

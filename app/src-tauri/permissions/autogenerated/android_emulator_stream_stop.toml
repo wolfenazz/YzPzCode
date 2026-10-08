@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-emulator-stream-stop"
+description = "Enables the android_emulator_stream_stop command without any pre-configured scope."
+commands.allow = ["android_emulator_stream_stop"]
+
+[[permission]]
+identifier = "deny-android-emulator-stream-stop"
+description = "Denies the android_emulator_stream_stop command without any pre-configured scope."
+commands.deny = ["android_emulator_stream_stop"]

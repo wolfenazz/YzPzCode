@@ -216,6 +216,15 @@ function findParentPath(nodeId: string): string | null {
   return nodeId.substring(0, lastSep);
 }
 
+export type ExplorerUndoOp =
+  | { kind: 'move'; sourcePath: string; destinationDir: string; name: string }
+  | { kind: 'delete'; path: string; isDir: boolean }
+  | { kind: 'create'; path: string; isDir: boolean }
+  | { kind: 'rename'; oldPath: string; newPath: string }
+  | { kind: 'duplicate'; sourcePath: string; createdPath: string }
+  /** Several ops undone together, newest first (one paste of many items). */
+  | { kind: 'batch'; ops: ExplorerUndoOp[] };
+
 export function useFileTree(workspacePath: string | null) {
   const [treeData, setTreeData] = useState<TreeNodeData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -224,12 +233,7 @@ export function useFileTree(workspacePath: string | null) {
   // ---- Undo log -----------------------------------------------------------
   // Defined before the ops below so every mutating callback can push undo
   // records without a temporal-dead-zone reference error.
-  type UndoOp =
-    | { kind: 'move'; sourcePath: string; destinationDir: string; name: string }
-    | { kind: 'delete'; path: string; isDir: boolean }
-    | { kind: 'create'; path: string; isDir: boolean }
-    | { kind: 'rename'; oldPath: string; newPath: string }
-    | { kind: 'duplicate'; sourcePath: string; createdPath: string };
+  type UndoOp = ExplorerUndoOp;
 
   const undoLogRef = useRef<UndoOp[]>([]);
   const MAX_UNDO = 30;
@@ -421,6 +425,7 @@ export function useFileTree(workspacePath: string | null) {
     [workspacePath, moveEntries]
   );
 
+  /** Resolves to the entry's new path (null when it had vanished). */
   const handleRename = useCallback(
     async ({
       id,
@@ -428,18 +433,49 @@ export function useFileTree(workspacePath: string | null) {
     }: {
       id: string;
       name: string;
-    }) => {
+    }): Promise<string | null> => {
       const oldNode = nodeMap.get(id);
       if (!oldNode) {
         loadRoot();
-        return;
+        return null;
       }
       try {
         await invoke('rename_entry', { oldPath: id, newName: name });
         const parentPath = findParentPath(id);
         const sep = id.includes('\\') ? '\\' : '/';
-        const newPath = parentPath ? parentPath + sep + name : name;
-        pushUndoOp({ kind: 'rename', oldPath: id, newPath });
+        const newPath = parentPath ? parentPath + sep + name.replace(/[\\/]/g, sep) : name;
+        const nested = /[\\/]/.test(name);
+        // Naming a just-created placeholder finishes that creation: undo
+        // should delete the named entry, not rename it back to "untitled".
+        const last = undoLogRef.current[undoLogRef.current.length - 1];
+        if (last?.kind === 'create' && last.path === id) {
+          undoLogRef.current = [...undoLogRef.current.slice(0, -1), { ...last, path: newPath }];
+        } else if (nested) {
+          pushUndoOp({
+            kind: 'move',
+            sourcePath: id,
+            destinationDir: findParentPath(newPath) ?? workspacePath ?? '',
+            name: newPath.split(/[\\/]/).pop() ?? name,
+          });
+        } else {
+          pushUndoOp({ kind: 'rename', oldPath: id, newPath });
+        }
+        if (nested) {
+          // "src/lib/util.ts" created folders: reload the listing so they
+          // appear, then open them and reveal the entry inside.
+          await refreshPath(parentPath);
+          let dir = parentPath ?? workspacePath ?? '';
+          for (const segment of name.split(/[\\/]/).slice(0, -1)) {
+            dir = `${dir}${sep}${segment}`;
+            await refreshPath(dir);
+            treeRef.current?.open(dir);
+          }
+          setTimeout(() => {
+            treeRef.current?.select(newPath);
+            treeRef.current?.scrollTo(newPath);
+          }, 60);
+          return newPath;
+        }
         setTreeData((prev) =>
           updateNodeInTreeWithCallback(prev, id, (node) => ({
             ...rebaseNodePath(node, id, newPath),
@@ -447,12 +483,14 @@ export function useFileTree(workspacePath: string | null) {
             extension: name.includes('.') ? name.split('.').pop() ?? null : null,
           }))
         );
+        return newPath;
       } catch (err) {
         console.error('Failed to rename entry:', err);
         loadRoot();
+        throw err;
       }
     },
-    [loadRoot, nodeMap, pushUndoOp]
+    [loadRoot, nodeMap, pushUndoOp, refreshPath, workspacePath]
   );
 
   const handleDelete = useCallback(
@@ -490,23 +528,30 @@ export function useFileTree(workspacePath: string | null) {
       type: 'file' | 'directory'
     ) => {
       const dir = parentPath || workspacePath;
-      if (!dir) return;
+      if (!dir) return null;
 
       const sep = dir.includes('\\') ? '\\' : '/';
-      const fullPath = `${dir}${sep}${name}`;
+      let fullPath = `${dir}${sep}${name}`;
 
       try {
-        if (type === 'file') {
-          await invoke('create_file', { path: fullPath });
-        } else {
-          await invoke('create_directory', { path: fullPath });
+        // "untitled" may already exist (an earlier placeholder): take the
+        // first free "untitled-N" instead of failing silently.
+        for (let attempt = 0; ; attempt++) {
+          if (attempt > 0) fullPath = `${dir}${sep}${name}-${attempt}`;
+          try {
+            await invoke(type === 'file' ? 'create_file' : 'create_directory', { path: fullPath });
+            break;
+          } catch (err) {
+            if (attempt >= 50 || !String(err).includes('already exists')) throw err;
+          }
         }
+        const createdName = fullPath.slice(dir.length + 1);
 
         const newNode: TreeNodeData = {
           id: fullPath,
-          name,
+          name: createdName,
           path: fullPath,
-          extension: name.includes('.') ? name.split('.').pop() ?? null : null,
+          extension: createdName.includes('.') ? createdName.split('.').pop() ?? null : null,
           isDir: type === 'directory',
           ...(type === 'directory' ? { children: [], loaded: false } : {}),
         };
@@ -515,27 +560,54 @@ export function useFileTree(workspacePath: string | null) {
 
         if (dir === workspacePath) {
           setTreeData((prev) => upsertNode(prev, newNode));
-        } else {
+        } else if (buildNodeMap(dataRef.current).get(dir)?.loaded) {
           setTreeData((prev) =>
             updateNodeInTreeWithCallback(prev, dir, (prevNode) => {
               const children = upsertNode(prevNode.children ?? [], newNode);
               return { children, loaded: true };
             })
           );
+        } else {
+          // Never expanded: load the real listing rather than showing a
+          // folder that holds only the new entry.
+          await refreshPath(dir);
         }
 
+        if (dir !== workspacePath) {
+          treeRef.current?.openParents(dir);
+          treeRef.current?.open(dir);
+        }
         setTimeout(() => {
           if (treeRef.current) {
             treeRef.current.scrollTo(fullPath);
             treeRef.current.edit(fullPath);
           }
         }, 100);
+        return fullPath;
       } catch (err) {
         console.error(`Failed to create ${type}:`, err);
+        throw err;
       }
     },
-    [workspacePath]
+    [workspacePath, pushUndoOp, refreshPath]
   );
+
+  /**
+   * Drops a just-created placeholder whose naming was cancelled, so Escape
+   * leaves no stray "untitled" behind (VS Code parity).
+   */
+  const discardCreatedEntry = useCallback(async (path: string) => {
+    const last = undoLogRef.current[undoLogRef.current.length - 1];
+    if (last?.kind === 'create' && last.path === path) {
+      undoLogRef.current = undoLogRef.current.slice(0, -1);
+    }
+    setTreeData((prev) => removeNodeFromTree(prev, path));
+    try {
+      await invoke('delete_entry', { path });
+    } catch (err) {
+      console.error('Failed to discard new entry:', err);
+    }
+  }, []);
 
   const deleteEntry = useCallback(
     async (path: string) => {
@@ -603,11 +675,12 @@ export function useFileTree(workspacePath: string | null) {
   );
 
   // ---- Undo log -----------------------------------------------------------
-  const undoExplorerOp = useCallback(async () => {
-    const op = undoLogRef.current.pop();
-    if (!op) return;
-    try {
+  const revertOp = useCallback(async (op: UndoOp): Promise<void> => {
       switch (op.kind) {
+        case 'batch': {
+          for (const inner of op.ops) await revertOp(inner);
+          break;
+        }
         case 'move': {
           // Inverse: move the item back to its original parent.
           await invoke('move_entry', {
@@ -649,12 +722,19 @@ export function useFileTree(workspacePath: string | null) {
           break;
         }
       }
-      loadRoot();
-    } catch (err) {
-      console.error('Failed to undo operation:', err);
-      loadRoot();
+  }, [workspacePath]);
+
+  /** Reverts the newest explorer change; resolves false when there was none. */
+  const undoExplorerOp = useCallback(async (): Promise<boolean> => {
+    const op = undoLogRef.current.pop();
+    if (!op) return false;
+    try {
+      await revertOp(op);
+      return true;
+    } finally {
+      void loadRoot();
     }
-  }, [loadRoot, workspacePath]);
+  }, [loadRoot, revertOp]);
 
   const externalRefreshRef = useRef<((paths: string[]) => void) | null>(null);
 
@@ -678,6 +758,7 @@ export function useFileTree(workspacePath: string | null) {
     handleRename,
     handleDelete,
     createNewEntry,
+    discardCreatedEntry,
     deleteEntry,
     renameEntry,
     revealInFileManager,

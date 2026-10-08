@@ -1,3 +1,4 @@
+pub mod clipboard;
 pub mod explorer;
 pub mod git_diff_stats;
 pub mod git_ops;

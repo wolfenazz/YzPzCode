@@ -1,0 +1,993 @@
+/*
+ * Android device window (DevicePanel.tsx). `.dv-*` classes, theme tokens only.
+ * The outer <aside> animates its width while the frame stays anchored to the
+ * right edge at full width, so the window slides in from the edge instead of
+ * squeezing its content.
+ */
+
+.dv,
+.dv-toggle {
+  --dv-ok: #34d399;
+  --dv-warn: #fbbf24;
+  --dv-bad: var(--destructive, #f87171);
+  --dv-live: #54c5f8;
+}
+
+.dv {
+  position: relative;
+  flex: none;
+  height: 100%;
+  overflow: hidden;
+}
+
+.dv > .dv__frame {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  box-shadow: -22px 0 44px -34px rgba(0, 0, 0, 0.55);
+  font-family: var(--font-ui);
+}
+
+/* ── Resize handle ──────────────────────────────────────────────────────── */
+
+.dv__resizer {
+  position: absolute;
+  z-index: 30;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.dv__resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  background: transparent;
+  transition: background-color 160ms ease, width 160ms ease;
+}
+
+.dv__resizer:hover::after,
+.dv__resizer:focus-visible::after,
+.dv--resizing .dv__resizer::after {
+  width: 2px;
+  background: var(--accent);
+}
+
+.dv__resizer:hover::after {
+  transition-delay: 140ms;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.dv__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 40px;
+  padding: 0 6px 0 8px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.dv__spacer {
+  flex: 1;
+}
+
+.dv__power.is-on {
+  color: var(--dv-ok);
+}
+
+.dv-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  height: 30px;
+  padding: 0 8px 0 6px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.dv-picker:hover,
+.dv-picker[data-state="open"] {
+  background: var(--bg-tertiary);
+}
+
+.dv-picker:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1.5px;
+}
+
+.dv-picker__icon {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.dv-picker__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.dv-picker__name {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 560;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dv-picker__status {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+}
+
+.dv-picker__status--running {
+  color: var(--dv-ok);
+}
+
+.dv-picker__status--booting,
+.dv-picker__status--stopping {
+  color: var(--dv-warn);
+}
+
+.dv-menu {
+  min-width: 260px;
+}
+
+.dv-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+}
+
+.dv-dot--running {
+  background: var(--dv-ok);
+}
+
+.dv-dot--booting,
+.dv-dot--stopping {
+  background: var(--dv-warn);
+  animation: dv-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+
+.dv__body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--bg-tertiary) 55%, transparent), transparent 70%),
+    var(--bg-primary);
+}
+
+.dv__device {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.dv-screen-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px;
+}
+
+.dv-device-box {
+  position: relative;
+  flex: none;
+}
+
+/* The device body at its natural orientation, rotated around its centre. */
+.dv-device {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: 50% 50%;
+}
+
+.dv-device__body,
+.dv-device__overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dv-device--skinned {
+  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.42));
+}
+
+.dv-device__overlay {
+  z-index: 2;
+}
+
+/* iOS simulators: a body drawn around the display (no skin images exist). */
+.dv-device--ios {
+  filter: drop-shadow(0 22px 34px rgba(0, 0, 0, 0.42));
+}
+
+.dv-ios {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dv-ios__band {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(150deg, #6c6c71, #2b2b2f 34%, #3d3d42 68%, #67676c);
+}
+
+.dv-ios__band::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: #050506;
+}
+
+.dv-ios__btn {
+  position: absolute;
+  width: var(--dv-ios-btn);
+  background: linear-gradient(90deg, #55555a, #2c2c30);
+}
+
+.dv-ios__btn--left {
+  left: calc(1px - var(--dv-ios-btn));
+  border-radius: 2px 0 0 2px;
+}
+
+.dv-ios__btn--right {
+  right: calc(1px - var(--dv-ios-btn));
+  border-radius: 0 2px 2px 0;
+}
+
+.dv-ios__home {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1.5px solid #3a3a3f;
+  border-radius: 50%;
+  background: #0a0a0c;
+}
+
+/* Dynamic Island or notch, over the picture like the real hardware. */
+.dv-cutout {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  background: #000;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.dv-cutout--island {
+  border-radius: 999px;
+}
+
+.dv-cutout--notch {
+  border-radius: 0 0 10% 10% / 0 0 62% 62%;
+}
+
+.dv-screen {
+  position: absolute;
+  z-index: 1;
+  overflow: hidden;
+  background: #000;
+  outline: none;
+  cursor: default;
+  touch-action: none;
+  user-select: none;
+}
+
+/* No skin for this AVD: a plain bezel ring around the rounded display. */
+.dv-device:not(.dv-device--skinned):not(.dv-device--ios) .dv-screen {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 0 0 7px #17181b, 0 18px 40px -18px rgba(0, 0, 0, 0.7);
+}
+
+.dv-screen__frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  max-width: none;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Rounded corners and camera cutout from the skin, over the picture. */
+.dv-screen__mask {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  user-select: none;
+}
+
+.dv-screen__stats {
+  position: absolute;
+  z-index: 4;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  color: #d9f99d;
+  background: rgba(0, 0, 0, 0.62);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+  pointer-events: none;
+}
+
+.dv-screen__overlay {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.86);
+  background: #0b0c0e;
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.dv-screen__overlay--quiet {
+  background: rgba(0, 0, 0, 0.72);
+  pointer-events: none;
+}
+
+.dv-screen__hint {
+  max-width: 240px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11.5px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.dv-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--dv-live);
+  border-radius: 50%;
+  animation: dv-spin 0.9s linear infinite;
+}
+
+/* ── Side controls ──────────────────────────────────────────────────────── */
+
+.dv-controls {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 40px;
+  padding: 8px 4px 8px 0;
+}
+
+.dv-ctrl {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  background: none;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.dv-ctrl:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.dv-ctrl:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.dv-ctrl:focus-visible {
+  outline: 1.5px solid var(--accent);
+}
+
+.dv-ctrl:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.dv-controls__sep {
+  width: 16px;
+  height: 1px;
+  margin: 5px 0;
+  background: var(--border-primary);
+}
+
+/* ── Empty states and toast ─────────────────────────────────────────────── */
+
+.dv-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 28px;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.dv-empty__icon {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 16px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+}
+
+.dv-empty strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.dv-empty p {
+  max-width: 290px;
+  margin: 0 0 8px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+.dv-empty .dv-empty__error {
+  max-height: 140px;
+  overflow: auto;
+  color: var(--dv-bad);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  text-align: left;
+}
+
+.dv-toast {
+  position: absolute;
+  z-index: 5;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 9px;
+  color: var(--text-primary);
+  background: var(--popover, var(--bg-secondary));
+  box-shadow: var(--shadow-float, 0 10px 30px -12px rgba(0, 0, 0, 0.5));
+  font-size: 12px;
+  animation: dv-rise 180ms ease both;
+}
+
+.dv-toast span {
+  min-width: 0;
+  word-break: break-word;
+}
+
+/* ── Buttons, selects ───────────────────────────────────────────────────── */
+
+.dv-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--border-primary);
+  border-radius: 7px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 520;
+  white-space: nowrap;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+}
+
+.dv-btn:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.dv-btn:focus-visible {
+  outline: 1.5px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dv-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.dv-btn--small {
+  height: 24px;
+  padding: 0 9px;
+  font-size: 11.5px;
+}
+
+.dv-btn--primary {
+  border-color: var(--accent-border, var(--accent));
+  color: var(--accent-text, var(--text-primary));
+  background: var(--accent-light, var(--bg-tertiary));
+}
+
+.dv-btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.dv-btn--accent {
+  border-color: color-mix(in srgb, var(--dv-live) 45%, var(--border-primary));
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--dv-live) 12%, var(--bg-secondary));
+}
+
+.dv-btn--accent svg {
+  color: var(--dv-live);
+}
+
+.dv-btn--accent:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dv-live) 20%, var(--bg-secondary));
+}
+
+.dv-btn--danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--dv-bad) 45%, var(--border-primary));
+  color: var(--dv-bad);
+}
+
+.dv-select {
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.dv-select:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.dv-select:focus-visible {
+  outline: 1.5px solid var(--accent);
+}
+
+.dv-select--target {
+  flex: 1;
+}
+
+.dv-select--project {
+  max-width: 120px;
+}
+
+.dv-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dv-check input {
+  accent-color: var(--accent);
+}
+
+.dv-muted {
+  color: var(--text-secondary);
+}
+
+.dv-ok {
+  color: var(--dv-ok);
+}
+
+.dv-warn {
+  color: var(--dv-warn);
+}
+
+.dv-bad {
+  color: var(--dv-bad);
+}
+
+.dv-spin {
+  animation: dv-spin 0.9s linear infinite;
+}
+
+.dv-flutter-mark {
+  flex: none;
+}
+
+/* ── Flutter run bar and log ────────────────────────────────────────────── */
+
+.dv-run {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
+.dv-run__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 6px 8px 0;
+}
+
+.dv-run__row:last-of-type {
+  padding-bottom: 7px;
+}
+
+.dv-run__project {
+  overflow: hidden;
+  max-width: 110px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 560;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dv-run__status {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dv-run__status--live {
+  color: var(--text-primary);
+}
+
+.dv-run__status--error {
+  color: var(--dv-bad);
+}
+
+.dv-console {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border-primary);
+}
+
+.dv-console__resizer {
+  position: absolute;
+  z-index: 2;
+  top: -3px;
+  right: 0;
+  left: 0;
+  height: 6px;
+  cursor: row-resize;
+  touch-action: none;
+}
+
+.dv-console__resizer:hover {
+  background: linear-gradient(transparent 2px, var(--accent) 2px, var(--accent) 4px, transparent 4px);
+}
+
+.dv-console__bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+}
+
+.dv-log {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 2px 10px 8px;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+  user-select: text;
+}
+
+.dv-log__line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dv-log__line--stderr,
+.dv-log__line--error {
+  color: var(--dv-bad);
+}
+
+.dv-log__line--progress {
+  color: var(--text-secondary);
+}
+
+.dv-log__line--info {
+  color: var(--dv-live);
+}
+
+.dv-log__empty {
+  padding-top: 8px;
+  font-family: var(--font-ui);
+}
+
+/* ── Setup ──────────────────────────────────────────────────────────────── */
+
+.dv-setup {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  color: var(--text-primary);
+}
+
+.dv-setup__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 10px 8px 10px;
+}
+
+.dv-setup__title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dv-setup__title strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.dv-setup__title span {
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.dv-setup__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 10px 10px;
+}
+
+.dv-setup__progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 10px 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  font-size: 12px;
+}
+
+.dv-setup__progress-label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.dv-setup__progress-label em {
+  overflow: hidden;
+  max-width: 100%;
+  color: var(--text-secondary);
+  font-style: normal;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dv-bar {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+}
+
+.dv-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--dv-live);
+  transition: width 240ms ease;
+}
+
+.dv-setup__error {
+  margin: 0 10px 8px;
+  color: var(--dv-bad);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.dv-setup__list {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow: auto;
+  padding: 0 10px 10px;
+}
+
+.dv-setup__list h3 {
+  margin: 10px 2px 4px;
+  color: var(--text-secondary);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dv-setup__list ul {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border-primary);
+  border-radius: 9px;
+  list-style: none;
+  background: var(--bg-secondary);
+}
+
+.dv-setup__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 38px;
+  padding: 6px 8px 6px 10px;
+  font-size: 12px;
+}
+
+.dv-setup__item + .dv-setup__item {
+  border-top: 1px solid var(--border-primary);
+}
+
+.dv-setup__item > svg {
+  flex: none;
+}
+
+.dv-setup__item-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dv-setup__item-text > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dv-setup__item-text .dv-muted {
+  font-size: 11px;
+}
+
+.dv-setup__item code {
+  margin-left: 6px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10.5px;
+}
+
+.dv-setup__log {
+  flex: 0 0 auto;
+  max-height: 34%;
+  border-top: 1px solid var(--border-primary);
+}
+
+/* ── Header toggle ──────────────────────────────────────────────────────── */
+
+.dv-toggle__dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--dv-ok);
+  box-shadow: 0 0 0 2px var(--bg-secondary);
+}
+
+.dv-toggle__dot.is-run {
+  background: var(--dv-live);
+}
+
+/* ── Motion ─────────────────────────────────────────────────────────────── */
+
+@keyframes dv-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes dv-pulse {
+  50% { opacity: 0.4; }
+}
+
+@keyframes dv-rise {
+  from { opacity: 0; transform: translateY(6px); }
+}
+
+.animations-disabled .dv-spin,
+.animations-disabled .dv-spinner,
+.animations-disabled .dv-dot--booting,
+.animations-disabled .dv-toast {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dv-spin,
+  .dv-spinner,
+  .dv-dot--booting,
+  .dv-toast {
+    animation: none;
+  }
+}

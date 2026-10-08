@@ -1,5 +1,6 @@
 mod agent;
 mod agent_cli;
+mod android;
 mod browser;
 mod commands;
 mod discord_presence;
@@ -7,6 +8,7 @@ mod extension_host;
 mod external_links;
 mod filesystem;
 mod ide;
+mod ios;
 mod open_files;
 mod terminal;
 mod types;
@@ -72,6 +74,10 @@ pub fn run() {
     let discord_manager = DiscordPresenceManager::new();
     let open_file_manager = open_files::OpenFileManager::default();
     let extension_host_manager = extension_host::ExtensionHostManager::default();
+    let emulator_manager = android::EmulatorManager::default();
+    let simulator_manager = ios::SimulatorManager::default();
+    let flutter_run_manager = android::FlutterRunManager::default();
+    let flutter_setup_manager = android::FlutterSetupManager::default();
     let launch_directory =
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     open_file_manager.enqueue_candidates(std::env::args_os().skip(1), &launch_directory);
@@ -131,6 +137,10 @@ pub fn run() {
         .manage(discord_manager.clone())
         .manage(open_file_manager)
         .manage(extension_host_manager)
+        .manage(emulator_manager.clone())
+        .manage(simulator_manager.clone())
+        .manage(flutter_run_manager.clone())
+        .manage(flutter_setup_manager.clone())
         .setup(move |app| {
             terminal_manager.set_app_handle(app.handle().clone());
             agent_executor.set_app_handle(app.handle().clone());
@@ -138,6 +148,10 @@ pub fn run() {
             cli_launcher.set_app_handle(app.handle().clone());
             managed_command_manager.set_app_handle(app.handle().clone());
             browser_manager.set_app_handle(app.handle().clone());
+            emulator_manager.set_app_handle(app.handle().clone());
+            simulator_manager.set_app_handle(app.handle().clone());
+            flutter_run_manager.set_app_handle(app.handle().clone());
+            flutter_setup_manager.set_app_handle(app.handle().clone());
 
             // The main window is declared with `"create": false` and built here
             // so it can carry the link guards: any link clicked in the UI opens
@@ -211,6 +225,41 @@ pub fn run() {
         })
         .invoke_handler({
             let handler: fn(tauri::ipc::Invoke) -> bool = tauri::generate_handler![
+                commands::android_setup_check,
+                commands::android_setup_run,
+                commands::android_setup_cancel,
+                commands::android_list_avds,
+                commands::android_avd_skin,
+                commands::android_list_emulators,
+                commands::android_start_emulator,
+                commands::android_stop_emulator,
+                commands::android_dismiss_emulator,
+                commands::android_emulator_stream_start,
+                commands::android_emulator_stream_stop,
+                commands::android_emulator_touch,
+                commands::android_emulator_scroll,
+                commands::android_emulator_key,
+                commands::android_emulator_text,
+                commands::android_emulator_rotate,
+                commands::android_emulator_screenshot,
+                commands::flutter_list_devices,
+                commands::flutter_run_start,
+                commands::flutter_run_reload,
+                commands::flutter_run_stop,
+                commands::flutter_run_state,
+                commands::flutter_pub_get,
+                commands::ios_list_simulators,
+                commands::ios_start_simulator,
+                commands::ios_stop_simulator,
+                commands::ios_dismiss_simulator,
+                commands::ios_simulator_stream_start,
+                commands::ios_simulator_stream_stop,
+                commands::ios_simulator_touch,
+                commands::ios_simulator_scroll,
+                commands::ios_simulator_key,
+                commands::ios_simulator_text,
+                commands::ios_simulator_rotate,
+                commands::ios_simulator_screenshot,
                 commands::list_supported_extensions,
                 commands::install_workspace_extension,
                 commands::check_extension_updates,
@@ -344,6 +393,11 @@ pub fn run() {
                 commands::get_available_shells,
                 commands::import_files,
                 commands::copy_entry,
+                commands::paste_entries,
+                commands::read_clipboard_files,
+                commands::write_clipboard_files,
+                commands::paste_clipboard_image,
+                commands::open_external_terminal,
                 commands::enable_discord_presence,
                 commands::disable_discord_presence,
                 commands::is_discord_presence_enabled,
@@ -376,6 +430,11 @@ pub fn run() {
         if matches!(event, tauri::RunEvent::Exit) {
             app.state::<extension_host::ExtensionHostManager>()
                 .shutdown();
+            // Emulators started here run with a hidden window; leaving them
+            // behind would keep an invisible VM alive.
+            app.state::<android::FlutterRunManager>().stop_all();
+            app.state::<android::EmulatorManager>().shutdown_owned();
+            app.state::<ios::SimulatorManager>().shutdown_owned();
         }
         // macOS delivers Finder/Open-With requests as file URLs instead of
         // process arguments. Keeping them in the same durable queue gives
@@ -397,6 +456,11 @@ pub fn run() {
         if matches!(event, tauri::RunEvent::Exit) {
             app.state::<extension_host::ExtensionHostManager>()
                 .shutdown();
+            // Emulators started here run with a hidden window; leaving them
+            // behind would keep an invisible VM alive.
+            app.state::<android::FlutterRunManager>().stop_all();
+            app.state::<android::EmulatorManager>().shutdown_owned();
+            app.state::<ios::SimulatorManager>().shutdown_owned();
         }
     });
 }

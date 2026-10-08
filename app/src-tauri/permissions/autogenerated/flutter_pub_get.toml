@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-flutter-pub-get"
+description = "Enables the flutter_pub_get command without any pre-configured scope."
+commands.allow = ["flutter_pub_get"]
+
+[[permission]]
+identifier = "deny-flutter-pub-get"
+description = "Denies the flutter_pub_get command without any pre-configured scope."
+commands.deny = ["flutter_pub_get"]

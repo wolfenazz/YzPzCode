@@ -13,6 +13,7 @@ import {
 } from '@phosphor-icons/react';
 import type { WorkspaceConfig, WorkspaceView } from '../../types';
 import { WorkspaceTab } from './WorkspaceTab';
+import { DevicePanelToggle } from './device/DevicePanel';
 import { viewIconName } from './viewIcons';
 import { ChromeBrand, ChromeButton, ChromeDivider } from '../common/ChromeParts';
 import { ThemeModeToggle } from '../common/ThemeModeToggle';
@@ -46,6 +47,7 @@ interface WorkspaceHeaderProps {
 const SHORTCUTS = [
   { category: 'Terminal', items: [{ keys: ['Ctrl', 'C'], action: 'Copy selection' }, { keys: ['Ctrl', 'V'], action: 'Paste' }, { keys: ['Ctrl', 'F'], action: 'Search in terminal' }, { keys: ['Ctrl', 'L'], action: 'Clear terminal' }, { keys: ['Enter'], action: 'Find next match' }, { keys: ['Shift', 'Enter'], action: 'Find previous match' }, { keys: ['Esc'], action: 'Close search' }] },
   { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
+  { category: 'Device', items: [{ keys: ['Ctrl', 'Alt', 'M'], action: 'Show or hide the device (Android emulator / iOS simulator)' }] },
   { category: 'Window', items: [{ keys: ['F11'], action: 'Toggle fullscreen' }] },
 ];
 
@@ -245,6 +247,7 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
 
         <div className="chrome__end">
           <ViewSwitcher activeView={activeView} onViewChange={onViewChange} />
+          <DevicePanelToggle workspaceId={activeWorkspaceId} />
           <ChromeDivider />
           <ChromeButton label="Documentation" onClick={onDocsClick}>
             <BookOpenText size={16} aria-hidden="true" />

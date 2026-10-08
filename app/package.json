@@ -1,7 +1,7 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.22.0",
+  "version": "5.23.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",
@@ -14,8 +14,10 @@
     "test:agent-activity": "node --test scripts/agent-activity.test.mjs",
     "test:context-menu": "node --test scripts/context-menu.test.mjs",
     "test:file-sync": "node --test scripts/test-file-sync.mjs",
+    "test:explorer": "node --test scripts/explorer-clipboard.test.mjs",
     "test:editor": "node --test scripts/test-editor-workbench.mjs",
     "test:browser": "node --test scripts/browser.test.mjs",
+    "test:device": "node --test scripts/device.test.mjs",
     "preview": "vite preview",
     "fetch:drawio": "node scripts/fetch-drawio.mjs",
     "postinstall": "node scripts/ensure-drawio.mjs",

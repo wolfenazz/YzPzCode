@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-flutter-run-start"
+description = "Enables the flutter_run_start command without any pre-configured scope."
+commands.allow = ["flutter_run_start"]
+
+[[permission]]
+identifier = "deny-flutter-run-start"
+description = "Denies the flutter_run_start command without any pre-configured scope."
+commands.deny = ["flutter_run_start"]

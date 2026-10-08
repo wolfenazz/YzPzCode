@@ -1,6 +1,6 @@
 [package]
 name = "yzpzcode"
-version = "5.22.0"
+version = "5.23.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -40,3 +40,32 @@ regex = "1"
 rusqlite = { version = "0.32", features = ["bundled"] }
 discord-rich-presence = "1.1"
 url = "2"
+clipboard-rs = "0.3.5"
+tonic = { version = "0.13", default-features = false, features = ["channel", "codegen", "prost"] }
+prost = "0.13"
+tokio-stream = "0.1"
+yzpz-frame-codec = { path = "crates/frame-codec" }
+
+# The embedded emulator moves and encodes a frame every ~16 ms; unoptimized,
+# that takes 300+ ms per frame. Optimizing just these crates keeps `tauri dev`
+# smooth without slowing the app's own debug builds.
+[profile.dev.package.yzpz-frame-codec]
+opt-level = 3
+
+[profile.dev.package.jpeg-encoder]
+opt-level = 3
+
+[profile.dev.package.prost]
+opt-level = 3
+
+[profile.dev.package.bytes]
+opt-level = 3
+
+[profile.dev.package.h2]
+opt-level = 3
+
+[profile.dev.package.hyper]
+opt-level = 3
+
+[profile.dev.package.tonic]
+opt-level = 3

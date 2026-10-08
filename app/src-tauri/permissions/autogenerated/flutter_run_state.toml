@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-flutter-run-state"
+description = "Enables the flutter_run_state command without any pre-configured scope."
+commands.allow = ["flutter_run_state"]
+
+[[permission]]
+identifier = "deny-flutter-run-state"
+description = "Denies the flutter_run_state command without any pre-configured scope."
+commands.deny = ["flutter_run_state"]

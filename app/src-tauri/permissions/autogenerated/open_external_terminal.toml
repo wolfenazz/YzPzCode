@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-external-terminal"
+description = "Enables the open_external_terminal command without any pre-configured scope."
+commands.allow = ["open_external_terminal"]
+
+[[permission]]
+identifier = "deny-open-external-terminal"
+description = "Denies the open_external_terminal command without any pre-configured scope."
+commands.deny = ["open_external_terminal"]

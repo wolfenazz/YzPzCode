@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-ios-simulator-stream-start"
+description = "Enables the ios_simulator_stream_start command without any pre-configured scope."
+commands.allow = ["ios_simulator_stream_start"]
+
+[[permission]]
+identifier = "deny-ios-simulator-stream-start"
+description = "Denies the ios_simulator_stream_start command without any pre-configured scope."
+commands.deny = ["ios_simulator_stream_start"]

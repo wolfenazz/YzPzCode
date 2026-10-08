@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-list-avds"
+description = "Enables the android_list_avds command without any pre-configured scope."
+commands.allow = ["android_list_avds"]
+
+[[permission]]
+identifier = "deny-android-list-avds"
+description = "Denies the android_list_avds command without any pre-configured scope."
+commands.deny = ["android_list_avds"]

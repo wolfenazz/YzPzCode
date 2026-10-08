@@ -11,6 +11,77 @@ pub struct LaunchExternalCommandRequest {
     pub command: String,
 }
 
+/// Opens one OS terminal window with a plain shell in `directory` (the
+/// explorer's "Open in External Terminal"): Windows Terminal when installed,
+/// else cmd; Terminal.app on macOS; the first available emulator on Linux.
+#[tauri::command]
+pub async fn open_external_terminal(directory: String) -> Result<(), String> {
+    let dir = std::path::Path::new(&directory);
+    if !dir.is_dir() {
+        return Err(format!("Not a folder: {}", directory));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NEW_CONSOLE: u32 = 0x00000010;
+        if let Ok(wt) = which::which("wt") {
+            if std::process::Command::new(wt)
+                .arg("-d")
+                .arg(dir)
+                .spawn()
+                .is_ok()
+            {
+                return Ok(());
+            }
+        }
+        std::process::Command::new("cmd")
+            .current_dir(dir)
+            .creation_flags(CREATE_NEW_CONSOLE)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("Failed to open a terminal: {}", e))
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .args(["-a", "Terminal"])
+            .arg(dir)
+            .spawn()
+            .map(|_| ())
+            .map_err(|e| format!("Failed to open Terminal: {}", e))
+    }
+
+    #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
+    {
+        // Each emulator's own flag for the starting folder; all also get it
+        // as the working directory.
+        const EMULATORS: [(&str, &[&str]); 6] = [
+            ("x-terminal-emulator", &[]),
+            ("gnome-terminal", &["--working-directory"]),
+            ("konsole", &["--workdir"]),
+            ("xfce4-terminal", &["--working-directory"]),
+            ("kitty", &["--directory"]),
+            ("xterm", &[]),
+        ];
+        for (binary, flag) in EMULATORS {
+            if which::which(binary).is_err() {
+                continue;
+            }
+            let mut cmd = std::process::Command::new(binary);
+            cmd.current_dir(dir);
+            if let Some(flag) = flag.first() {
+                cmd.arg(flag).arg(dir);
+            }
+            if cmd.spawn().is_ok() {
+                return Ok(());
+            }
+        }
+        Err("No terminal emulator found".to_string())
+    }
+}
+
 #[tauri::command]
 pub async fn launch_external_terminals(request: LaunchExternalRequest) -> Result<(), String> {
     if request.count == 0 {

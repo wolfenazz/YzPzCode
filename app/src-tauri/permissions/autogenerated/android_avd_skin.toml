@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-avd-skin"
+description = "Enables the android_avd_skin command without any pre-configured scope."
+commands.allow = ["android_avd_skin"]
+
+[[permission]]
+identifier = "deny-android-avd-skin"
+description = "Denies the android_avd_skin command without any pre-configured scope."
+commands.deny = ["android_avd_skin"]

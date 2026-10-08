@@ -1,4 +1,5 @@
 mod agent_commands;
+mod android_commands;
 mod browser_commands;
 mod cli_commands;
 mod db_commands;
@@ -8,12 +9,14 @@ mod extension_commands;
 mod external_terminals;
 mod filesystem_commands;
 mod ide_commands;
+mod ios_commands;
 mod open_file_commands;
 mod os_commands;
 mod terminal_commands;
 mod window_commands;
 
 pub use agent_commands::*;
+pub use android_commands::*;
 pub use browser_commands::*;
 pub use cli_commands::*;
 pub use db_commands::*;
@@ -23,6 +26,7 @@ pub use extension_commands::*;
 pub use external_terminals::*;
 pub use filesystem_commands::*;
 pub use ide_commands::*;
+pub use ios_commands::*;
 pub use open_file_commands::*;
 pub use os_commands::*;
 pub use terminal_commands::*;

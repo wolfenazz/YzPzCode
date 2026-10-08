@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-emulator-text"
+description = "Enables the android_emulator_text command without any pre-configured scope."
+commands.allow = ["android_emulator_text"]
+
+[[permission]]
+identifier = "deny-android-emulator-text"
+description = "Denies the android_emulator_text command without any pre-configured scope."
+commands.deny = ["android_emulator_text"]

@@ -1,5 +1,7 @@
 use crate::filesystem;
+use crate::filesystem::clipboard::ClipboardSnapshot;
 use crate::filesystem::history::FileBackupInfo;
+use crate::filesystem::operations::PasteOutcome;
 use crate::filesystem::search::SearchResult;
 use crate::types::{
     FileContent, FileEntry, GitBranchInfo, GitCommitInfo, GitDiffStat, GitFileDiff, GitFileStatus,
@@ -289,11 +291,57 @@ pub async fn import_files(
     source_paths: Vec<String>,
     destination_dir: String,
 ) -> Result<Vec<String>, String> {
-    filesystem::operations::import_entries(&source_paths, &destination_dir)
-        .map_err(|e| e.to_string())
+    run_blocking_operation(move || {
+        filesystem::operations::import_entries(&source_paths, &destination_dir)
+            .map_err(|e| e.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
 pub async fn copy_entry(source_path: String, destination_dir: String) -> Result<String, String> {
-    filesystem::operations::copy_entry(&source_path, &destination_dir).map_err(|e| e.to_string())
+    run_blocking_operation(move || {
+        filesystem::operations::copy_entry(&source_path, &destination_dir)
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
+/// Copies or moves (`operation == "cut"`) entries into a folder; one outcome per source.
+#[tauri::command]
+pub async fn paste_entries(
+    source_paths: Vec<String>,
+    destination_dir: String,
+    operation: String,
+) -> Result<Vec<PasteOutcome>, String> {
+    run_blocking_operation(move || {
+        filesystem::operations::paste_entries(&source_paths, &destination_dir, operation == "cut")
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn read_clipboard_files() -> Result<ClipboardSnapshot, String> {
+    run_blocking_operation(|| filesystem::clipboard::read_clipboard().map_err(|e| e.to_string()))
+        .await
+}
+
+/// Puts files on the OS clipboard so the system file manager can paste them;
+/// an empty list clears the clipboard.
+#[tauri::command]
+pub async fn write_clipboard_files(paths: Vec<String>, operation: String) -> Result<(), String> {
+    run_blocking_operation(move || {
+        filesystem::clipboard::write_clipboard_files(&paths, operation == "cut")
+            .map_err(|e| e.to_string())
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn paste_clipboard_image(destination_dir: String) -> Result<String, String> {
+    run_blocking_operation(move || {
+        filesystem::clipboard::paste_clipboard_image(&destination_dir).map_err(|e| e.to_string())
+    })
+    .await
 }

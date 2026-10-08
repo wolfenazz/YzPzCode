@@ -25,6 +25,8 @@ import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import type { ExtensionInfo, ExtensionInstallProgress } from '../../types';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { getTerminalForTarget } from '../../utils/terminalRegistry';
+import { DevicePanel } from './device/DevicePanel';
+import { useDeviceStore } from '../../stores/deviceStore';
 import { FileEntry, WorkspaceView } from '../../types';
 
 interface WorkspaceProps {
@@ -279,6 +281,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
           } else {
             terminals.toggle(workspace.id);
           }
+        } else if (e.altKey && e.code === 'KeyM') {
+          // Ctrl+Alt+M toggles the Android device window from any view.
+          e.preventDefault();
+          const workspaceId = useAppStore.getState().activeWorkspaceId;
+          if (workspaceId) useDeviceStore.getState().toggle(workspaceId);
         } else if (e.altKey && e.code === 'KeyB') {
           // Ctrl+Alt+B toggles the editor side panel, as in VS Code.
           e.preventDefault();
@@ -612,6 +619,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                 </div>
               )}
             </div>
+            {/* The Android device window slides in beside every view. */}
+            <DevicePanel workspace={currentWorkspace} visible={view === 'workspace'} />
           </div>
         ) : (
           <div className="workspace-empty h-full flex items-center justify-center">

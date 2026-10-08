@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-dismiss-emulator"
+description = "Enables the android_dismiss_emulator command without any pre-configured scope."
+commands.allow = ["android_dismiss_emulator"]
+
+[[permission]]
+identifier = "deny-android-dismiss-emulator"
+description = "Denies the android_dismiss_emulator command without any pre-configured scope."
+commands.deny = ["android_dismiss_emulator"]

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-android-start-emulator"
+description = "Enables the android_start_emulator command without any pre-configured scope."
+commands.allow = ["android_start_emulator"]
+
+[[permission]]
+identifier = "deny-android-start-emulator"
+description = "Denies the android_start_emulator command without any pre-configured scope."
+commands.deny = ["android_start_emulator"]

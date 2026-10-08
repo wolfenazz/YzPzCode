@@ -164,8 +164,8 @@ The app supports multiple AI coding agents and SaaS tool CLIs through a provider
 - `validation.rs`: Path security validation
 
 **Frontend** (`app/src/components/explorer/`):
-- `FileExplorer.tsx`: File tree using `react-arborist` with virtualized rendering
-- `ExplorerContextMenu.tsx`: Right-click context menu with copy/cut/paste, rename, delete, reveal, duplicate, git stage/unstage
+- `FileExplorer.tsx`: File tree using `react-arborist` with virtualized rendering. Ctrl/⌘+click and Shift+click multi-select are handled in `TreeNode.tsx` (react-arborist only binds ⌘). Copy/cut/paste share the OS clipboard: `hooks/useExplorerClipboard.ts` → Rust `filesystem/clipboard.rs` (`read_clipboard_files` / `write_clipboard_files` / `paste_clipboard_image`, CF_HDROP + "Preferred DropEffect" on Windows) and `paste_entries` in `operations.rs` (per-item outcomes, never overwrites, refuses a folder into itself, cross-drive move fallback). Paste-source choice, undo batching and messages live in dependency-free `utils/explorerClipboard.ts` (`npm run test:explorer`). Open in Integrated Terminal adds a pane to the terminal grid at that folder (`create_single_terminal_session`, next grid index) and switches to the terminal view; Open in External Terminal is `open_external_terminal`
+- `ExplorerContextMenu.tsx`: one menu (portal, viewport-positioned) for tree rows, multi-selection, empty space and the "Open editors" list; commands come in through a single `ExplorerMenuActions` object
 - `TreeNode.tsx`: Individual tree node with file icon
 - `FileIcon.tsx`: Language-aware file icons
 - `GitChangesPanel.tsx`: Git status panel with staging/unstaging

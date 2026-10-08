@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-flutter-run-reload"
+description = "Enables the flutter_run_reload command without any pre-configured scope."
+commands.allow = ["flutter_run_reload"]
+
+[[permission]]
+identifier = "deny-flutter-run-reload"
+description = "Denies the flutter_run_reload command without any pre-configured scope."
+commands.deny = ["flutter_run_reload"]

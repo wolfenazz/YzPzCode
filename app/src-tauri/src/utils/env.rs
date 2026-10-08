@@ -19,6 +19,12 @@ fn get_env_cache_path() -> PathBuf {
     }
 }
 
+/// Forgets the cached environment so the next launch reads the user's
+/// current one (after setup changed PATH or other variables).
+pub fn invalidate_env_cache() {
+    let _ = std::fs::remove_file(get_env_cache_path());
+}
+
 fn load_env_from_cache() -> bool {
     let cache_path = get_env_cache_path();
     if !cache_path.exists() {
