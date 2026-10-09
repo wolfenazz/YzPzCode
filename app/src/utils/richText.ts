@@ -76,3 +76,12 @@ export const htmlToPlainText = (html: string): string => {
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 };
+
+/** Plain text to editor HTML: escapes markup and turns newlines into <br>. */
+export const plainTextToHtml = (text: string): string =>
+  text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br>');

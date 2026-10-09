@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArrowsInSimple,
   Check,
   Code,
   Copy,
@@ -16,7 +17,7 @@ import {
   X,
 } from '@phosphor-icons/react';
 import type { BrowserSelectedElement, InspectorQuickPrompt, InspectorQuickPromptGroup } from '../../types';
-import { htmlToPlainText } from '../../utils/richText';
+import { htmlToPlainText, plainTextToHtml } from '../../utils/richText';
 import { formatElementPrompt } from '../../utils/inspectorPrompt';
 import { RichPromptEditor } from './RichPromptEditor';
 import { useAppStore } from '../../stores/appStore';
@@ -45,6 +46,8 @@ interface ElementInspectorPanelProps {
   onResetPreview: () => Promise<void> | void;
   onTargetSessionChange: (sessionId: string | null) => void;
   onDraftChange: (html: string) => void;
+  /** Returns to the compact quick prompt next to the element, keeping the selection. */
+  onCollapse: () => void;
   onClear: () => void;
 }
 
@@ -120,15 +123,6 @@ const createInitialStyleValues = (element: BrowserSelectedElement): Record<strin
   return values;
 };
 
-const escapePromptHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
-const promptToHtml = (text: string): string => escapePromptHtml(text).replace(/\n/g, '<br>');
-
 const PROMPT_GROUPS: { group: InspectorQuickPromptGroup; label: string; icon: React.ReactNode }[] = [
   { group: 'enhance', label: 'Enhance', icon: <Sparkle size={12} /> },
   { group: 'adjust', label: 'Adjust / Edit', icon: <SlidersHorizontal size={12} /> },
@@ -188,6 +182,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
   onResetPreview,
   onTargetSessionChange,
   onDraftChange,
+  onCollapse,
   onClear,
 }: ElementInspectorPanelProps) {
   const [showFullInfo, setShowFullInfo] = useState(false);
@@ -330,7 +325,7 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
 
   const handleApplyPrompt = useCallback(
     (prompt: InspectorQuickPrompt) => {
-      onDraftChange(promptToHtml(prompt.text));
+      onDraftChange(plainTextToHtml(prompt.text));
     },
     [onDraftChange],
   );
@@ -383,6 +378,15 @@ export const ElementInspectorPanel = memo(function ElementInspectorPanel({
             >
               <DeviceMobile size={13} aria-hidden="true" />
               dev
+            </button>
+            <button
+              type="button"
+              onClick={onCollapse}
+              title="Back to quick prompt"
+              aria-label="Back to quick prompt"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--accent-light)] hover:text-[var(--accent-text)] cursor-pointer"
+            >
+              <ArrowsInSimple size={14} aria-hidden="true" />
             </button>
             <button
               type="button"

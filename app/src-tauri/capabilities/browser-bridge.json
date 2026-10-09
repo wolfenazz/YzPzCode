@@ -17,6 +17,7 @@
   "permissions": [
     "allow-browser-element-selected",
     "allow-browser-inspect-cancelled",
+    "allow-browser-inspector-request",
     "allow-browser-page-state-changed",
     "allow-browser-snapshot-exported",
     "allow-browser-style-captured",

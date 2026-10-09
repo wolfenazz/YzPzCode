@@ -316,6 +316,8 @@ pub fn run() {
                 commands::request_browser_snapshot,
                 commands::browser_element_selected,
                 commands::browser_inspect_cancelled,
+                commands::browser_inspector_request,
+                commands::set_browser_inspector_widget,
                 commands::browser_page_state_changed,
                 commands::browser_snapshot_exported,
                 commands::set_browser_pick_style_mode,

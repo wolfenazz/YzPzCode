@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{State, Webview};
 
 use crate::browser::{
-    BrowserBounds, BrowserManager, BrowserPageStateCommandPayload, BrowserPreviewChrome,
-    BrowserSelectedElementPayload, BrowserSnapshotCommandPayload, BrowserUiElementReference,
-    BrowserViewState, CapturedStyle,
+    BrowserBounds, BrowserInspectorRequestPayload, BrowserManager, BrowserPageStateCommandPayload,
+    BrowserPreviewChrome, BrowserSelectedElementPayload, BrowserSnapshotCommandPayload,
+    BrowserUiElementReference, BrowserViewState, CapturedStyle, InspectorWidgetConfig,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -237,6 +237,37 @@ pub async fn browser_inspect_cancelled(
 ) -> Result<(), String> {
     manager
         .handle_inspect_cancelled(webview.label())
+        .map_err(|e| e.to_string())
+}
+
+/// Page callback from the quick prompt card (see `handle_inspector_request`).
+#[tauri::command]
+pub async fn browser_inspector_request(
+    webview: Webview,
+    manager: State<'_, BrowserManager>,
+    payload: BrowserInspectorRequestPayload,
+) -> Result<(), String> {
+    manager
+        .handle_inspector_request(webview.label(), payload)
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserInspectorWidgetRequest {
+    pub workspace_id: String,
+    /// `None` removes the card.
+    #[serde(default)]
+    pub widget: Option<InspectorWidgetConfig>,
+}
+
+#[tauri::command]
+pub async fn set_browser_inspector_widget(
+    manager: State<'_, BrowserManager>,
+    request: BrowserInspectorWidgetRequest,
+) -> Result<(), String> {
+    manager
+        .set_inspector_widget(&request.workspace_id, request.widget)
         .map_err(|e| e.to_string())
 }
 

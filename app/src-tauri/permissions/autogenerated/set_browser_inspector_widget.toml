@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-browser-inspector-widget"
+description = "Enables the set_browser_inspector_widget command without any pre-configured scope."
+commands.allow = ["set_browser_inspector_widget"]
+
+[[permission]]
+identifier = "deny-set-browser-inspector-widget"
+description = "Denies the set_browser_inspector_widget command without any pre-configured scope."
+commands.deny = ["set_browser_inspector_widget"]

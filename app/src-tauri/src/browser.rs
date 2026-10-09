@@ -21,6 +21,11 @@ const BROWSER_POPOUT_STATE_EVENT: &str = "browser-popout-state";
 const BROWSER_MODES_CLEARED_EVENT: &str = "browser-modes-cleared";
 const BROWSER_SHORTCUT_EVENT: &str = "browser-shortcut";
 const BROWSER_OPEN_TAB_EVENT: &str = "browser-open-tab";
+const BROWSER_INSPECTOR_REQUEST_EVENT: &str = "browser-inspector-request";
+/// What the in-page quick prompt card may ask the app to do.
+const INSPECTOR_REQUEST_KINDS: &[&str] = &["send", "expand", "dismiss", "target"];
+const INSPECTOR_REQUEST_MAX_CHARS: usize = 8000;
+const INSPECTOR_TOKEN_MAX_LEN: usize = 128;
 /// Shortcuts the page bridge may forward while the native webview has focus.
 const BROWSER_SHORTCUT_ACTIONS: &[&str] = &[
     "focus-address",
@@ -1387,8 +1392,402 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     inspectorPreviewBackup = applyStyleToElement(selectedInspectorElement, safeStyles);
   };
 
+  // ── Quick prompt card ──────────────────────────────────────────────────
+  // A small card anchored to the selected element: pick which agent gets the
+  // request, type it, send. It lives inside the page because the native
+  // webview is drawn above the app UI, so nothing from the app can float over
+  // it. It never acts on its own: every click or key press is reported through
+  // one IPC callback and the app decides what to do with it.
+  const WIDGET_WIDTH = 344;
+  const WIDGET_MARGIN = 8;
+  const WIDGET_GAP = 10;
+  const WIDGET_MAX_TEXT = 4000;
+  const WIDGET_CSS = `
+    :host { all: initial; }
+    * { box-sizing: border-box; }
+    .frame {
+      position: fixed; display: none; pointer-events: none;
+      border: 2px solid rgba(16, 185, 129, 0.95); border-radius: 8px;
+      background: rgba(16, 185, 129, 0.07); box-shadow: 0 0 0 1px rgba(5, 7, 10, 0.8);
+    }
+    .card {
+      position: fixed; left: 0; top: 0; pointer-events: auto;
+      display: flex; flex-direction: column; gap: 8px; padding: 10px;
+      background: rgba(14, 16, 20, 0.97); color: #e8e8ec;
+      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.4);
+      font: 12px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      letter-spacing: normal; text-transform: none; color-scheme: dark;
+      opacity: 0; transform: translateY(4px);
+      transition: opacity 0.14s ease, transform 0.14s ease;
+    }
+    .card.on { opacity: 1; transform: none; }
+    .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+    .label {
+      flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font: 600 11px 'Cascadia Mono', 'JetBrains Mono', ui-monospace, monospace; color: #c7c7cf;
+    }
+    button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
+    .icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 24px; height: 24px; border-radius: 7px; color: #9a9aa5;
+    }
+    .icon:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .composer { display: flex; gap: 6px; align-items: flex-end; }
+    textarea {
+      flex: 1; min-width: 0; resize: none; height: 36px; max-height: 96px; padding: 8px 10px;
+      border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05); color: #f4f4f5; font: inherit; outline: none;
+    }
+    textarea::placeholder { color: #7d7d88; }
+    textarea:focus { border-color: rgba(16, 185, 129, 0.7); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
+    textarea.nudge { border-color: rgba(251, 113, 133, 0.8); }
+    .send {
+      flex: none; width: 36px; height: 36px; border-radius: 10px; background: #10b981; color: #04130d;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .send:hover { filter: brightness(1.08); }
+    .send:disabled { opacity: 0.4; cursor: default; filter: none; }
+    .foot { display: flex; align-items: center; gap: 8px; }
+    select {
+      flex: 1; min-width: 0; height: 26px; padding: 0 6px; border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05);
+      color: #e8e8ec; font: inherit; font-size: 11px; outline: none; cursor: pointer;
+    }
+    select:focus-visible, button:focus-visible { outline: 2px solid rgba(16, 185, 129, 0.8); outline-offset: 1px; }
+    .more {
+      flex: none; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px;
+      border-radius: 8px; color: #a1a1ab; font-size: 11px; font-weight: 500;
+    }
+    .more:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+    .status { font-size: 11px; color: #9a9aa5; }
+    .status:empty { display: none; }
+    .status[data-kind='error'] { color: #fb7185; }
+    .status[data-kind='sent'] { color: #34d399; }
+    @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
+  `;
+  let ipcInvoke = null;
+  let widget = null;
+
+  // The IPC function is captured once so a page script cannot swap it out later
+  // to read what the card reports.
+  const callIpc = (command, payload) => {
+    if (!ipcInvoke) {
+      const internals = window.__TAURI_INTERNALS__;
+      if (!internals || typeof internals.invoke !== 'function') return Promise.resolve();
+      ipcInvoke = internals.invoke.bind(internals);
+    }
+    return ipcInvoke(command, payload).catch(() => undefined);
+  };
+
+  const widgetIcon = (paths) => {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('width', '14');
+    svg.setAttribute('height', '14');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.6');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    for (const d of paths) {
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      svg.appendChild(path);
+    }
+    return svg;
+  };
+
+  const widgetEl = (tag, className, attrs) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    for (const key in attrs || {}) node.setAttribute(key, attrs[key]);
+    return node;
+  };
+
+  const sendWidgetRequest = (kind, extra) => {
+    if (!widget) return;
+    callIpc('browser_inspector_request', { payload: Object.assign({ kind, token: widget.token }, extra || {}) });
+  };
+
+  const autosizeWidgetText = () => {
+    if (!widget) return;
+    const area = widget.area;
+    area.style.height = 'auto';
+    area.style.height = `${Math.min(Math.max(area.scrollHeight + 2, 36), 96)}px`;
+    placeWidget();
+  };
+
+  const setWidgetStatus = (kind, message) => {
+    if (!widget) return;
+    window.clearTimeout(widget.statusTimer);
+    widget.status.textContent = message || '';
+    widget.status.setAttribute('data-kind', kind || '');
+    widget.sending = kind === 'sending';
+    widget.send.disabled = widget.sending || widget.targetCount === 0;
+    if (kind === 'sent') {
+      widget.statusTimer = window.setTimeout(() => {
+        if (widget) widget.status.textContent = '';
+        placeWidget();
+      }, 4000);
+    }
+    placeWidget();
+  };
+
+  const submitWidget = () => {
+    if (!widget || widget.sending) return;
+    const text = widget.area.value.trim();
+    if (!text) {
+      widget.area.classList.add('nudge');
+      window.setTimeout(() => widget && widget.area.classList.remove('nudge'), 600);
+      widget.area.focus({ preventScroll: true });
+      return;
+    }
+    if (!widget.select.value) {
+      setWidgetStatus('error', 'Open an agent terminal or extension to send this.');
+      return;
+    }
+    sendWidgetRequest('send', { text: text.slice(0, WIDGET_MAX_TEXT), targetId: widget.select.value });
+  };
+
+  const dismissWidget = () => {
+    sendWidgetRequest('dismiss');
+    destroyWidget();
+  };
+
+  const placeWidget = () => {
+    if (!widget) return;
+    const element = selectedInspectorElement;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const width = Math.max(Math.min(WIDGET_WIDTH, vw - WIDGET_MARGIN * 2), 200);
+    const card = widget.card;
+    card.style.width = `${width}px`;
+    const height = card.offsetHeight || 132;
+    const clamp = (value, low, high) => Math.min(Math.max(value, low), Math.max(low, high));
+
+    let rect = null;
+    if (element && document.contains(element)) {
+      const measured = element.getBoundingClientRect();
+      if (measured.width > 0 && measured.height > 0) rect = measured;
+    }
+
+    const frame = widget.frame;
+    if (rect) {
+      frame.style.display = 'block';
+      frame.style.left = `${rect.left}px`;
+      frame.style.top = `${rect.top}px`;
+      frame.style.width = `${rect.width}px`;
+      frame.style.height = `${rect.height}px`;
+    } else {
+      frame.style.display = 'none';
+    }
+
+    let left = vw - width - WIDGET_MARGIN;
+    let top = vh - height - WIDGET_MARGIN;
+    if (rect) {
+      left = clamp(rect.left, WIDGET_MARGIN, vw - width - WIDGET_MARGIN);
+      const below = rect.bottom + WIDGET_GAP;
+      const above = rect.top - height - WIDGET_GAP;
+      if (rect.bottom < 0) {
+        top = WIDGET_MARGIN;
+      } else if (rect.top > vh) {
+        top = vh - height - WIDGET_MARGIN;
+      } else if (below + height <= vh - WIDGET_MARGIN) {
+        top = below;
+      } else if (above >= WIDGET_MARGIN) {
+        top = above;
+      } else {
+        // Tall element: float over its lower part so its top stays visible.
+        top = vh - height - WIDGET_MARGIN - 4;
+      }
+    }
+    card.style.left = `${Math.round(left)}px`;
+    card.style.top = `${Math.round(Math.max(top, WIDGET_MARGIN))}px`;
+  };
+
+  let widgetPlaceFrame = 0;
+  const scheduleWidgetPlace = () => {
+    if (!widget || widgetPlaceFrame) return;
+    widgetPlaceFrame = window.requestAnimationFrame(() => {
+      widgetPlaceFrame = 0;
+      placeWidget();
+    });
+  };
+
+  const destroyWidget = () => {
+    if (!widget) return;
+    window.clearInterval(widget.timer);
+    window.clearTimeout(widget.statusTimer);
+    widget.host.remove();
+    widget = null;
+  };
+
+  const buildWidget = (token) => {
+    const host = widgetEl('div', '', { 'data-yzpz-browser-overlay': 'true' });
+    host.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2147483647;';
+    const root = host.attachShadow({ mode: 'closed' });
+    try {
+      const sheet = new CSSStyleSheet();
+      sheet.replaceSync(WIDGET_CSS);
+      root.adoptedStyleSheets = [sheet];
+    } catch (_) {
+      const style = document.createElement('style');
+      style.textContent = WIDGET_CSS;
+      root.appendChild(style);
+    }
+
+    const frame = widgetEl('div', 'frame');
+    const card = widgetEl('div', 'card', { role: 'dialog', 'aria-label': 'Ask an agent to edit this element' });
+
+    const head = widgetEl('div', 'head');
+    const label = widgetEl('span', 'label');
+    const close = widgetEl('button', 'icon', { type: 'button', title: 'Dismiss (Esc)', 'aria-label': 'Dismiss' });
+    close.appendChild(widgetIcon(['M4 4l8 8', 'M12 4l-8 8']));
+    head.append(widgetEl('span', 'dot'), label, close);
+
+    const composer = widgetEl('div', 'composer');
+    const area = widgetEl('textarea', '', {
+      rows: '1',
+      placeholder: 'What should change? e.g. make this card bolder',
+      'aria-label': 'Instruction for the agent',
+      spellcheck: 'true',
+    });
+    const send = widgetEl('button', 'send', { type: 'button', title: 'Send (Enter)', 'aria-label': 'Send to agent' });
+    send.appendChild(widgetIcon(['M14 2L7 9', 'M14 2l-4.5 12-2.5-5-5-2.5z']));
+    composer.append(area, send);
+
+    const foot = widgetEl('div', 'foot');
+    const select = widgetEl('select', '', { 'aria-label': 'Send to' });
+    const more = widgetEl('button', 'more', { type: 'button', title: 'Open the full style controls' });
+    more.append(
+      widgetIcon(['M2 4.5h6.5', 'M12.5 4.5H14', 'M10.5 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z', 'M2 11.5h2', 'M7.5 11.5H14', 'M5.5 10a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z']),
+      document.createTextNode('More controls'),
+    );
+    foot.append(select, more);
+
+    const status = widgetEl('div', 'status', { role: 'status', 'aria-live': 'polite' });
+    card.append(head, composer, foot, status);
+    root.append(frame, card);
+
+    const trusted = (handler) => (event) => {
+      if (event.isTrusted) handler(event);
+    };
+    // Keep clicks and keys inside the card from reaching the page's own handlers.
+    for (const type of ['mousedown', 'mouseup', 'click', 'dblclick', 'pointerdown', 'pointerup', 'keyup', 'keypress']) {
+      card.addEventListener(type, (event) => event.stopPropagation());
+    }
+    close.addEventListener('click', trusted(dismissWidget));
+    send.addEventListener('click', trusted(submitWidget));
+    more.addEventListener('click', trusted(() => {
+      sendWidgetRequest('expand', { text: area.value.slice(0, WIDGET_MAX_TEXT), targetId: select.value });
+    }));
+    select.addEventListener('change', trusted(() => sendWidgetRequest('target', { targetId: select.value })));
+    area.addEventListener('input', autosizeWidgetText);
+    area.addEventListener('keydown', trusted((event) => {
+      event.stopPropagation();
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        dismissWidget();
+      } else if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        submitWidget();
+      }
+    }));
+
+    const next = {
+      token, host, frame, card, label, area, send, select, more, status,
+      targetKey: '', targetCount: 0, appliedTargetId: null, statusSeq: -1, statusTimer: 0, sending: false,
+      timer: window.setInterval(() => {
+        if (!widget) return;
+        if (!selectedInspectorElement || !document.contains(selectedInspectorElement)) {
+          dismissWidget();
+          return;
+        }
+        placeWidget();
+      }, 400),
+    };
+    (document.documentElement || document.body).appendChild(host);
+    return next;
+  };
+
+  const syncWidgetTargets = (config) => {
+    const targets = Array.isArray(config.targets) ? config.targets : [];
+    const key = JSON.stringify(targets);
+    const select = widget.select;
+    if (key !== widget.targetKey) {
+      widget.targetKey = key;
+      const previous = select.value;
+      select.textContent = '';
+      for (const target of targets) {
+        const option = document.createElement('option');
+        option.value = String(target.id);
+        option.textContent = target.detail ? `${target.label} · ${target.detail}` : String(target.label);
+        select.appendChild(option);
+      }
+      if (previous && targets.some((target) => target.id === previous)) select.value = previous;
+    }
+    widget.targetCount = targets.length;
+    // Follow the app's choice when it changes; otherwise keep the user's pick.
+    const wanted = config.targetId || null;
+    if (wanted !== widget.appliedTargetId || !select.value) {
+      widget.appliedTargetId = wanted;
+      if (wanted && targets.some((target) => target.id === wanted)) select.value = wanted;
+    }
+    select.disabled = targets.length === 0;
+    widget.send.disabled = widget.sending || targets.length === 0;
+    if (targets.length === 0) {
+      widget.area.placeholder = 'Open an agent terminal or extension to send requests';
+    } else {
+      widget.area.placeholder = 'What should change? e.g. make this card bolder';
+    }
+  };
+
+  const showWidget = (config) => {
+    const element = selectedInspectorElement;
+    if (!config || typeof config.token !== 'string' || !element || !document.contains(element)) {
+      destroyWidget();
+      return;
+    }
+    if (inspectMode || pickStyleMode || pickUiElementMode || applyMode) return;
+
+    let created = false;
+    if (!widget || widget.token !== config.token) {
+      destroyWidget();
+      widget = buildWidget(config.token);
+      created = true;
+    }
+    widget.label.textContent = config.label || element.tagName.toLowerCase();
+    widget.label.title = widget.label.textContent;
+    syncWidgetTargets(config);
+
+    if (typeof config.draft === 'string') {
+      widget.area.value = config.draft.slice(0, WIDGET_MAX_TEXT);
+    }
+    const status = config.status;
+    if (status && typeof status.seq === 'number' && status.seq !== widget.statusSeq) {
+      widget.statusSeq = status.seq;
+      setWidgetStatus(status.kind, status.message);
+      if (status.kind === 'sent') widget.area.value = '';
+    }
+    autosizeWidgetText();
+
+    if (created) {
+      window.requestAnimationFrame(() => {
+        if (!widget) return;
+        widget.card.classList.add('on');
+        widget.area.focus({ preventScroll: true });
+      });
+    }
+  };
+
   styleOverlay();
 
+  window.addEventListener('scroll', scheduleWidgetPlace, true);
+  window.addEventListener('resize', scheduleWidgetPlace, true);
   window.addEventListener('mousemove', handlePointerMove, true);
   window.addEventListener('scroll', handleScroll, true);
   window.addEventListener('resize', handleScroll, true);
@@ -1444,12 +1843,13 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     }, { once: true });
   }
 
-  window.__YZPZ_BROWSER_BRIDGE__ = {
+  const bridge = {
     refreshScrollbar() {
       applyBrowserScrollbar();
     },
     setInspectMode(value) {
       inspectMode = !!value;
+      if (value) destroyWidget();
       pickStyleMode = false;
       pickUiElementMode = false;
       applyMode = false;
@@ -1461,6 +1861,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     },
     setPickStyleMode(value) {
       pickStyleMode = !!value;
+      if (value) destroyWidget();
       inspectMode = false;
       pickUiElementMode = false;
       applyMode = false;
@@ -1472,6 +1873,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     },
     setPickUiElementMode(value) {
       pickUiElementMode = !!value;
+      if (value) destroyWidget();
       inspectMode = false;
       pickStyleMode = false;
       applyMode = false;
@@ -1484,6 +1886,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     setApplyMode(payload) {
       applyPayload = payload || null;
       applyMode = !!payload;
+      if (payload) destroyWidget();
       inspectMode = false;
       pickStyleMode = false;
       pickUiElementMode = false;
@@ -1507,6 +1910,12 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     clearInspectorPreview() {
       clearInspectorPreview();
     },
+    showInspectorWidget(config) {
+      showWidget(config);
+    },
+    hideInspectorWidget() {
+      destroyWidget();
+    },
     undoLastStyle() {
       handleUndoLastStyle();
     },
@@ -1529,6 +1938,15 @@ const BROWSER_INIT_SCRIPT: &str = r#"
       scheduleEmitPageState();
     }
   };
+  // Page scripts must not be able to replace or wrap the bridge: the app talks
+  // to it with eval, and the quick prompt card's token travels that way.
+  Object.freeze(bridge);
+  Object.defineProperty(window, '__YZPZ_BROWSER_BRIDGE__', {
+    value: bridge,
+    writable: false,
+    configurable: false,
+    enumerable: false,
+  });
 
   window.addEventListener('contextmenu', handleContextMenu, true);
   window.addEventListener('mouseover', handleApplyMouseOver, true);
@@ -1694,6 +2112,60 @@ pub struct BrowserSelectedElementPayload {
 pub struct BrowserElementSelectedEventPayload {
     pub workspace_id: String,
     pub element: BrowserSelectedElementPayload,
+}
+
+/// One agent terminal or extension panel the quick prompt card can send to.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectorWidgetTarget {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub detail: Option<String>,
+}
+
+/// Progress of the last send, shown under the card's text box. `seq` lets the
+/// page tell a new status from a re-pushed one.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectorWidgetStatus {
+    pub kind: String,
+    pub message: String,
+    pub seq: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectorWidgetConfig {
+    pub token: String,
+    pub label: String,
+    pub targets: Vec<InspectorWidgetTarget>,
+    #[serde(default)]
+    pub target_id: Option<String>,
+    /// Replaces the text box content once (used when returning from the side panel).
+    #[serde(default)]
+    pub draft: Option<String>,
+    #[serde(default)]
+    pub status: Option<InspectorWidgetStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserInspectorRequestPayload {
+    pub kind: String,
+    pub token: String,
+    #[serde(default)]
+    pub text: Option<String>,
+    #[serde(default)]
+    pub target_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserInspectorRequestEventPayload {
+    pub workspace_id: String,
+    #[serde(flatten)]
+    pub request: BrowserInspectorRequestPayload,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -2392,6 +2864,47 @@ impl BrowserManager {
         Ok(())
     }
 
+    /// Shows (or updates) the quick prompt card next to the selected element,
+    /// or removes it when `config` is `None`.
+    pub fn set_inspector_widget(
+        &self,
+        workspace_id: &str,
+        config: Option<InspectorWidgetConfig>,
+    ) -> Result<()> {
+        let webview = self.webview_for_workspace(workspace_id)?;
+        webview.eval(inspector_widget_script(config))?;
+        Ok(())
+    }
+
+    /// The quick prompt card reports what the user did with it. The page is
+    /// untrusted, so only known kinds and bounded text are relayed, and the
+    /// app side still checks the per-selection token before acting.
+    pub fn handle_inspector_request(
+        &self,
+        webview_label: &str,
+        payload: BrowserInspectorRequestPayload,
+    ) -> Result<()> {
+        if !INSPECTOR_REQUEST_KINDS.contains(&payload.kind.as_str()) {
+            anyhow::bail!("Unknown inspector request: {}", payload.kind);
+        }
+        if payload.token.len() > INSPECTOR_TOKEN_MAX_LEN {
+            anyhow::bail!("Inspector token is too long");
+        }
+        if let Some(text) = payload.text.as_deref() {
+            if text.chars().count() > INSPECTOR_REQUEST_MAX_CHARS {
+                anyhow::bail!("Inspector request text is too long");
+            }
+        }
+        let workspace_id = self.workspace_for_label(webview_label)?;
+        self.emit_event(
+            BROWSER_INSPECTOR_REQUEST_EVENT,
+            &BrowserInspectorRequestEventPayload {
+                workspace_id,
+                request: payload,
+            },
+        )
+    }
+
     pub fn handle_inspect_cancelled(&self, webview_label: &str) -> Result<()> {
         let workspace_id = self.workspace_for_label(webview_label)?;
 
@@ -2895,6 +3408,19 @@ fn clear_inspector_preview_script() -> String {
         .to_string()
 }
 
+fn inspector_widget_script(config: Option<InspectorWidgetConfig>) -> String {
+    match config {
+        Some(config) => {
+            let json = serde_json::to_string(&config).unwrap_or_else(|_| "null".to_string());
+            format!(
+                "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.showInspectorWidget({json});"
+            )
+        }
+        None => "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.hideInspectorWidget();"
+            .to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -2977,6 +3503,7 @@ mod tests {
         let bridge_callbacks = [
             "allow-browser-element-selected",
             "allow-browser-inspect-cancelled",
+            "allow-browser-inspector-request",
             "allow-browser-page-state-changed",
             "allow-browser-snapshot-exported",
             "allow-browser-style-captured",

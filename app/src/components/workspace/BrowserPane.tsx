@@ -8,6 +8,9 @@ import type {
   BrowserDeviceId,
   BrowserElementSelectedEventPayload,
   BrowserInspectModePayload,
+  BrowserInspectorRequestPayload,
+  BrowserInspectorWidgetStatus,
+  BrowserSelectedElement,
   BrowserOpenTabPayload,
   BrowserPageLoadPayload,
   BrowserPageStatePayload,
@@ -30,7 +33,7 @@ import { extensionPanelIdFromTarget, extensionTargetId, sendPromptToExtensionPan
 import { useBrowser } from '../../hooks/useBrowser';
 import { useBrowserAutoReload } from '../../hooks/useBrowserAutoReload';
 import { useTerminal } from '../../hooks/useTerminal';
-import { htmlToPlainText } from '../../utils/richText';
+import { htmlToPlainText, plainTextToHtml } from '../../utils/richText';
 import { formatElementPrompt } from '../../utils/inspectorPrompt';
 import {
   BROWSER_NEW_TAB_URL,
@@ -85,6 +88,20 @@ const browserUrlsEqual = (left: string, right: string): boolean => {
 };
 
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
+
+/** Secret shared with the in-page quick prompt card; requests without it are ignored. */
+const createWidgetToken = (): string => {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+};
+
+/** `li.landing-point`-style name shown on the quick prompt card. */
+const describeElement = (element: BrowserSelectedElement): string => {
+  const classes = (element.className ?? '').split(/\s+/).filter(Boolean).slice(0, 2);
+  const label = `${element.tagName}${element.id ? `#${element.id}` : ''}${classes.map((name) => `.${name}`).join('')}`;
+  return label.length > 60 ? `${label.slice(0, 59)}…` : label;
+};
 
 const isEditableTarget = (target: EventTarget | null): boolean => {
   const element = target as HTMLElement | null;
@@ -186,6 +203,17 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const [applyingStyleId, setApplyingStyleId] = useState<string | null>(null);
   const [liveServers, setLiveServers] = useState<ReadonlySet<string>>(() => new Set());
   const [scanning, setScanning] = useState(false);
+  // Selecting an element shows the compact quick prompt in the page; this opens
+  // the full side panel instead.
+  const [inspectorPanelOpen, setInspectorPanelOpen] = useState(false);
+  const [widgetStatus, setWidgetStatus] = useState<BrowserInspectorWidgetStatus | null>(null);
+  const widgetStatusSeqRef = useRef(0);
+  const widgetShownRef = useRef(false);
+  /** Text the quick prompt should start with, consumed by the next widget push. */
+  const widgetDraftRef = useRef<string | null>(null);
+  const inspectorPanelOpenRef = useRef(false);
+  inspectorPanelOpenRef.current = inspectorPanelOpen;
+  const inspectorRequestRef = useRef<(request: BrowserInspectorRequestPayload) => void>(() => undefined);
 
   const {
     ensureBrowserView,
@@ -207,6 +235,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     undoBrowserStyle,
     previewBrowserElementStyles,
     clearBrowserElementPreview,
+    setBrowserInspectorWidget,
   } = useBrowser();
   const { writeToTerminal } = useTerminal();
 
@@ -843,9 +872,14 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     else showMessage('info', `Added to ${panel.name}'s message box. Press Enter there to send.`);
   }, [extensionPanels, showMessage, writeToTerminal]);
 
-  const handleInspectorSend = useCallback(async (promptText?: string, styleOverrides: Record<string, string> = {}) => {
+  const handleInspectorSend = useCallback(async (
+    promptText?: string,
+    styleOverrides: Record<string, string> = {},
+    targetOverride?: string,
+  ) => {
     if (!state.selectedElement) return;
-    if (!targetSessionId) {
+    const destinationId = targetOverride ?? targetSessionId;
+    if (!destinationId) {
       const text = 'Open an agent terminal or extension panel to send this request.';
       showMessage('error', text);
       throw new Error(text);
@@ -867,7 +901,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
 
     setIsSubmitting(true);
     try {
-      await deliverPrompt(targetSessionId, formattedPrompt, 'Sent to agent');
+      await deliverPrompt(destinationId, formattedPrompt, 'Sent to agent');
       setBrowserInstructionSlots(workspaceId, ['']);
       setActiveBrowserInstructionSlot(workspaceId, 0);
     } catch (err) {
@@ -923,6 +957,133 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     setBrowserInstructionSlots(workspaceId, slots);
     setActiveBrowserInstructionSlot(workspaceId, Math.min(state.activeInstructionSlot, slots.length - 1));
   }, [setActiveBrowserInstructionSlot, setBrowserInstructionSlots, state.activeInstructionSlot, state.instructionSlots, workspaceId]);
+
+  // ── Quick prompt card (in the page) ──────────────────────────────────
+  const widgetToken = useMemo(
+    () => (state.selectedElement ? createWidgetToken() : ''),
+    [state.selectedElement],
+  );
+  const widgetTokenRef = useRef(widgetToken);
+  widgetTokenRef.current = widgetToken;
+
+  const widgetTargets = useMemo(
+    () => sessionOptions.map((option) => ({ id: option.id, label: option.label, detail: option.detail ?? null })),
+    [sessionOptions],
+  );
+  const widgetLabel = useMemo(
+    () => (state.selectedElement ? describeElement(state.selectedElement) : ''),
+    [state.selectedElement],
+  );
+  const widgetActive = !!state.selectedElement
+    && !!widgetToken
+    && !inspectorPanelOpen
+    && !isStartPage
+    && nativeBrowserReady
+    && !state.inspectMode
+    && !state.pickStyleMode
+    && !state.pickUiElementMode
+    && !state.applyMode;
+
+  const publishWidgetStatus = useCallback((kind: BrowserInspectorWidgetStatus['kind'], text: string) => {
+    widgetStatusSeqRef.current += 1;
+    setWidgetStatus({ kind, message: text, seq: widgetStatusSeqRef.current });
+  }, []);
+
+  useEffect(() => {
+    if (!widgetActive) {
+      if (widgetShownRef.current) {
+        widgetShownRef.current = false;
+        void setBrowserInspectorWidget(workspaceId, null).catch(() => undefined);
+      }
+      return;
+    }
+    const draft = widgetDraftRef.current;
+    widgetDraftRef.current = null;
+    widgetShownRef.current = true;
+    void setBrowserInspectorWidget(workspaceId, {
+      token: widgetToken,
+      label: widgetLabel,
+      targets: widgetTargets,
+      targetId: targetSessionId,
+      draft,
+      status: widgetStatus,
+    }).catch(() => undefined);
+  }, [
+    setBrowserInspectorWidget,
+    targetSessionId,
+    widgetActive,
+    widgetLabel,
+    widgetStatus,
+    widgetTargets,
+    widgetToken,
+    workspaceId,
+  ]);
+
+  useEffect(() => () => {
+    if (!widgetShownRef.current) return;
+    widgetShownRef.current = false;
+    void setBrowserInspectorWidget(workspaceId, null).catch(() => undefined);
+  }, [setBrowserInspectorWidget, workspaceId]);
+
+  useEffect(() => {
+    if (!state.selectedElement) setInspectorPanelOpen(false);
+  }, [state.selectedElement]);
+
+  const handleInspectorRequest = useCallback(async (request: BrowserInspectorRequestPayload) => {
+    // The page is untrusted: only the card this app configured can ask for things.
+    if (!state.selectedElement || !widgetTokenRef.current || request.token !== widgetTokenRef.current) return;
+    const requestedTarget = request.targetId && sessionOptions.some((option) => option.id === request.targetId)
+      ? request.targetId
+      : null;
+    if (requestedTarget && requestedTarget !== state.targetSessionId) {
+      setBrowserTargetSession(workspaceId, requestedTarget);
+    }
+
+    if (request.kind === 'dismiss') {
+      clearBrowserSelection(workspaceId);
+      return;
+    }
+    if (request.kind === 'expand') {
+      const text = (request.text ?? '').trim();
+      if (text) handleInspectorDraftChange(plainTextToHtml(text));
+      setInspectorPanelOpen(true);
+      return;
+    }
+    if (request.kind !== 'send') return;
+
+    const text = (request.text ?? '').trim();
+    if (!text) return;
+    const destinationId = requestedTarget ?? targetSessionId;
+    const destination = sessionOptions.find((option) => option.id === destinationId)?.label ?? 'agent';
+    publishWidgetStatus('sending', 'Sending…');
+    try {
+      await handleInspectorSend(text, {}, destinationId ?? undefined);
+      publishWidgetStatus('sent', `Sent to ${destination}`);
+    } catch (err) {
+      publishWidgetStatus('error', errorText(err));
+    }
+  }, [
+    clearBrowserSelection,
+    handleInspectorDraftChange,
+    handleInspectorSend,
+    publishWidgetStatus,
+    sessionOptions,
+    setBrowserTargetSession,
+    state.selectedElement,
+    state.targetSessionId,
+    targetSessionId,
+    workspaceId,
+  ]);
+  inspectorRequestRef.current = (request) => void handleInspectorRequest(request);
+
+  /** Back from the side panel to the quick prompt, carrying the typed text along. */
+  const handleCollapseInspector = useCallback(() => {
+    widgetDraftRef.current = state.instructionSlots
+      .map((slot) => htmlToPlainText(slot).trim())
+      .filter((text) => text.length > 0)
+      .join('\n\n');
+    setInspectorPanelOpen(false);
+  }, [state.instructionSlots]);
 
   // ── UI references ────────────────────────────────────────────────────
   const activeUiReference = state.uiReferenceClipboard.find((reference) => reference.id === state.activeUiReferenceId)
@@ -1072,6 +1233,12 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
           loadStartRef.current = performance.now();
           setBrowserLoading(workspaceId, true);
           setNativeBrowserReady(true);
+          // The new document has no such element, so the quick prompt is gone
+          // with the old page. The side panel keeps its selection for editing.
+          if (context.selectedElement && !inspectorPanelOpenRef.current) {
+            widgetShownRef.current = false;
+            clearBrowserSelection(workspaceId);
+          }
           return;
         }
         if (loadStartRef.current !== null) {
@@ -1150,10 +1317,18 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       listen<BrowserElementSelectedEventPayload>('browser-element-selected', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
         const context = eventContextRef.current;
+        // A fresh pick starts on the quick prompt; the side panel is opt-in.
+        widgetDraftRef.current = null;
+        setWidgetStatus(null);
+        setInspectorPanelOpen(false);
         setBrowserSelectedElement(workspaceId, event.payload.element);
         if (!context.targetSessionId && context.defaultSessionId) {
           setBrowserTargetSession(workspaceId, context.defaultSessionId);
         }
+      }),
+      listen<BrowserInspectorRequestPayload>('browser-inspector-request', (event) => {
+        if (event.payload.workspaceId !== workspaceId) return;
+        inspectorRequestRef.current(event.payload);
       }),
       listen<WorkspaceScoped<CapturedStyle>>('browser-style-captured', (event) => {
         if (!event.payload || event.payload.workspaceId !== workspaceId) return;
@@ -1189,6 +1364,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     addCapturedStyle,
     addCapturedUiReference,
     clearBrowserModes,
+    clearBrowserSelection,
     reportError,
     setBrowserCurrentUrl,
     setBrowserInspectModeState,
@@ -1406,7 +1582,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                 />
               )}
 
-              {selectedElement && (
+              {selectedElement && inspectorPanelOpen && (
                 <ElementInspectorPanel
                   element={selectedElement}
                   pageTitle={selectedElement.pageTitle || pageTitle || 'Untitled page'}
@@ -1426,6 +1602,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
                   onResetPreview={handleInspectorResetPreview}
                   onTargetSessionChange={(sessionId) => setBrowserTargetSession(workspaceId, sessionId)}
                   onDraftChange={handleInspectorDraftChange}
+                  onCollapse={handleCollapseInspector}
                   onClear={() => clearBrowserSelection(workspaceId)}
                 />
               )}

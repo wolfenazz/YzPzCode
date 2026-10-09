@@ -349,6 +349,34 @@ export interface BrowserElementSelectedEventPayload {
   element: BrowserSelectedElement;
 }
 
+/** Something the user did in the in-page quick prompt card. */
+export interface BrowserInspectorRequestPayload {
+  workspaceId: string;
+  kind: 'send' | 'expand' | 'dismiss' | 'target';
+  /** Per-selection secret: requests with any other token are ignored. */
+  token: string;
+  text?: string | null;
+  targetId?: string | null;
+}
+
+export interface BrowserInspectorWidgetStatus {
+  kind: 'sending' | 'sent' | 'error';
+  message: string;
+  /** Changes with every status so the page can tell a new one from a re-push. */
+  seq: number;
+}
+
+/** What the in-page quick prompt card shows next to the selected element. */
+export interface BrowserInspectorWidgetConfig {
+  token: string;
+  label: string;
+  targets: { id: string; label: string; detail?: string | null }[];
+  targetId: string | null;
+  /** Replaces the text box content once, e.g. when returning from the side panel. */
+  draft?: string | null;
+  status?: BrowserInspectorWidgetStatus | null;
+}
+
 export interface BrowserTab {
   id: string;
   url: string;
