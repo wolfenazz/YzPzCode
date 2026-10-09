@@ -1,3 +1,6 @@
+use anyhow::{Context, Result};
+use std::ffi::OsStr;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::LazyLock;
 
@@ -65,6 +68,24 @@ fn find_ps_script(dir: &std::path::Path) -> Option<std::path::PathBuf> {
     None
 }
 
+/// The script path an npm cmd-shim runs, relative to the shim's folder:
+/// `"%_prog%"  "%dp0%\node_modules\pkg\bin\cli.js" %*` → `node_modules\pkg\bin\cli.js`.
+fn parse_npm_cmd_shim_script(content: &str) -> Option<String> {
+    let marker = "\"%dp0%\\";
+    let mut rest = content;
+    while let Some(index) = rest.find(marker) {
+        let after = &rest[index + marker.len()..];
+        let end = after.find('"')?;
+        let candidate = &after[..end];
+        let lower = candidate.to_ascii_lowercase();
+        if lower.ends_with(".js") || lower.ends_with(".mjs") || lower.ends_with(".cjs") {
+            return Some(candidate.to_string());
+        }
+        rest = &after[end..];
+    }
+    None
+}
+
 pub struct ProcessRunner;
 
 impl ProcessRunner {
@@ -88,6 +109,17 @@ impl ProcessRunner {
     }
 
     pub fn run_cmd_hidden(binary_path: &str, args: &[&str]) -> std::io::Result<Output> {
+        Self::hidden_command(binary_path, args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+    }
+
+    /// The command `run_cmd_hidden` would run, without stdio configured, so
+    /// callers can pipe or stream it themselves. Resolves npm `.cmd`/`.ps1`
+    /// and shell-script shims on Windows and never opens a console window.
+    pub fn hidden_command<S: AsRef<OsStr>>(binary_path: &str, args: &[S]) -> Command {
         #[cfg(target_os = "windows")]
         {
             let lower = binary_path.to_lowercase();
@@ -101,22 +133,16 @@ impl ProcessRunner {
                             let mut cmd = Command::new("powershell.exe");
                             cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
                                 .arg(&ps_script)
-                                .args(args)
-                                .stdin(Stdio::null())
-                                .stdout(Stdio::piped())
-                                .stderr(Stdio::piped());
-                            return Self::add_no_window(&mut cmd).output();
+                                .args(args);
+                            Self::add_no_window(&mut cmd);
+                            return cmd;
                         }
                     }
                 }
                 let mut cmd = Command::new("cmd");
-                cmd.arg("/c")
-                    .arg(binary_path)
-                    .args(args)
-                    .stdin(Stdio::null())
-                    .stdout(Stdio::piped())
-                    .stderr(Stdio::piped());
-                return Self::add_no_window(&mut cmd).output();
+                cmd.arg("/c").arg(binary_path).args(args);
+                Self::add_no_window(&mut cmd);
+                return cmd;
             }
 
             // Handle shell script shims (#!/bin/sh) left by npm on Windows.
@@ -132,29 +158,60 @@ impl ProcessRunner {
                     let cmd_path = dir.join(format!("{}.cmd", stem));
                     if cmd_path.exists() {
                         let mut cmd = Command::new("cmd");
-                        cmd.arg("/c")
-                            .arg(&cmd_path)
-                            .args(args)
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::piped())
-                            .stderr(Stdio::piped());
-                        return Self::add_no_window(&mut cmd).output();
+                        cmd.arg("/c").arg(&cmd_path).args(args);
+                        Self::add_no_window(&mut cmd);
+                        return cmd;
                     }
 
                     if let Some(ps_script) = find_ps_script(dir) {
                         let mut cmd = Command::new("powershell.exe");
                         cmd.args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-File"])
                             .arg(&ps_script)
-                            .args(args)
-                            .stdin(Stdio::null())
-                            .stdout(Stdio::piped())
-                            .stderr(Stdio::piped());
-                        return Self::add_no_window(&mut cmd).output();
+                            .args(args);
+                        Self::add_no_window(&mut cmd);
+                        return cmd;
                     }
                 }
             }
         }
-        Self::run_hidden(binary_path, args)
+        let mut cmd = Command::new(binary_path);
+        cmd.args(args);
+        Self::add_no_window(&mut cmd);
+        cmd
+    }
+
+    /// For an npm `.cmd` shim (or its extensionless sibling), the node binary
+    /// and the JavaScript entry point it launches. Running `node script.js`
+    /// directly avoids cmd.exe's 8191-character limit, its `%`/`^` mangling and
+    /// PowerShell re-encoding piped stdin.
+    pub fn resolve_npm_cmd_shim(binary_path: &str) -> Option<(PathBuf, PathBuf)> {
+        let path = Path::new(binary_path);
+        let shim = if path
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("cmd"))
+        {
+            path.to_path_buf()
+        } else {
+            let candidate = path.with_file_name(format!("{}.cmd", path.file_name()?.to_string_lossy()));
+            if !candidate.exists() {
+                return None;
+            }
+            candidate
+        };
+        let dir = shim.parent()?;
+        let content = std::fs::read_to_string(&shim).ok()?;
+        let script = parse_npm_cmd_shim_script(&content)?;
+        let script = dir.join(script);
+        if !script.exists() {
+            return None;
+        }
+        let local_node = dir.join("node.exe");
+        let node = if local_node.exists() {
+            local_node
+        } else {
+            PathBuf::from(Self::find_binary("node")?)
+        };
+        Some((node, script))
     }
 
     pub fn find_binary(binary: &str) -> Option<String> {
@@ -419,5 +476,82 @@ pub fn is_process_elevated() -> bool {
     #[cfg(not(target_os = "windows"))]
     {
         false
+    }
+}
+
+/// Kill a process and everything it spawned (cmd → node → CLI on Windows).
+pub fn terminate_process_tree(pid: u32) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        let output = Command::new("taskkill")
+            .args(["/F", "/T", "/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdin(Stdio::null())
+            .output()
+            .with_context(|| format!("Failed to stop process pid {}", pid))?;
+
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Err(anyhow::anyhow!(
+                "Failed to stop process pid {} (taskkill exit {:?}){}",
+                pid,
+                output.status.code(),
+                if detail.is_empty() {
+                    String::new()
+                } else {
+                    format!(": {}", detail)
+                }
+            ));
+        }
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let status = Command::new("kill")
+            .args(["-TERM", &format!("-{}", pid)])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .with_context(|| format!("Failed to signal process group {}", pid))?;
+        if !status.success() {
+            return Err(anyhow::anyhow!(
+                "Failed to signal process group {} (kill exit {:?})",
+                pid,
+                status.code()
+            ));
+        }
+        return Ok(());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn npm_cmd_shim_script_is_found() {
+        let shim = concat!(
+            "@ECHO off\r\nGOTO start\r\n:find_dp0\r\nSET dp0=%~dp0\r\nEXIT /b\r\n:start\r\n",
+            r#"IF EXIST "%dp0%\node.exe" ( SET "_prog=%dp0%\node.exe" ) ELSE ( SET "_prog=node" )"#,
+            "\r\nendLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & ",
+            r#""%_prog%"  "%dp0%\node_modules\@openai\codex\bin\codex.js" %*"#,
+        );
+        assert_eq!(
+            parse_npm_cmd_shim_script(shim).as_deref(),
+            Some(r"node_modules\@openai\codex\bin\codex.js")
+        );
+    }
+
+    #[test]
+    fn non_node_shim_is_ignored() {
+        assert_eq!(
+            parse_npm_cmd_shim_script(r#"@echo off "%dp0%\tool.exe" %*"#),
+            None
+        );
     }
 }

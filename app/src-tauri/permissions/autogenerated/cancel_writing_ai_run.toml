@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-cancel-writing-ai-run"
+description = "Enables the cancel_writing_ai_run command without any pre-configured scope."
+commands.allow = ["cancel_writing_ai_run"]
+
+[[permission]]
+identifier = "deny-cancel-writing-ai-run"
+description = "Denies the cancel_writing_ai_run command without any pre-configured scope."
+commands.deny = ["cancel_writing_ai_run"]

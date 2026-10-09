@@ -44,6 +44,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
     isValid,
     isAllocationValid,
     validationErrors,
+    workspaceKind,
+    setWorkspaceKind,
   } = useWorkspace();
 
     const [createError, setCreateError] = React.useState<string | null>(null);
@@ -102,7 +104,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         launchIdeStatuses = await invoke<Record<IdeType, IdeInfo>>('detect_all_ides_cmd');
         useAppStore.getState().setIdeStatuses(launchIdeStatuses);
       }
-      if (selectedLayout.openExternally) {
+      if (selectedLayout.openExternally && workspaceKind !== 'writing') {
         await invoke('launch_external_terminals', {
           request: {
             workspacePath: selectedPath,
@@ -121,8 +123,9 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         }
       } else {
         const workspace = await createWorkspace();
-        
-        const selectedInstalledIdes = selectedIdes.filter((ide) => launchIdeStatuses[ide]?.installed);
+
+        // A writing workspace is self-contained: no IDEs open alongside it.
+        const selectedInstalledIdes = workspaceKind === 'writing' ? [] : selectedIdes.filter((ide) => launchIdeStatuses[ide]?.installed);
         for (const ide of selectedInstalledIdes) {
           try {
             await invoke('launch_ide_cmd', { ide, directory: workspace.path });
@@ -224,6 +227,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
                 validationErrors={validationErrors}
                 selectedTemplateId={selectedTemplateId}
                 createError={createError}
+                workspaceKind={workspaceKind}
+                onWorkspaceKindChange={setWorkspaceKind}
               />
             </>
           ) : (
@@ -256,6 +261,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
               createError={createError}
               validationErrors={validationErrors}
               selectedTemplateId={selectedTemplateId}
+              workspaceKind={workspaceKind}
+              onWorkspaceKindChange={setWorkspaceKind}
             />
           )}
         </div>

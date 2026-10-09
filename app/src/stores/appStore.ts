@@ -11,6 +11,10 @@ import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../u
 import { BROWSER_NEW_TAB_URL } from '../utils/browserUrl';
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
+
+/** The view a workspace falls back to when it has nothing else to show. */
+export const homeViewFor = (workspace: Pick<WorkspaceConfig, 'kind'> | null | undefined): WorkspaceView =>
+  workspace?.kind === 'writing' ? 'writing' : 'terminal';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
   !value || value.trim() === '' || value.trim() === 'about:blank';
 
@@ -933,7 +937,7 @@ export const useAppStore = create<AppState>()(
             activeSessionId: state.activeSessionByWorkspace[workspace.id] ?? null,
             openFiles: state.filesByWorkspace[workspace.id] || [],
             activeFilePath: state.activeFileByWorkspace[workspace.id] ?? null,
-            activeView: state.activeViewByWorkspace[workspace.id] || "terminal",
+            activeView: state.activeViewByWorkspace[workspace.id] || homeViewFor(workspace),
             browserStateByWorkspace: {
               ...state.browserStateByWorkspace,
               [workspace.id]: state.browserStateByWorkspace[workspace.id] ?? createDefaultBrowserWorkspaceState(),
@@ -959,7 +963,7 @@ export const useAppStore = create<AppState>()(
             view: remainingWorkspaces.length > 0 ? state.view : "setup",
             openFiles: nextId ? (state.filesByWorkspace[nextId] || []) : [],
             activeFilePath: nextId ? (state.activeFileByWorkspace[nextId] ?? null) : null,
-            activeView: nextId ? (state.activeViewByWorkspace[nextId] || "terminal") : "terminal",
+            activeView: nextId ? (state.activeViewByWorkspace[nextId] || homeViewFor(nextWorkspace)) : "terminal",
             imageEditorByWorkspace,
           };
         }),
@@ -975,7 +979,7 @@ export const useAppStore = create<AppState>()(
             activeSessionId: state.activeSessionByWorkspace[workspaceId] ?? null,
             openFiles: state.filesByWorkspace[workspaceId] || [],
             activeFilePath: state.activeFileByWorkspace[workspaceId] ?? null,
-            activeView: state.activeViewByWorkspace[workspaceId] || "terminal",
+            activeView: state.activeViewByWorkspace[workspaceId] || homeViewFor(workspace),
             browserStateByWorkspace: {
               ...state.browserStateByWorkspace,
               [workspaceId]: state.browserStateByWorkspace[workspaceId] ?? createDefaultBrowserWorkspaceState(),
@@ -1691,7 +1695,8 @@ export const useAppStore = create<AppState>()(
             }
           }
           const currentView = state.activeViewByWorkspace[wsId] || "editor";
-          const newView: WorkspaceView = newFiles.length === 0 ? "terminal" : currentView === "browser" ? "browser" : "editor";
+          const home = homeViewFor(state.openWorkspaces.find((w) => w.id === wsId));
+          const newView: WorkspaceView = newFiles.length === 0 ? home : currentView === "browser" ? "browser" : "editor";
           return {
             openFiles: newFiles,
             activeFilePath: newActive,
@@ -1818,10 +1823,11 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const wsId = state.activeWorkspaceId ?? state.currentWorkspace?.id ?? null;
           if (!wsId) return { openFiles: [], activeFilePath: null };
+          const home = homeViewFor(state.openWorkspaces.find((w) => w.id === wsId));
           return {
             openFiles: [],
             activeFilePath: null,
-            activeView: "terminal" as const,
+            activeView: home,
             filesByWorkspace: {
               ...state.filesByWorkspace,
               [wsId]: [],
@@ -1832,7 +1838,7 @@ export const useAppStore = create<AppState>()(
             },
             activeViewByWorkspace: {
               ...state.activeViewByWorkspace,
-              [wsId]: "terminal" as const,
+              [wsId]: home,
             },
           };
         }),

@@ -14,6 +14,7 @@ mod open_file_commands;
 mod os_commands;
 mod terminal_commands;
 mod window_commands;
+mod writing_commands;
 
 pub use agent_commands::*;
 pub use android_commands::*;
@@ -31,3 +32,4 @@ pub use open_file_commands::*;
 pub use os_commands::*;
 pub use terminal_commands::*;
 pub use window_commands::*;
+pub use writing_commands::*;

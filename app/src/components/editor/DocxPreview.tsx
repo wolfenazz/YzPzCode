@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { renderAsync } from 'docx-preview';
 import { OpenInOfficeButton } from './OpenInOfficeButton';
 import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
+import { OpenInWritingButton } from '../writing/OpenInWritingButton';
 
 interface DocxPreviewProps {
   filePath: string;
@@ -112,6 +113,7 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.58 9a8 8 0 0114.42 1M19.42 15a8 8 0 01-14.42-1" />
             </svg>
           </button>
+          {!loading && /\.docx$/i.test(filePath) && <OpenInWritingButton path={filePath} kind="import" />}
           {!loading && (
             <OpenInOfficeButton filePath={filePath} appName="Word" />
           )}

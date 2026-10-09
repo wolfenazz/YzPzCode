@@ -6,6 +6,7 @@ import {
   ChatsCircle,
   Code,
   Database,
+  Feather,
   Flask,
   Info,
   Keyboard,
@@ -30,6 +31,7 @@ import { SettingsTerminal } from './sections/SettingsTerminal';
 import { SettingsUpdates } from './sections/SettingsUpdates';
 import { SettingsWorkspace } from './sections/SettingsWorkspace';
 import { SettingsRuns } from './sections/SettingsRuns';
+import { SettingsWriting } from './sections/SettingsWriting';
 import './settings.css';
 
 type SettingsSection =
@@ -39,6 +41,7 @@ type SettingsSection =
   | 'workspace'
   | 'agents'
   | 'runs'
+  | 'writing'
   | 'ide'
   | 'quickPrompts'
   | 'environment'
@@ -113,6 +116,13 @@ const GROUPS: SettingsNavGroup[] = [
         description: 'Check which AI agents and service CLIs are installed.',
         icon: PlugsConnected,
         render: () => <SettingsAgents />,
+      },
+      {
+        id: 'writing',
+        label: 'Writing',
+        description: 'Report profiles, the humanizer, writing engines and saving.',
+        icon: Feather,
+        render: () => <SettingsWriting />,
       },
       {
         id: 'runs',

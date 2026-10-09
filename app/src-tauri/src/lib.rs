@@ -13,6 +13,7 @@ mod open_files;
 mod terminal;
 mod types;
 mod utils;
+mod writing;
 
 use agent::AgentExecutor;
 use agent_cli::{AgentCliDetector, AgentCliInstaller, CliLauncher};
@@ -78,6 +79,9 @@ pub fn run() {
     let simulator_manager = ios::SimulatorManager::default();
     let flutter_run_manager = android::FlutterRunManager::default();
     let flutter_setup_manager = android::FlutterSetupManager::default();
+    let writing_ai_runner = writing::WritingAiRunner::default();
+    let print_jobs = writing::PrintJobs::default();
+    let protocol_print_jobs = print_jobs.clone();
     let launch_directory =
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     open_file_manager.enqueue_candidates(std::env::args_os().skip(1), &launch_directory);
@@ -118,6 +122,16 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .register_asynchronous_uri_scheme_protocol(
+            writing::print_pdf::SCHEME,
+            move |ctx, request, responder| {
+                let label = ctx.webview_label().to_string();
+                let jobs = protocol_print_jobs.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    responder.respond(writing::print_pdf::handle(&jobs, &label, &request));
+                });
+            },
+        )
+        .register_asynchronous_uri_scheme_protocol(
             filesystem::media_protocol::SCHEME,
             |ctx, request, responder| {
                 let label = ctx.webview_label().to_string();
@@ -141,6 +155,8 @@ pub fn run() {
         .manage(simulator_manager.clone())
         .manage(flutter_run_manager.clone())
         .manage(flutter_setup_manager.clone())
+        .manage(writing_ai_runner.clone())
+        .manage(print_jobs)
         .setup(move |app| {
             terminal_manager.set_app_handle(app.handle().clone());
             agent_executor.set_app_handle(app.handle().clone());
@@ -201,8 +217,10 @@ pub fn run() {
                 let terminal_manager_clone = terminal_manager.clone();
                 let managed_command_manager_clone = managed_command_manager.clone();
                 let browser_manager_clone = browser_manager.clone();
+                let writing_ai_runner_clone = writing_ai_runner.clone();
 
                 app.listen("tauri://close-requested", move |_event| {
+                    writing_ai_runner_clone.stop_all();
                     if let Err(e) = managed_command_manager_clone.stop_all() {
                         eprintln!(
                             "Warning: failed to stop managed commands on close-requested: {}",
@@ -403,15 +421,18 @@ pub fn run() {
                 commands::is_discord_presence_enabled,
                 commands::update_discord_activity,
                 commands::clear_discord_activity,
+                commands::get_writing_ai_engines,
+                commands::get_writing_engine_models,
+                commands::start_writing_ai_run,
+                commands::cancel_writing_ai_run,
+                commands::export_writing_pdf,
             ];
             move |invoke: tauri::ipc::Invoke| {
                 // Extension content uses VS Code's own API. It must never gain
                 // access to the application's filesystem and terminal commands.
-                if invoke
-                    .message
-                    .webview_ref()
-                    .label()
-                    .starts_with("extension-panel-")
+                let label = invoke.message.webview_ref().label().to_string();
+                if label.starts_with("extension-panel-")
+                    || label.starts_with(writing::print_pdf::PRINT_LABEL_PREFIX)
                 {
                     invoke
                         .resolver
@@ -435,6 +456,7 @@ pub fn run() {
             app.state::<android::FlutterRunManager>().stop_all();
             app.state::<android::EmulatorManager>().shutdown_owned();
             app.state::<ios::SimulatorManager>().shutdown_owned();
+            app.state::<writing::WritingAiRunner>().stop_all();
         }
         // macOS delivers Finder/Open-With requests as file URLs instead of
         // process arguments. Keeping them in the same durable queue gives
@@ -461,6 +483,7 @@ pub fn run() {
             app.state::<android::FlutterRunManager>().stop_all();
             app.state::<android::EmulatorManager>().shutdown_owned();
             app.state::<ios::SimulatorManager>().shutdown_owned();
+            app.state::<writing::WritingAiRunner>().stop_all();
         }
     });
 }

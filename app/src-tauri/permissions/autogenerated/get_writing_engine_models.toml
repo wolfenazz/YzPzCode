@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-writing-engine-models"
+description = "Enables the get_writing_engine_models command without any pre-configured scope."
+commands.allow = ["get_writing_engine_models"]
+
+[[permission]]
+identifier = "deny-get-writing-engine-models"
+description = "Denies the get_writing_engine_models command without any pre-configured scope."
+commands.deny = ["get_writing_engine_models"]

@@ -21,6 +21,7 @@ const VIEW_DETAILS: Record<WorkspaceView, string> = {
   extensions: 'Working with AI extensions',
   editor: 'Browsing project files',
   browser: 'Previewing a web project',
+  writing: 'Writing a report',
 };
 
 function getFileName(path: string): string {

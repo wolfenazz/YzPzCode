@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-writing-ai-engines"
+description = "Enables the get_writing_ai_engines command without any pre-configured scope."
+commands.allow = ["get_writing_ai_engines"]
+
+[[permission]]
+identifier = "deny-get-writing-ai-engines"
+description = "Denies the get_writing_ai_engines command without any pre-configured scope."
+commands.deny = ["get_writing_ai_engines"]

@@ -1,6 +1,6 @@
 [package]
 name = "yzpzcode"
-version = "5.23.0"
+version = "5.24.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -45,6 +45,12 @@ tonic = { version = "0.13", default-features = false, features = ["channel", "co
 prost = "0.13"
 tokio-stream = "0.1"
 yzpz-frame-codec = { path = "crates/frame-codec" }
+
+# Native PDF export drives the WebView2 DevTools protocol directly. These must
+# stay on the versions wry already pulls in, so the controller types match.
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"
 
 # The embedded emulator moves and encodes a frame every ~16 ms; unoptimized,
 # that takes 300+ ms per frame. Optimizing just these crates keeps `tauri dev`

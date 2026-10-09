@@ -32,9 +32,15 @@ const SHORTCUTS = [
     { keys: ['Ctrl', 'Alt', 'M'], action: 'Show or hide the device window (Android emulator, iOS simulator)' },
     { keys: ['Ctrl', '`'], action: 'Toggle editor terminal panel' },
     { keys: ['Ctrl', 'Shift', '`'], action: 'New terminal in editor panel' },
-    { keys: ['Ctrl', 'E'], action: 'Toggle view' },
+    { keys: ['Ctrl', 'E'], action: 'Toggle view (Terminal ↔ Code, or Write ↔ Files in writing workspaces)' },
     { keys: ['Ctrl', 'W'], action: 'Close tab' },
     { keys: ['Ctrl', ','], action: 'Open settings' },
+  ]},
+  { category: 'Writing', items: [
+    { keys: ['Ctrl', 'S'], action: 'Save the report' },
+    { keys: ['Ctrl', 'Shift', 'E'], action: 'Export the report (PDF, Word, web page)' },
+    { keys: ['Ctrl', 'Enter'], action: 'Insert a page break' },
+    { keys: ['Esc'], action: 'Close the report wizard or export dialog' },
   ]},
   { category: 'Window', items: [
     { keys: ['F11'], action: 'Toggle fullscreen' },

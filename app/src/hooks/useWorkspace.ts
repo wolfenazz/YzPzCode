@@ -1,8 +1,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import type { WorkspaceConfig, LayoutConfig, AgentFleet, CliType } from '../types';
+import type { WorkspaceConfig, LayoutConfig, AgentFleet, CliType, WorkspaceKind } from '../types';
 import { useAppStore } from '../stores/appStore';
 import { useExtensionStore } from '../stores/extensionStore';
+import { useWritingStore } from '../stores/writingStore';
 import { ADDITIONAL_AGENT_ZEROS } from '../data/additionalAgents';
 import { fitFleetToLayout, workspaceNameFromPath } from '../utils/workspaceSetup';
 
@@ -144,6 +145,12 @@ export const useWorkspace = () => {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
   const [templates, setTemplates] = useState<WorkspaceTemplate[]>(loadAllTemplates);
   const [selectedExtensionIds, setSelectedExtensionIds] = useState<string[]>([]);
+  const [workspaceKind, setWorkspaceKindState] = useState<WorkspaceKind>(() => useWritingStore.getState().lastWorkspaceKind);
+  const setWorkspaceKind = useCallback((kind: WorkspaceKind) => {
+    setWorkspaceKindState(kind);
+    useWritingStore.getState().setLastWorkspaceKind(kind);
+  }, []);
+  const writing = workspaceKind === 'writing';
 
   const setSelectedLayout = useCallback((layout: LayoutConfig) => {
     const next = { ...layout, openExternally: layout.sessions > 0 && selectedExtensionIds.length === 0 && layout.openExternally };
@@ -256,12 +263,12 @@ export const useWorkspace = () => {
   }, [selectedTemplateId]);
 
   const createWorkspace = useCallback(async () => {
-    if (!selectedPath || (!selectedLayout.openExternally && !workspaceName.trim())) {
+    if (!selectedPath || ((writing || !selectedLayout.openExternally) && !workspaceName.trim())) {
       throw new Error('Please select a directory and enter a workspace name');
     }
 
     const extensions = useExtensionStore.getState();
-    const selectedExtensions = selectedExtensionIds.map((id) => extensions.catalog.find((extension) => extension.id === id));
+    const selectedExtensions = writing ? [] : selectedExtensionIds.map((id) => extensions.catalog.find((extension) => extension.id === id));
     if (selectedExtensions.some((extension) => !extensions.backendReady || !extension?.installedVersion)) {
       throw new Error('Install the selected extensions before opening this workspace.');
     }
@@ -272,36 +279,39 @@ export const useWorkspace = () => {
       id: crypto.randomUUID(),
       name: workspaceName.trim(),
       path: selectedPath,
-      layout: selectedLayout,
-      agentFleet: {
-        ...agentFleet,
-        totalSlots: selectedLayout.sessions,
-      },
+      // A writing workspace starts without terminals; the writer runs the AI CLIs headlessly.
+      layout: writing ? { type: 'grid', sessions: 0 } : selectedLayout,
+      agentFleet: writing
+        ? { totalSlots: 0, allocation: Object.fromEntries(Object.keys(agentFleet.allocation).map((key) => [key, 0])) as AgentFleet['allocation'] }
+        : { ...agentFleet, totalSlots: selectedLayout.sessions },
       createdAt: Date.now(),
+      kind: workspaceKind,
     };
 
     for (const extension of selectedExtensions) {
       if (extension) extensions.openPanel(workspace.id, extension);
     }
     openWorkspace(workspace);
-    if (selectedExtensionIds.length > 0) {
+    if (writing) {
+      useAppStore.getState().setActiveView('writing');
+    } else if (selectedExtensionIds.length > 0) {
       useAppStore.getState().setActiveView('extensions');
     } else if (selectedLayout.sessions === 0) {
       useAppStore.getState().setActiveView('editor');
     }
     return workspace;
-  }, [selectedPath, workspaceName, selectedLayout, agentFleet, selectedExtensionIds, openWorkspace, addRecentDirectory]);
+  }, [selectedPath, workspaceName, selectedLayout, agentFleet, selectedExtensionIds, openWorkspace, addRecentDirectory, writing, workspaceKind]);
 
   const totalAllocated = useMemo(
     () => (agentFleet ? Object.values(agentFleet.allocation).reduce((sum, count) => sum + count, 0) : 0),
     [agentFleet]
   );
 
-  const isAllocationValid = totalAllocated <= selectedLayout.sessions;
+  const isAllocationValid = writing || totalAllocated <= selectedLayout.sessions;
 
   const validationErrors = useMemo(() => {
     const errors: Record<string, string> = {};
-    if (!selectedLayout.openExternally && workspaceName.trim().length === 0) {
+    if ((writing || !selectedLayout.openExternally) && workspaceName.trim().length === 0) {
       errors.workspaceName = 'Workspace name is required';
     }
     if (selectedPath.length === 0) {
@@ -311,10 +321,10 @@ export const useWorkspace = () => {
       errors.allocation = 'Agent allocation exceeds available slots';
     }
     return errors;
-  }, [workspaceName, selectedPath, isAllocationValid, selectedLayout.openExternally]);
+  }, [workspaceName, selectedPath, isAllocationValid, selectedLayout.openExternally, writing]);
 
-  const isValid = selectedPath.length > 0 && isAllocationValid && 
-    (selectedLayout.openExternally || workspaceName.trim().length > 0);
+  const isValid = selectedPath.length > 0 && isAllocationValid &&
+    ((!writing && selectedLayout.openExternally) || workspaceName.trim().length > 0);
 
   const currentTemplateAllocation = useMemo(() => {
     const t = templates.find((tpl) => tpl.id === selectedTemplateId);
@@ -328,6 +338,8 @@ export const useWorkspace = () => {
     agentFleet,
     selectedExtensionIds,
     toggleExtension,
+    workspaceKind,
+    setWorkspaceKind,
     selectedTemplateId,
     templates,
     selectDirectory,

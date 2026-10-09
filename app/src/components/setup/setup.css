@@ -1410,3 +1410,86 @@
     transition-duration: 0ms !important;
   }
 }
+
+
+/* Writing studio preview ------------------------------------------------- */
+
+.ws-writing {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%), var(--ws-sunken);
+  border-radius: 0.5rem;
+}
+
+.ws-writing__desk {
+  position: relative;
+  width: 9.5rem;
+  height: 11.5rem;
+}
+
+.ws-writing__sheet {
+  position: absolute;
+  inset: 0;
+  padding: 0.875rem 0.8rem;
+  border-radius: 2px;
+  background: #fff;
+  color: #18181b;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05), 0 12px 28px -12px rgba(0, 0, 0, 0.45);
+  transform: rotate(-1.2deg);
+}
+
+.ws-writing__sheet--back {
+  transform: rotate(4deg) translate(10px, 4px);
+  opacity: 0.85;
+}
+
+.ws-writing__kind {
+  font-size: 0.42rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #9a6b2f;
+}
+
+.ws-writing__title {
+  display: -webkit-box;
+  margin: 0.3rem 0 0.4rem;
+  overflow: hidden;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.68rem;
+  line-height: 1.2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.ws-writing__rule {
+  width: 34%;
+  height: 2px;
+  margin-bottom: 0.55rem;
+  background: #d9c08f;
+}
+
+.ws-writing__line {
+  height: 3px;
+  margin: 0.38rem 0;
+  border-radius: 2px;
+  background: #e4e4ea;
+}
+
+/* Coding | Writing mode switch */
+.ws-mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+  margin-top: 1.25rem;
+}
+
+.ws-mode__hint {
+  max-width: 28rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}

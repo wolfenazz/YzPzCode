@@ -33,6 +33,7 @@ import { BinaryPreview } from './BinaryPreview';
 import { getMediaKind } from '../../utils/mediaFiles';
 import { toMonacoLanguage } from '../../utils/monacoLanguage';
 import { toMonacoThemeColor } from '../../utils/monacoThemeColor';
+import { OpenInWritingButton } from '../writing/OpenInWritingButton';
 
 type MonacoEditor = Parameters<OnMount>[0];
 
@@ -547,6 +548,11 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
         else if (state.activeWorkspaceId) state.resolveFileDiskChange(state.activeWorkspaceId, activeFile.path, false);
         setSaveError(null);
       }}><span>{activeFile.diskContent === null ? 'Close tab' : 'Reload from disk'}</span></EditorActionButton>
+    </div>}
+
+    {activeFile && fileExt === 'yzdoc' && useAppStore.getState().currentWorkspace?.kind === 'writing' && <div className="flex items-center justify-between gap-3 border-b border-[var(--border-primary)] px-3 py-1.5 text-xs text-[var(--text-secondary)]">
+      <span>This is a report file. Edit it in the Writing view; changes made here are overwritten when it saves.</span>
+      <OpenInWritingButton path={activeFile.path} kind="open" />
     </div>}
 
     <div className="relative min-h-0 flex-1 overflow-hidden">

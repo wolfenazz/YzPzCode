@@ -1,4 +1,4 @@
-mod managed;
+pub(crate) mod managed;
 pub(crate) mod project_run;
 mod session;
 

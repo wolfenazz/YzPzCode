@@ -14,6 +14,36 @@ interface WorkspacePreviewProps {
   agentFleet: AgentFleet;
   extensionNames: string[];
   external?: boolean;
+  /** Show the writing studio instead of terminals. */
+  writing?: boolean;
+}
+
+const WRITING_LINES = [0.92, 0.86, 0.95, 0.6, 0.9, 0.82, 0.97, 0.45];
+
+/** A sheet of paper whose lines ink in, the way a report streams onto the page. */
+function WritingMock({ title, motionEnabled }: { title: string; motionEnabled: boolean }): React.JSX.Element {
+  return (
+    <div className="ws-canvas ws-writing">
+      <div className="ws-writing__desk" aria-hidden="true">
+        <div className="ws-writing__sheet ws-writing__sheet--back" />
+        <div className="ws-writing__sheet">
+          <div className="ws-writing__kind">Report</div>
+          <div className="ws-writing__title">{title}</div>
+          <div className="ws-writing__rule" />
+          {WRITING_LINES.map((width, index) => (
+            <motion.div
+              key={index}
+              className="ws-writing__line"
+              style={{ width: `${width * 100}%`, transformOrigin: 'left' }}
+              initial={motionEnabled ? { scaleX: 0, opacity: 0.4 } : false}
+              animate={{ scaleX: 1, opacity: 1 }}
+              transition={{ duration: 0.7, ease: SETUP_EASE, delay: motionEnabled ? 0.3 + index * 0.22 : 0, repeat: motionEnabled ? Infinity : 0, repeatDelay: 3.2 }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const SHELL_HINTS = ['git status', 'npm run dev', 'ls', 'npm test', 'cargo check', 'git log --oneline', 'docker ps', 'code .'];
@@ -71,7 +101,7 @@ function EditorMock({ extensionNames, folderName }: { extensionNames: string[]; 
  * real terminal grid and glide into place when the layout changes; each one
  * "types" the command its agent or tool will start with. Purely presentational.
  */
-export function WorkspacePreview({ title, folderName, sessions, agentFleet, extensionNames, external }: WorkspacePreviewProps): React.JSX.Element {
+export function WorkspacePreview({ title, folderName, sessions, agentFleet, extensionNames, external, writing }: WorkspacePreviewProps): React.JSX.Element {
   const motionEnabled = useSetupMotion();
   const slots = slotAssignments(sessions, agentFleet);
   const { cols, rows } = getLayoutDimensions(sessions);
@@ -84,10 +114,14 @@ export function WorkspacePreview({ title, folderName, sessions, agentFleet, exte
       <div className="ws-window__bar">
         <span className="ws-window__lights" aria-hidden="true"><span /><span /><span /></span>
         <DecryptedText text={title} className="ws-window__title" disabled={!motionEnabled} />
-        <span className="ws-window__tag">{sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
+        <span className="ws-window__tag">{writing ? 'writing' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
       </div>
       <AnimatePresence mode="wait" initial={false}>
-        {sessions === 0 ? (
+        {writing ? (
+          <motion.div key="writing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
+            <WritingMock title={title} motionEnabled={motionEnabled} />
+          </motion.div>
+        ) : sessions === 0 ? (
           <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.2 : 0 }}>
             <EditorMock extensionNames={extensionNames} folderName={folder} />
           </motion.div>

@@ -3,7 +3,6 @@ use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, SyncSender};
 use std::sync::{Arc, Mutex};
@@ -12,7 +11,7 @@ use tauri::{AppHandle, Emitter};
 
 use crate::terminal::spawn_filtered_output_reader;
 #[cfg(target_os = "windows")]
-use crate::utils::process::get_npm_global_prefix;
+use crate::utils::process::{get_npm_global_prefix, terminate_process_tree};
 
 const MANAGED_COMMAND_STATE_EVENT: &str = "managed-command-state-changed";
 
@@ -547,7 +546,7 @@ fn resolve_managed_command_cwd(cwd: &std::path::Path, command: &str) -> std::pat
 }
 
 #[cfg(target_os = "windows")]
-fn build_windows_path() -> String {
+pub(crate) fn build_windows_path() -> String {
     let mut path = std::env::var("PATH").unwrap_or_default();
     let local_appdata = std::env::var("LOCALAPPDATA").unwrap_or_default();
     let appdata = std::env::var("APPDATA").unwrap_or_default();
@@ -588,55 +587,6 @@ fn build_windows_path() -> String {
         path = format!("{};{}\\System32", path, system_root);
     }
     path
-}
-
-fn terminate_process_tree(pid: u32) -> Result<()> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-
-        let output = Command::new("taskkill")
-            .args(["/F", "/T", "/PID", &pid.to_string()])
-            .creation_flags(CREATE_NO_WINDOW)
-            .stdin(Stdio::null())
-            .output()
-            .with_context(|| format!("Failed to stop managed command pid {}", pid))?;
-
-        if !output.status.success() {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            return Err(anyhow::anyhow!(
-                "Failed to stop managed command pid {} (taskkill exit {:?}){}",
-                pid,
-                output.status.code(),
-                if detail.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {}", detail)
-                }
-            ));
-        }
-        Ok(())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let status = Command::new("kill")
-            .args(["-TERM", &format!("-{}", pid)])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .with_context(|| format!("Failed to signal managed command group {}", pid))?;
-        if !status.success() {
-            return Err(anyhow::anyhow!(
-                "Failed to signal managed command group {} (kill exit {:?})",
-                pid,
-                status.code()
-            ));
-        }
-        return Ok(());
-    }
 }
 
 #[cfg(test)]

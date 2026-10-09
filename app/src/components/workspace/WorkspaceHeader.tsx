@@ -11,7 +11,8 @@ import {
   SidebarSimple,
   X,
 } from '@phosphor-icons/react';
-import type { WorkspaceConfig, WorkspaceView } from '../../types';
+import type { WorkspaceConfig, WorkspaceKind, WorkspaceView } from '../../types';
+import { useAppStore } from '../../stores/appStore';
 import { WorkspaceTab } from './WorkspaceTab';
 import { DevicePanelToggle } from './device/DevicePanel';
 import { viewIconName } from './viewIcons';
@@ -46,7 +47,7 @@ interface WorkspaceHeaderProps {
 
 const SHORTCUTS = [
   { category: 'Terminal', items: [{ keys: ['Ctrl', 'C'], action: 'Copy selection' }, { keys: ['Ctrl', 'V'], action: 'Paste' }, { keys: ['Ctrl', 'F'], action: 'Search in terminal' }, { keys: ['Ctrl', 'L'], action: 'Clear terminal' }, { keys: ['Enter'], action: 'Find next match' }, { keys: ['Shift', 'Enter'], action: 'Find previous match' }, { keys: ['Esc'], action: 'Close search' }] },
-  { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
+  { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'Shift', 'E'], action: 'Export report (Writing)' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
   { category: 'Device', items: [{ keys: ['Ctrl', 'Alt', 'M'], action: 'Show or hide the device (Android emulator / iOS simulator)' }] },
   { category: 'Window', items: [{ keys: ['F11'], action: 'Toggle fullscreen' }] },
 ];
@@ -99,12 +100,26 @@ const ShortcutModal: React.FC<ShortcutModalProps> = ({ onClose }) => {
   );
 };
 
-const viewOptions: Array<{ view: WorkspaceView; label: string }> = [
+type ViewOption = { view: WorkspaceView; label: string };
+
+const CODING_VIEWS: ViewOption[] = [
   { view: 'terminal', label: 'Terminal' },
   { view: 'extensions', label: 'Extensions' },
   { view: 'editor', label: 'Code' },
   { view: 'browser', label: 'Browser' },
 ];
+
+/** Writing workspaces only show a terminal once one has been opened in them. */
+export const getViewOptions = (kind: WorkspaceKind | undefined, sessionCount: number): ViewOption[] => {
+  if (kind !== 'writing') return CODING_VIEWS;
+  const views: ViewOption[] = [
+    { view: 'writing', label: 'Write' },
+    { view: 'editor', label: 'Files' },
+    { view: 'browser', label: 'Research' },
+  ];
+  if (sessionCount > 0) views.push({ view: 'terminal', label: 'Terminal' });
+  return views;
+};
 
 interface ViewSwitcherProps {
   activeView: WorkspaceView;
@@ -112,6 +127,9 @@ interface ViewSwitcherProps {
 }
 
 const ViewSwitcher: React.FC<ViewSwitcherProps> = ({ activeView, onViewChange }) => {
+  const kind = useAppStore((state) => state.currentWorkspace?.kind);
+  const sessionCount = useAppStore((state) => state.sessions.length);
+  const viewOptions = getViewOptions(kind, sessionCount);
   const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {

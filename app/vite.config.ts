@@ -55,6 +55,16 @@ export default defineConfig(async () => ({
           'react-grid-layout': ['react-grid-layout'],
           'react-arborist': ['react-arborist'],
           marked: ['marked', 'marked-highlight'],
+          // Writing workspace: the rich-text editor and the Word reader/writer.
+          tiptap: [
+            '@tiptap/core', '@tiptap/pm/state', '@tiptap/pm/view', '@tiptap/pm/model', '@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-heading',
+            '@tiptap/extension-text-style', '@tiptap/extension-text-align', '@tiptap/extension-highlight',
+            '@tiptap/extension-subscript', '@tiptap/extension-superscript', '@tiptap/extension-typography',
+            '@tiptap/extension-table', '@tiptap/extension-image', '@tiptap/extension-list',
+            '@tiptap/extensions', '@tiptap/extension-bubble-menu', 'tiptap-pagination-plus',
+          ],
+          'docx-writer': ['docx'],
+          mammoth: ['mammoth'],
         },
       },
     },
