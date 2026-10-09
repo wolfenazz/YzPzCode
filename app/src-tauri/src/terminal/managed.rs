@@ -11,7 +11,8 @@ use tauri::{AppHandle, Emitter};
 
 use crate::terminal::spawn_filtered_output_reader;
 #[cfg(target_os = "windows")]
-use crate::utils::process::{get_npm_global_prefix, terminate_process_tree};
+use crate::utils::process::get_npm_global_prefix;
+use crate::utils::process::terminate_process_tree;
 
 const MANAGED_COMMAND_STATE_EVENT: &str = "managed-command-state-changed";
 
