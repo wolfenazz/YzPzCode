@@ -14,7 +14,7 @@ const DEFAULT_BROWSER_URL = 'https://www.google.com';
 
 /** The view a workspace falls back to when it has nothing else to show. */
 export const homeViewFor = (workspace: Pick<WorkspaceConfig, 'kind'> | null | undefined): WorkspaceView =>
-  workspace?.kind === 'writing' ? 'writing' : 'terminal';
+  workspace?.kind === 'writing' ? 'writing' : workspace?.kind === 'presentation' ? 'presentation' : 'terminal';
 const isBlankBrowserUrl = (value: string | null | undefined): boolean =>
   !value || value.trim() === '' || value.trim() === 'about:blank';
 

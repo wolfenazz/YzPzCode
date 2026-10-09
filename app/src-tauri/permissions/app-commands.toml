@@ -177,6 +177,8 @@ permissions = [
   "allow-start-extension-panel",
   "allow-start-fs-watcher",
   "allow-start-writing-ai-run",
+  "allow-stock-image-download",
+  "allow-stock-image-search",
   "allow-stop-browser-view",
   "allow-stop-cli-in-terminal",
   "allow-stop-fs-watcher",

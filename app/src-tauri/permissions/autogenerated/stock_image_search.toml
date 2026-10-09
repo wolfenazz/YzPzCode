@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stock-image-search"
+description = "Enables the stock_image_search command without any pre-configured scope."
+commands.allow = ["stock_image_search"]
+
+[[permission]]
+identifier = "deny-stock-image-search"
+description = "Denies the stock_image_search command without any pre-configured scope."
+commands.deny = ["stock_image_search"]

@@ -5,7 +5,7 @@ import DecryptedText from '../reactbits/DecryptedText';
 import { getLayoutDimensions } from '../../utils/grid';
 import { cliMeta, slotAssignments } from './cliCatalog';
 import { SETUP_EASE, useSetupMotion } from './useSetupMotion';
-import type { AgentFleet, CliType } from '../../types';
+import type { AgentFleet, CliType, WorkspaceKind } from '../../types';
 
 interface WorkspacePreviewProps {
   title: string;
@@ -14,8 +14,8 @@ interface WorkspacePreviewProps {
   agentFleet: AgentFleet;
   extensionNames: string[];
   external?: boolean;
-  /** Show the writing studio instead of terminals. */
-  writing?: boolean;
+  /** Writing and presentation workspaces show their studio instead of terminals. */
+  kind?: WorkspaceKind;
 }
 
 const WRITING_LINES = [0.92, 0.86, 0.95, 0.6, 0.9, 0.82, 0.97, 0.45];
@@ -40,6 +40,54 @@ function WritingMock({ title, motionEnabled }: { title: string; motionEnabled: b
               transition={{ duration: 0.7, ease: SETUP_EASE, delay: motionEnabled ? 0.3 + index * 0.22 : 0, repeat: motionEnabled ? Infinity : 0, repeatDelay: 3.2 }}
             />
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const DECK_FILM = [0, 1, 2, 3];
+const DECK_BULLETS = [0.86, 0.72, 0.8];
+
+/** A slide deck building itself: slides fill the filmstrip while the current one inks in. */
+function DeckMock({ title, motionEnabled }: { title: string; motionEnabled: boolean }): React.JSX.Element {
+  const loop = (delay: number) => ({ duration: 0.55, ease: SETUP_EASE, delay: motionEnabled ? delay : 0, repeat: motionEnabled ? Infinity : 0, repeatDelay: 3.4 });
+  return (
+    <div className="ws-canvas ws-deck" aria-hidden="true">
+      <div className="ws-deck__film">
+        {DECK_FILM.map((index) => (
+          <motion.div
+            key={index}
+            className="ws-deck__thumb"
+            data-active={index === 1 || undefined}
+            initial={motionEnabled ? { opacity: 0.25, scale: 0.9 } : false}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={loop(0.2 + index * 0.35)}
+          >
+            <span className="ws-deck__thumb-title" />
+            <span className="ws-deck__thumb-line" />
+          </motion.div>
+        ))}
+      </div>
+      <div className="ws-deck__stage">
+        <div className="ws-deck__slide">
+          <span className="ws-deck__kicker">Slide 2</span>
+          <div className="ws-deck__title">{title}</div>
+          <span className="ws-deck__rule" />
+          <div className="ws-deck__content">
+            <div className="ws-deck__bullets">
+              {DECK_BULLETS.map((width, index) => (
+                <motion.div key={index} className="ws-deck__bullet" style={{ width: `${width * 100}%`, transformOrigin: 'left' }}
+                  initial={motionEnabled ? { scaleX: 0, opacity: 0.4 } : false} animate={{ scaleX: 1, opacity: 1 }} transition={loop(0.6 + index * 0.25)} />
+              ))}
+            </div>
+            <div className="ws-deck__chart">
+              {[0.45, 0.7, 0.58, 0.92].map((height, index) => (
+                <motion.span key={index} style={{ height: `${height * 100}%`, transformOrigin: 'bottom' }}
+                  initial={motionEnabled ? { scaleY: 0 } : false} animate={{ scaleY: 1 }} transition={loop(1.2 + index * 0.12)} />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -101,12 +149,14 @@ function EditorMock({ extensionNames, folderName }: { extensionNames: string[]; 
  * real terminal grid and glide into place when the layout changes; each one
  * "types" the command its agent or tool will start with. Purely presentational.
  */
-export function WorkspacePreview({ title, folderName, sessions, agentFleet, extensionNames, external, writing }: WorkspacePreviewProps): React.JSX.Element {
+export function WorkspacePreview({ title, folderName, sessions, agentFleet, extensionNames, external, kind = 'coding' }: WorkspacePreviewProps): React.JSX.Element {
   const motionEnabled = useSetupMotion();
   const slots = slotAssignments(sessions, agentFleet);
   const { cols, rows } = getLayoutDimensions(sessions);
   const compact = sessions >= 6;
   const folder = folderName || 'project';
+  const writing = kind === 'writing';
+  const presenting = kind === 'presentation';
   const spring = motionEnabled ? { type: 'spring' as const, stiffness: 420, damping: 38 } : { duration: 0 };
 
   return (
@@ -114,12 +164,16 @@ export function WorkspacePreview({ title, folderName, sessions, agentFleet, exte
       <div className="ws-window__bar">
         <span className="ws-window__lights" aria-hidden="true"><span /><span /><span /></span>
         <DecryptedText text={title} className="ws-window__title" disabled={!motionEnabled} />
-        <span className="ws-window__tag">{writing ? 'writing' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
+        <span className="ws-window__tag">{writing ? 'writing' : presenting ? 'slides' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
       </div>
       <AnimatePresence mode="wait" initial={false}>
         {writing ? (
           <motion.div key="writing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
             <WritingMock title={title} motionEnabled={motionEnabled} />
+          </motion.div>
+        ) : presenting ? (
+          <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
+            <DeckMock title={title} motionEnabled={motionEnabled} />
           </motion.div>
         ) : sessions === 0 ? (
           <motion.div key="editor" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.2 : 0 }}>

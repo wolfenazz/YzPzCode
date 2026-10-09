@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-stock-image-download"
+description = "Enables the stock_image_download command without any pre-configured scope."
+commands.allow = ["stock_image_download"]
+
+[[permission]]
+identifier = "deny-stock-image-download"
+description = "Denies the stock_image_download command without any pre-configured scope."
+commands.deny = ["stock_image_download"]

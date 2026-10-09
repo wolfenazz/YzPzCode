@@ -47,7 +47,7 @@ interface WorkspaceHeaderProps {
 
 const SHORTCUTS = [
   { category: 'Terminal', items: [{ keys: ['Ctrl', 'C'], action: 'Copy selection' }, { keys: ['Ctrl', 'V'], action: 'Paste' }, { keys: ['Ctrl', 'F'], action: 'Search in terminal' }, { keys: ['Ctrl', 'L'], action: 'Clear terminal' }, { keys: ['Enter'], action: 'Find next match' }, { keys: ['Shift', 'Enter'], action: 'Find previous match' }, { keys: ['Esc'], action: 'Close search' }] },
-  { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'Shift', 'E'], action: 'Export report (Writing)' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
+  { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'Shift', 'E'], action: 'Export the report or presentation' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
   { category: 'Device', items: [{ keys: ['Ctrl', 'Alt', 'M'], action: 'Show or hide the device (Android emulator / iOS simulator)' }] },
   { category: 'Window', items: [{ keys: ['F11'], action: 'Toggle fullscreen' }] },
 ];
@@ -109,11 +109,11 @@ const CODING_VIEWS: ViewOption[] = [
   { view: 'browser', label: 'Browser' },
 ];
 
-/** Writing workspaces only show a terminal once one has been opened in them. */
+/** Writing and presentation workspaces only show a terminal once one has been opened in them. */
 export const getViewOptions = (kind: WorkspaceKind | undefined, sessionCount: number): ViewOption[] => {
-  if (kind !== 'writing') return CODING_VIEWS;
+  if (kind !== 'writing' && kind !== 'presentation') return CODING_VIEWS;
   const views: ViewOption[] = [
-    { view: 'writing', label: 'Write' },
+    kind === 'presentation' ? { view: 'presentation', label: 'Slides' } : { view: 'writing', label: 'Write' },
     { view: 'editor', label: 'Files' },
     { view: 'browser', label: 'Research' },
   ];

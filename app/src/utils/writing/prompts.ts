@@ -287,7 +287,8 @@ function fromJson(value: unknown, totalWords: number): OutlineSection[] | null {
   return sections.length > 0 ? sections : null;
 }
 
-function extractJson(text: string): unknown {
+/** The first JSON value in a model reply: a fenced block first, then the raw text. */
+export function extractJson(text: string): unknown {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidates = [fenced?.[1], text];
   for (const candidate of candidates) {

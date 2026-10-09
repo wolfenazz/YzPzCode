@@ -150,7 +150,8 @@ export const useWorkspace = () => {
     setWorkspaceKindState(kind);
     useWritingStore.getState().setLastWorkspaceKind(kind);
   }, []);
-  const writing = workspaceKind === 'writing';
+  // Writing and presentation studios: no terminals, extensions or IDEs.
+  const studio = workspaceKind !== 'coding';
 
   const setSelectedLayout = useCallback((layout: LayoutConfig) => {
     const next = { ...layout, openExternally: layout.sessions > 0 && selectedExtensionIds.length === 0 && layout.openExternally };
@@ -263,12 +264,12 @@ export const useWorkspace = () => {
   }, [selectedTemplateId]);
 
   const createWorkspace = useCallback(async () => {
-    if (!selectedPath || ((writing || !selectedLayout.openExternally) && !workspaceName.trim())) {
+    if (!selectedPath || ((studio || !selectedLayout.openExternally) && !workspaceName.trim())) {
       throw new Error('Please select a directory and enter a workspace name');
     }
 
     const extensions = useExtensionStore.getState();
-    const selectedExtensions = writing ? [] : selectedExtensionIds.map((id) => extensions.catalog.find((extension) => extension.id === id));
+    const selectedExtensions = studio ? [] : selectedExtensionIds.map((id) => extensions.catalog.find((extension) => extension.id === id));
     if (selectedExtensions.some((extension) => !extensions.backendReady || !extension?.installedVersion)) {
       throw new Error('Install the selected extensions before opening this workspace.');
     }
@@ -279,9 +280,9 @@ export const useWorkspace = () => {
       id: crypto.randomUUID(),
       name: workspaceName.trim(),
       path: selectedPath,
-      // A writing workspace starts without terminals; the writer runs the AI CLIs headlessly.
-      layout: writing ? { type: 'grid', sessions: 0 } : selectedLayout,
-      agentFleet: writing
+      // A studio workspace starts without terminals; the studio runs the AI CLIs headlessly.
+      layout: studio ? { type: 'grid', sessions: 0 } : selectedLayout,
+      agentFleet: studio
         ? { totalSlots: 0, allocation: Object.fromEntries(Object.keys(agentFleet.allocation).map((key) => [key, 0])) as AgentFleet['allocation'] }
         : { ...agentFleet, totalSlots: selectedLayout.sessions },
       createdAt: Date.now(),
@@ -292,26 +293,26 @@ export const useWorkspace = () => {
       if (extension) extensions.openPanel(workspace.id, extension);
     }
     openWorkspace(workspace);
-    if (writing) {
-      useAppStore.getState().setActiveView('writing');
+    if (studio) {
+      useAppStore.getState().setActiveView(workspaceKind === 'presentation' ? 'presentation' : 'writing');
     } else if (selectedExtensionIds.length > 0) {
       useAppStore.getState().setActiveView('extensions');
     } else if (selectedLayout.sessions === 0) {
       useAppStore.getState().setActiveView('editor');
     }
     return workspace;
-  }, [selectedPath, workspaceName, selectedLayout, agentFleet, selectedExtensionIds, openWorkspace, addRecentDirectory, writing, workspaceKind]);
+  }, [selectedPath, workspaceName, selectedLayout, agentFleet, selectedExtensionIds, openWorkspace, addRecentDirectory, studio, workspaceKind]);
 
   const totalAllocated = useMemo(
     () => (agentFleet ? Object.values(agentFleet.allocation).reduce((sum, count) => sum + count, 0) : 0),
     [agentFleet]
   );
 
-  const isAllocationValid = writing || totalAllocated <= selectedLayout.sessions;
+  const isAllocationValid = studio || totalAllocated <= selectedLayout.sessions;
 
   const validationErrors = useMemo(() => {
     const errors: Record<string, string> = {};
-    if ((writing || !selectedLayout.openExternally) && workspaceName.trim().length === 0) {
+    if ((studio || !selectedLayout.openExternally) && workspaceName.trim().length === 0) {
       errors.workspaceName = 'Workspace name is required';
     }
     if (selectedPath.length === 0) {
@@ -321,10 +322,10 @@ export const useWorkspace = () => {
       errors.allocation = 'Agent allocation exceeds available slots';
     }
     return errors;
-  }, [workspaceName, selectedPath, isAllocationValid, selectedLayout.openExternally, writing]);
+  }, [workspaceName, selectedPath, isAllocationValid, selectedLayout.openExternally, studio]);
 
   const isValid = selectedPath.length > 0 && isAllocationValid &&
-    ((!writing && selectedLayout.openExternally) || workspaceName.trim().length > 0);
+    ((!studio && selectedLayout.openExternally) || workspaceName.trim().length > 0);
 
   const currentTemplateAllocation = useMemo(() => {
     const t = templates.find((tpl) => tpl.id === selectedTemplateId);

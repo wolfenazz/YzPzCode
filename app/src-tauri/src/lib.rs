@@ -428,6 +428,8 @@ pub fn run() {
                 commands::start_writing_ai_run,
                 commands::cancel_writing_ai_run,
                 commands::export_writing_pdf,
+                commands::stock_image_search,
+                commands::stock_image_download,
             ];
             move |invoke: tauri::ipc::Invoke| {
                 // Extension content uses VS Code's own API. It must never gain

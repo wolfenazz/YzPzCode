@@ -104,7 +104,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
         launchIdeStatuses = await invoke<Record<IdeType, IdeInfo>>('detect_all_ides_cmd');
         useAppStore.getState().setIdeStatuses(launchIdeStatuses);
       }
-      if (selectedLayout.openExternally && workspaceKind !== 'writing') {
+      if (selectedLayout.openExternally && workspaceKind === 'coding') {
         await invoke('launch_external_terminals', {
           request: {
             workspacePath: selectedPath,
@@ -124,8 +124,8 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
       } else {
         const workspace = await createWorkspace();
 
-        // A writing workspace is self-contained: no IDEs open alongside it.
-        const selectedInstalledIdes = workspaceKind === 'writing' ? [] : selectedIdes.filter((ide) => launchIdeStatuses[ide]?.installed);
+        // Writing and presentation workspaces are self-contained: no IDEs open alongside them.
+        const selectedInstalledIdes = workspaceKind !== 'coding' ? [] : selectedIdes.filter((ide) => launchIdeStatuses[ide]?.installed);
         for (const ide of selectedInstalledIdes) {
           try {
             await invoke('launch_ide_cmd', { ide, directory: workspace.path });

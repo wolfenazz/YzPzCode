@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useAppStore } from '../stores/appStore';
 import { useExtensionStore } from '../stores/extensionStore';
+import { useNativeViewScale } from './useNativeViewScale';
 import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../types';
 import type { AgentActivityState } from '../utils/agentDoneNotifier';
 
@@ -56,7 +56,7 @@ interface ExtensionPanelHost {
 }
 
 export function useExtensionPanelHost({ panel, workspace, contentRef, active, hidden = false }: ExtensionPanelHostOptions): ExtensionPanelHost {
-  const appZoom = useAppStore((state) => state.appZoom);
+  const viewScale = useNativeViewScale();
   const closePanel = useExtensionStore((state) => state.closePanel);
   const activity = useExtensionStore((state) => state.activityByPanel[panel.id]) ?? IDLE_ACTIVITY;
   const setPanelActivity = useExtensionStore((state) => state.setPanelActivity);
@@ -107,16 +107,15 @@ export function useExtensionPanelHost({ panel, workspace, contentRef, active, hi
       const y = Math.max(rect.y, viewport?.top ?? 0);
       const right = Math.min(rect.right, viewport?.right ?? window.innerWidth);
       const bottom = Math.min(rect.bottom, viewport?.bottom ?? window.innerHeight);
-      // DOM bounds are CSS pixels in the zoomed main webview. Tauri child
-      // webviews use unzoomed logical pixels, just like the browser panel.
-      const appZoomFactor = appZoom / 100;
+      // DOM bounds are CSS pixels of the main webview; Tauri child webviews
+      // use window logical pixels (see useNativeViewScale).
       const request: PanelSync = {
         panelId: panel.id,
         bounds: {
-          x: x * appZoomFactor,
-          y: y * appZoomFactor,
-          width: Math.max(0, right - x) * appZoomFactor,
-          height: Math.max(0, bottom - y) * appZoomFactor,
+          x: x * viewScale,
+          y: y * viewScale,
+          width: Math.max(0, right - x) * viewScale,
+          height: Math.max(0, bottom - y) * viewScale,
         },
         visible: shown,
       };
@@ -145,7 +144,7 @@ export function useExtensionPanelHost({ panel, workspace, contentRef, active, hi
       // Queue hiding behind any outstanding bounds update to prevent stale shows.
       void syncPanel({ panelId: panel.id, bounds: { x: 0, y: 0, width: 0, height: 0 }, visible: false }).catch(() => undefined);
     };
-  }, [panel.id, ready, active, hidden, error, closing, appZoom, contentRef]);
+  }, [panel.id, ready, active, hidden, error, closing, viewScale, contentRef]);
 
   // The assistant runs in a native webview, so which panel the user is looking
   // at can't be observed; a finished panel stays marked for a while once shown.

@@ -28,6 +28,7 @@ import { getTerminalForTarget } from '../../utils/terminalRegistry';
 import { DevicePanel } from './device/DevicePanel';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useWritingSessionStore } from '../../stores/writingSessionStore';
+import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
 import { FileEntry, WorkspaceView } from '../../types';
 
 interface WorkspaceProps {
@@ -43,6 +44,8 @@ const EMPTY_DEV_SERVER_URLS: string[] = [];
 
 // The writing studio pulls in the rich-text editor and export libraries; load it on first use.
 const WritingWorkspace = lazy(() => import('../writing/WritingWorkspace'));
+// The presentation studio pulls in the slide renderer and the PowerPoint reader/writer.
+const PresentationWorkspace = lazy(() => import('../presentation/PresentationWorkspace'));
 
 export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
@@ -94,12 +97,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const [editorMounted, setEditorMounted] = useState(activeView === 'editor');
   // Writing layers stay mounted once visited, so a report keeps writing while you look elsewhere.
   const [writingMounted, setWritingMounted] = useState<Record<string, boolean>>({});
+  // Presentation layers too, so a deck keeps generating while you look elsewhere.
+  const [presentationMounted, setPresentationMounted] = useState<Record<string, boolean>>({});
   const isDragging = useRef(false);
 
   useEffect(() => {
     if (activeView === 'editor') setEditorMounted(true);
     if (activeView === 'writing' && activeWorkspaceId) {
       setWritingMounted((mounted) => (mounted[activeWorkspaceId] ? mounted : { ...mounted, [activeWorkspaceId]: true }));
+    }
+    if (activeView === 'presentation' && activeWorkspaceId) {
+      setPresentationMounted((mounted) => (mounted[activeWorkspaceId] ? mounted : { ...mounted, [activeWorkspaceId]: true }));
     }
   }, [activeView, activeWorkspaceId]);
   const rafIdRef = useRef<number | null>(null);
@@ -312,8 +320,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
           toggleExplorer();
         } else if (e.key === 'e' && !e.shiftKey) {
           e.preventDefault();
-          if (useAppStore.getState().currentWorkspace?.kind === 'writing') {
+          const kind = useAppStore.getState().currentWorkspace?.kind;
+          if (kind === 'writing') {
             setActiveView(activeView === 'writing' ? 'editor' : 'writing');
+          } else if (kind === 'presentation') {
+            setActiveView(activeView === 'presentation' ? 'editor' : 'presentation');
           } else {
             setActiveView(activeView === 'terminal' ? 'editor' : 'terminal');
           }
@@ -379,6 +390,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     });
     closeWorkspace(workspaceId);
     window.setTimeout(() => useWritingSessionStore.getState().closeWorkspace(workspaceId), 0);
+    // Unmounting the presentation layer saves the open deck and stops any AI run.
+    setPresentationMounted((mounted) => {
+      const next = { ...mounted };
+      delete next[workspaceId];
+      return next;
+    });
+    window.setTimeout(() => usePresentationSessionStore.getState().closeWorkspace(workspaceId), 0);
     delete hasInitialized.current[workspaceId];
     closeBrowserView(workspaceId).catch((err) => {
       console.error('Error closing browser view:', err);
@@ -614,6 +632,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                   >
                     <Suspense fallback={<div className="h-full w-full bg-[var(--bg-primary)]" />}>
                       <WritingWorkspace workspace={workspace} visible={isVisible && view === 'workspace'} />
+                    </Suspense>
+                  </div>
+                );
+              })}
+
+              {openWorkspaces.map((workspace) => {
+                if (workspace.kind !== 'presentation' || !presentationMounted[workspace.id]) return null;
+                const isVisible = workspace.id === activeWorkspaceId && activeView === 'presentation';
+                return (
+                  <div
+                    key={`presentation:${workspace.id}`}
+                    className={isVisible ? 'absolute inset-0' : 'hidden'}
+                    aria-hidden={!isVisible}
+                  >
+                    <Suspense fallback={<div className="h-full w-full bg-[var(--bg-primary)]" />}>
+                      <PresentationWorkspace workspace={workspace} visible={isVisible && view === 'workspace'} />
                     </Suspense>
                   </div>
                 );

@@ -1493,3 +1493,165 @@
   line-height: 1.5;
   color: var(--text-secondary);
 }
+
+/* Presentation studio preview -------------------------------------------- */
+
+.ws-deck {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  overflow: hidden;
+  padding: 0.75rem;
+  background: radial-gradient(120% 90% at 60% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%), var(--ws-sunken);
+  border-radius: 0.5rem;
+}
+
+.ws-deck__film {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.ws-deck__thumb {
+  display: flex;
+  aspect-ratio: 16 / 9;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 5px;
+  border: 1px solid var(--ws-hairline);
+  border-radius: 3px;
+  background: #fff;
+}
+
+.ws-deck__thumb[data-active] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.ws-deck__thumb-title {
+  width: 70%;
+  height: 3px;
+  border-radius: 2px;
+  background: #1f2a44;
+}
+
+.ws-deck__thumb-line {
+  width: 50%;
+  height: 2px;
+  border-radius: 2px;
+  background: #d4d7de;
+}
+
+.ws-deck__stage {
+  display: flex;
+  min-width: 0;
+  justify-content: center;
+}
+
+.ws-deck__slide {
+  display: flex;
+  width: 100%;
+  max-width: 17rem;
+  aspect-ratio: 16 / 9;
+  flex-direction: column;
+  padding: 0.7rem 0.85rem;
+  border-radius: 3px;
+  background: #fff;
+  color: #14213d;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05), 0 14px 30px -14px rgba(0, 0, 0, 0.5);
+}
+
+.ws-deck__kicker {
+  font-size: 0.4rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #1f4e9e;
+}
+
+.ws-deck__title {
+  display: -webkit-box;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.ws-deck__rule {
+  width: 1.4rem;
+  height: 2px;
+  margin: 0.3rem 0 0.45rem;
+  background: #1f4e9e;
+}
+
+.ws-deck__content {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 1.2fr 1fr;
+  align-items: end;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.ws-deck__bullets {
+  align-self: start;
+}
+
+.ws-deck__bullet {
+  height: 3px;
+  margin: 0.38rem 0;
+  border-radius: 2px;
+  background: #cfd5e0;
+}
+
+.ws-deck__chart {
+  display: flex;
+  height: 100%;
+  align-items: flex-end;
+  gap: 4px;
+  padding-bottom: 1px;
+  border-bottom: 1px solid #d4d7de;
+}
+
+.ws-deck__chart span {
+  flex: 1;
+  border-radius: 1px 1px 0 0;
+  background: #1f4e9e;
+}
+
+.ws-deck__chart span:nth-child(2n) {
+  background: #d99a2b;
+}
+
+/* Presentation setup: theme swatches and the length slider */
+.ws-deck-swatches {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+.ws-deck-swatches span:not(.ws-deck-swatches__font) {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 1px solid var(--ws-hairline);
+  border-radius: 999px;
+}
+
+.ws-deck-swatches__font {
+  margin-left: 0.375rem;
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.ws-range {
+  width: 100%;
+  height: 2.75rem;
+  accent-color: var(--accent);
+}

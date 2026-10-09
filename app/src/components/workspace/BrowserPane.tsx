@@ -32,6 +32,7 @@ import { getExtensionIcon } from '../../data/extensionIcons';
 import { extensionPanelIdFromTarget, extensionTargetId, sendPromptToExtensionPanel } from '../../utils/extensionPrompt';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useBrowserAutoReload } from '../../hooks/useBrowserAutoReload';
+import { useNativeViewScale } from '../../hooks/useNativeViewScale';
 import { useTerminal } from '../../hooks/useTerminal';
 import { htmlToPlainText, plainTextToHtml } from '../../utils/richText';
 import { formatElementPrompt } from '../../utils/inspectorPrompt';
@@ -155,6 +156,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const activeSessionId = useAppStore((state) => state.activeSessionId);
   const currentWorkspacePath = useAppStore((state) => state.currentWorkspace?.path ?? null);
   const appZoom = useAppStore((state) => state.appZoom);
+  const viewScale = useNativeViewScale();
   const ensureBrowserState = useAppStore((state) => state.ensureBrowserState);
   const setBrowserCurrentUrl = useAppStore((state) => state.setBrowserCurrentUrl);
   const setBrowserLoading = useAppStore((state) => state.setBrowserLoading);
@@ -410,14 +412,13 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     const rect = viewport.getBoundingClientRect();
     if (rect.width < 80 || rect.height < 80) return;
 
-    // DOMRect values are CSS pixels inside the zoomed main webview, while
-    // Tauri positions child webviews in unzoomed logical pixels.
-    const appZoomFactor = appZoom / 100;
+    // DOMRect values are CSS pixels of the main webview, while Tauri
+    // positions child webviews in window logical pixels (see useNativeViewScale).
     const bounds = {
-      x: rect.left * appZoomFactor,
-      y: rect.top * appZoomFactor,
-      width: rect.width * appZoomFactor,
-      height: rect.height * appZoomFactor,
+      x: rect.left * viewScale,
+      y: rect.top * viewScale,
+      width: rect.width * viewScale,
+      height: rect.height * viewScale,
     };
 
     const latest = useAppStore.getState().browserStateByWorkspace[workspaceId];
@@ -468,7 +469,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       setNativeBrowserReady(false);
       reportError(err);
     }
-  }), [appZoom, enqueue, ensureBrowserView, navigateBrowserView, reportError, setBrowserCurrentUrl, setBrowserViewVisibility, workspaceId]);
+  }), [viewScale, enqueue, ensureBrowserView, navigateBrowserView, reportError, setBrowserCurrentUrl, setBrowserViewVisibility, workspaceId]);
 
   // Hide the native surface while the start page or a menu needs the space;
   // bring it back (re-synced) as soon as nothing covers it.

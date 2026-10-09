@@ -3,9 +3,9 @@ export type AgentType = "claude" | "codex" | "antigravity" | "opencode" | "curso
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
-export type WorkspaceView = "terminal" | "extensions" | "editor" | "browser" | "writing";
+export type WorkspaceView = "terminal" | "extensions" | "editor" | "browser" | "writing" | "presentation";
 /** What a workspace is for. Undefined on older saved workspaces, which are coding ones. */
-export type WorkspaceKind = "coding" | "writing";
+export type WorkspaceKind = "coding" | "writing" | "presentation";
 export type ThemeMode = "light" | "dark" | "claude" | "yzpz" | "system" | "custom";
 
 export type CursorStyleId =

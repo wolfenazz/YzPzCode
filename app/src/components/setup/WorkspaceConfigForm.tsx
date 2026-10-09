@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CaretDown, Check, Code, Feather, PuzzlePiece, TerminalWindow, WarningCircle } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, CaretDown, Check, Code, Feather, PresentationChart, PuzzlePiece, TerminalWindow, WarningCircle } from '@phosphor-icons/react';
 import { DirectorySelector } from './DirectorySelector';
 import { LayoutSelector } from './LayoutSelector';
 import { AgentFleetConfig } from './AgentFleetConfig';
@@ -12,8 +12,11 @@ import { WorkspaceTemplatePicker } from './WorkspaceTemplatePicker';
 import { InitializeWorkspace } from './InitializeWorkspace';
 import { WorkspacePreview } from './WorkspacePreview';
 import { WritingSetupSection } from './WritingSetupSection';
+import { PresentationSetupSection } from './PresentationSetupSection';
 import RubberSegment from '../reactbits/RubberSegment';
 import { useWritingStore } from '../../stores/writingStore';
+import { usePresentationStore } from '../../stores/presentationStore';
+import { getTheme } from '../../utils/presentation/themes';
 import { AGENT_IDS, cliMeta, slotAssignments } from './cliCatalog';
 import { MOD_KEY, SETUP_EASE, useSetupMotion } from './useSetupMotion';
 import SpotlightCard from '../reactbits/SpotlightCard';
@@ -123,13 +126,18 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   const selectedIdes = useAppStore((state) => state.selectedIdes);
   const ideStatuses = useAppStore((state) => state.ideStatuses);
   const writing = props.workspaceKind === 'writing';
+  const presenting = props.workspaceKind === 'presentation';
+  // Writing and presentation studios have no terminals, extensions or IDEs.
+  const studio = writing || presenting;
   const writerEngine = useWritingStore((state) => state.defaultEngine.engine);
   const writerProfile = useWritingStore((state) => state.profiles.find((profile) => profile.id === state.defaultProfileId)?.name);
+  const presenterEngine = usePresentationStore((state) => state.defaultEngine.engine);
+  const presenterTheme = usePresentationStore((state) => getTheme(state.defaultThemeId).name);
 
   const sessions = props.selectedLayout.sessions;
-  const selectedExtensionsReady = writing || props.selectedExtensionIds.every((id) => backendReady && catalog.some((extension) => extension.id === id && extension.installedVersion));
-  const canOpen = props.isValid && selectedExtensionsReady && (writing || installing.length === 0) && !props.isLoading;
-  const projectReady = Boolean(props.selectedPath && ((!writing && props.isExternalMode) || props.workspaceName.trim()));
+  const selectedExtensionsReady = studio || props.selectedExtensionIds.every((id) => backendReady && catalog.some((extension) => extension.id === id && extension.installedVersion));
+  const canOpen = props.isValid && selectedExtensionsReady && (studio || installing.length === 0) && !props.isLoading;
+  const projectReady = Boolean(props.selectedPath && ((!studio && props.isExternalMode) || props.workspaceName.trim()));
   const showProject = !props.guided || step === 'project';
   const showSetup = !props.guided || step === 'setup';
   const continuing = Boolean(props.guided && step === 'project');
@@ -149,11 +157,11 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
     : !projectReady ? 'Give your workspace a name.'
       : continuing ? null
         : !props.isAllocationValid ? (props.validationErrors.allocation || 'Adjust the terminal assignments.')
-          : !writing && installing.length > 0 ? 'Waiting for extensions to finish installing…'
+          : !studio && installing.length > 0 ? 'Waiting for extensions to finish installing…'
             : !selectedExtensionsReady ? 'Install or deselect unavailable extensions.'
               : null;
   const primaryEnabled = continuing ? projectReady && !props.isLoading : canOpen;
-  const primaryLabel = props.isLoading ? 'Opening workspace' : continuing ? 'Continue' : writing ? 'Open writing studio' : props.isExternalMode ? 'Open terminals' : 'Open workspace';
+  const primaryLabel = props.isLoading ? 'Opening workspace' : continuing ? 'Continue' : writing ? 'Open writing studio' : presenting ? 'Open presentation studio' : props.isExternalMode ? 'Open terminals' : 'Open workspace';
 
   const primaryAction = (): void => {
     if (!primaryEnabled) return;
@@ -212,11 +220,13 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
         <motion.header className="ws-hero" {...stagger(0)}>
           <div>
             <div className="ws-eyebrow"><span className="ws-eyebrow__dot" />New workspace</div>
-            <h1 className="ws-title">{writing ? 'Set up your writing studio' : 'Set up your workspace'}</h1>
+            <h1 className="ws-title">{writing ? 'Set up your writing studio' : presenting ? 'Set up your presentation studio' : 'Set up your workspace'}</h1>
             <p className="ws-subtitle">
               {writing
                 ? 'Pick a folder for your reports and the AI that writes them. Every report gets its own brief, house style and outline.'
-                : 'Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.'}
+                : presenting
+                  ? 'Pick a folder for your decks and the AI that builds them. Every deck gets a storyline, a designed theme and speaker notes.'
+                  : 'Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.'}
             </p>
             <div className="ws-mode">
               <RubberSegment
@@ -225,6 +235,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 items={[
                   { value: 'coding', label: 'Coding', icon: <Code size={15} weight="bold" /> },
                   { value: 'writing', label: 'Writing', icon: <Feather size={15} weight="fill" /> },
+                  { value: 'presentation', label: 'Presentation', icon: <PresentationChart size={15} weight="fill" /> },
                 ]}
                 value={props.workspaceKind}
                 onChange={(value) => props.onWorkspaceKindChange(value as WorkspaceKind)}
@@ -237,13 +248,15 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
               <span className="ws-mode__hint">
                 {writing
                   ? 'AI-written professional reports: academic, financial, technical and more, with Word-like editing and PDF / Word export.'
-                  : 'Terminals with AI coding agents, an editor, a browser and extensions.'}
+                  : presenting
+                    ? 'AI-built slide decks in designed themes, plus editing of existing PowerPoint files, with PowerPoint / PDF export.'
+                    : 'Terminals with AI coding agents, an editor, a browser and extensions.'}
               </span>
             </div>
           </div>
           {props.guided ? (
             <nav className="ws-steps" aria-label="Setup steps">
-              {([{ id: 'project', label: 'Project' }, { id: 'setup', label: writing ? 'Writing setup' : 'Layout & agents' }] as const).map((item, index) => (
+              {([{ id: 'project', label: 'Project' }, { id: 'setup', label: writing ? 'Writing setup' : presenting ? 'Presentation setup' : 'Layout & agents' }] as const).map((item, index) => (
                 <button key={item.id} type="button" className="ws-steps__item" aria-current={step === item.id ? 'step' : undefined}
                   disabled={props.isLoading || (item.id === 'setup' && !projectReady)} onClick={() => setStep(item.id)}>
                   {step === item.id && <motion.span layoutId="ws-step-pill" className="ws-steps__pill" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
@@ -269,7 +282,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 exit={motionEnabled ? { opacity: 0, x: step === 'setup' ? -16 : 16 } : undefined}
                 transition={{ duration: 0.26, ease: SETUP_EASE }}>
                 {showProject && (
-                  <Section number={1} state={states.project} title={writing ? 'Folder' : 'Project'} description={writing ? 'Reports are saved in a Reports folder inside it, with their images and exports.' : 'The folder your terminals, agents, and editor open in.'}>
+                  <Section number={1} state={states.project} title={studio ? 'Folder' : 'Project'} description={writing ? 'Reports are saved in a Reports folder inside it, with their images and exports.' : presenting ? 'Decks are saved in a Presentations folder inside it, with their images and exports.' : 'The folder your terminals, agents, and editor open in.'}>
                     <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory}
                       errorMessage={props.selectedPath ? props.validationErrors.directory : undefined} />
                     <AnimatePresence initial={false}>
@@ -296,7 +309,13 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                   </Section>
                 )}
 
-                {showSetup && !writing && (
+                {showSetup && presenting && (
+                  <Section number={2} last state={projectReady ? 'done' : 'todo'} title="Presenter" description="The AI that builds your decks, and how a new one starts.">
+                    <PresentationSetupSection />
+                  </Section>
+                )}
+
+                {showSetup && !studio && (
                   <>
                     <Section number={2} state={states.layout} title="Layout" description="Start from a preset or choose how many terminals open."
                       meta={selectedTemplate ? <span title="Active preset">{selectedTemplate.name}</span> : undefined}>
@@ -397,9 +416,9 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
             <SpotlightCard disabled={!motionEnabled} className="ws-panel">
               <div className="ws-panel__section">
                 <WorkspacePreview title={launchTitle} folderName={folderName} sessions={sessions} agentFleet={props.agentFleet}
-                  extensionNames={extensionNames} external={props.isExternalMode} writing={writing} />
+                  extensionNames={extensionNames} external={props.isExternalMode} kind={props.workspaceKind} />
               </div>
-              {!writing && <div className="ws-panel__section">
+              {!studio && <div className="ws-panel__section">
                 <dl className="ws-stats">
                   {[{ label: 'Terminals', count: sessions }, { label: 'Assigned', count: allocated }, { label: 'Extensions', count: props.selectedExtensionIds.length }].map(({ label, count }) => (
                     <div key={label}><dt>{label}</dt><dd><span className="sr-only">{count}</span><CountUp to={count} disabled={!motionEnabled} /></dd></div>
@@ -409,11 +428,13 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
               <div className="ws-panel__section">
                 <dl className="ws-summary">
                   <div className="ws-summary__row"><dt>Folder</dt><dd className="font-mono text-xs" title={props.selectedPath || undefined}>{folderName ?? '—'}</dd></div>
-                  <div className="ws-summary__row"><dt>Opens as</dt><dd>{writing ? 'Writing studio' : sessions === 0 ? 'Editor' : props.isExternalMode ? 'Separate windows' : 'Terminal grid'}</dd></div>
+                  <div className="ws-summary__row"><dt>Opens as</dt><dd>{writing ? 'Writing studio' : presenting ? 'Presentation studio' : sessions === 0 ? 'Editor' : props.isExternalMode ? 'Separate windows' : 'Terminal grid'}</dd></div>
                   {writing && <div className="ws-summary__row"><dt>Writer</dt><dd>{cliMeta(writerEngine)?.label ?? writerEngine}</dd></div>}
                   {writing && <div className="ws-summary__row"><dt>Profile</dt><dd>{writerProfile ?? 'Chosen per report'}</dd></div>}
-                  {!writing && selectedTemplate && <div className="ws-summary__row"><dt>Preset</dt><dd>{selectedTemplate.name}</dd></div>}
-                  {!writing && launchIdes.length > 0 && <div className="ws-summary__row"><dt>Also opens</dt><dd title={launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}>{launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}</dd></div>}
+                  {presenting && <div className="ws-summary__row"><dt>Presenter AI</dt><dd>{cliMeta(presenterEngine)?.label ?? presenterEngine}</dd></div>}
+                  {presenting && <div className="ws-summary__row"><dt>Theme</dt><dd>{presenterTheme}</dd></div>}
+                  {!studio && selectedTemplate && <div className="ws-summary__row"><dt>Preset</dt><dd>{selectedTemplate.name}</dd></div>}
+                  {!studio && launchIdes.length > 0 && <div className="ws-summary__row"><dt>Also opens</dt><dd title={launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}>{launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}</dd></div>}
                 </dl>
               </div>
               <div className="ws-panel__section">
@@ -435,7 +456,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.p key={blocker ?? (continuing ? 'continue' : 'ready')} className="ws-blocker" role="status"
                     initial={{ opacity: 0, y: 3 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -3 }} transition={{ duration: 0.18 }}>
-                    {blocker ?? (continuing ? 'Next, choose a layout and your agents.' : 'Ready when you are.')}
+                    {blocker ?? (continuing ? (studio ? 'Next, choose the AI and how new work starts.' : 'Next, choose a layout and your agents.') : 'Ready when you are.')}
                   </motion.p>
                 </AnimatePresence>
                 {props.guided && step === 'setup'

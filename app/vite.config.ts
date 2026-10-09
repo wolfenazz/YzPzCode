@@ -65,6 +65,9 @@ export default defineConfig(async () => ({
           ],
           'docx-writer': ['docx'],
           mammoth: ['mammoth'],
+          // Presentation studio: the PowerPoint writer. (JSZip is CommonJS, which
+          // object-form chunks cannot claim; it is shared through the lazy docx chunk.)
+          pptxgenjs: ['pptxgenjs'],
         },
       },
     },

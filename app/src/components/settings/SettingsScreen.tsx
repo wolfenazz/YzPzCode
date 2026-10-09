@@ -7,6 +7,7 @@ import {
   Code,
   Database,
   Feather,
+  PresentationChart,
   Flask,
   Info,
   Keyboard,
@@ -32,6 +33,7 @@ import { SettingsUpdates } from './sections/SettingsUpdates';
 import { SettingsWorkspace } from './sections/SettingsWorkspace';
 import { SettingsRuns } from './sections/SettingsRuns';
 import { SettingsWriting } from './sections/SettingsWriting';
+import { SettingsPresentation } from './sections/SettingsPresentation';
 import './settings.css';
 
 type SettingsSection =
@@ -42,6 +44,7 @@ type SettingsSection =
   | 'agents'
   | 'runs'
   | 'writing'
+  | 'presentation'
   | 'ide'
   | 'quickPrompts'
   | 'environment'
@@ -123,6 +126,13 @@ const GROUPS: SettingsNavGroup[] = [
         description: 'Report profiles, the humanizer, writing engines and saving.',
         icon: Feather,
         render: () => <SettingsWriting />,
+      },
+      {
+        id: 'presentation',
+        label: 'Presentation',
+        description: 'Deck themes, presenter engines, slide batches and saving.',
+        icon: PresentationChart,
+        render: () => <SettingsPresentation />,
       },
       {
         id: 'runs',

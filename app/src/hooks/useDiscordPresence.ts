@@ -22,6 +22,7 @@ const VIEW_DETAILS: Record<WorkspaceView, string> = {
   editor: 'Browsing project files',
   browser: 'Previewing a web project',
   writing: 'Writing a report',
+  presentation: 'Building a presentation',
 };
 
 function getFileName(path: string): string {

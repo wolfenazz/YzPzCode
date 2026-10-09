@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run:*)"
+      "Bash(npm run:*)",
+      "mcp__shadcn__list_items_in_registries",
+      "Bash(grep -iE '^\\(jszip|pptxgenjs|fast-xml-parser|html2canvas|html-to-image\\)$')"
     ]
   },
   "enableAllProjectMcpServers": true,

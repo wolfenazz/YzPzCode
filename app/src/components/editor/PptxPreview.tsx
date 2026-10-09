@@ -2,6 +2,7 @@ import React, { memo, useEffect, useRef, useState, useCallback } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { PPTXViewer } from 'pptx-viewer';
 import { OpenInOfficeButton } from './OpenInOfficeButton';
+import { OpenInPresentationButton } from '../presentation/OpenInPresentationButton';
 import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
 
 interface PptxPreviewProps {
@@ -173,6 +174,7 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.58 9a8 8 0 0114.42 1M19.42 15a8 8 0 01-14.42-1" />
             </svg>
           </button>
+          {!loading && /\.pptx$/i.test(filePath) && <OpenInPresentationButton path={filePath} kind="import" />}
           {!loading && (
             <OpenInOfficeButton filePath={filePath} appName="PowerPoint" />
           )}
