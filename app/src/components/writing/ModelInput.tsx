@@ -1,4 +1,4 @@
-import React, { useId } from 'react';
+import React, { useState } from 'react';
 import type { WritingModelInfo } from '../../utils/writing/aiClient';
 
 interface ModelInputProps {
@@ -10,28 +10,36 @@ interface ModelInputProps {
   className?: string;
 }
 
-/** Free-text model field with the CLI's own model list as suggestions. */
+const CUSTOM = '\u0000custom';
+
+/** The CLI's own model list as a picker, with "Custom…" for any other id (free text when the CLI lists nothing). */
 export const ModelInput: React.FC<ModelInputProps> = ({ value, onChange, models, loading, placeholder, className }) => {
-  const listId = useId();
+  const [custom, setCustom] = useState(false);
+  const listed = models.some((model) => model.id === value);
+  const typing = models.length === 0 || custom || (value !== '' && !listed);
+
+  if (!typing) {
+    return (
+      <select className={className} value={value} onChange={(event) => (event.target.value === CUSTOM ? setCustom(true) : onChange(event.target.value))}>
+        <option value="">{'CLI default'}</option>
+        {models.map((model) => (
+          <option key={model.id} value={model.id}>
+            {model.connected ? model.label : `${model.label} — not signed in`}
+          </option>
+        ))}
+        <option value={CUSTOM}>Custom…</option>
+      </select>
+    );
+  }
   return (
-    <>
-      <input
-        className={className}
-        value={value}
-        list={models.length ? listId : undefined}
-        placeholder={loading ? 'Loading models…' : placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        spellCheck={false}
-      />
-      {models.length > 0 && (
-        <datalist id={listId}>
-          {models.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.connected ? model.label : `${model.label} — not signed in`}
-            </option>
-          ))}
-        </datalist>
-      )}
-    </>
+    <input
+      className={className}
+      value={value}
+      placeholder={loading ? 'Loading models…' : placeholder}
+      onChange={(event) => onChange(event.target.value)}
+      onBlur={() => { if (!value) setCustom(false); }}
+      autoFocus={custom}
+      spellCheck={false}
+    />
   );
 };

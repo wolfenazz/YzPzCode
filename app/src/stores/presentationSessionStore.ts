@@ -110,7 +110,7 @@ export const usePresentationSessionStore = create<PresentationSessionStore>()((s
     const now = Date.now();
     const merge = options.skipHistory || (options.coalesce && lastEdit && lastEdit.workspaceId === workspaceId && lastEdit.key === options.coalesce && now - lastEdit.at < COALESCE_MS);
     lastEdit = options.coalesce ? { workspaceId, key: options.coalesce, at: now } : null;
-    const known = new Set(deck.slides.map((slide) => slide.id));
+    const known = new Set([...deck.slides.map((slide) => slide.id), ...(deck.design?.slides.map((slide) => slide.id) ?? [])]);
     return {
       sessions: {
         ...state.sessions,

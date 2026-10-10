@@ -67,18 +67,28 @@ fn valid_job_id(job: &str) -> bool {
 }
 
 /// Serves a print job, and only to the print webview created for it.
-pub fn handle(jobs: &PrintJobs, webview_label: &str, request: &Request<Vec<u8>>) -> Response<Vec<u8>> {
+pub fn handle(
+    jobs: &PrintJobs,
+    webview_label: &str,
+    request: &Request<Vec<u8>>,
+) -> Response<Vec<u8>> {
     let Some(job) = job_from_path(request.uri().path()) else {
         return plain(StatusCode::NOT_FOUND, "Not found");
     };
     if webview_label != format!("{PRINT_LABEL_PREFIX}{job}") {
-        return plain(StatusCode::FORBIDDEN, "Print documents are only served to their print view");
+        return plain(
+            StatusCode::FORBIDDEN,
+            "Print documents are only served to their print view",
+        );
     }
     match jobs.get(job) {
         Some(body) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
-            .header("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:")
+            .header(
+                "Content-Security-Policy",
+                "default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:",
+            )
             .body(body)
             .unwrap_or_default(),
         None => plain(StatusCode::NOT_FOUND, "Print job expired"),
@@ -98,7 +108,8 @@ fn job_url(job: &str) -> Result<url::Url, String> {
 /// Lays out `html` in a hidden webview and writes it to `output_path` as PDF.
 /// Returns false when the platform can only offer its print dialog instead.
 pub async fn export_pdf(app: &AppHandle, html: String, output_path: &str) -> Result<bool, String> {
-    crate::filesystem::validation::validate_no_path_traversal(output_path).map_err(|e| e.to_string())?;
+    crate::filesystem::validation::validate_no_path_traversal(output_path)
+        .map_err(|e| e.to_string())?;
     let jobs = app.state::<PrintJobs>().inner().clone();
     let job = uuid::Uuid::new_v4().simple().to_string();
     jobs.insert(&job, html);
@@ -112,7 +123,11 @@ async fn print_job(app: &AppHandle, job: &str, output_path: &str) -> Result<bool
     let label = format!("{PRINT_LABEL_PREFIX}{job}");
     let (loaded_tx, loaded_rx) = tokio::sync::oneshot::channel::<()>();
     let loaded_tx = Arc::new(Mutex::new(Some(loaded_tx)));
-    let expected_host = if cfg!(windows) { format!("{SCHEME}.localhost") } else { "localhost".to_string() };
+    let expected_host = if cfg!(windows) {
+        format!("{SCHEME}.localhost")
+    } else {
+        "localhost".to_string()
+    };
 
     let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(job_url(job)?))
         .title("Exporting PDF")
@@ -164,7 +179,8 @@ async fn print_window(window: &tauri::WebviewWindow, output_path: &str) -> Resul
         .with_webview(move |platform| {
             let fail = send.clone();
             let run = move || -> Result<(), String> {
-                let core = unsafe { platform.controller().CoreWebView2() }.map_err(|e| e.to_string())?;
+                let core =
+                    unsafe { platform.controller().CoreWebView2() }.map_err(|e| e.to_string())?;
                 let params = serde_json::json!({
                     "printBackground": true,
                     "preferCSSPageSize": true,
@@ -180,14 +196,17 @@ async fn print_window(window: &tauri::WebviewWindow, output_path: &str) -> Resul
                 let method = HSTRING::from("Page.printToPDF");
                 let params = HSTRING::from(params);
                 let done = send.clone();
-                let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, json| {
-                    done(match result {
-                        Ok(()) => Ok(json),
-                        Err(error) => Err(format!("WebView2 could not print: {error}")),
-                    });
-                    Ok(())
-                }));
-                unsafe { core.CallDevToolsProtocolMethod(&method, &params, &handler) }.map_err(|e| e.to_string())
+                let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(
+                    move |result, json| {
+                        done(match result {
+                            Ok(()) => Ok(json),
+                            Err(error) => Err(format!("WebView2 could not print: {error}")),
+                        });
+                        Ok(())
+                    },
+                ));
+                unsafe { core.CallDevToolsProtocolMethod(&method, &params, &handler) }
+                    .map_err(|e| e.to_string())
             };
             if let Err(error) = run() {
                 fail(Err(error));
@@ -199,7 +218,8 @@ async fn print_window(window: &tauri::WebviewWindow, output_path: &str) -> Resul
         .await
         .map_err(|_| "Printing took too long.".to_string())?
         .map_err(|_| "The print view closed while printing.".to_string())??;
-    let value: serde_json::Value = serde_json::from_str(&json).map_err(|e| format!("Unexpected print result: {e}"))?;
+    let value: serde_json::Value =
+        serde_json::from_str(&json).map_err(|e| format!("Unexpected print result: {e}"))?;
     let data = value
         .get("data")
         .and_then(serde_json::Value::as_str)
@@ -208,7 +228,9 @@ async fn print_window(window: &tauri::WebviewWindow, output_path: &str) -> Resul
         .decode(data)
         .map_err(|e| format!("Could not decode the PDF: {e}"))?;
     if let Some(parent) = std::path::Path::new(output_path).parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
     }
     tokio::fs::write(output_path, bytes)
         .await
@@ -241,11 +263,26 @@ mod tests {
     fn jobs_are_only_served_to_their_own_print_view() {
         let jobs = PrintJobs::default();
         jobs.insert("job1", "<p>hi</p>".into());
-        let request = Request::builder().uri("http://yzpzprint.localhost/job1/index.html").body(Vec::new()).unwrap();
-        assert_eq!(handle(&jobs, "writing-print-job1", &request).status(), StatusCode::OK);
-        assert_eq!(handle(&jobs, "main", &request).status(), StatusCode::FORBIDDEN);
-        assert_eq!(handle(&jobs, "writing-print-job2", &request).status(), StatusCode::FORBIDDEN);
+        let request = Request::builder()
+            .uri("http://yzpzprint.localhost/job1/index.html")
+            .body(Vec::new())
+            .unwrap();
+        assert_eq!(
+            handle(&jobs, "writing-print-job1", &request).status(),
+            StatusCode::OK
+        );
+        assert_eq!(
+            handle(&jobs, "main", &request).status(),
+            StatusCode::FORBIDDEN
+        );
+        assert_eq!(
+            handle(&jobs, "writing-print-job2", &request).status(),
+            StatusCode::FORBIDDEN
+        );
         jobs.remove("job1");
-        assert_eq!(handle(&jobs, "writing-print-job1", &request).status(), StatusCode::NOT_FOUND);
+        assert_eq!(
+            handle(&jobs, "writing-print-job1", &request).status(),
+            StatusCode::NOT_FOUND
+        );
     }
 }

@@ -125,6 +125,7 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
     const run = startAiRun({
       engine: brief.engine.engine,
       model: brief.engine.model,
+      effort: brief.engine.effort,
       system,
       prompt,
       timeoutSecs: useWritingStore.getState().aiTimeoutSecs,

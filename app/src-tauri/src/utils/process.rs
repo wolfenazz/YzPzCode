@@ -192,7 +192,8 @@ impl ProcessRunner {
         {
             path.to_path_buf()
         } else {
-            let candidate = path.with_file_name(format!("{}.cmd", path.file_name()?.to_string_lossy()));
+            let candidate =
+                path.with_file_name(format!("{}.cmd", path.file_name()?.to_string_lossy()));
             if !candidate.exists() {
                 return None;
             }

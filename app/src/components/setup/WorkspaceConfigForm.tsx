@@ -16,7 +16,6 @@ import { PresentationSetupSection } from './PresentationSetupSection';
 import RubberSegment from '../reactbits/RubberSegment';
 import { useWritingStore } from '../../stores/writingStore';
 import { usePresentationStore } from '../../stores/presentationStore';
-import { getTheme } from '../../utils/presentation/themes';
 import { AGENT_IDS, cliMeta, slotAssignments } from './cliCatalog';
 import { MOD_KEY, SETUP_EASE, useSetupMotion } from './useSetupMotion';
 import SpotlightCard from '../reactbits/SpotlightCard';
@@ -132,7 +131,6 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   const writerEngine = useWritingStore((state) => state.defaultEngine.engine);
   const writerProfile = useWritingStore((state) => state.profiles.find((profile) => profile.id === state.defaultProfileId)?.name);
   const presenterEngine = usePresentationStore((state) => state.defaultEngine.engine);
-  const presenterTheme = usePresentationStore((state) => getTheme(state.defaultThemeId).name);
 
   const sessions = props.selectedLayout.sessions;
   const selectedExtensionsReady = studio || props.selectedExtensionIds.every((id) => backendReady && catalog.some((extension) => extension.id === id && extension.installedVersion));
@@ -225,7 +223,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
               {writing
                 ? 'Pick a folder for your reports and the AI that writes them. Every report gets its own brief, house style and outline.'
                 : presenting
-                  ? 'Pick a folder for your decks and the AI that builds them. Every deck gets a storyline, a designed theme and speaker notes.'
+                  ? 'Pick a folder for your decks and the AI that designs them. Describe a deck and the AI invents its look, then draws every slide with speaker notes.'
                   : 'Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.'}
             </p>
             <div className="ws-mode">
@@ -432,7 +430,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                   {writing && <div className="ws-summary__row"><dt>Writer</dt><dd>{cliMeta(writerEngine)?.label ?? writerEngine}</dd></div>}
                   {writing && <div className="ws-summary__row"><dt>Profile</dt><dd>{writerProfile ?? 'Chosen per report'}</dd></div>}
                   {presenting && <div className="ws-summary__row"><dt>Presenter AI</dt><dd>{cliMeta(presenterEngine)?.label ?? presenterEngine}</dd></div>}
-                  {presenting && <div className="ws-summary__row"><dt>Theme</dt><dd>{presenterTheme}</dd></div>}
+                  {presenting && <div className="ws-summary__row"><dt>Design</dt><dd>Invented per deck</dd></div>}
                   {!studio && selectedTemplate && <div className="ws-summary__row"><dt>Preset</dt><dd>{selectedTemplate.name}</dd></div>}
                   {!studio && launchIdes.length > 0 && <div className="ws-summary__row"><dt>Also opens</dt><dd title={launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}>{launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}</dd></div>}
                 </dl>

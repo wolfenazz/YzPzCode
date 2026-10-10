@@ -81,6 +81,7 @@ export function useDeckGenerator(workspaceId: string) {
     const run = startAiRun({
       engine: brief.engine.engine,
       model: brief.engine.model,
+      effort: brief.engine.effort,
       system,
       prompt,
       timeoutSecs: usePresentationStore.getState().aiTimeoutSecs,

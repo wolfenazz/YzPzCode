@@ -22,6 +22,9 @@ use crate::utils::process::{terminate_process_tree, ProcessRunner};
 const DEFAULT_TIMEOUT_SECS: u64 = 600;
 const FLUSH_INTERVAL: Duration = Duration::from_millis(40);
 const STDERR_TAIL_BYTES: usize = 32 * 1024;
+/// Pictures shown to an engine with one prompt.
+const MAX_IMAGES: usize = 6;
+const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,9 +32,15 @@ pub struct WritingAiRunRequest {
     pub run_id: String,
     pub engine: WritingEngine,
     pub model: Option<String>,
+    /// Reasoning effort; ignored unless it looks like an effort level.
+    #[serde(default)]
+    pub effort: Option<String>,
     pub system_prompt: Option<String>,
     pub prompt: String,
     pub timeout_secs: Option<u64>,
+    /// Absolute paths of pictures to show the engine (engines that can see only).
+    #[serde(default)]
+    pub images: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,6 +101,68 @@ fn build_command(binary_path: &str, args: &[std::ffi::OsString]) -> std::process
     ProcessRunner::hidden_command(binary_path, args)
 }
 
+fn image_media_type(path: &Path) -> Option<&'static str> {
+    match path.extension()?.to_str()?.to_ascii_lowercase().as_str() {
+        "png" => Some("image/png"),
+        "jpg" | "jpeg" => Some("image/jpeg"),
+        "gif" => Some("image/gif"),
+        "webp" => Some("image/webp"),
+        _ => None,
+    }
+}
+
+/// Copies the requested pictures into the run folder. Anything that is not a
+/// readable picture file of a sane size is left out.
+async fn stage_images(paths: &[String], run_dir: &Path) -> Vec<PathBuf> {
+    let mut staged = Vec::new();
+    for raw in paths.iter().take(MAX_IMAGES) {
+        let source = Path::new(raw);
+        if !source.is_absolute() {
+            continue;
+        }
+        let Some(media_type) = image_media_type(source) else {
+            continue;
+        };
+        let Ok(meta) = tokio::fs::metadata(source).await else {
+            continue;
+        };
+        if !meta.is_file() || meta.len() == 0 || meta.len() > MAX_IMAGE_BYTES {
+            continue;
+        }
+        let extension = media_type
+            .trim_start_matches("image/")
+            .replace("jpeg", "jpg");
+        let target = run_dir.join(format!("image-{}.{extension}", staged.len() + 1));
+        if tokio::fs::copy(source, &target).await.is_ok() {
+            staged.push(target);
+        }
+    }
+    staged
+}
+
+/// Claude's stream-json stdin: one user message with the pictures, then the prompt.
+async fn claude_image_message(prompt: &str, images: &[PathBuf]) -> Result<String, String> {
+    use base64::Engine as _;
+    let mut content = Vec::new();
+    for image in images {
+        let bytes = tokio::fs::read(image)
+            .await
+            .map_err(|e| format!("Could not read a picture: {e}"))?;
+        content.push(serde_json::json!({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image_media_type(image).unwrap_or("image/png"),
+                "data": base64::engine::general_purpose::STANDARD.encode(bytes),
+            },
+        }));
+    }
+    content.push(serde_json::json!({ "type": "text", "text": prompt }));
+    let message =
+        serde_json::json!({ "type": "user", "message": { "role": "user", "content": content } });
+    Ok(format!("{message}\n"))
+}
+
 async fn resolve_engine_binary(engine: WritingEngine) -> Option<String> {
     for candidate in engine.binary_candidates() {
         if let Some(path) = ProcessRunner::find_binary_async(candidate).await {
@@ -111,7 +182,12 @@ impl WritingAiRunner {
         if !valid_run_id(&request.run_id) {
             return Err("Invalid run id.".into());
         }
-        if self.runs.lock().map_err(|e| e.to_string())?.contains_key(&request.run_id) {
+        if self
+            .runs
+            .lock()
+            .map_err(|e| e.to_string())?
+            .contains_key(&request.run_id)
+        {
             return Err("A run with this id is already active.".into());
         }
         let engine = request.engine;
@@ -150,17 +226,39 @@ impl WritingAiRunner {
                 .map_err(|e| e.to_string())?;
         }
 
+        let images = if engine.sees_images() && !request.images.is_empty() {
+            stage_images(&request.images, &run_dir).await
+        } else {
+            Vec::new()
+        };
+        let stdin_input = if engine == WritingEngine::Claude && !images.is_empty() {
+            match claude_image_message(&prompt, &images).await {
+                Ok(message) => message,
+                Err(error) => {
+                    remove_run_dir(&run_dir).await;
+                    return Err(error);
+                }
+            }
+        } else {
+            prompt.clone()
+        };
+
         let mut model = request.model.clone().filter(|m| !m.trim().is_empty());
         if model.is_none() && engine == WritingEngine::Opencode {
             if let Ok(models) = super::models::list_models(engine).await {
                 model = super::models::pick_default(&models);
             }
         }
+        let effort = request.effort.as_deref().map(str::trim).filter(|e| {
+            !e.is_empty() && e.len() <= 16 && e.bytes().all(|b| b.is_ascii_alphanumeric())
+        });
         let args = engine.build_args(&RunContext {
             run_dir: &run_dir,
             model: model.as_deref(),
+            effort,
             has_system_file: takes_system_file,
             prompt: &prompt,
+            images: &images,
         });
         let mut std_cmd = build_command(&binary, &args);
         std_cmd.current_dir(&run_dir);
@@ -187,7 +285,7 @@ impl WritingAiRunner {
         let pid = child.id();
 
         if let Some(mut stdin) = child.stdin.take() {
-            let input = prompt.clone().into_bytes();
+            let input = stdin_input.into_bytes();
             tokio::spawn(async move {
                 let _ = stdin.write_all(&input).await;
                 let _ = stdin.shutdown().await;
@@ -205,7 +303,8 @@ impl WritingAiRunner {
         let _ = events.send(WritingAiEvent::Started { pid });
 
         let runs = self.runs.clone();
-        let timeout = Duration::from_secs(request.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS).max(10));
+        let timeout =
+            Duration::from_secs(request.timeout_secs.unwrap_or(DEFAULT_TIMEOUT_SECS).max(10));
         tokio::spawn(async move {
             let done = drive_run(engine, child, pid, cancel_rx, timeout, &events).await;
             let _ = events.send(done);
@@ -364,7 +463,11 @@ async fn drive_run(
             .unwrap_or("")
             .to_string();
         Some(if detail.is_empty() {
-            format!("{} exited with code {:?}.", engine.display_name(), exit_code)
+            format!(
+                "{} exited with code {:?}.",
+                engine.display_name(),
+                exit_code
+            )
         } else {
             detail
         })
@@ -400,7 +503,9 @@ mod tests {
         let sink = events.clone();
         let channel: Channel<WritingAiEvent> = Channel::new(move |body| {
             if let InvokeResponseBody::Json(json) = body {
-                sink.lock().unwrap().push(serde_json::from_str(&json).unwrap());
+                sink.lock()
+                    .unwrap()
+                    .push(serde_json::from_str(&json).unwrap());
             }
             Ok(())
         });
@@ -415,9 +520,11 @@ mod tests {
                         .and_then(|name| serde_json::from_value(serde_json::Value::String(name)).ok())
                         .unwrap_or(WritingEngine::Claude),
                     model: std::env::var("WRITING_TEST_MODEL").ok(),
+                    effort: None,
                     system_prompt: Some("You are a professional writer. Output only Markdown.".into()),
                     prompt: "Write two short paragraphs (about 80 words in total) on why irrigation scheduling matters in arid farms. Then a two-row Markdown table with a caption line 'Table: Water use'.".into(),
                     timeout_secs: Some(180),
+                    images: Vec::new(),
                 },
                 channel,
             )
@@ -426,7 +533,13 @@ mod tests {
 
         let done = tokio::time::timeout(Duration::from_secs(200), async {
             loop {
-                if let Some(done) = events.lock().unwrap().iter().find(|event| event["type"] == "done").cloned() {
+                if let Some(done) = events
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .find(|event| event["type"] == "done")
+                    .cloned()
+                {
                     return done;
                 }
                 tokio::time::sleep(Duration::from_millis(100)).await;

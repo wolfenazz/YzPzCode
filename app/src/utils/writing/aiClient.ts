@@ -29,9 +29,12 @@ export interface AiRunResult {
 export interface AiRunOptions {
   engine: WritingEngineId;
   model?: string;
+  effort?: string;
   system?: string;
   prompt: string;
   timeoutSecs?: number;
+  /** Absolute paths of pictures to show engines that can see them (Claude Code, Codex). */
+  images?: string[];
   /** Called with the full text so far whenever it changes. */
   onText?: (text: string) => void;
 }
@@ -89,9 +92,11 @@ export function startAiRun(options: AiRunOptions): AiRun {
       runId,
       engine: options.engine,
       model: options.model?.trim() || null,
+      effort: options.effort?.trim() || null,
       systemPrompt: options.system ?? null,
       prompt: options.prompt,
       timeoutSecs: options.timeoutSecs ?? null,
+      images: options.images ?? [],
     },
     onEvent: channel,
   }).catch((error: unknown) => {
@@ -112,6 +117,8 @@ export interface WritingModelInfo {
   label: string;
   /** The provider behind the model is signed in (OpenCode only). */
   connected: boolean;
+  /** Thinking-effort levels the model accepts, lowest first; empty when it has none. */
+  efforts: string[];
 }
 
 const modelCache = new Map<WritingEngineId, Promise<WritingModelInfo[]>>();
@@ -120,10 +127,14 @@ const modelCache = new Map<WritingEngineId, Promise<WritingModelInfo[]>>();
 export function listEngineModels(engine: WritingEngineId, refresh = false): Promise<WritingModelInfo[]> {
   let cached = modelCache.get(engine);
   if (!cached || refresh) {
-    cached = invoke<WritingModelInfo[]>('get_writing_engine_models', { engine }).catch(() => {
-      modelCache.delete(engine);
-      return [] as WritingModelInfo[];
-    });
+    const request: Promise<WritingModelInfo[]> = invoke<WritingModelInfo[]>('get_writing_engine_models', { engine })
+      .catch(() => [] as WritingModelInfo[])
+      .then((models) => {
+        // An empty answer (CLI still starting, or listing failed) is retried next time.
+        if (models.length === 0 && modelCache.get(engine) === request) modelCache.delete(engine);
+        return models;
+      });
+    cached = request;
     modelCache.set(engine, cached);
   }
   return cached;

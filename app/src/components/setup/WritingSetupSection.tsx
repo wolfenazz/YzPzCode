@@ -14,7 +14,7 @@ export function WritingSetupSection(): React.JSX.Element {
   const setPreference = useWritingStore((state) => state.setPreference);
   const pickEngine = useCallback((engine: WritingEngineId) => {
     const current = useWritingStore.getState().defaultEngine;
-    if (current.engine !== engine) setDefaultEngine({ ...current, engine, model: '' });
+    if (current.engine !== engine) setDefaultEngine({ ...current, engine, model: '', effort: '' });
   }, [setDefaultEngine]);
 
   return (

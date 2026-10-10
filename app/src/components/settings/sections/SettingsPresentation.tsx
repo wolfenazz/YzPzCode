@@ -11,12 +11,11 @@ import { slugify } from '../../../utils/writing/document';
 import type { StockProvider } from '../../../stores/presentationStore';
 import '../../presentation/presentation.css';
 import { usePresentationStore } from '../../../stores/presentationStore';
-import { DECK_TONES, MAX_SLIDES, MIN_SLIDES } from '../../../utils/presentation/deck';
 import { DECK_THEMES } from '../../../utils/presentation/themes';
-import type { DeckTone } from '../../../utils/presentation/types';
 import { listWritingEngines, type WritingEngineInfo } from '../../../utils/writing/aiClient';
 import { useEngineModels } from '../../../utils/writing/useEngineModels';
 import type { WritingEngineId } from '../../../utils/writing/types';
+import { EffortSelect, hasEfforts } from '../../writing/EffortSelect';
 import { ModelInput } from '../../writing/ModelInput';
 import {
   Badge,
@@ -32,55 +31,27 @@ import {
   SettingsTabs,
   SliderRow,
   StatusDot,
-  ToggleRow,
 } from '../SettingsKit';
 
 type Tab = 'decks' | 'themes' | 'images' | 'engines' | 'storage';
 
 const TABS = [
   { id: 'decks' as const, label: 'New decks', icon: Palette },
-  { id: 'themes' as const, label: 'Themes & templates', icon: Swatches },
+  { id: 'themes' as const, label: 'Classic themes', icon: Swatches },
   { id: 'images' as const, label: 'Images', icon: ImageSquare },
   { id: 'engines' as const, label: 'Engines', icon: PencilSimple },
   { id: 'storage' as const, label: 'Saving', icon: DownloadSimple },
 ];
 
 function DecksTab(): React.JSX.Element {
-  const themeId = usePresentationStore((state) => state.defaultThemeId);
   const size = usePresentationStore((state) => state.defaultSize);
-  const count = usePresentationStore((state) => state.defaultSlideCount);
-  const tone = usePresentationStore((state) => state.defaultTone);
-  const openWizard = usePresentationStore((state) => state.openWizardOnStart);
   const setPreference = usePresentationStore((state) => state.setPreference);
   return (
-    <>
-      <SettingsGroup title="Defaults for new presentations" description="The wizard starts from these. Each deck can change them, and the theme can be switched any time.">
-        <SliderRow label="Length" description="How many slides the storyline aims for." value={count} min={MIN_SLIDES} max={MAX_SLIDES} format={(value) => `${value} slides`} onChange={(value) => setPreference('defaultSlideCount', value)} />
-        <SettingsRow label="Tone" description={DECK_TONES.find((entry) => entry.id === tone)?.hint}>
-          <Segmented<DeckTone> label="Tone" value={tone} options={DECK_TONES.map((entry) => ({ value: entry.id, label: entry.label }))} onChange={(value) => setPreference('defaultTone', value)} />
-        </SettingsRow>
-        <SettingsRow label="Slide size">
-          <Segmented<'16:9' | '4:3'> label="Slide size" value={size} options={[{ value: '16:9', label: 'Widescreen 16:9' }, { value: '4:3', label: 'Standard 4:3' }]} onChange={(value) => setPreference('defaultSize', value)} />
-        </SettingsRow>
-        <ToggleRow label="Open the wizard in empty presentation workspaces" checked={openWizard} onChange={(value) => setPreference('openWizardOnStart', value)} />
-      </SettingsGroup>
-      <SettingsGroup title="Default theme" description="Themes use only fonts every copy of PowerPoint has, so exported files look the same on other machines.">
-        {DECK_THEMES.map((theme) => (
-          <SettingsRow
-            key={theme.id}
-            label={<span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{theme.name}{theme.id === themeId && <Badge tone="accent">Default</Badge>}{theme.dark && <Badge>Dark</Badge>}</span>}
-            description={`${theme.tagline} · ${theme.headingFont} / ${theme.bodyFont}`}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              <ColorBands colors={[theme.palette.background, theme.palette.text, theme.palette.accent1, theme.palette.accent2, theme.palette.accent3]} />
-              <Button size="sm" variant={theme.id === themeId ? 'primary' : 'default'} onClick={() => setPreference('defaultThemeId', theme.id)}>
-                {theme.id === themeId ? 'Default' : 'Use'}
-              </Button>
-            </span>
-          </SettingsRow>
-        ))}
-      </SettingsGroup>
-    </>
+    <SettingsGroup title="New presentations" description="You describe each deck and the AI invents its design: palette, fonts, layouts and motif are made for that deck, not picked from a list. Change the look later with Redesign in the deck's Design panel.">
+      <SettingsRow label="Slide shape" description="New decks start in this shape; each one can change it before it is designed.">
+        <Segmented<'16:9' | '4:3'> label="Slide shape" value={size} options={[{ value: '16:9', label: 'Widescreen 16:9' }, { value: '4:3', label: 'Standard 4:3' }]} onChange={(value) => setPreference('defaultSize', value)} />
+      </SettingsRow>
+    </SettingsGroup>
   );
 }
 
@@ -211,7 +182,7 @@ function EnginesTab(): React.JSX.Element {
             label={<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>{entry.displayName}{entry.support === 'experimental' && <Badge tone="warning">Beta</Badge>}</span>}
             description={entry.installed ? `${entry.version ?? 'Installed'} · ${entry.streaming === 'token' ? 'slides appear one by one' : 'slides arrive a batch at a time'}` : 'Not installed'}
           >
-            <Button size="sm" variant={engine.engine === entry.engine ? 'primary' : 'default'} disabled={!entry.installed} onClick={() => setEngine({ ...engine, engine: entry.engine as WritingEngineId, model: '' })}>
+            <Button size="sm" variant={engine.engine === entry.engine ? 'primary' : 'default'} disabled={!entry.installed} onClick={() => setEngine({ ...engine, engine: entry.engine as WritingEngineId, model: '', effort: '' })}>
               {engine.engine === entry.engine ? 'Default' : 'Use by default'}
             </Button>
           </SettingsRow>
@@ -221,6 +192,11 @@ function EnginesTab(): React.JSX.Element {
         <SettingsRow label="Default model" description="Leave blank to use the CLI's own default.">
           <ModelInput className="st-input st-control-w" value={engine.model} models={models} loading={loading} placeholder="CLI default" onChange={(model) => setEngine({ ...engine, model })} />
         </SettingsRow>
+        {hasEfforts(models, engine.model) && (
+          <SettingsRow label="Thinking effort" description="How long the model reasons before answering. Higher is slower and uses more of your limits.">
+            <EffortSelect className="st-input st-control-w" value={engine.effort ?? ''} onChange={(effort) => setEngine({ ...engine, effort })} models={models} model={engine.model} />
+          </SettingsRow>
+        )}
         <SliderRow label="Slides per AI call" description="Smaller batches show slides sooner; larger ones keep the deck more consistent." value={batchSize} min={2} max={8} format={(value) => `${value} slides`} onChange={(value) => setPreference('batchSize', value)} />
         <SliderRow label="Time limit per AI call" description="A call that takes longer is stopped." value={timeout} min={60} max={1800} step={30} format={(value) => `${Math.round(value / 60)} min`} onChange={(value) => setPreference('aiTimeoutSecs', value)} />
       </SettingsGroup>

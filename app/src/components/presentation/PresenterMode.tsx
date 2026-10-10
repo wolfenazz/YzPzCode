@@ -3,19 +3,26 @@ import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { ArrowCounterClockwise, CaretLeft, CaretRight, Minus, Monitor, Plus, Presentation, X } from '@phosphor-icons/react';
-import { PX_PER_IN, SLIDE_HEIGHT, slideWidth } from '../../utils/presentation/layouts';
-import type { PlanContext } from '../../utils/presentation/render';
-import { formatDuration, slideSeconds } from '../../utils/presentation/timing';
-import type { Slide, SlideTransition } from '../../utils/presentation/types';
-import { SlideRenderer } from './SlideRenderer';
+import { formatDuration } from '../../utils/presentation/timing';
+import type { SlideTransition } from '../../utils/presentation/types';
 
-interface PresenterModeProps {
-  slides: Slide[];
-  context: PlanContext;
+/** What the slideshow needs of a slide; layout decks and designed decks both fit. */
+export interface PresentableSlide {
+  id: string;
+  hidden?: boolean;
+  notes: string;
+}
+
+interface PresenterModeProps<T extends PresentableSlide> {
+  slides: T[];
+  /** The slide's natural size in px (only the aspect ratio matters). */
+  aspect: { width: number; height: number };
   transition: SlideTransition;
   /** Id of the slide to start on (hidden slides are skipped). */
   startId: string | null;
-  resolveImage: (src: string) => string;
+  renderSlide: (slide: T, width: number) => React.ReactNode;
+  /** Planned seconds on a slide, for the pace indicator. */
+  seconds: (slide: T) => number;
   onExit: (lastId: string | null) => void;
 }
 
@@ -43,7 +50,7 @@ function useNow(active: boolean): number {
 }
 
 /** Fullscreen slideshow with a presenter view (notes, next slide, timer). */
-export const PresenterMode: React.FC<PresenterModeProps> = ({ slides, context, transition, startId, resolveImage, onExit }) => {
+export function PresenterMode<T extends PresentableSlide>({ slides, aspect, transition, startId, renderSlide, seconds: slideSeconds, onExit }: PresenterModeProps<T>): React.ReactPortal {
   const visible = useMemo(() => slides.filter((slide) => !slide.hidden), [slides]);
   const [index, setIndex] = useState(() => Math.max(0, visible.findIndex((slide) => slide.id === startId)));
   const [direction, setDirection] = useState(1);
@@ -60,7 +67,6 @@ export const PresenterMode: React.FC<PresenterModeProps> = ({ slides, context, t
   const now = useNow(true);
   const current = visible[index] ?? null;
   const next = visible[index + 1] ?? null;
-  const slideIndex = (slide: Slide | null): number => (slide ? slides.indexOf(slide) : 0);
 
   const exit = useCallback(() => onExit(current?.id ?? null), [current, onExit]);
 
@@ -132,8 +138,8 @@ export const PresenterMode: React.FC<PresenterModeProps> = ({ slides, context, t
     return () => window.removeEventListener('keydown', onKey, true);
   }, [blank, exit, go, index, visible.length]);
 
-  const naturalWidth = slideWidth(context.size) * PX_PER_IN;
-  const naturalHeight = SLIDE_HEIGHT * PX_PER_IN;
+  const naturalWidth = aspect.width;
+  const naturalHeight = aspect.height;
   const elapsed = Math.max(0, (pausedAt ?? now) - startedAt) / 1000;
   const planned = visible.slice(0, index + 1).reduce((sum, slide) => sum + slideSeconds(slide), 0);
   const total = visible.reduce((sum, slide) => sum + slideSeconds(slide), 0);
@@ -146,7 +152,7 @@ export const PresenterMode: React.FC<PresenterModeProps> = ({ slides, context, t
       : { enter: { opacity: 1 }, center: { opacity: 1 }, exit: { opacity: 1 } };
   const duration = transition === 'none' ? 0 : transition === 'slide' ? 0.45 : 0.35;
 
-  const stage = (slide: Slide | null, width: number, animate: boolean): React.JSX.Element => (
+  const stage = (slide: T | null, width: number, animate: boolean): React.JSX.Element => (
     <div className="pr-show__stage" style={{ width, height: (width / naturalWidth) * naturalHeight }}>
       <AnimatePresence initial={false} custom={direction} mode={transition === 'slide' ? 'sync' : 'sync'}>
         {slide && (
@@ -160,7 +166,7 @@ export const PresenterMode: React.FC<PresenterModeProps> = ({ slides, context, t
             exit={animate ? 'exit' : undefined}
             transition={{ duration, ease: [0.32, 0.72, 0, 1] }}
           >
-            <SlideRenderer context={context} slide={slide} index={slideIndex(slide)} width={width} resolveImage={resolveImage} />
+            {renderSlide(slide, width)}
           </motion.div>
         )}
       </AnimatePresence>
@@ -237,4 +243,4 @@ export const PresenterMode: React.FC<PresenterModeProps> = ({ slides, context, t
     </div>,
     document.body,
   );
-};
+}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, X } from '@phosphor-icons/react';
 import { listWritingEngines, type WritingEngineInfo } from '../../../utils/writing/aiClient';
 import { useEngineModels } from '../../../utils/writing/useEngineModels';
+import { EffortSelect, hasEfforts } from '../EffortSelect';
 import { ModelInput } from '../ModelInput';
 import { applyHumanizerPreset, DEFAULT_BANNED_PHRASES, HUMANIZER_PRESETS } from '../../../utils/writing/humanizer';
 import type { EngineChoice, HumanizerSettings, Person, ReadingLevel, Spelling, Tone, VoiceSettings, WritingEngineId } from '../../../utils/writing/types';
@@ -87,7 +88,7 @@ export const EnginePicker: React.FC<{ value: EngineChoice; onChange: (value: Eng
               tag: !engine.installed ? 'not installed' : engine.support === 'experimental' ? 'beta' : engine.streaming === 'token' ? 'live' : undefined,
             }))}
             value={value.engine}
-            onChange={(engine) => onChange({ ...value, engine: engine as WritingEngineId, model: '' })}
+            onChange={(engine) => onChange({ ...value, engine: engine as WritingEngineId, model: '', effort: '' })}
             menuWidth={220}
             align="right"
             label="AI engine"
@@ -108,6 +109,12 @@ export const EnginePicker: React.FC<{ value: EngineChoice; onChange: (value: Eng
         <span className="wr-field__label">Model <span className="wr-field__hint">— blank uses the CLI default</span></span>
         <ModelInput className="wr-input" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loadingModels} placeholder={value.engine === 'claude' ? 'e.g. opus, sonnet' : value.engine === 'codex' ? 'e.g. gpt-5-codex' : value.engine === 'opencode' ? 'First signed-in provider' : ''} />
       </label>
+      {hasEfforts(models, value.model) && (
+        <label className="wr-field">
+          <span className="wr-field__label">Thinking effort <span className="wr-field__hint">— how long the model reasons before answering</span></span>
+          <EffortSelect className="wr-input" value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort })} models={models} model={value.model} />
+        </label>
+      )}
     </div>
   );
 };

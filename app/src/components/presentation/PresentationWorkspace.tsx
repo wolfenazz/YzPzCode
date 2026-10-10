@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { BookmarkSimple, CaretDown, CaretUp, Minus, NotePencil, Plus, Sparkle, Warning, X } from '@phosphor-icons/react';
 import SwipeToast from '../reactbits/SwipeToast';
@@ -8,24 +8,31 @@ import { selectPresentationSession, usePresentationSessionStore } from '../../st
 import { usePresentationStore } from '../../stores/presentationStore';
 import { slideTitle as titleOfSlide } from '../../utils/presentation/deck';
 import { downloadStockImage, stockCredit, type StockImage } from '../../utils/presentation/stockImages';
-import { slidesFromTemplate, templateFromDeck } from '../../utils/presentation/templates';
-import { notesBudget } from '../../utils/presentation/timing';
+import { templateFromDeck } from '../../utils/presentation/templates';
+import { notesBudget, slideSeconds } from '../../utils/presentation/timing';
 import { isAbsolutePath, readFileBytes, writeFileBytes } from '../../utils/presentation/assets';
-import { ASSETS_FOLDER, createBrief, createDeck, duplicateSlide, placeholderSlide } from '../../utils/presentation/deck';
-import { getLayout } from '../../utils/presentation/layouts';
+import { ASSETS_FOLDER, createBrief, createDeck, duplicateSlide } from '../../utils/presentation/deck';
+import { getLayout, PX_PER_IN, SLIDE_HEIGHT, slideWidth } from '../../utils/presentation/layouts';
 import { openPptx } from '../../utils/presentation/pptxPackage';
 import { initialPreserveSlides } from '../../utils/presentation/pptxPreserve';
 import type { DeckPass, SlideAction } from '../../utils/presentation/prompts';
 import type { PlanContext } from '../../utils/presentation/render';
 import { changeLayout, emptySlide } from '../../utils/presentation/sanitize';
 import { getTheme } from '../../utils/presentation/themes';
-import type { Block, DeckBrief, DeckSize, DeckTemplate, DeckTheme, LayoutId, OutlineSlide, RichPara, Slide, YzDeck } from '../../utils/presentation/types';
+import { newDesignedSlideId } from '../../utils/presentation/designPrompts';
+import { designCanvas } from '../../utils/presentation/designStyles';
+import type { DesignAttachment, DesignedSlide } from '../../utils/presentation/designTypes';
+import { svgPlainText } from '../../utils/presentation/svgText';
+import type { Block, LayoutId, RichPara, Slide, YzDeck } from '../../utils/presentation/types';
 import { fileName, joinPath, parentPath } from '../../utils/writing/document';
 import { localFileUrl } from '../../utils/mediaFiles';
 import type { WorkspaceConfig } from '../../types';
 import { DeckAiPanel } from './DeckAiPanel';
-import { DeckHero } from './DeckHero';
 import { DeckToolbar, type InsertKind } from './DeckToolbar';
+import { pictureInfo } from './designAssets';
+import { DesignComposer, type ComposerInput } from './DesignComposer';
+import { DesignedEditor } from './DesignedEditor';
+import { DesignedExportDialog } from './DesignedExportDialog';
 import { ExportDialog } from './ExportDialog';
 import { Filmstrip, type SlideCommand } from './Filmstrip';
 import { ImportDialog, type ImportMode } from './ImportDialog';
@@ -34,12 +41,15 @@ import { PresenterMode } from './PresenterMode';
 import { StockImagePicker } from './StockImagePicker';
 import { ThemeEditor } from './ThemeEditor';
 import { SlideCanvas } from './SlideCanvas';
+import { SlideRenderer } from './SlideRenderer';
 import { SlideReviewCard, type SlideReview } from './SlideReviewCard';
 import { SlotInspector } from './SlotInspector';
+import { SvgSlide } from './SvgSlide';
 import { useDeckDocument } from './useDeckDocument';
 import { useDeckGenerator, type GenerationTarget } from './useDeckGenerator';
-import { DeckWizard, type OutlineResult } from './wizard/DeckWizard';
+import { storySlides, useDesignGenerator } from './useDesignGenerator';
 import './presentation.css';
+import './design.css';
 
 interface PresentationWorkspaceProps {
   workspace: WorkspaceConfig;
@@ -86,6 +96,15 @@ const withoutFit = (slide: Slide, slot?: string): Slide => {
   return Object.keys(fit).length > 0 ? { ...slide, fit } : (({ fit: _unused, ...rest }) => rest)(slide);
 };
 
+/** Presenting time for a designed slide: its notes, or a share of its words. */
+function designedSeconds(slide: DesignedSlide): number {
+  if (slide.hidden) return 0;
+  const words = (text: string): number => text.split(/\s+/).filter(Boolean).length;
+  const notes = words(slide.notes);
+  if (notes > 0) return Math.max(12, Math.round((notes / 140) * 60));
+  return Math.max(slide.role === 'cover' || slide.role === 'section' || slide.role === 'closing' ? 8 : 12, Math.round(((words(svgPlainText(slide.svg)) * 1.6) / 140) * 60));
+}
+
 export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ workspace, visible }) => {
   const workspaceId = workspace.id;
   const session = usePresentationSessionStore(selectPresentationSession(workspaceId));
@@ -94,7 +113,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const documents = useDeckDocument(workspaceId, workspace.path);
   const generator = useDeckGenerator(workspaceId);
 
-  const [wizardOpen, setWizardOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [importState, setImportState] = useState<{ path: string | null; busy: boolean; error: string | null } | null>(null);
   const [exporting, setExporting] = useState<{ writePreserved?: (path: string) => Promise<void> } | null>(null);
   const [filmstripOpen, setFilmstripOpen] = useState(true);
@@ -110,7 +129,6 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const [themeEditor, setThemeEditor] = useState(false);
   const [templateDraft, setTemplateDraft] = useState<{ name: string; description: string } | null>(null);
   const customThemes = usePresentationStore((state) => state.customThemes);
-  const templates = usePresentationStore((state) => state.templates);
   const stockProvider = usePresentationStore((state) => state.stockProvider);
   const reviewApplied = useRef(false);
   const restored = useRef(false);
@@ -118,7 +136,11 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
 
   const deck = session.deck;
   const deckDir = session.deckPath ? parentPath(session.deckPath) : '';
+  const designer = useDesignGenerator(workspaceId, deckDir);
   const preserve = Boolean(deck?.source);
+  const designed = Boolean(deck?.design);
+  const defaultEngine = usePresentationStore((state) => state.defaultEngine);
+  const defaultSize = usePresentationStore((state) => state.defaultSize);
   const context = useMemo<PlanContext | null>(() => (deck ? { theme: deck.theme, size: deck.size, showNumbers: deck.showNumbers } : null), [deck?.theme, deck?.size, deck?.showNumbers]);
   const selectedId = session.selectedIds[session.selectedIds.length - 1] ?? null;
   const selectedIndex = deck && selectedId ? deck.slides.findIndex((slide) => slide.id === selectedId) : -1;
@@ -146,7 +168,6 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     if (store().sessions[workspaceId]?.deck) return;
     const last = usePresentationStore.getState().lastDeckByWorkspace[workspaceId];
     if (last && documents.decks.some((entry) => entry.path === last)) void documents.openDeck(last);
-    else if (documents.decks.length === 0 && usePresentationStore.getState().openWizardOnStart) setWizardOpen(true);
   }, [documents, store, workspaceId]);
 
   // The finishing moment.
@@ -164,24 +185,62 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
 
   // Creating -----------------------------------------------------------------
 
-  const designOutline = useCallback(async (brief: DeckBrief): Promise<OutlineResult> => {
-    const result = await generator.generateOutline(brief);
-    const error = store().sessions[workspaceId]?.run?.error ?? null;
-    return { title: result?.title ?? '', outline: result?.slides ?? null, error };
-  }, [generator, store, workspaceId]);
-
-  const generate = useCallback(async (input: { brief: DeckBrief; theme: DeckTheme; size: DeckSize; title: string; outline: OutlineSlide[] }): Promise<void> => {
-    setWizardOpen(false);
-    const slides = input.outline.map(placeholderSlide);
-    const deck = createDeck({ title: input.title, brief: input.brief, theme: input.theme, size: input.size, outline: input.outline, slides });
+  /** Describe-it creation: the AI invents the design and storyline, then draws every slide. */
+  const createDesigned = useCallback(async (input: ComposerInput): Promise<void> => {
+    setCreating(true);
     try {
-      await documents.createDeckFile(deck);
-      generationTargets.current = slides.map((slide, outlineIndex) => ({ outlineIndex, slideId: slide.id }));
-      void generator.generateSlides(generationTargets.current);
+      const engine = usePresentationStore.getState().defaultEngine;
+      const pictures = input.files.filter((file) => file.kind === 'image');
+      const used = new Set<string>();
+      const assetName = (path: string): string => {
+        const base = fileName(path).replace(/[^\w.-]+/g, '-').replace(/^-+/, '') || 'picture.png';
+        let name = base;
+        for (let counter = 2; used.has(name.toLowerCase()); counter += 1) name = base.replace(/(\.[^.]+)?$/, `-${counter}$1`);
+        used.add(name.toLowerCase());
+        return name;
+      };
+      const attachments: DesignAttachment[] = await Promise.all(input.files.map(async (file): Promise<DesignAttachment> => {
+        if (file.kind === 'document') return { path: file.path, name: file.name, kind: 'document', use: 'auto' };
+        const info = file.preview ? await pictureInfo(file.preview).catch(() => null) : null;
+        return { path: `${ASSETS_FOLDER}/${assetName(file.path)}`, name: file.name, kind: 'image', use: file.use, ...(info ?? {}) };
+      }));
+      const direction = await designer.direct({
+        prompt: input.prompt,
+        attachments,
+        imagePaths: pictures.map((file) => file.path),
+        documents: input.files.filter((file) => file.kind === 'document').map((file) => file.path),
+        slideCount: input.slideCount,
+        language: input.language,
+        size: input.size,
+        engine,
+      });
+      if (!direction) return;
+      const slides: DesignedSlide[] = storySlides(direction, newDesignedSlideId);
+      const prefs = usePresentationStore.getState();
+      const deck = createDeck({
+        title: direction.title,
+        brief: { ...createBrief(engine, slides.length, prefs.defaultTone), topic: direction.title, sourceNotes: input.prompt, sourceFiles: input.files.filter((file) => file.kind === 'document').map((file) => file.path) },
+        size: input.size,
+        design: { prompt: input.prompt, attachments, slideCount: input.slideCount, language: direction.language, system: direction.system, slides },
+      });
+      const path = documents.pathFor(deck.meta.title);
+      const folder = parentPath(path);
+      // Pictures move into the deck; dropped or pasted ones leave the inbox.
+      const inbox = joinPath(workspace.path, 'Presentations', '.attachments').toLowerCase();
+      for (const [index, file] of pictures.entries()) {
+        const target = attachments.filter((entry) => entry.kind === 'image')[index];
+        await writeFileBytes(joinPath(folder, target.path), await readFileBytes(file.path));
+        if (file.path.toLowerCase().startsWith(inbox)) void invoke('delete_entry', { path: file.path }).catch(() => undefined);
+      }
+      await documents.createDeckFile(deck, path);
+      void designer.drawSlides(slides.map((slide) => slide.id));
     } catch (error) {
       store().update(workspaceId, { error: `Could not create the presentation: ${error instanceof Error ? error.message : String(error)}` });
+      store().updateRun(workspaceId, { phase: 'failed', endedAt: Date.now(), error: error instanceof Error ? error.message : String(error) });
+    } finally {
+      setCreating(false);
     }
-  }, [documents, generator, store, workspaceId]);
+  }, [designer, documents, store, workspace.path, workspaceId]);
 
   const writeAssets = async (dir: string, assets: Record<string, Uint8Array>): Promise<void> => {
     for (const [name, bytes] of Object.entries(assets)) await writeFileBytes(joinPath(dir, ASSETS_FOLDER, name), bytes);
@@ -204,25 +263,6 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     await documents.createDeckFile(deck, path);
     setToast({ title: 'Rebuilt in a theme', description: `${imported.slides.length} slides · ${deck.theme.name}` });
   }, [documents]);
-
-  /** A new deck that copies a template's slides (no AI). */
-  const fromTemplate = useCallback(async (template: DeckTemplate): Promise<void> => {
-    const prefs = usePresentationStore.getState();
-    const slides = slidesFromTemplate(template);
-    const deck = createDeck({
-      title: template.name,
-      brief: { ...createBrief(prefs.defaultEngine, Math.max(3, Math.min(30, slides.length)), prefs.defaultTone), topic: template.name },
-      theme: template.theme,
-      size: template.size,
-      slides,
-    });
-    try {
-      await documents.createDeckFile(deck);
-      setToast({ title: 'New from template', description: `${template.name} · ${slides.length} slides` });
-    } catch (error) {
-      store().update(workspaceId, { error: `Could not create the presentation: ${error instanceof Error ? error.message : String(error)}` });
-    }
-  }, [documents, store, workspaceId]);
 
   const importPowerPoint = useCallback(async (path: string, mode: ImportMode, themeId: string | null): Promise<void> => {
     setImportState({ path, busy: true, error: null });
@@ -256,7 +296,6 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     if (!request || documents.loadingList) return;
     store().clearRequest(workspaceId);
     restored.current = true;
-    setWizardOpen(false);
     if (request.kind === 'open') void documents.openDeck(request.path);
     else setImportState({ path: request.path, busy: false, error: null });
   }, [documents, request, store, workspaceId]);
@@ -583,7 +622,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   // Keyboard ---------------------------------------------------------------------
 
   useEffect(() => {
-    if (!visible || !deck || preserve) return;
+    if (!visible || !deck || preserve || designed) return;
     const onKey = (event: KeyboardEvent): void => {
       if (document.querySelector('.pr-modal, .pr-wizard')) return;
       const target = event.target as HTMLElement | null;
@@ -604,7 +643,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [deck, documents, preserve, select, selectedId, selectedIndex, slideCommand, store, visible, workspaceId]);
+  }, [deck, designed, documents, preserve, select, selectedId, selectedIndex, slideCommand, store, visible, workspaceId]);
 
   // Keyboard for original-design decks: save and export.
   useEffect(() => {
@@ -632,7 +671,21 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
 
   return (
     <div className="pr-root" aria-hidden={!visible}>
-      {deck && preserve && context ? (
+      {deck && designed ? (
+        <DesignedEditor
+          workspaceId={workspaceId}
+          workspacePath={workspace.path}
+          session={session}
+          deck={deck}
+          deckDir={deckDir}
+          visible={visible}
+          generator={designer}
+          onSave={() => void documents.save()}
+          onExport={() => setExporting({})}
+          onPresent={(startId) => setPresenting({ startId })}
+          onToast={(title, description) => setToast({ title, description })}
+        />
+      ) : deck && preserve && context ? (
         <PreserveEditor
           workspaceId={workspaceId}
           session={session}
@@ -800,15 +853,20 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           </div>
         </div>
       ) : (
-        <DeckHero
+        <DesignComposer
           workspaceName={workspace.name}
+          workspacePath={workspace.path}
           decks={documents.decks}
-          templates={templates}
-          onTemplate={(template) => void fromTemplate(template)}
+          engine={defaultEngine}
+          defaultSize={defaultSize}
+          run={session.run}
+          busy={creating}
           animations={animations && visible}
-          onNew={() => setWizardOpen(true)}
-          onImport={() => setImportState({ path: null, busy: false, error: null })}
+          onEngine={(engine) => usePresentationStore.getState().setDefaultEngine(engine)}
+          onCreate={(input) => void createDesigned(input)}
+          onCancel={designer.cancel}
           onOpen={(path) => void documents.openDeck(path)}
+          onImport={() => setImportState({ path: null, busy: false, error: null })}
         />
       )}
 
@@ -820,7 +878,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
             aria-label="Open presentation"
             onChange={(event) => {
               const value = event.target.value;
-              if (value === '__new') setWizardOpen(true);
+              if (value === '__new') void documents.closeDeck();
               else if (value === '__import') setImportState({ path: null, busy: false, error: null });
               else if (value === '__close') void documents.closeDeck();
               else if (value) void documents.openDeck(value);
@@ -835,19 +893,6 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         </div>
       )}
 
-      <AnimatePresence>
-        {wizardOpen && (
-          <DeckWizard
-            key="wizard"
-            workspacePath={workspace.path}
-            onClose={() => setWizardOpen(false)}
-            onDesignOutline={designOutline}
-            onCancelOutline={generator.cancel}
-            onGenerate={(input) => void generate(input)}
-          />
-        )}
-      </AnimatePresence>
-
       {importState && (
         <ImportDialog
           workspacePath={workspace.path}
@@ -859,7 +904,17 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         />
       )}
 
-      {exporting && deck && context && (
+      {exporting && deck && designed && (
+        <DesignedExportDialog
+          deck={deck}
+          deckDir={deckDir}
+          resolveHref={resolveImage}
+          onClose={() => setExporting(null)}
+          onExported={(path) => setToast({ title: 'Exported', description: fileName(path) })}
+        />
+      )}
+
+      {exporting && deck && !designed && context && (
         <ExportDialog
           deck={deck}
           deckDir={deckDir}
@@ -884,13 +939,29 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         />
       )}
 
-      {presenting && deck && context && !preserve && (
+      {presenting && deck?.design && (
         <PresenterMode
-          slides={deck.slides}
-          context={context}
+          slides={deck.design.slides.filter((slide) => slide.svg)}
+          aspect={designCanvas(deck.size)}
           transition={deck.transition}
           startId={presenting.startId}
-          resolveImage={resolveImage}
+          renderSlide={(slide, width) => <SvgSlide svg={slide.svg} width={width} canvas={designCanvas(deck.size)} resolveHref={resolveImage} />}
+          seconds={designedSeconds}
+          onExit={(lastId) => {
+            setPresenting(null);
+            if (lastId) select([lastId]);
+          }}
+        />
+      )}
+
+      {presenting && deck && context && !preserve && !designed && (
+        <PresenterMode
+          slides={deck.slides}
+          aspect={{ width: slideWidth(context.size) * PX_PER_IN, height: SLIDE_HEIGHT * PX_PER_IN }}
+          transition={deck.transition}
+          startId={presenting.startId}
+          renderSlide={(slide, width) => <SlideRenderer context={context} slide={slide} index={deck.slides.indexOf(slide)} width={width} resolveImage={resolveImage} />}
+          seconds={slideSeconds}
           onExit={(lastId) => {
             setPresenting(null);
             if (lastId) select([lastId]);

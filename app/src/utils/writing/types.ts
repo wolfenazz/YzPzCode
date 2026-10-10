@@ -83,6 +83,8 @@ export interface EngineChoice {
   engine: WritingEngineId;
   /** Empty means the CLI's default model. */
   model: string;
+  /** Thinking effort (`low` … `max`); empty or missing means the CLI's default. */
+  effort?: string;
   allowWebResearch: boolean;
 }
 

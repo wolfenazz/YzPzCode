@@ -20,6 +20,7 @@ import { CommissionWizard } from '../../writing/wizard/CommissionWizard';
 import { useWritingStore } from '../../../stores/writingStore';
 import { listWritingEngines, type WritingEngineInfo } from '../../../utils/writing/aiClient';
 import { useEngineModels } from '../../../utils/writing/useEngineModels';
+import { EffortSelect, hasEfforts } from '../../writing/EffortSelect';
 import { ModelInput } from '../../writing/ModelInput';
 import { applyHumanizerPreset, DEFAULT_BANNED_PHRASES, HUMANIZER_PRESETS } from '../../../utils/writing/humanizer';
 import { getReportType } from '../../../utils/writing/reportTypes';
@@ -243,7 +244,7 @@ function EnginesTab(): React.JSX.Element {
             label={<span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>{engine.displayName}{engine.support === 'experimental' && <Badge tone="warning">Beta</Badge>}</span>}
             description={engine.installed ? `${engine.version ?? 'Installed'} · ${engine.streaming === 'token' ? 'streams word by word' : 'delivers each section whole'}` : 'Not installed'}
           >
-            <Button size="sm" variant={defaultEngine.engine === engine.engine ? 'primary' : 'default'} disabled={!engine.installed} onClick={() => setDefaultEngine({ ...defaultEngine, engine: engine.engine as WritingEngineId, model: '' })}>
+            <Button size="sm" variant={defaultEngine.engine === engine.engine ? 'primary' : 'default'} disabled={!engine.installed} onClick={() => setDefaultEngine({ ...defaultEngine, engine: engine.engine as WritingEngineId, model: '', effort: '' })}>
               {defaultEngine.engine === engine.engine ? 'Default' : 'Use by default'}
             </Button>
           </SettingsRow>
@@ -253,6 +254,11 @@ function EnginesTab(): React.JSX.Element {
         <SettingsRow label="Default model" description="Leave blank to use the CLI's own default.">
           <ModelInput className="st-input st-control-w" value={defaultEngine.model} models={models} loading={loadingModels} placeholder="CLI default" onChange={(model) => setDefaultEngine({ ...defaultEngine, model })} />
         </SettingsRow>
+        {hasEfforts(models, defaultEngine.model) && (
+          <SettingsRow label="Thinking effort" description="How long the model reasons before answering. Higher is slower and uses more of your limits.">
+            <EffortSelect className="st-input st-control-w" value={defaultEngine.effort ?? ''} onChange={(effort) => setDefaultEngine({ ...defaultEngine, effort })} models={models} model={defaultEngine.model} />
+          </SettingsRow>
+        )}
         <SliderRow label="Time limit per AI call" description="A section that takes longer is stopped." value={timeout} min={60} max={1800} step={30} format={(value) => `${Math.round(value / 60)} min`} onChange={(value) => setPreference('aiTimeoutSecs', value)} />
       </SettingsGroup>
     </>

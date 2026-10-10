@@ -451,3 +451,294 @@ test('deck passes and local image prompts', () => {
   assert.equal(imagePrompt.colourName('#1f4e9e'), 'blue');
   assert.equal(imagePrompt.colourName('#14213d'), 'navy');
 });
+
+// AI-designed decks (SVG slides, after ppt-master) -----------------------------
+
+const svgSafe = await load('svgSafe');
+const svgText = await load('svgText');
+const designPrompts = await load('designPrompts');
+const designColors = await load('designColors');
+const designStyles = await load('designStyles');
+const svgPptx = await load('svgPptx');
+const svgDeckExport = await load('svgDeckExport');
+
+const CANVAS = { width: 1280, height: 720 };
+
+test('slide SVG from the AI is repaired and stripped of anything executable', () => {
+  const raw = '```svg\n<svg viewBox="0 0 1280 720" width="1280" height="720" onload="alert(1)">'
+    + '<script>alert(1)</script><style>rect{fill:red}</style>'
+    + '<foreignObject><div>x</div></foreignObject>'
+    + '<defs><linearGradient id="g"><stop offset="0" stop-color="#112233"/></linearGradient></defs>'
+    + '<rect width="10" height="10" fill="url(#g)" onclick="x()" class="a" style="fill:url(https://evil/x);stroke:#000"/>'
+    + '<a href="javascript:alert(1)"><text x="1" y="2">R&D &mdash; 5 &lt; 6</text></a>'
+    + '<image href="https://evil.example/p.png" width="1" height="1"/>'
+    + '<image href="assets/photo.png" width="1" height="1"/>'
+    + '</svg>\n```';
+  const { svg, width, height } = svgSafe.sanitizeSvg(raw, CANVAS);
+  assert.equal(width, 1280);
+  assert.equal(height, 720);
+  for (const banned of ['script', 'onload', 'onclick', 'foreignObject', '<style', 'class=', 'javascript', 'evil', '<a ']) assert.ok(!svg.includes(banned), `${banned} removed`);
+  assert.match(svg, /R&amp;D — 5 &lt; 6/);
+  assert.match(svg, /fill="url\(#g\)"/);
+  assert.match(svg, /style="stroke:#000"/);
+  assert.match(svg, /href="assets\/photo.png"/);
+  assert.ok(!/\swidth="1280"/.test(svg), 'the root loses its fixed size');
+  assert.throws(() => svgSafe.sanitizeSvg('<svg><rect></svg>', CANVAS), /well-formed/);
+  assert.throws(() => svgSafe.sanitizeSvg('no svg here', CANVAS), /no <svg>/);
+});
+
+test('display copies scope ids, resolve pictures and index editable targets', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><defs><linearGradient id="g"/><clipPath id="c"><circle r="1"/></clipPath></defs><rect fill="url(#g)"/><use href="#g"/><image href="assets/a b.png" clip-path="url(#c)"/><text>A</text><text>B</text></svg>';
+  const out = svgSafe.prepareSvgForDisplay(svg, { prefix: 's1', resolveHref: (href) => `media://${href}`, indexTargets: true });
+  assert.match(out, /id="s1-g"/);
+  assert.match(out, /url\(#s1-g\)/);
+  assert.match(out, /href="#s1-g"/);
+  assert.match(out, /url\(#s1-c\)/);
+  assert.match(out, /href="media:\/\/assets\/a b.png"/);
+  assert.match(out, /<text data-ti="0">A/);
+  assert.match(out, /<text data-ti="1">B/);
+  assert.match(out, /<image data-ii="0"/);
+  assert.deepEqual(svgSafe.svgAssetRefs(svg), ['assets/a b.png']);
+});
+
+test('slide text is edited in place, line by line', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" font-size="20"><text x="10" y="30" font-weight="bold">Grow <tspan fill="#F00">revenue</tspan> fast<tspan x="10" dy="26">second line</tspan></text><text x="5" y="90"><tspan x="5" dy="0">only</tspan></text><image href="assets/a.png"/></svg>';
+  const items = svgText.svgTextItems(svg);
+  assert.deepEqual(items[0].lines, ['Grow revenue fast', 'second line']);
+  assert.equal(items[0].fontSize, 20);
+  assert.equal(items[0].bold, true);
+  assert.deepEqual(items[1].lines, ['only']);
+  const same = svgText.setSvgText(svg, 0, ['Grow revenue fast', 'changed']);
+  assert.match(same, /<tspan fill="#F00">revenue<\/tspan>/, 'unchanged lines keep their runs');
+  assert.match(same, /<tspan x="10" dy="26">changed<\/tspan>/);
+  const more = svgText.setSvgText(svg, 0, ['One', 'Two', 'Three']);
+  assert.deepEqual(svgText.svgTextItems(more)[0].lines, ['One', 'Two', 'Three']);
+  assert.match(more, /<tspan x="10" dy="26">Three<\/tspan>/, 'new lines copy the line step');
+  assert.deepEqual(svgText.svgTextItems(svgText.setSvgText(svg, 0, ['Just one']))[0].lines, ['Just one']);
+  assert.equal(svgText.svgTextItems(svgText.setSvgText(svg, 0, [])).length, 1, 'emptying a text removes it');
+  const swapped = svgText.setSvgImage(svg, 0, 'assets/b.png');
+  assert.deepEqual(svgText.svgImageItems(swapped).map((item) => item.href), ['assets/b.png']);
+  assert.match(svgText.svgPlainText(svg), /Grow revenue fast second line\nonly/);
+});
+
+test('art direction replies become a readable design system and a storyline', () => {
+  const reply = `Here you go:\n${JSON.stringify({
+    title: 'Coffee in 2030',
+    language: 'English',
+    design: {
+      name: 'Roastery Ledger', concept: 'Warm paper and espresso ink.', style: 'editorial', mode: 'narrative',
+      palette: { background: '#F4ECDF', surface: '#E9DCC8', text: '#EFE6D8', muted: 'oops', primary: '#5B3A29', secondary: '#C08A5B', accent: '#D9482B' },
+      chartColors: ['#5B3A29', 'nope', '#C08A5B'],
+      fonts: { heading: "'Georgia', serif", body: 'Comic Neue' },
+      type: { display: 400, title: 44, body: 10, caption: 16 },
+    },
+    pages: [{ role: 'cover', title: 'Coffee is about to get expensive', brief: 'Hook: 50% of land lost', density: 'anchor' }, { role: 'weird', title: 'Supply' }, { title: '' }],
+  })}`;
+  const result = designPrompts.parseDirection(reply);
+  assert.equal(result.title, 'Coffee in 2030');
+  assert.equal(result.pages.length, 2);
+  assert.equal(result.pages[1].role, 'content');
+  assert.equal(result.pages[1].density, 'dense');
+  const { system } = result;
+  assert.equal(system.fonts.heading, 'Georgia');
+  assert.equal(system.fonts.body, designStyles.DEFAULT_BODY_FONT, 'unknown fonts fall back');
+  assert.ok(designColors.contrastRatio(system.palette.text, system.palette.background) >= 7, 'unreadable text colour is repaired');
+  assert.ok(designColors.contrastRatio(system.palette.muted, system.palette.background) >= 4.5);
+  assert.equal(system.type.display, 220);
+  assert.equal(system.type.body, 18);
+  assert.equal(system.dark, false);
+  assert.ok(system.chartColors.length >= 3);
+  assert.ok(designPrompts.paletteReadable(system));
+  assert.equal(designPrompts.parseDirection('no json at all'), null);
+});
+
+test('direction and slide prompts carry the brief, the catalog and the SVG contract', () => {
+  const attachments = [{ path: 'assets/logo.png', name: 'logo.png', kind: 'image', use: 'slides', width: 400, height: 200, colors: ['#112233'] }];
+  const direction = designPrompts.buildDirectionPrompt({ prompt: 'A pitch for a solar co-op', attachments, sources: 'Fact: 40% cheaper', slideCount: 8, language: 'auto', canvas: CANVAS, seesImages: true });
+  assert.match(direction.prompt, /A pitch for a solar co-op/);
+  assert.match(direction.prompt, /exactly 8/);
+  assert.match(direction.prompt, /assets\/logo.png — 400×200px, dominant colours #112233, must appear on a slide/);
+  assert.match(direction.prompt, /Fact: 40% cheaper/);
+  assert.match(direction.system, /swiss-minimal/);
+  assert.match(direction.system, /Bahnschrift/);
+  const restyle = designPrompts.buildDirectionPrompt({ prompt: 'darker', attachments: [], sources: 'x', slideCount: null, language: 'English', canvas: CANVAS, seesImages: false, keepPages: [{ role: 'cover', title: 'T', brief: 'B', density: 'anchor' }], previous: designPrompts.FALLBACK_SYSTEM });
+  assert.match(restyle.prompt, /RESTYLE/);
+  assert.ok(!restyle.prompt.includes('SOURCE MATERIAL'));
+  const pages = [{ role: 'cover', title: 'One', brief: 'b1', density: 'anchor' }, { role: 'content', title: 'Two', brief: 'b2', density: 'dense' }, { role: 'closing', title: 'Three', brief: 'b3', density: 'anchor' }];
+  const slides = designPrompts.buildSlidesPrompt({ title: 'Deck', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, draw: [1, 2], attachments, seesImages: false, reference: { number: 1, svg: '<svg>cover</svg>' } });
+  assert.match(slides.system, /SVG CONTRACT/);
+  assert.match(slides.system, /viewBox="0 0 1280 720"/);
+  assert.match(slides.system, /DESIGN CRAFT/);
+  assert.match(slides.prompt, /▶ 2\. \[content, dense\] Two\n {5}Brief: b2/);
+  assert.match(slides.prompt, /^ {2}1\. \[cover, anchor\] One$/m);
+  assert.match(slides.prompt, /<svg>cover<\/svg>/);
+  assert.match(slides.prompt, /Draw pages 2, 3 now/);
+  const blended = designPrompts.buildSlidesPrompt({ title: 'Deck', language: 'English', system: { ...designPrompts.FALLBACK_SYSTEM, style: 'blend: photo-editorial + zine (full-bleed photos)' }, canvas: CANVAS, pages, draw: [0], attachments: [], seesImages: false });
+  assert.match(blended.prompt, /^ {2}photo-editorial: /m, 'every style in a blend is described');
+  assert.match(blended.prompt, /^ {2}zine: /m);
+  assert.doesNotMatch(blended.prompt, /^ {2}editorial: /m, 'a style id inside another id does not count');
+  const refine = designPrompts.buildRefinePrompt({ title: 'Deck', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, index: 0, svg: '<svg>x</svg>', notes: 'n', instruction: 'Make it bolder', attachments: [], seesImages: false });
+  assert.match(refine.prompt, /REDRAW PAGE 1\. Instruction from the user: Make it bolder/);
+});
+
+test('slide blocks are read while streaming and at the end', () => {
+  const one = '<slide n="2" role="content" title="Costs &amp; savings">\n<svg viewBox="0 0 1280 720"><text>a</text></svg>\n<notes>Speaker notes: Say this.</notes>\n</slide>';
+  const partial = `${one}\n<slide n="3" role="data" title="Next">\n<svg viewBox="0 0 1280 720"><rect/></svg>\n<notes>Half`;
+  const streaming = designPrompts.extractSlideBlocks(partial);
+  assert.equal(streaming.length, 1);
+  assert.deepEqual({ ...streaming[0], svg: undefined }, { n: 2, role: 'content', title: 'Costs & savings', svg: undefined, notes: 'Say this.' });
+  const final = designPrompts.extractSlideBlocks(partial, true);
+  assert.equal(final.length, 2);
+  assert.equal(final[1].role, 'data');
+  assert.equal(final[1].notes, 'Half');
+  const bare = designPrompts.extractSlideBlocks('Sure!\n<svg viewBox="0 0 1 1"></svg>', true);
+  assert.equal(bare.length, 1);
+  assert.equal(designPrompts.titleFromSvg('<svg><text font-size="20">small</text><text font-size="60">Big <tspan>title</tspan></text></svg>'), 'Big title');
+});
+
+test('designed decks round-trip through the .yzdeck file, sanitised again on load', () => {
+  const system = designPrompts.sanitizeDesignSystem({ palette: { background: '#101820' } });
+  assert.equal(system.dark, true);
+  const deck = createDeck({
+    title: 'Designed',
+    brief: createBrief(),
+    design: {
+      prompt: 'A deck', attachments: [{ path: 'assets/a.png', name: 'a.png', kind: 'image', use: 'style' }], slideCount: 99, language: 'English', system,
+      slides: [
+        { id: 's1', role: 'cover', title: 'Hello', brief: 'b', density: 'anchor', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><script>bad()</script><text x="1" y="2">Hi</text></svg>', notes: 'n' },
+        { id: 's1', role: 'content', title: '', brief: '', density: 'dense', svg: '', notes: '', hidden: true },
+      ],
+    },
+  });
+  const again = deckModule.parseDeck(serializeDeck(deck));
+  assert.equal(again.design.slides.length, 2);
+  assert.notEqual(again.design.slides[0].id, again.design.slides[1].id, 'ids stay unique');
+  assert.ok(!again.design.slides[0].svg.includes('script'));
+  assert.match(again.design.slides[0].svg, /Hi<\/text>/);
+  assert.equal(again.design.slides[1].hidden, true);
+  assert.equal(again.design.slideCount, designPrompts.MAX_DESIGN_SLIDES);
+  assert.equal(again.design.attachments[0].use, 'style');
+  assert.equal(again.design.system.palette.background, '#101820');
+  assert.equal(deckModule.parseDeck(serializeDeck(createDeck({ title: 'x', brief: createBrief() }))).design, undefined);
+});
+
+test('path data with relative commands and arcs becomes absolute cubic segments', () => {
+  const segs = svgPptx.parsePathData('M10 10 h20 v20 l-5 5 q 5 5 10 0 t 10 0 a 10 10 0 0 1 20 0 z');
+  assert.deepEqual(segs[0], { op: 'M', p: [10, 10] });
+  assert.deepEqual(segs[1], { op: 'L', p: [30, 10] });
+  assert.deepEqual(segs[2], { op: 'L', p: [30, 30] });
+  assert.deepEqual(segs[3], { op: 'L', p: [25, 35] });
+  assert.equal(segs.at(-1).op, 'Z');
+  const arcs = segs.filter((seg) => seg.op === 'C');
+  const end = arcs.at(-1).p;
+  assert.ok(Math.abs(end[4] - 65) < 1e-6 && Math.abs(end[5] - 35) < 1e-6, 'the arc ends where the SVG says');
+  assert.ok(arcs.length >= 4);
+  assert.equal(svgPptx.primaryFont("'Georgia', serif"), 'Georgia');
+  assert.equal(svgPptx.primaryFont('sans-serif'), 'Arial');
+});
+
+const SAMPLE_SLIDE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="'Segoe UI', sans-serif">
+<defs>
+  <linearGradient id="field" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#102A43"/><stop offset="1" stop-color="#243B53"/></linearGradient>
+  <radialGradient id="bloom"><stop offset="0" stop-color="#F0B429" stop-opacity="0.6"/><stop offset="1" stop-color="#F0B429" stop-opacity="0"/></radialGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.12"/></filter>
+  <clipPath id="round"><circle cx="1000" cy="360" r="150"/></clipPath>
+  <marker id="arrow" orient="auto" markerWidth="10" markerHeight="10" refX="5" refY="5"><path d="M0 0 L10 5 L0 10 z" fill="#F0B429"/></marker>
+</defs>
+<rect x="0" y="0" width="1280" height="720" fill="url(#field)"/>
+<circle cx="200" cy="200" r="160" fill="url(#bloom)"/>
+<g id="header">
+  <text x="64" y="120" font-family="'Georgia', serif" font-size="52" font-weight="bold" fill="#FFFFFF">Solar is now <tspan fill="#F0B429">40% cheaper</tspan></text>
+  <text x="64" y="180" font-size="24" fill="#BCCCDC">First line of the standfirst<tspan x="64" dy="36">and its second line</tspan></text>
+</g>
+<g id="card" transform="translate(64 260)">
+  <rect width="420" height="200" rx="16" fill="#FFFFFF" fill-opacity="0.08" stroke="#FFFFFF" stroke-opacity="0.2" filter="url(#shadow)"/>
+  <text x="210" y="110" text-anchor="middle" font-size="72" font-weight="700" fill="#F0B429">2.4×</text>
+</g>
+<path d="M520 400 C 600 300, 700 500, 780 400" fill="none" stroke="#F0B429" stroke-width="4" stroke-dasharray="8,4" marker-end="url(#arrow)"/>
+<image href="assets/panel.jpg" x="850" y="210" width="300" height="300" preserveAspectRatio="xMidYMid slice" clip-path="url(#round)"/>
+<polygon points="64,600 120,560 176,600" fill="#F0B429" transform="rotate(10 120 580)"/>
+<text x="1216" y="680" text-anchor="end" font-size="14" fill="#829AB1" opacity="0.8">Source: IEA 2025</text>
+</svg>`;
+
+const PICTURE = { data: new Uint8Array([0x89, 0x50, 0x4e, 0x47]), ext: 'jpeg', width: 600, height: 400 };
+
+test('slide SVG converts to native PowerPoint shapes', () => {
+  const out = svgPptx.convertSvgSlide(SAMPLE_SLIDE, { slideWidthEmu: 12192000, slideHeightEmu: 6858000, picture: (href) => (href === 'assets/panel.jpg' ? PICTURE : null) });
+  assert.match(out.background, /^<p:bg><p:bgPr><a:gradFill/);
+  assert.match(out.background, /<a:lin ang="0" scaled="0"\/>/);
+  const doc = new DOMParser().parseFromString(`<p:spTree xmlns:p="p" xmlns:a="a" xmlns:r="r">${out.shapes}</p:spTree>`, 'text/xml');
+  assert.equal(doc.getElementsByTagName('parsererror').length, 0, 'shapes are well-formed XML');
+  assert.match(out.shapes, /<a:prstGeom prst="ellipse">/);
+  assert.match(out.shapes, /<a:path path="circle">/, 'radial gradient');
+  assert.match(out.shapes, /<p:grpSp><p:nvGrpSpPr><p:cNvPr id="\d+" name="header"\/>/);
+  assert.match(out.shapes, /<a:t>Solar is now <\/a:t><\/a:r><a:r><a:rPr lang="en-US" sz="3900" b="1"/);
+  assert.match(out.shapes, /<a:t>40% cheaper<\/a:t>/);
+  assert.match(out.shapes, /<a:latin typeface="Georgia"\/>/);
+  assert.match(out.shapes, /<a:lnSpc><a:spcPts val="2700"\/><\/a:lnSpc>/, 'line step 36px = 27pt');
+  assert.match(out.shapes, /<a:t>and its second line<\/a:t>/);
+  assert.match(out.shapes, /<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 8000"\/>/);
+  assert.match(out.shapes, /<a:outerShdw blurRad="190500" dist="57150" dir="5400000"/);
+  assert.match(out.shapes, /<a:pPr algn="ctr">/);
+  assert.match(out.shapes, /<a:cubicBezTo>/);
+  assert.match(out.shapes, /<a:prstDash val="sysDash"\/>/);
+  assert.match(out.shapes, /<a:tailEnd type="triangle"/);
+  assert.match(out.shapes, /<p:pic>.*<a:srcRect l="16667" t="0" r="16667" b="0"\/>.*<a:prstGeom prst="ellipse">/, 'a 3:2 picture in a square frame crops its sides');
+  assert.match(out.shapes, /<a:fillToRect l="50000" t="50000" r="50000" b="50000"\/>/, 'radial gradients default to the centre');
+  assert.match(out.shapes, /<a:pPr algn="r">/);
+  assert.match(out.shapes, /<a:alpha val="80000"\/>/, 'opacity reaches the text colour');
+  assert.match(out.shapes, /<a:lnTo><a:pt x="1050593" y="467836"\/><\/a:lnTo><a:close\/>/, 'a rotated polygon keeps its exact points');
+  const rotated = svgPptx.convertSvgSlide('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect x="100" y="100" width="200" height="100" fill="#123456" transform="rotate(30 200 150)"/></svg>', { slideWidthEmu: 12192000, slideHeightEmu: 6858000, picture: () => null });
+  assert.match(rotated.shapes, /<a:xfrm rot="1800000"><a:off x="952500" y="952500"\/><a:ext cx="1905000" cy="952500"\/>/, 'a rotated rectangle stays a rectangle');
+  assert.equal(out.media.length, 1);
+  assert.equal(out.media[0].rId, 'rIdYz1');
+  // The headline's first baseline lands at y=120: 52px Georgia → 39pt, offset = round(1.2·39·0.807) = 38pt → 50.67px.
+  const headline = out.shapes.match(/name="Text \d+"\/><p:cNvSpPr txBox="1"\/><p:nvPr\/><\/p:nvSpPr><p:spPr><a:xfrm><a:off x="(\d+)" y="(\d+)"/);
+  assert.ok(headline, 'headline frame');
+  assert.equal(Number(headline[1]), 64 * 9525);
+  assert.equal(Number(headline[2]), Math.round((120 - (38 * 4) / 3) * 9525));
+});
+
+test('designed decks export to a .pptx with shapes, pictures, notes and theme colours', async () => {
+  const system = designPrompts.sanitizeDesignSystem({ name: 'Night Grid', palette: { background: '#102A43', text: '#F0F4F8', primary: '#F0B429', accent: '#EF4E4E' } });
+  const { bytes, warnings } = await svgDeckExport.buildDesignedPptx({
+    title: 'Solar',
+    size: '16:9',
+    system,
+    mode: 'editable',
+    slides: [{ svg: SAMPLE_SLIDE, notes: 'Open with the price drop.' }, { svg: '', notes: '', hidden: true }],
+    picture: (href) => (href === 'assets/panel.jpg' ? PICTURE : null),
+  });
+  assert.deepEqual(warnings, []);
+  const zip = await JSZip.loadAsync(bytes);
+  const slide = await zip.file('ppt/slides/slide1.xml').async('string');
+  const parsed = new DOMParser().parseFromString(slide, 'text/xml');
+  assert.equal(parsed.getElementsByTagName('parsererror').length, 0);
+  assert.match(slide, /<p:cSld name="Slide 1"><p:bg><p:bgPr><a:gradFill/);
+  assert.match(slide, /<a:t>40% cheaper<\/a:t>/);
+  const rels = await zip.file('ppt/slides/_rels/slide1.xml.rels').async('string');
+  assert.match(rels, /Id="rIdYz1" Type="[^"]*\/image" Target="\.\.\/media\/yz-slide1-1\.jpeg"/);
+  assert.ok(zip.file('ppt/media/yz-slide1-1.jpeg'));
+  const notes = await zip.file('ppt/notesSlides/notesSlide1.xml').async('string');
+  assert.match(notes, /Open with the price drop\./);
+  const theme = await zip.file('ppt/theme/theme1.xml').async('string');
+  assert.match(theme, /<a:clrScheme name="Night Grid">/);
+  assert.match(theme, /<a:dk1><a:srgbClr val="102A43"\/><\/a:dk1>/);
+  assert.match(theme, /<a:accent1><a:srgbClr val="F0B429"\/><\/a:accent1>/);
+  assert.match(await zip.file('ppt/slides/slide2.xml').async('string'), /<p:sld show="0"/, 'hidden slides stay hidden');
+  assert.doesNotMatch(slide, /show="0"/);
+  const presentation = await zip.file('ppt/presentation.xml').async('string');
+  assert.match(presentation, /<p:sldSz cx="12192000" cy="6858000"/);
+});
+
+test('dominant colours of a picture', () => {
+  const pixels = [];
+  for (let i = 0; i < 60; i += 1) pixels.push(200, 30, 40, 255);
+  for (let i = 0; i < 30; i += 1) pixels.push(20, 40, 200, 255);
+  for (let i = 0; i < 30; i += 1) pixels.push(0, 0, 0, 0);
+  const colors = designColors.dominantColors(pixels, 3);
+  assert.equal(colors.length, 2);
+  assert.equal(colors[0], '#C81E28');
+  assert.equal(designColors.normalizeHex('#abc'), '#AABBCC');
+  assert.notEqual(designColors.ensureContrast('#777777', '#FFFFFF', 7), '#777777');
+});

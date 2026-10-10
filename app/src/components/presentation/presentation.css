@@ -7,7 +7,8 @@
 
 .pr-root,
 .pr-popover,
-.pr-menu {
+.pr-menu,
+.pr-themepick {
   --pr-desk: color-mix(in oklab, var(--bg-primary) 86%, black);
   --pr-panel: color-mix(in oklab, var(--bg-secondary) 70%, var(--bg-primary));
   --pr-raised: var(--bg-secondary);
@@ -25,7 +26,7 @@
   --pr-slide-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 16px 40px -18px rgba(0, 0, 0, 0.55);
 }
 
-.light-theme :is(.pr-root, .pr-popover, .pr-menu) {
+.light-theme :is(.pr-root, .pr-popover, .pr-menu, .pr-themepick) {
   --pr-desk: color-mix(in oklab, var(--bg-tertiary) 65%, var(--bg-primary));
   --pr-panel: var(--bg-primary);
   --pr-slide-shadow: 0 1px 2px rgba(20, 20, 40, 0.08), 0 14px 36px -16px rgba(20, 20, 40, 0.28);
@@ -2870,4 +2871,121 @@ textarea.pr-input {
   .pr-show * {
     transition-duration: 0ms !important;
   }
+}
+
+/* Theme picker: every theme drawn as a real title slide ---------------------------------- */
+
+.pr-themepick {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--font-ui);
+}
+
+.pr-themepick__grid {
+  display: grid;
+  max-height: min(320px, 46vh);
+  grid-template-columns: repeat(auto-fill, minmax(212px, 1fr));
+  justify-items: center;
+  gap: 10px 8px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--pr-hairline);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--bg-primary) 70%, var(--bg-secondary));
+  scrollbar-width: thin;
+}
+
+.pr-themepick__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 6px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--pr-ink);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 200ms var(--pr-ease);
+}
+
+.pr-themepick__card:hover {
+  background: color-mix(in oklab, var(--pr-ink) 5%, transparent);
+}
+
+.pr-themepick__card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--pr-accent-soft);
+  border-color: color-mix(in oklab, var(--pr-accent) 60%, transparent);
+}
+
+.pr-themepick__card[data-active] {
+  border-color: var(--pr-accent);
+  background: var(--pr-accent-soft);
+}
+
+.pr-themepick__card .pr-slide {
+  border-radius: 5px;
+  box-shadow: 0 0 0 1px rgba(128, 128, 128, 0.22), 0 8px 20px -12px rgba(0, 0, 0, 0.45);
+  transition: transform 220ms var(--pr-ease);
+}
+
+.pr-themepick__card:hover .pr-slide {
+  transform: translateY(-1px);
+}
+
+.pr-themepick__name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px;
+  font-size: 12.5px;
+}
+
+.pr-themepick__name strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pr-themepick__none {
+  display: flex;
+  aspect-ratio: 16 / 9;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border: 1px dashed var(--pr-hairline-strong);
+  border-radius: 5px;
+  color: var(--pr-accent);
+  text-align: center;
+}
+
+.pr-themepick__none span {
+  color: var(--pr-ink-soft);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.pr-themepick__detail {
+  margin: 0;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.pr-themepick__detail strong {
+  color: var(--pr-ink);
+  font-weight: 600;
+}
+
+.pr-themepick__detail span {
+  margin-left: 4px;
+  color: var(--pr-ink-faint);
 }

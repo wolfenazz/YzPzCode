@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -65,9 +65,13 @@ fn push(args: &mut Vec<OsString>, value: &str) {
 pub struct RunContext<'a> {
     pub run_dir: &'a Path,
     pub model: Option<&'a str>,
+    /// Reasoning effort (`low` … `max`); each CLI takes it its own way.
+    pub effort: Option<&'a str>,
     /// Written to `system.md` for engines that take a separate system prompt.
     pub has_system_file: bool,
     pub prompt: &'a str,
+    /// Pictures copied into the run folder, for engines that can look at them.
+    pub images: &'a [PathBuf],
 }
 
 impl WritingEngine {
@@ -120,6 +124,13 @@ impl WritingEngine {
         matches!(self, Self::Claude)
     }
 
+    /// Whether the engine can be shown pictures with the prompt. Claude reads
+    /// them from a stream-json stdin message, Codex from `--image`; the others
+    /// only get the text the caller writes about each picture.
+    pub fn sees_images(self) -> bool {
+        matches!(self, Self::Claude | Self::Codex)
+    }
+
     pub fn build_args(self, ctx: &RunContext<'_>) -> Vec<OsString> {
         let mut args: Vec<OsString> = Vec::new();
         match self {
@@ -141,6 +152,15 @@ impl WritingEngine {
                 if let Some(model) = ctx.model {
                     push(&mut args, "--model");
                     push(&mut args, model);
+                }
+                if let Some(effort) = ctx.effort {
+                    push(&mut args, "--effort");
+                    push(&mut args, effort);
+                }
+                if !ctx.images.is_empty() {
+                    // The prompt and its pictures arrive as one JSON user message on stdin.
+                    push(&mut args, "--input-format");
+                    push(&mut args, "stream-json");
                 }
                 if ctx.has_system_file {
                     args.push(OsString::from("--system-prompt-file"));
@@ -166,9 +186,20 @@ impl WritingEngine {
                     push(&mut args, flag);
                 }
                 args.push(ctx.run_dir.as_os_str().to_os_string());
+                for image in ctx.images {
+                    // `--image` takes several values; the `=` form keeps `-` (stdin) out of them.
+                    let mut flag = OsString::from("--image=");
+                    flag.push(image.as_os_str());
+                    args.push(flag);
+                }
                 if let Some(model) = ctx.model {
                     args.push(OsString::from("-m"));
                     args.push(OsString::from(model));
+                }
+                if let Some(effort) = ctx.effort {
+                    // Unquoted: a value that is not valid TOML is taken literally.
+                    push(&mut args, "-c");
+                    args.push(OsString::from(format!("model_reasoning_effort={effort}")));
                 }
                 args.push(OsString::from("-"));
             }
@@ -191,15 +222,28 @@ impl WritingEngine {
                     args.push(OsString::from("-m"));
                     args.push(OsString::from(model));
                 }
+                if let Some(effort) = ctx.effort {
+                    push(&mut args, "--reasoning-effort");
+                    push(&mut args, effort);
+                }
             }
             Self::Antigravity => {
                 // `--sandbox` keeps its shell tool restricted; it already auto-approves tool use in print mode.
-                for flag in ["--output-format", "stream-json", "--disable-slash-commands", "--sandbox"] {
+                for flag in [
+                    "--output-format",
+                    "stream-json",
+                    "--disable-slash-commands",
+                    "--sandbox",
+                ] {
                     push(&mut args, flag);
                 }
                 if let Some(model) = ctx.model {
                     push(&mut args, "--model");
                     push(&mut args, model);
+                }
+                if let Some(effort) = ctx.effort {
+                    push(&mut args, "--effort");
+                    push(&mut args, effort);
                 }
                 // `-p` takes the prompt as its value, so nothing may follow it.
                 push(&mut args, "-p");
@@ -211,8 +255,13 @@ impl WritingEngine {
                 }
                 args.push(ctx.run_dir.join("prompt.md").into_os_string());
                 if let Some(model) = ctx.model {
+                    // OpenCode picks the reasoning effort as a model variant: `provider/model#high`.
+                    let variant = ctx.effort.filter(|_| !model.contains('#'));
                     args.push(OsString::from("-m"));
-                    args.push(OsString::from(model));
+                    args.push(OsString::from(match variant {
+                        Some(effort) => format!("{model}#{effort}"),
+                        None => model.to_string(),
+                    }));
                 }
                 args.push(OsString::from(
                     "Follow the attached instructions exactly. Output only the requested document text.",
@@ -303,7 +352,9 @@ impl OutputParser for AnthropicStreamParser {
                     .map(|blocks| {
                         blocks
                             .iter()
-                            .filter(|block| block.get("type").and_then(Value::as_str) == Some("text"))
+                            .filter(|block| {
+                                block.get("type").and_then(Value::as_str) == Some("text")
+                            })
                             .filter_map(|block| block.get("text").and_then(Value::as_str))
                             .collect::<String>()
                     })
@@ -322,7 +373,10 @@ impl OutputParser for AnthropicStreamParser {
                         .unwrap_or("The AI engine reported an error.");
                     return vec![ParsedEvent::Error(message.trim().to_string())];
                 }
-                self.result = value.get("result").and_then(Value::as_str).map(str::to_string);
+                self.result = value
+                    .get("result")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
                 Vec::new()
             }
             _ => Vec::new(),
@@ -421,7 +475,10 @@ impl OutputParser for AntigravityStreamParser {
                         .unwrap_or("Antigravity did not finish the response.");
                     return vec![ParsedEvent::Error(message.to_string())];
                 }
-                self.response = result.get("response").and_then(Value::as_str).map(str::to_string);
+                self.response = result
+                    .get("response")
+                    .and_then(Value::as_str)
+                    .map(str::to_string);
                 Vec::new()
             }
             _ => Vec::new(),
@@ -533,15 +590,20 @@ mod tests {
         let mut parser = AnthropicStreamParser::default();
         let events = feed_all(
             &mut parser,
-            &[r#"{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["Not signed in. To authenticate without a browser, run:\n  grok login --device-code"]}"#],
+            &[
+                r#"{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["Not signed in. To authenticate without a browser, run:\n  grok login --device-code"]}"#,
+            ],
         );
-        assert!(matches!(&events[0], ParsedEvent::Error(message) if message.starts_with("Not signed in")));
+        assert!(
+            matches!(&events[0], ParsedEvent::Error(message) if message.starts_with("Not signed in"))
+        );
     }
 
     #[test]
     fn bare_content_block_delta_is_accepted() {
         let mut parser = AnthropicStreamParser::default();
-        let events = parser.feed(r#"{"type":"content_block_delta","delta":{"type":"text_delta","text":"x"}}"#);
+        let events = parser
+            .feed(r#"{"type":"content_block_delta","delta":{"type":"text_delta","text":"x"}}"#);
         assert_eq!(events, vec![ParsedEvent::Delta("x".into())]);
         assert_eq!(parser.finish(), "x");
     }
@@ -598,13 +660,19 @@ mod tests {
         let args = WritingEngine::Claude.build_args(&RunContext {
             run_dir: &dir,
             model: Some("sonnet"),
+            effort: Some("high"),
             has_system_file: true,
             prompt: "",
+            images: &[],
         });
-        let args: Vec<String> = args.iter().map(|arg| arg.to_string_lossy().into_owned()).collect();
+        let args: Vec<String> = args
+            .iter()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect();
         assert_eq!(&args[args.len() - 2..], ["--tools", ""]);
         assert!(args.contains(&"--system-prompt-file".to_string()));
         assert!(args.windows(2).any(|pair| pair == ["--model", "sonnet"]));
+        assert!(args.windows(2).any(|pair| pair == ["--effort", "high"]));
         assert!(!args.contains(&"--bare".to_string()));
     }
 
@@ -614,12 +682,46 @@ mod tests {
         let args = WritingEngine::Codex.build_args(&RunContext {
             run_dir: &dir,
             model: None,
+            effort: Some("high"),
             has_system_file: false,
             prompt: "",
+            images: &[],
         });
         assert_eq!(args[0], "--no-daemon");
         assert_eq!(args[1], "exec");
         assert_eq!(args.last().unwrap(), "-");
+        assert!(args
+            .windows(2)
+            .any(|pair| pair == ["-c", "model_reasoning_effort=high"]));
+    }
+
+    #[test]
+    fn opencode_effort_becomes_a_model_variant() {
+        let dir = std::env::temp_dir();
+        let context = |model, effort| RunContext {
+            run_dir: &dir,
+            model,
+            effort,
+            has_system_file: false,
+            prompt: "",
+            images: &[],
+        };
+        let args = |ctx: RunContext<'_>| -> Vec<String> {
+            WritingEngine::Opencode
+                .build_args(&ctx)
+                .iter()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        assert!(args(context(Some("zai/glm"), Some("high")))
+            .windows(2)
+            .any(|p| p == ["-m", "zai/glm#high"]));
+        assert!(args(context(Some("zai/glm#max"), Some("high")))
+            .windows(2)
+            .any(|p| p == ["-m", "zai/glm#max"]));
+        assert!(args(context(Some("zai/glm"), None))
+            .windows(2)
+            .any(|p| p == ["-m", "zai/glm"]));
     }
 
     #[test]
@@ -628,16 +730,58 @@ mod tests {
         let args = WritingEngine::Antigravity.build_args(&RunContext {
             run_dir: &dir,
             model: None,
+            effort: None,
             has_system_file: false,
             prompt: "Write it",
+            images: &[],
         });
         assert_eq!(&args[args.len() - 2..], ["-p", "Write it"]);
     }
 
     #[test]
+    fn images_reach_the_engines_that_can_see_them() {
+        let dir = std::env::temp_dir();
+        let images = vec![dir.join("image-1.png")];
+        let context = RunContext {
+            run_dir: &dir,
+            model: None,
+            effort: None,
+            has_system_file: false,
+            prompt: "",
+            images: &images,
+        };
+        let claude: Vec<String> = WritingEngine::Claude
+            .build_args(&context)
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(claude
+            .windows(2)
+            .any(|pair| pair == ["--input-format", "stream-json"]));
+        assert_eq!(&claude[claude.len() - 2..], ["--tools", ""]);
+        let codex: Vec<String> = WritingEngine::Codex
+            .build_args(&context)
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert!(codex
+            .iter()
+            .any(|arg| arg.starts_with("--image=") && arg.ends_with("image-1.png")));
+        assert_eq!(codex.last().unwrap(), "-");
+        assert!(WritingEngine::Claude.sees_images() && WritingEngine::Codex.sees_images());
+        assert!(!WritingEngine::Opencode.sees_images());
+    }
+
+    #[test]
     fn model_wrapping_is_removed() {
-        assert_eq!(clean_model_text("```markdown\n## A\n\nText\n```"), "## A\n\nText");
-        assert_eq!(clean_model_text("Here is the section:\n\nBody text."), "Body text.");
+        assert_eq!(
+            clean_model_text("```markdown\n## A\n\nText\n```"),
+            "## A\n\nText"
+        );
+        assert_eq!(
+            clean_model_text("Here is the section:\n\nBody text."),
+            "Body text."
+        );
         assert_eq!(clean_model_text("Body only."), "Body only.");
     }
 }

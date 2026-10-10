@@ -2,6 +2,9 @@
 // Dependency-free (tested by `npm run test:presentation`).
 
 import { joinPath, slugify } from '../writing/document';
+import { clampSlideCount, sanitizeAttachment, sanitizeDesignedSlide, sanitizeDesignSystem } from './designPrompts';
+import { designCanvas } from './designStyles';
+import type { DesignAttachment, DesignedDeck, DesignedSlide } from './designTypes';
 import type { EngineChoice } from '../writing/types';
 import { getLayout, nearestLayout } from './layouts';
 import { blockText, runsText, textBlock } from './richText';
@@ -66,6 +69,7 @@ export function createDeck(options: {
   outline?: OutlineSlide[];
   slides?: Slide[];
   source?: PreserveSource;
+  design?: DesignedDeck;
 }): YzDeck {
   const now = Date.now();
   return {
@@ -80,6 +84,7 @@ export function createDeck(options: {
     outline: options.outline ?? [],
     slides: options.slides ?? [],
     ...(options.source ? { source: options.source } : {}),
+    ...(options.design ? { design: options.design } : {}),
   };
 }
 
@@ -130,6 +135,28 @@ function sanitizePreserve(value: unknown): PreserveSource | undefined {
   return { mode: 'preserve', pptxFile: raw.pptxFile, originalPath: String(raw.originalPath ?? ''), slides };
 }
 
+function sanitizeDesign(value: unknown, size: DeckSize): DesignedDeck | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Partial<Record<keyof DesignedDeck, unknown>>;
+  const canvas = designCanvas(size);
+  const slides = Array.isArray(raw.slides)
+    ? raw.slides.map((slide) => sanitizeDesignedSlide(slide, canvas)).filter((slide): slide is DesignedSlide => slide !== null)
+    : [];
+  const seen = new Set<string>();
+  for (const slide of slides) {
+    if (seen.has(slide.id)) slide.id = `${slide.id}-${seen.size}`;
+    seen.add(slide.id);
+  }
+  return {
+    prompt: String(raw.prompt ?? '').slice(0, 20_000),
+    attachments: Array.isArray(raw.attachments) ? raw.attachments.map(sanitizeAttachment).filter((entry): entry is DesignAttachment => entry !== null) : [],
+    slideCount: clampSlideCount(raw.slideCount),
+    language: String(raw.language ?? '').slice(0, 40),
+    system: sanitizeDesignSystem(raw.system),
+    slides,
+  };
+}
+
 /** Parses and repairs a `.yzdeck` file. Throws with a readable message when it is not one. */
 export function parseDeck(text: string): YzDeck {
   let raw: unknown;
@@ -153,6 +180,8 @@ export function parseDeck(text: string): YzDeck {
     seen.add(slide.id);
   }
   const source = sanitizePreserve(value.source);
+  const size: DeckSize = value.size === '4:3' ? '4:3' : '16:9';
+  const design = source ? undefined : sanitizeDesign(value.design, size);
   return {
     format: 'yzdeck',
     version: 1,
@@ -171,12 +200,13 @@ export function parseDeck(text: string): YzDeck {
       engine: { ...DEFAULT_DECK_ENGINE, ...(brief.engine ?? {}) },
     },
     theme: sanitizeTheme(value.theme),
-    size: value.size === '4:3' ? '4:3' : '16:9',
+    size,
     showNumbers: value.showNumbers !== false,
     transition: value.transition === 'none' || value.transition === 'slide' ? value.transition : 'fade',
     outline: sanitizeOutline(value.outline),
     slides,
     ...(source ? { source } : {}),
+    ...(design ? { design } : {}),
   };
 }
 

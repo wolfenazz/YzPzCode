@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { ArrowRight, FileArrowUp, MagicWand, PaintBrushBroad, X } from '@phosphor-icons/react';
 import { DECK_THEMES } from '../../utils/presentation/themes';
 import { fileName } from '../../utils/writing/document';
+import { ThemePicker } from './ThemePicker';
 
 export type ImportMode = 'preserve' | 'rebuild';
 
@@ -62,13 +63,18 @@ export const ImportDialog: React.FC<ImportDialogProps> = ({ workspacePath, initi
           </button>
         </div>
         {mode === 'rebuild' && (
-          <label className="pr-field">
+          <div className="pr-field">
             <span className="pr-field__label">Theme</span>
-            <select className="pr-select" value={themeId} onChange={(event) => setThemeId(event.target.value)}>
-              <option value="">The file's own colours and fonts</option>
-              {DECK_THEMES.map((theme) => <option key={theme.id} value={theme.id}>{theme.name}</option>)}
-            </select>
-          </label>
+            <ThemePicker
+              themes={DECK_THEMES}
+              value={themeId}
+              onChange={setThemeId}
+              noneLabel="Original look"
+              noneHint="The file's own colours and fonts"
+              title={path ? fileName(path).replace(/\.pptx$/i, '') : 'Your presentation'}
+              subtitle="Every slide is rebuilt in this theme"
+            />
+          </div>
         )}
         {error && <div className="pr-error">{error}</div>}
         <div className="pr-import__foot">

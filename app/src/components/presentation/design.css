@@ -1,0 +1,848 @@
+/*
+ * AI-designed decks: the describe-it home, the SVG slide, and the designed
+ * deck editor (`.pd-*`). Chrome uses the studio tokens from presentation.css
+ * (`--pr-*`, themed by the app); slides are drawn in their own colours.
+ * Motion stops under `.animations-disabled` and `prefers-reduced-motion`.
+ */
+
+.pr-btn--ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--pr-ink-soft);
+}
+
+.pr-btn--ghost:hover:not(:disabled) {
+  background: var(--pr-hairline);
+  color: var(--pr-ink);
+}
+
+/* Home: describe it ------------------------------------------------------------ */
+
+.pd-home {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  background:
+    radial-gradient(1200px 520px at 50% -180px, color-mix(in oklab, var(--pr-accent) 10%, transparent), transparent 70%),
+    var(--pr-desk);
+}
+
+.pd-home__inner {
+  display: flex;
+  width: min(780px, 100% - 48px);
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0 auto;
+  padding: clamp(36px, 9vh, 96px) 0 48px;
+}
+
+.pd-home__title {
+  margin: 18px 0 12px;
+  font-size: clamp(32px, 4.4vw, 52px);
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  line-height: 1.04;
+}
+
+.pd-home__title em {
+  color: var(--pr-accent);
+  font-style: normal;
+}
+
+.pd-home__lede {
+  max-width: 600px;
+  margin: 0 0 26px;
+  color: var(--pr-ink-soft);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.pd-composer {
+  position: relative;
+  width: 100%;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 16px;
+  background: var(--pr-raised);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 24px 60px -36px rgba(0, 0, 0, 0.55);
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.pd-composer:focus-within {
+  border-color: color-mix(in oklab, var(--pr-accent) 55%, transparent);
+  box-shadow: 0 0 0 4px var(--pr-accent-soft), 0 24px 60px -36px rgba(0, 0, 0, 0.55);
+}
+
+.pd-composer__input {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  padding: 18px 20px 8px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--pr-ink);
+  font: inherit;
+  font-size: 15.5px;
+  line-height: 1.6;
+  resize: none;
+}
+
+.pd-composer__input::placeholder {
+  color: var(--pr-ink-faint);
+}
+
+.pd-composer__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 10px 12px;
+}
+
+.pd-composer__spacer {
+  flex: 1;
+}
+
+.pd-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 16px 6px;
+}
+
+.pd-file {
+  display: flex;
+  max-width: 260px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 5px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 10px;
+  background: var(--bg-primary);
+}
+
+.pd-file__thumb,
+.pd-file__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--pr-hairline);
+  color: var(--pr-ink-soft);
+  object-fit: cover;
+}
+
+.pd-file__text {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pd-file__name {
+  overflow: hidden;
+  color: var(--pr-ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pd-file__use {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--pr-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.pd-file__use--static {
+  color: var(--pr-ink-faint);
+  cursor: default;
+}
+
+.pd-options {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 14px 18px;
+  margin: 2px 12px 0;
+  padding: 14px 8px 6px;
+  border-top: 1px solid var(--pr-hairline);
+}
+
+.pd-option {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pd-option--engine {
+  grid-column: 1 / -1;
+}
+
+.pd-option__lang {
+  min-width: 160px;
+}
+
+.pd-segmented {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
+.pd-segmented button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pd-segmented button[aria-checked="true"] {
+  background: var(--pr-accent-soft);
+  color: var(--pr-accent);
+  font-weight: 600;
+}
+
+.pd-progress {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 12px 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--pr-accent) 8%, transparent);
+}
+
+.pd-progress > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+}
+
+.pd-progress strong {
+  color: var(--pr-ink);
+  font-size: 13.5px;
+}
+
+.pd-progress__orb {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--pr-accent), color-mix(in oklab, var(--pr-accent) 30%, #f0b429), color-mix(in oklab, var(--pr-accent) 40%, #e5484d), var(--pr-accent));
+  -webkit-mask: radial-gradient(circle, transparent 42%, black 44%);
+  mask: radial-gradient(circle, transparent 42%, black 44%);
+  animation: pd-spin 1.6s linear infinite;
+}
+
+.pd-progress__orb[data-still] {
+  animation: none;
+}
+
+.pd-composer .pr-error {
+  margin: 0 12px 12px;
+}
+
+.pd-examples {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.pd-example {
+  padding: 12px 14px;
+  border: 1px solid var(--pr-hairline);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--pr-raised) 55%, transparent);
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.pd-example:hover {
+  border-color: color-mix(in oklab, var(--pr-accent) 45%, transparent);
+  background: var(--pr-raised);
+  color: var(--pr-ink);
+}
+
+.pd-home__foot {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 36px;
+}
+
+.pd-recent {
+  width: 100%;
+}
+
+.pd-recent__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.pd-home__import {
+  margin-left: -10px;
+}
+
+.pd-drop {
+  position: absolute;
+  inset: 12px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 2px dashed var(--pr-accent);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--pr-desk) 80%, transparent);
+  color: var(--pr-ink);
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .pd-examples,
+  .pd-recent__list {
+    grid-template-columns: 1fr;
+  }
+
+  .pd-options {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A designed slide -------------------------------------------------------------- */
+
+.pd-slide {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #ffffff;
+}
+
+.pd-slide__svg,
+.pd-slide__svg > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pd-slide[data-interactive] [data-ti] {
+  cursor: text;
+}
+
+.pd-slide[data-interactive] [data-ii] {
+  cursor: pointer;
+}
+
+.pd-slide__highlight {
+  position: absolute;
+  border: 1.5px solid var(--pr-accent);
+  border-radius: 4px;
+  box-shadow: 0 0 0 3px var(--pr-accent-soft);
+  pointer-events: none;
+}
+
+.pd-slide--empty {
+  display: flex;
+  align-items: flex-end;
+  padding: 7%;
+  background: linear-gradient(135deg, color-mix(in oklab, var(--pr-raised) 90%, var(--pr-accent)), var(--pr-raised));
+}
+
+.pd-slide--empty[data-failed] {
+  background: color-mix(in oklab, var(--pr-danger) 8%, var(--pr-raised));
+}
+
+.pd-slide__shimmer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: linear-gradient(105deg, transparent 30%, color-mix(in oklab, var(--pr-accent) 18%, transparent) 50%, transparent 70%);
+  background-size: 250% 100%;
+}
+
+.pd-slide[data-busy] .pd-slide__shimmer {
+  opacity: 1;
+  animation: pd-shimmer 1.6s ease-in-out infinite;
+}
+
+.pd-slide__ghost-title {
+  position: relative;
+  max-width: 80%;
+  color: var(--pr-ink-faint);
+  font-size: clamp(14px, 2.4vw, 26px);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+/* Editor -------------------------------------------------------------------------- */
+
+.pd-design-chip {
+  display: inline-flex;
+  height: 28px;
+  max-width: 260px;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  padding: 0 10px 0 6px;
+  border: 1px solid var(--pr-hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pd-design-chip:hover {
+  border-color: var(--pr-hairline-strong);
+  color: var(--pr-ink);
+}
+
+.pd-swatches {
+  display: inline-flex;
+}
+
+.pd-swatches span {
+  width: 14px;
+  height: 14px;
+  margin-left: -4px;
+  border: 1.5px solid var(--pr-panel);
+  border-radius: 50%;
+}
+
+.pd-swatches span:first-child {
+  margin-left: 0;
+}
+
+.pd-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 6px;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.pd-run__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--pr-accent);
+  animation: pd-pulse 1.2s ease-in-out infinite;
+}
+
+.pd-stage {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pd-stage__frame {
+  position: relative;
+  border-radius: 4px;
+  box-shadow: var(--pr-slide-shadow);
+}
+
+.pd-stage__frame[data-review] {
+  outline: 2px solid color-mix(in oklab, var(--pr-accent) 70%, transparent);
+  outline-offset: 4px;
+}
+
+.pd-review {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 3;
+  display: flex;
+  max-width: min(720px, 92vw);
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 14px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 999px;
+  background: var(--pr-raised);
+  box-shadow: 0 12px 30px -16px rgba(0, 0, 0, 0.5);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.pd-review__text {
+  overflow: hidden;
+  margin-right: 4px;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+  text-overflow: ellipsis;
+}
+
+.pd-review__text strong {
+  color: var(--pr-ink);
+}
+
+.pd-review__text--error {
+  max-width: 420px;
+  color: var(--pr-danger);
+  white-space: normal;
+}
+
+.pd-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 12px 12px;
+}
+
+.pd-add__input {
+  height: 72px;
+  padding: 8px 10px;
+  resize: none;
+}
+
+.pd-add__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.pr-filmstrip__add:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pd-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px;
+}
+
+.pd-ask {
+  position: relative;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 12px;
+  background: var(--bg-primary);
+}
+
+.pd-ask:focus-within {
+  border-color: color-mix(in oklab, var(--pr-accent) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--pr-accent-soft);
+}
+
+.pd-ask__input {
+  display: block;
+  width: 100%;
+  min-height: 78px;
+  padding: 10px 40px 10px 12px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--pr-ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.pd-ask__send {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  color: var(--pr-accent);
+}
+
+.pd-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: -4px;
+}
+
+.pd-chip {
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pd-chip:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--pr-accent) 50%, transparent);
+  color: var(--pr-ink);
+}
+
+.pd-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--pr-hairline);
+}
+
+.pd-section .pr-label {
+  margin-bottom: 0;
+}
+
+.pd-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pd-section__go {
+  align-self: flex-start;
+}
+
+.pd-brief {
+  min-height: 84px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.pd-text {
+  min-height: 0;
+  height: auto;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.pd-text[data-strong] {
+  font-weight: 600;
+}
+
+.pd-text[data-selected] {
+  border-color: color-mix(in oklab, var(--pr-accent) 60%, transparent);
+  box-shadow: 0 0 0 3px var(--pr-accent-soft);
+}
+
+.pd-pictures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pd-picture {
+  position: relative;
+  display: grid;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 8px;
+  background: var(--pr-hairline);
+  color: var(--pr-ink-soft);
+  cursor: pointer;
+}
+
+.pd-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pd-picture span {
+  position: absolute;
+  inset: auto 0 0;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 10.5px;
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.pd-picture:hover span {
+  opacity: 1;
+}
+
+.pd-system {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pd-system__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pd-system__name {
+  color: var(--pr-ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.pd-system__style {
+  color: var(--pr-ink-faint);
+  font-size: 11.5px;
+  text-transform: capitalize;
+}
+
+.pd-system__concept {
+  margin: 0;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.pd-palette {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.pd-palette__swatch {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pd-palette__swatch > span {
+  height: 26px;
+  border: 1px solid var(--pr-hairline);
+  border-radius: 6px;
+}
+
+.pd-palette__swatch small {
+  overflow: hidden;
+  color: var(--pr-ink-faint);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pd-fonts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--pr-hairline);
+  border-radius: 10px;
+}
+
+.pd-fonts > span:first-child {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.pd-fonts > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.pd-system__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 10px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pd-system__facts dt {
+  color: var(--pr-ink-faint);
+}
+
+.pd-system__facts dd {
+  margin: 0;
+  color: var(--pr-ink-soft);
+}
+
+.pd-original {
+  margin: 0;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.pd-notices {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--pr-warning) 40%, transparent);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--pr-warning) 10%, transparent);
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.pd-notices strong {
+  color: var(--pr-ink);
+}
+
+@keyframes pd-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pd-shimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+@keyframes pd-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.animations-disabled :is(.pd-progress__orb, .pd-slide__shimmer, .pd-run__dot) {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.pd-progress__orb, .pd-slide__shimmer, .pd-run__dot) {
+    animation: none !important;
+  }
+}

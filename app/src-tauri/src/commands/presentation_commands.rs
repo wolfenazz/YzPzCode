@@ -7,7 +7,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::time::Duration;
 
-const USER_AGENT: &str = concat!("YzPzCode/", env!("CARGO_PKG_VERSION"), " (presentation studio)");
+const USER_AGENT: &str = concat!(
+    "YzPzCode/",
+    env!("CARGO_PKG_VERSION"),
+    " (presentation studio)"
+);
 const MAX_IMAGE_BYTES: usize = 25 * 1024 * 1024;
 const PAGE_SIZE: u32 = 24;
 
@@ -66,15 +70,23 @@ pub fn parse_openverse(body: &Value) -> Vec<StockImage> {
                     if full.is_empty() {
                         return None;
                     }
-                    let license = format!("CC {} {}", text(item, &["license"]).to_uppercase(), text(item, &["license_version"]))
-                        .trim()
-                        .to_string();
+                    let license = format!(
+                        "CC {} {}",
+                        text(item, &["license"]).to_uppercase(),
+                        text(item, &["license_version"])
+                    )
+                    .trim()
+                    .to_string();
                     Some(StockImage {
                         id: text(item, &["id"]),
                         provider: "openverse".into(),
                         thumb_url: {
                             let thumb = text(item, &["thumbnail"]);
-                            if thumb.is_empty() { full.clone() } else { thumb }
+                            if thumb.is_empty() {
+                                full.clone()
+                            } else {
+                                thumb
+                            }
                         },
                         full_url: full,
                         width: number(item, "width"),
@@ -108,7 +120,8 @@ pub fn parse_unsplash(body: &Value) -> Vec<StockImage> {
                     author: text(item, &["user", "name"]),
                     license: "Unsplash License".into(),
                     source_url: text(item, &["links", "html"]),
-                    ping_url: Some(text(item, &["links", "download_location"])).filter(|url| !url.is_empty()),
+                    ping_url: Some(text(item, &["links", "download_location"]))
+                        .filter(|url| !url.is_empty()),
                 })
                 .filter(|image| !image.full_url.is_empty())
                 .collect()
@@ -150,7 +163,12 @@ fn require_key(key: &Option<String>, provider: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn stock_image_search(provider: String, query: String, page: Option<u32>, api_key: Option<String>) -> Result<Vec<StockImage>, String> {
+pub async fn stock_image_search(
+    provider: String,
+    query: String,
+    page: Option<u32>,
+    api_key: Option<String>,
+) -> Result<Vec<StockImage>, String> {
     let query = query.trim();
     if query.is_empty() {
         return Ok(Vec::new());
@@ -159,32 +177,56 @@ pub async fn stock_image_search(provider: String, query: String, page: Option<u3
     let size = PAGE_SIZE.to_string();
     let client = client()?;
     let request = match provider.as_str() {
-        "openverse" => client
-            .get("https://api.openverse.org/v1/images/")
-            .query(&[("q", query), ("page", &page), ("page_size", &size), ("mature", "false")]),
+        "openverse" => client.get("https://api.openverse.org/v1/images/").query(&[
+            ("q", query),
+            ("page", &page),
+            ("page_size", &size),
+            ("mature", "false"),
+        ]),
         "unsplash" => client
             .get("https://api.unsplash.com/search/photos")
-            .query(&[("query", query), ("page", &page), ("per_page", &size), ("orientation", "landscape")])
-            .header("Authorization", format!("Client-ID {}", require_key(&api_key, "Unsplash")?))
+            .query(&[
+                ("query", query),
+                ("page", &page),
+                ("per_page", &size),
+                ("orientation", "landscape"),
+            ])
+            .header(
+                "Authorization",
+                format!("Client-ID {}", require_key(&api_key, "Unsplash")?),
+            )
             .header("Accept-Version", "v1"),
         "pexels" => client
             .get("https://api.pexels.com/v1/search")
-            .query(&[("query", query), ("page", &page), ("per_page", &size), ("orientation", "landscape")])
+            .query(&[
+                ("query", query),
+                ("page", &page),
+                ("per_page", &size),
+                ("orientation", "landscape"),
+            ])
             .header("Authorization", require_key(&api_key, "Pexels")?),
         other => return Err(format!("Unknown image provider: {other}")),
     };
-    let response = request.send().await.map_err(|e| format!("Could not reach the image search: {e}"))?;
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Could not reach the image search: {e}"))?;
     let status = response.status();
     if status.as_u16() == 401 || status.as_u16() == 403 {
         return Err("The image service refused the request. Check the API key in Settings → Presentation → Images.".into());
     }
     if status.as_u16() == 429 {
-        return Err("The image service is rate limiting searches. Wait a minute and try again.".into());
+        return Err(
+            "The image service is rate limiting searches. Wait a minute and try again.".into(),
+        );
     }
     if !status.is_success() {
         return Err(format!("The image search failed ({status})."));
     }
-    let body: Value = response.json().await.map_err(|e| format!("Unexpected search result: {e}"))?;
+    let body: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Unexpected search result: {e}"))?;
     Ok(match provider.as_str() {
         "openverse" => parse_openverse(&body),
         "unsplash" => parse_unsplash(&body),
@@ -198,7 +240,9 @@ fn allowed_url(url: &str) -> Result<reqwest::Url, String> {
         return Err("Only web images can be downloaded.".into());
     }
     match parsed.host_str() {
-        Some(host) if host != "localhost" && !host.starts_with("127.") && host != "[::1]" => Ok(parsed),
+        Some(host) if host != "localhost" && !host.starts_with("127.") && host != "[::1]" => {
+            Ok(parsed)
+        }
         _ => Err("Only web images can be downloaded.".into()),
     }
 }
@@ -228,15 +272,29 @@ pub async fn stock_image_download(
     crate::filesystem::validation::validate_no_path_traversal(&stem).map_err(|e| e.to_string())?;
     let target = allowed_url(&url)?;
     let client = client()?;
-    if let (Some(ping), Some(key)) = (ping_url.filter(|value| !value.is_empty()), api_key.filter(|value| !value.is_empty())) {
+    if let (Some(ping), Some(key)) = (
+        ping_url.filter(|value| !value.is_empty()),
+        api_key.filter(|value| !value.is_empty()),
+    ) {
         if let Ok(ping) = allowed_url(&ping) {
             // Best effort: Unsplash's download tracking must not block the download.
-            let _ = client.get(ping).header("Authorization", format!("Client-ID {key}")).send().await;
+            let _ = client
+                .get(ping)
+                .header("Authorization", format!("Client-ID {key}"))
+                .send()
+                .await;
         }
     }
-    let response = client.get(target).send().await.map_err(|e| format!("Could not download the image: {e}"))?;
+    let response = client
+        .get(target)
+        .send()
+        .await
+        .map_err(|e| format!("Could not download the image: {e}"))?;
     if !response.status().is_success() {
-        return Err(format!("Could not download the image ({}).", response.status()));
+        return Err(format!(
+            "Could not download the image ({}).",
+            response.status()
+        ));
     }
     let content_type = response
         .headers()
@@ -250,15 +308,22 @@ pub async fn stock_image_download(
     if response.content_length().unwrap_or(0) as usize > MAX_IMAGE_BYTES {
         return Err("The image is larger than 25 MB.".into());
     }
-    let bytes = response.bytes().await.map_err(|e| format!("Could not download the image: {e}"))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Could not download the image: {e}"))?;
     if bytes.len() > MAX_IMAGE_BYTES {
         return Err("The image is larger than 25 MB.".into());
     }
     let path = format!("{stem}.{}", image_extension(&content_type));
     if let Some(parent) = std::path::Path::new(&path).parent() {
-        tokio::fs::create_dir_all(parent).await.map_err(|e| e.to_string())?;
+        tokio::fs::create_dir_all(parent)
+            .await
+            .map_err(|e| e.to_string())?;
     }
-    tokio::fs::write(&path, &bytes).await.map_err(|e| format!("Could not save the image: {e}"))?;
+    tokio::fs::write(&path, &bytes)
+        .await
+        .map_err(|e| format!("Could not save the image: {e}"))?;
     Ok(path)
 }
 
@@ -269,16 +334,25 @@ mod tests {
 
     #[test]
     fn parses_each_provider() {
-        let openverse = parse_openverse(&json!({ "results": [{ "id": "a", "url": "https://x/1.jpg", "thumbnail": "https://x/t.jpg", "width": 800, "height": 600, "creator": "Ann", "license": "by", "license_version": "4.0", "foreign_landing_url": "https://src" }, { "id": "no-url" }] }));
+        let openverse = parse_openverse(
+            &json!({ "results": [{ "id": "a", "url": "https://x/1.jpg", "thumbnail": "https://x/t.jpg", "width": 800, "height": 600, "creator": "Ann", "license": "by", "license_version": "4.0", "foreign_landing_url": "https://src" }, { "id": "no-url" }] }),
+        );
         assert_eq!(openverse.len(), 1);
         assert_eq!(openverse[0].license, "CC BY 4.0");
         assert_eq!(openverse[0].thumb_url, "https://x/t.jpg");
 
-        let unsplash = parse_unsplash(&json!({ "results": [{ "id": "u", "width": 10, "height": 5, "urls": { "small": "s", "regular": "r" }, "user": { "name": "Bo" }, "links": { "html": "h", "download_location": "https://api.unsplash.com/d" } }] }));
+        let unsplash = parse_unsplash(
+            &json!({ "results": [{ "id": "u", "width": 10, "height": 5, "urls": { "small": "s", "regular": "r" }, "user": { "name": "Bo" }, "links": { "html": "h", "download_location": "https://api.unsplash.com/d" } }] }),
+        );
         assert_eq!(unsplash[0].full_url, "r");
-        assert_eq!(unsplash[0].ping_url.as_deref(), Some("https://api.unsplash.com/d"));
+        assert_eq!(
+            unsplash[0].ping_url.as_deref(),
+            Some("https://api.unsplash.com/d")
+        );
 
-        let pexels = parse_pexels(&json!({ "photos": [{ "id": 7, "width": 1, "height": 1, "photographer": "Cy", "url": "p", "src": { "medium": "m", "large2x": "l" } }] }));
+        let pexels = parse_pexels(
+            &json!({ "photos": [{ "id": 7, "width": 1, "height": 1, "photographer": "Cy", "url": "p", "src": { "medium": "m", "large2x": "l" } }] }),
+        );
         assert_eq!(pexels[0].id, "7");
         assert_eq!(pexels[0].author, "Cy");
     }

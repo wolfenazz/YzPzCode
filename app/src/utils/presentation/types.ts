@@ -2,6 +2,7 @@
 // modules beside it can be tested with `npm run test:presentation`.
 
 import type { EngineChoice } from '../writing/types';
+import type { DesignedDeck } from './designTypes';
 
 export type DeckSize = '16:9' | '4:3';
 export type SlideTransition = 'none' | 'fade' | 'slide';
@@ -188,6 +189,8 @@ export interface YzDeck {
   outline: OutlineSlide[];
   slides: Slide[];
   source?: PreserveSource;
+  /** AI-designed deck: the AI drew every slide as SVG in a design system it invented. */
+  design?: DesignedDeck;
 }
 
 /** A reusable deck: theme, size and sample slides (images stripped). */

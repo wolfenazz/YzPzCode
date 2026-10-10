@@ -13,6 +13,8 @@ export interface DeckListing {
   modifiedAt: number;
   slides: number;
   preserve: boolean;
+  /** AI-designed (SVG) deck. */
+  designed: boolean;
 }
 
 async function listDecks(workspacePath: string): Promise<DeckListing[]> {
@@ -24,7 +26,7 @@ async function listDecks(workspacePath: string): Promise<DeckListing[]> {
     const entries = await invoke<FileEntry[]>('list_directory_entries', { path: folder.path }).catch(() => [] as FileEntry[]);
     for (const entry of entries) {
       if (!entry.isDir && entry.name.toLowerCase().endsWith(YZDECK_EXTENSION)) {
-        decks.push({ path: entry.path, title: folder.name, modifiedAt: entry.modifiedAt, slides: 0, preserve: false });
+        decks.push({ path: entry.path, title: folder.name, modifiedAt: entry.modifiedAt, slides: 0, preserve: false, designed: false });
       }
     }
   }
@@ -33,8 +35,9 @@ async function listDecks(workspacePath: string): Promise<DeckListing[]> {
       const file = await invoke<FileContent>('read_file_content', { path: deck.path });
       const parsed = parseDeck(file.content);
       deck.title = parsed.meta.title;
-      deck.slides = parsed.source ? parsed.source.slides.length : parsed.slides.length;
+      deck.slides = parsed.source ? parsed.source.slides.length : parsed.design ? parsed.design.slides.length : parsed.slides.length;
       deck.preserve = Boolean(parsed.source);
+      deck.designed = Boolean(parsed.design);
     } catch {
       deck.title = fileName(deck.path).replace(YZDECK_EXTENSION, '');
     }
@@ -143,7 +146,7 @@ export function useDeckDocument(workspaceId: string, workspacePath: string) {
     store().update(workspaceId, (session) => ({
       deckPath: path,
       deck,
-      selectedIds: deck.slides[0] ? [deck.slides[0].id] : deck.source?.slides[0] ? [deck.source.slides[0].key] : [],
+      selectedIds: deck.design?.slides[0] ? [deck.design.slides[0].id] : deck.slides[0] ? [deck.slides[0].id] : deck.source?.slides[0] ? [deck.source.slides[0].key] : [],
       selectedSlot: null,
       dirty: false,
       saving: false,

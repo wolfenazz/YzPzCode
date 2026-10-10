@@ -5,8 +5,8 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
 
 use crate::utils::process::ProcessRunner;
-use crate::writing::models::WritingModelInfo;
 use crate::writing::engines::{EngineStreaming, EngineSupport, WritingEngine, ALL_ENGINES};
+use crate::writing::models::WritingModelInfo;
 use crate::writing::{WritingAiEvent, WritingAiRunRequest, WritingAiRunner};
 
 #[derive(Debug, Clone, Serialize)]
@@ -33,13 +33,15 @@ async fn detect_engine(engine: WritingEngine) -> WritingEngineInfo {
         Some(path) => {
             let path = path.clone();
             let probe = tokio::task::spawn_blocking(move || {
-                ProcessRunner::run_cmd_hidden(&path, &["--version"]).ok().and_then(|output| {
-                    String::from_utf8_lossy(&output.stdout)
-                        .lines()
-                        .map(str::trim)
-                        .find(|line| !line.is_empty())
-                        .map(str::to_string)
-                })
+                ProcessRunner::run_cmd_hidden(&path, &["--version"])
+                    .ok()
+                    .and_then(|output| {
+                        String::from_utf8_lossy(&output.stdout)
+                            .lines()
+                            .map(str::trim)
+                            .find(|line| !line.is_empty())
+                            .map(str::to_string)
+                    })
             });
             tokio::time::timeout(Duration::from_secs(8), probe)
                 .await
@@ -98,13 +100,19 @@ pub async fn cancel_writing_ai_run(
 /// Prints the paged report HTML to a PDF file. Returns false when the platform
 /// showed its print dialog instead of writing the file.
 #[tauri::command]
-pub async fn export_writing_pdf(app: AppHandle, html: String, output_path: String) -> Result<bool, String> {
+pub async fn export_writing_pdf(
+    app: AppHandle,
+    html: String,
+    output_path: String,
+) -> Result<bool, String> {
     crate::writing::print_pdf::export_pdf(&app, html, &output_path).await
 }
 
-/// Models the engine's CLI offers (`opencode models`, `agy models`). Engines
-/// without a listing command return an empty list and take free text.
+/// Models the engine offers (its CLI's listing, or the files the CLI keeps).
+/// An engine that is missing or cannot list returns an empty list and takes free text.
 #[tauri::command]
-pub async fn get_writing_engine_models(engine: WritingEngine) -> Result<Vec<WritingModelInfo>, String> {
+pub async fn get_writing_engine_models(
+    engine: WritingEngine,
+) -> Result<Vec<WritingModelInfo>, String> {
     crate::writing::models::list_models(engine).await
 }

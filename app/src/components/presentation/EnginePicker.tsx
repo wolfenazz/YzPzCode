@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { listWritingEngines, type WritingEngineInfo } from '../../utils/writing/aiClient';
 import { useEngineModels } from '../../utils/writing/useEngineModels';
 import type { EngineChoice, WritingEngineId } from '../../utils/writing/types';
+import { EffortSelect, hasEfforts } from '../writing/EffortSelect';
 import { ModelInput } from '../writing/ModelInput';
 
 /** Engine and model for one deck. */
@@ -16,10 +17,10 @@ export const EnginePicker: React.FC<{ value: EngineChoice; onChange: (value: Eng
   const { models, loading } = useEngineModels(value.engine, installed);
 
   return (
-    <div className={compact ? 'pr-engine pr-engine--compact' : 'pr-grid-2'}>
+    <div className={compact ? 'pr-engine pr-engine--compact' : hasEfforts(models, value.model) ? 'pr-grid-3' : 'pr-grid-2'}>
       <label className="pr-field">
         <span className="pr-field__label">AI engine</span>
-        <select className="pr-select" value={value.engine} onChange={(event) => onChange({ ...value, engine: event.target.value as WritingEngineId, model: '' })}>
+        <select className="pr-select" value={value.engine} onChange={(event) => onChange({ ...value, engine: event.target.value as WritingEngineId, model: '', effort: '' })}>
           {(engines ?? [{ engine: value.engine, displayName: value.engine, installed: true } as WritingEngineInfo]).map((engine) => (
             <option key={engine.engine} value={engine.engine} disabled={!engine.installed}>
               {engine.displayName}{engine.installed ? '' : ' (not installed)'}
@@ -31,6 +32,12 @@ export const EnginePicker: React.FC<{ value: EngineChoice; onChange: (value: Eng
         <span className="pr-field__label">Model <span className="pr-field__opt">optional</span></span>
         <ModelInput className="pr-input" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loading} placeholder="CLI default" />
       </label>
+      {hasEfforts(models, value.model) && (
+        <label className="pr-field">
+          <span className="pr-field__label">Thinking <span className="pr-field__opt">effort</span></span>
+          <EffortSelect className="pr-select" value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort })} models={models} model={value.model} />
+        </label>
+      )}
     </div>
   );
 };
