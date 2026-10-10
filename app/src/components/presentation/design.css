@@ -846,3 +846,1116 @@
     animation: none !important;
   }
 }
+
+/* Pictures: folders in the composer, deck pictures and the per-slide picker */
+
+.pd-file__mosaic {
+  display: grid;
+  overflow: hidden;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 1px;
+}
+
+.pd-file__mosaic img {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.pd-file__mosaic img:only-child {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
+.pd-file__name svg {
+  vertical-align: -1px;
+  color: var(--pr-ink-soft);
+}
+
+.pd-file__line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.pd-file__meta {
+  overflow: hidden;
+  color: var(--pr-ink-faint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pd-section__tools {
+  display: flex;
+  gap: 2px;
+}
+
+.pd-picture[data-selected] {
+  border-color: var(--pr-accent);
+  box-shadow: 0 0 0 2px var(--pr-accent-soft);
+}
+
+.pd-picture--static {
+  cursor: default;
+}
+
+/* Outranks `.pd-picture span` (the hover caption). */
+.pd-picture .pd-picture__check,
+.pd-picture .pd-picture__remove {
+  position: absolute;
+  inset: 4px 4px auto auto;
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+}
+
+.pd-picture .pd-picture__check {
+  background: var(--pr-accent);
+  color: var(--bg-primary);
+  opacity: 1;
+}
+
+.pd-picture .pd-picture__remove {
+  background: rgba(0, 0, 0, 0.6);
+  color: #ffffff;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 140ms ease;
+}
+
+.pd-picture:hover .pd-picture__remove,
+.pd-picture .pd-picture__remove:focus-visible {
+  opacity: 1;
+}
+
+/* Slide editing: stage, inline text, format bar ------------------------------------------------
+ * `.ps-*` is the editable stage and its side-panel controls, `.pf-*` the format bar. The slide
+ * itself keeps its own colours; everything drawn over it uses the accent so it reads on any slide. */
+
+.ps-stage {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #ffffff;
+  touch-action: none;
+  user-select: none;
+}
+
+.ps-stage__svg,
+.ps-stage__svg > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.ps-stage__svg [data-editing] text,
+.ps-stage__svg text[data-editing] {
+  visibility: hidden;
+}
+
+.ps-stage__overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ps-hit {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.ps-hover {
+  position: absolute;
+  outline: 1px solid color-mix(in oklab, var(--pr-accent) 70%, transparent);
+  outline-offset: 1px;
+  transform-origin: center;
+}
+
+.ps-frame {
+  position: absolute;
+  outline: 1.5px solid var(--pr-accent);
+  outline-offset: 1px;
+  pointer-events: auto;
+  cursor: move;
+  transform-origin: center;
+}
+
+.ps-frame--group {
+  outline-style: dashed;
+  pointer-events: none;
+}
+
+.ps-handles {
+  position: absolute;
+  pointer-events: none;
+}
+
+.ps-handle {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -5px 0 0 -5px;
+  border: 1.5px solid var(--pr-accent);
+  border-radius: 2px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+}
+
+.ps-handle[data-handle="nw"] { top: 0; left: 0; cursor: nwse-resize; }
+.ps-handle[data-handle="n"] { top: 0; left: 50%; cursor: ns-resize; }
+.ps-handle[data-handle="ne"] { top: 0; left: 100%; cursor: nesw-resize; }
+.ps-handle[data-handle="e"] { top: 50%; left: 100%; cursor: ew-resize; }
+.ps-handle[data-handle="se"] { top: 100%; left: 100%; cursor: nwse-resize; }
+.ps-handle[data-handle="s"] { top: 100%; left: 50%; cursor: ns-resize; }
+.ps-handle[data-handle="sw"] { top: 100%; left: 0; cursor: nesw-resize; }
+.ps-handle[data-handle="w"] { top: 50%; left: 0; cursor: ew-resize; }
+
+.ps-size {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--pr-accent);
+  color: #ffffff;
+  font: 600 10.5px/1.4 var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 120ms ease;
+}
+
+.ps-stage:active .ps-size {
+  opacity: 1;
+}
+
+.ps-guide {
+  position: absolute;
+  background: #ff3d7f;
+}
+
+.ps-guide--x {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.ps-guide--y {
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
+.ps-marquee {
+  position: absolute;
+  border: 1px solid var(--pr-accent);
+  background: color-mix(in oklab, var(--pr-accent) 10%, transparent);
+}
+
+.ps-editor {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: visible;
+  outline: 1.5px dashed var(--pr-accent);
+  outline-offset: 2px;
+  pointer-events: auto;
+  cursor: text;
+  user-select: text;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  caret-color: var(--pr-accent);
+  transform-origin: center;
+}
+
+.ps-editor[data-anchor="ctr"] {
+  justify-content: center;
+}
+
+.ps-editor[data-anchor="b"] {
+  justify-content: flex-end;
+}
+
+.ps-editor > div {
+  min-height: 1em;
+}
+
+.ps-editor [data-bullet]::before {
+  content: attr(data-bullet) "\00a0\00a0";
+  color: var(--bullet-color, currentColor);
+}
+
+.ps-editor ::selection {
+  background: color-mix(in oklab, var(--pr-accent) 35%, transparent);
+}
+
+/* New slide: a blank slide, or one described to the AI. */
+.ps-addslide {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.ps-addslide .pr-filmstrip__add {
+  flex: 1;
+}
+
+.ps-addslide__ai {
+  width: 38px;
+  height: 38px;
+  border: 1px dashed var(--pr-hairline-strong);
+  border-radius: 9px;
+  color: var(--pr-accent);
+}
+
+/* Format bar ----------------------------------------------------------------------------------- */
+
+.pf-bar {
+  display: flex;
+  min-height: 40px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--pr-hairline);
+  background: var(--pr-panel);
+}
+
+.pf-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.pf-group--end {
+  margin-left: auto;
+}
+
+.pf-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 7px;
+  background: var(--pr-hairline-strong);
+}
+
+.pf-btn {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-ink);
+  font: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.pf-btn:hover:not(:disabled) {
+  background: var(--pr-hairline);
+}
+
+.pf-btn[data-active] {
+  background: var(--pr-accent-soft);
+  color: var(--pr-accent);
+}
+
+.pf-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pf-btn--icon {
+  width: 28px;
+  justify-content: center;
+  padding: 0;
+  color: var(--pr-ink-soft);
+}
+
+.pf-btn--danger:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--pr-danger) 14%, transparent);
+  color: var(--pr-danger);
+}
+
+.pf-btn--menu {
+  padding: 0 6px 0 8px;
+}
+
+.pf-caret {
+  opacity: 0.6;
+}
+
+.pf-hint {
+  margin-left: 10px;
+  color: var(--pr-ink-faint);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+
+.pf-font {
+  width: 150px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--pr-ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.pf-size {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 4px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+
+.pf-size .pf-btn {
+  height: 26px;
+}
+
+.pf-size .pf-btn--icon {
+  width: 22px;
+}
+
+.pf-size__value {
+  min-width: 26px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.pf-textcolor,
+.pf-fill {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.pf-textcolor i,
+.pf-fill i {
+  display: block;
+  width: 16px;
+  height: 3px;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px var(--pr-hairline-strong);
+}
+
+.pf-pop {
+  position: relative;
+}
+
+.pf-pop__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 10px;
+  background: var(--pr-raised);
+  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.45);
+}
+
+.pf-pop__panel--wide {
+  right: 0;
+  left: auto;
+  min-width: 220px;
+}
+
+.pf-colors {
+  display: flex;
+  width: 214px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pf-colors__label {
+  color: var(--pr-ink-faint);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.pf-colors__row {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.pf-swatch {
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--pr-ink) 18%, transparent);
+  cursor: pointer;
+}
+
+.pf-swatch:hover,
+.pf-swatch[data-active] {
+  outline: 2px solid var(--pr-accent);
+  outline-offset: 1px;
+}
+
+.pf-colors__foot {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 4px;
+  border-top: 1px solid var(--pr-hairline);
+}
+
+.pf-link {
+  position: relative;
+  padding: 3px 0;
+  border: 0;
+  background: transparent;
+  color: var(--pr-accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pf-custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pf-shapes {
+  display: grid;
+  grid-template-columns: repeat(4, 34px);
+  gap: 4px;
+}
+
+.pf-shape {
+  display: inline-flex;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pr-hairline);
+  border-radius: 7px;
+  background: var(--bg-primary);
+  color: var(--pr-ink);
+  cursor: pointer;
+}
+
+.pf-shape:hover {
+  border-color: var(--pr-accent);
+  color: var(--pr-accent);
+}
+
+.pf-list {
+  display: flex;
+  max-height: 280px;
+  min-width: 70px;
+  overflow-y: auto;
+  flex-direction: column;
+}
+
+.pf-list button,
+.pf-arrange > button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-ink);
+  font: inherit;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pf-list button:hover,
+.pf-arrange > button:hover,
+.pf-list button[data-active] {
+  background: var(--pr-hairline);
+}
+
+.pf-list button[data-active] {
+  color: var(--pr-accent);
+  font-weight: 600;
+}
+
+.pf-arrange {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pf-arrange .pf-colors__label {
+  padding: 6px 10px 2px;
+}
+
+.pf-align {
+  display: flex;
+  gap: 2px;
+  padding: 0 6px 4px;
+}
+
+.pf-align button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  cursor: pointer;
+}
+
+.pf-align button:hover {
+  background: var(--pr-hairline);
+  color: var(--pr-ink);
+}
+
+.pf-widths {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--pr-hairline);
+}
+
+.pf-widths button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.pf-widths button i {
+  display: block;
+  width: 70px;
+  border-radius: 1px;
+  background: currentColor;
+}
+
+.pf-widths button:hover,
+.pf-widths button[data-active] {
+  background: var(--pr-hairline);
+  color: var(--pr-ink);
+}
+
+/* Format panel ------------------------------------------------------------------------------- */
+
+.ps-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.ps-num {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ps-num > span {
+  position: absolute;
+  left: 8px;
+  color: var(--pr-ink-faint);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.ps-num .pr-input {
+  width: 100%;
+  height: 28px;
+  padding-left: 44px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ps-num em {
+  position: absolute;
+  right: 8px;
+  color: var(--pr-ink-faint);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.ps-name {
+  overflow: hidden;
+  max-width: 55%;
+  color: var(--pr-ink-faint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ps-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ps-check input,
+.ps-slider input {
+  accent-color: var(--pr-accent);
+}
+
+.ps-slider {
+  display: grid;
+  grid-template-columns: auto 1fr 36px;
+  align-items: center;
+  gap: 10px;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+}
+
+.ps-slider em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.ps-color {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+}
+
+.ps-color input {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.ps-color code {
+  color: var(--pr-ink-faint);
+  font-size: 11px;
+}
+
+.ps-layers {
+  display: flex;
+  max-height: 220px;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.ps-layer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ps-layer span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-layer:hover {
+  background: var(--pr-hairline);
+  color: var(--pr-ink);
+}
+
+.ps-themes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.ps-theme {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pr-ink-soft);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ps-theme__card {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--pr-ink) 14%, transparent);
+  transition: box-shadow 140ms ease, transform 140ms var(--pr-ease);
+}
+
+.ps-theme:hover .ps-theme__card {
+  transform: translateY(-1px);
+}
+
+.ps-theme[data-active] .ps-theme__card {
+  box-shadow: 0 0 0 2px var(--pr-accent);
+}
+
+.ps-theme[data-active] .ps-theme__name {
+  color: var(--pr-accent);
+  font-weight: 600;
+}
+
+.ps-theme__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 14%;
+}
+
+.ps-theme__line {
+  position: absolute;
+  top: 26%;
+  left: 24%;
+  width: 56%;
+  height: 9%;
+  border-radius: 2px;
+}
+
+.ps-theme__line--short {
+  top: 44%;
+  width: 38%;
+  height: 6%;
+  opacity: 0.8;
+}
+
+.ps-theme__dots {
+  position: absolute;
+  bottom: 14%;
+  left: 24%;
+  display: flex;
+  gap: 3px;
+}
+
+.ps-theme__dots i {
+  display: block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.ps-theme__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ps-fonts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.ps-fonts label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--pr-ink-faint);
+  font-size: 11px;
+}
+
+.ps-fonts .pr-select {
+  width: 100%;
+}
+
+.animations-disabled .ps-theme__card,
+.animations-disabled .pf-btn {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ps-theme__card,
+  .pf-btn {
+    transition: none;
+  }
+}
+
+/* Opening a PowerPoint file (`.pi-*`) --------------------------------------------------------- */
+
+.pi-dialog {
+  display: flex;
+  width: min(760px, 94vw);
+  padding: 20px 22px 18px;
+  max-height: min(760px, 92vh);
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.pi-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pi-title {
+  margin: 0;
+  color: var(--pr-ink);
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.pi-sub {
+  max-width: 56ch;
+  margin: 4px 0 0;
+  color: var(--pr-ink-soft);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.pi-file {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 10px;
+  background: var(--bg-primary);
+  color: var(--pr-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 140ms ease;
+}
+
+.pi-file:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--pr-accent) 55%, transparent);
+}
+
+.pi-file:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.pi-file__icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--pr-accent-soft);
+  color: var(--pr-accent);
+}
+
+.pi-file__text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pi-file__text strong {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pi-file__text span {
+  overflow: hidden;
+  color: var(--pr-ink-faint);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pi-file__change {
+  color: var(--pr-accent);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pi-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.pi-thumb {
+  position: relative;
+  margin: 0;
+  aspect-ratio: var(--pi-aspect, 16 / 9);
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--pr-raised);
+  box-shadow: 0 0 0 1px var(--pr-hairline), 0 6px 16px -10px rgba(0, 0, 0, 0.35);
+}
+
+.pi-thumb .pd-slide {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.pi-thumb figcaption {
+  position: absolute;
+  bottom: 5px;
+  left: 6px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  text-align: center;
+}
+
+.pi-thumb__shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, color-mix(in oklab, var(--pr-accent) 14%, transparent) 50%, transparent 70%);
+  background-size: 250% 100%;
+  animation: pd-shimmer 1.6s ease-in-out infinite;
+}
+
+.pi-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+}
+
+.pi-facts strong {
+  color: var(--pr-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-more {
+  color: var(--pr-ink-faint);
+}
+
+.pi-warning,
+.pi-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--pr-warning);
+  font-size: 12px;
+}
+
+.pi-error {
+  color: var(--pr-danger);
+}
+
+.pi-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--pr-hairline);
+}
+
+.pi-progress {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  color: var(--pr-ink-soft);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pi-progress__bar {
+  position: relative;
+  height: 4px;
+  max-width: 240px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--pr-hairline);
+}
+
+.pi-progress__bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--pr-accent);
+  transition: width 200ms ease;
+}
+
+.animations-disabled .pi-thumb__shimmer {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pi-thumb__shimmer {
+    animation: none;
+  }
+}

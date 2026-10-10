@@ -3,7 +3,9 @@
 // and slide SVG made self-contained (pictures inlined) for PNG, PDF and HTML.
 
 import { invoke } from '@tauri-apps/api/core';
+import type { FileEntry } from '../../types';
 import { dominantColors } from '../../utils/presentation/designColors';
+import { folderPictures, MAX_DECK_PICTURES, PICTURE_EXTENSIONS } from '../../utils/presentation/designPictures';
 import { designCanvas } from '../../utils/presentation/designStyles';
 import type { DesignedSlide } from '../../utils/presentation/designTypes';
 import { base64ToBytes, isAbsolutePath, toPowerPointImage, writeFileBytes } from '../../utils/presentation/assets';
@@ -12,7 +14,7 @@ import type { PptxPicture } from '../../utils/presentation/svgPptx';
 import type { DeckSize, SlideTransition } from '../../utils/presentation/types';
 import { joinPath } from '../../utils/writing/document';
 
-export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
+export const IMAGE_EXTENSIONS = PICTURE_EXTENSIONS;
 
 async function decode(src: string): Promise<HTMLImageElement> {
   const image = new Image();
@@ -182,6 +184,132 @@ ${frames}
 </script>
 </body>
 </html>`;
+}
+
+// Showing pictures to the AI ------------------------------------------------------------
+
+/** Folder (inside a deck) that holds the small copies of its pictures the AI is shown. */
+export const PREVIEWS_FOLDER = '.previews';
+const SHEET_COLUMNS = 4;
+const SHEET_ROWS = 3;
+const TILE = { width: 300, height: 225, label: 26, gap: 8 };
+
+const toJpeg = async (canvas: HTMLCanvasElement): Promise<Uint8Array> => {
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((value) => (value ? resolve(value) : reject(new Error('Could not paint the picture.'))), 'image/jpeg', 0.84));
+  return new Uint8Array(await blob.arrayBuffer());
+};
+
+/** Draws `image` contained in a box, transparent areas on mid grey so light and dark logos both show. */
+function drawContained(context: CanvasRenderingContext2D, image: HTMLImageElement, x: number, y: number, width: number, height: number): void {
+  context.fillStyle = '#8C8C8C';
+  context.fillRect(x, y, width, height);
+  const scale = Math.min(width / (image.naturalWidth || 1), height / (image.naturalHeight || 1));
+  const w = (image.naturalWidth || 1) * scale;
+  const h = (image.naturalHeight || 1) * scale;
+  context.drawImage(image, x + (width - w) / 2, y + (height - h) / 2, w, h);
+}
+
+/** A JPEG copy of a picture, at most `maxSide` px on its long side. */
+export async function previewJpeg(dataUrl: string, maxSide = 1024): Promise<Uint8Array> {
+  const image = await decode(dataUrl);
+  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth || 1, image.naturalHeight || 1));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((image.naturalWidth || 1) * scale));
+  canvas.height = Math.max(1, Math.round((image.naturalHeight || 1) * scale));
+  drawContained(canvas.getContext('2d')!, image, 0, 0, canvas.width, canvas.height);
+  return toJpeg(canvas);
+}
+
+/**
+ * Contact sheets: the pictures as tiles labelled "number · name" (the
+ * numbers of the PICTURES list in the prompt), 12 to a sheet, written to
+ * `folder` as sheet-1.jpg, sheet-2.jpg… An engine sees up to six attached
+ * pictures, so sheets let it see a whole folder.
+ */
+export async function writeContactSheets(paths: string[], labels: string[], folder: string, startNumber = 1): Promise<string[]> {
+  const perSheet = SHEET_COLUMNS * SHEET_ROWS;
+  const sheets: string[] = [];
+  for (let start = 0; start < paths.length; start += perSheet) {
+    const batch = paths.slice(start, start + perSheet);
+    const rows = Math.ceil(batch.length / SHEET_COLUMNS);
+    const canvas = document.createElement('canvas');
+    canvas.width = SHEET_COLUMNS * TILE.width + (SHEET_COLUMNS + 1) * TILE.gap;
+    canvas.height = rows * (TILE.height + TILE.label) + (rows + 1) * TILE.gap;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = '#1C1C1E';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    for (const [offset, path] of batch.entries()) {
+      const x = TILE.gap + (offset % SHEET_COLUMNS) * (TILE.width + TILE.gap);
+      const y = TILE.gap + Math.floor(offset / SHEET_COLUMNS) * (TILE.height + TILE.label + TILE.gap);
+      try {
+        drawContained(context, await decode(await invoke<string>('read_file_as_base64', { path })), x, y, TILE.width, TILE.height);
+      } catch {
+        context.fillStyle = '#3A3A3C';
+        context.fillRect(x, y, TILE.width, TILE.height);
+      }
+      context.fillStyle = '#FFFFFF';
+      context.font = '600 15px "Segoe UI", sans-serif';
+      context.textBaseline = 'middle';
+      let label = `${startNumber + start + offset} · ${labels[start + offset] ?? ''}`;
+      while (label.length > 4 && context.measureText(label).width > TILE.width - 8) label = `${label.slice(0, -2)}…`;
+      context.fillText(label, x + 4, y + TILE.height + TILE.label / 2);
+    }
+    const target = joinPath(folder, `sheet-${sheets.length + 1}.jpg`);
+    await writeFileBytes(target, await toJpeg(canvas));
+    sheets.push(target);
+  }
+  return sheets;
+}
+
+/** Absolute path of a small JPEG copy of a deck picture (`assets/…`), made once. Null when it cannot be read. */
+export async function deckPicturePreview(deckDir: string, asset: string): Promise<string | null> {
+  const target = joinPath(deckDir, PREVIEWS_FOLDER, `${asset.split('/').pop()}.jpg`);
+  if (await invoke<boolean>('path_exists', { path: target }).catch(() => false)) return target;
+  try {
+    await writeFileBytes(target, await previewJpeg(await invoke<string>('read_file_as_base64', { path: resolvePath(asset, deckDir) })));
+    return target;
+  } catch (error) {
+    console.warn(`Could not prepare a preview of ${asset}:`, error);
+    return null;
+  }
+}
+
+/**
+ * What an engine that sees is shown of a set of pictures: each one (small
+ * copies) when they fit in one message, else contact sheets.
+ */
+export async function picturesToShow(paths: string[], labels: string[], folder: string): Promise<{ images: string[]; view: true | 'sheets' }> {
+  if (paths.length <= 6) {
+    const images: string[] = [];
+    for (const [index, path] of paths.entries()) {
+      try {
+        const target = joinPath(folder, `picture-${index + 1}.jpg`);
+        await writeFileBytes(target, await previewJpeg(await invoke<string>('read_file_as_base64', { path })));
+        images.push(target);
+      } catch (error) {
+        console.warn(`Could not prepare ${path}:`, error);
+      }
+    }
+    if (images.length === paths.length) return { images, view: true };
+  }
+  return { images: await writeContactSheets(paths, labels, folder), view: 'sheets' };
+}
+
+/**
+ * The pictures in a folder and its subfolders (3 levels, generated and hidden
+ * folders skipped), at most `limit`. `total` counts every usable picture found.
+ */
+export async function scanFolderPictures(folder: string, limit = MAX_DECK_PICTURES): Promise<{ paths: string[]; total: number }> {
+  const found: FileEntry[] = [];
+  const walk = async (dir: string, depth: number): Promise<void> => {
+    const entries = await invoke<FileEntry[]>('list_directory_entries', { path: dir }).catch(() => [] as FileEntry[]);
+    found.push(...entries.filter((entry) => !entry.isDir));
+    if (depth >= 3) return;
+    for (const entry of entries) if (entry.isDir && !entry.name.startsWith('.')) await walk(entry.path, depth + 1);
+  };
+  await walk(folder, 1);
+  const pictures = folderPictures(found);
+  return { paths: pictures.slice(0, limit).map((entry) => entry.path), total: pictures.length };
 }
 
 /** A dropped or pasted file (picture or document) written to `folder`, so the AI and the deck can use it. */

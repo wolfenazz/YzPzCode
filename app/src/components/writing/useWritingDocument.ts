@@ -31,7 +31,8 @@ async function listReports(workspacePath: string): Promise<ReportListing[]> {
     const entries = await invoke<FileEntry[]>('list_directory_entries', { path: folder.path }).catch(() => [] as FileEntry[]);
     for (const entry of entries) {
       if (!entry.isDir && entry.name.toLowerCase().endsWith(YZDOC_EXTENSION)) {
-        reports.push({ path: entry.path, title: folder.name, modifiedAt: entry.modifiedAt });
+        // The file system reports seconds since the epoch.
+        reports.push({ path: entry.path, title: folder.name, modifiedAt: entry.modifiedAt * 1000 });
       }
     }
   }

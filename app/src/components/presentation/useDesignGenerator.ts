@@ -5,24 +5,31 @@ import type { AiCallRecord } from '../../stores/writingSessionStore';
 import {
   buildDirectionPrompt,
   buildNewSlidePrompt,
+  buildPicturePlanPrompt,
   buildRefinePrompt,
   buildSlidesPrompt,
   extractSlideBlocks,
   parseDirection,
+  parsePicturePlan,
+  placeablePictures,
   titleFromSvg,
+  type PictureView,
   type SlideBlock,
 } from '../../utils/presentation/designPrompts';
 import { designCanvas } from '../../utils/presentation/designStyles';
 import type { DesignAttachment, DesignedSlide, DesignSlideRole, DirectionResult } from '../../utils/presentation/designTypes';
-import { sanitizeSvg } from '../../utils/presentation/svgSafe';
+import { sanitizeSvg, svgAssetRefs } from '../../utils/presentation/svgSafe';
 import type { DeckSize, YzDeck } from '../../utils/presentation/types';
 import { startAiRun, type AiRun, type AiRunResult } from '../../utils/writing/aiClient';
-import { joinPath } from '../../utils/writing/document';
+import { joinPath, parentPath } from '../../utils/writing/document';
 import { gatherSources } from '../../utils/writing/sources';
 import type { EngineChoice } from '../../utils/writing/types';
+import { deckPicturePreview, picturesToShow, PREVIEWS_FOLDER } from './designAssets';
 
 /** Engines that are shown the user's pictures (the others get a description of each). */
 const SEES_IMAGES = new Set(['claude', 'codex']);
+/** Pictures attached to one drawing call (the runner's limit). */
+const MAX_ATTACHED = 6;
 /**
  * Pages per AI call, and calls in flight at once, after the cover. A page
  * takes about the same time whatever the batch (2–4 minutes for a rich
@@ -38,8 +45,10 @@ const newCallId = (): string => `call-${Date.now().toString(36)}-${(callCounter 
 export interface DirectionRequest {
   prompt: string;
   attachments: DesignAttachment[];
-  /** Absolute paths of the pictures, shown to engines that can see. */
+  /** Absolute paths of what engines that see are shown: small copies of the pictures, or contact sheets. */
   imagePaths: string[];
+  /** How `imagePaths` show the pictures. */
+  pictureView: PictureView;
   /** Absolute paths of documents whose text the AI should use. */
   documents: string[];
   slideCount: number | null;
@@ -59,9 +68,14 @@ export interface SlideProposal {
 export type ProposalResult = { ok: true; proposal: SlideProposal } | { ok: false; cancelled: boolean; error: string };
 
 const deckOf = (workspaceId: string): YzDeck | null => usePresentationSessionStore.getState().sessions[workspaceId]?.deck ?? null;
+/** The open deck's folder, read when needed: a deck created a moment ago is not in the last render yet. */
+const deckDirOf = (workspaceId: string): string => {
+  const path = usePresentationSessionStore.getState().sessions[workspaceId]?.deckPath;
+  return path ? parentPath(path) : '';
+};
 
 /** Every AI call that designs or redraws slides, with progress in the session's run. */
-export function useDesignGenerator(workspaceId: string, deckDir: string) {
+export function useDesignGenerator(workspaceId: string) {
   const active = useRef(new Set<AiRun>());
   const cancelled = useRef(false);
   const store = usePresentationSessionStore.getState;
@@ -131,6 +145,19 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
 
   const seesImages = (engine: EngineChoice): boolean => SEES_IMAGES.has(engine.engine);
 
+  /** The deck's pictures as an engine that sees is shown them (each, or contact sheets); nothing for the others. */
+  const showDeckPictures = useCallback(async (engine: EngineChoice, attachments: DesignAttachment[]): Promise<{ images: string[]; view: PictureView }> => {
+    const pictures = attachments.filter((entry) => entry.kind === 'image');
+    if (!SEES_IMAGES.has(engine.engine) || pictures.length === 0) return { images: [], view: false };
+    try {
+      const deckDir = deckDirOf(workspaceId);
+      return await picturesToShow(pictures.map((entry) => joinPath(deckDir, entry.path)), pictures.map((entry) => entry.name), joinPath(deckDir, PREVIEWS_FOLDER, 'shown'));
+    } catch (error) {
+      console.warn('Could not prepare the pictures for the AI:', error);
+      return { images: [], view: false };
+    }
+  }, [workspaceId]);
+
   /** Pass 1: the design system and storyline. Null (with the run marked failed) when it cannot. */
   const direct = useCallback(async (request: DirectionRequest): Promise<DirectionResult | null> => {
     startRun('outline');
@@ -143,14 +170,14 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
       slideCount: request.slideCount,
       language: request.language,
       canvas: designCanvas(request.size),
-      seesImages: seesImages(request.engine) && request.imagePaths.length > 0,
+      seesImages: seesImages(request.engine) && request.imagePaths.length > 0 ? request.pictureView : false,
     });
-    const result = await runAi(request.engine, 'Inventing the design and the storyline', system, prompt, { images: request.imagePaths });
+    const result = await runAi(request.engine, 'Inventing the design and the storyline', system, prompt, { images: seesImages(request.engine) ? request.imagePaths : [] });
     if (!result.ok) {
       store().updateRun(workspaceId, { phase: result.cancelled ? 'cancelled' : 'failed', endedAt: Date.now(), error: result.cancelled ? null : result.error });
       return null;
     }
-    const direction = parseDirection(result.text);
+    const direction = parseDirection(result.text, placeablePictures(request.attachments).map((entry) => entry.path));
     if (!direction) {
       store().updateRun(workspaceId, { phase: 'failed', endedAt: Date.now(), error: 'The AI did not return a usable design. Try again, or describe the presentation in a little more detail.' });
       return null;
@@ -183,6 +210,21 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
     return true;
   }, [store, workspaceId]);
 
+  /** Small copies of deck pictures to attach to a drawing call, for engines that see. */
+  const attachPictures = useCallback(async (engine: EngineChoice, assets: string[]): Promise<{ paths: string[]; images: string[] }> => {
+    if (!seesImages(engine)) return { paths: [], images: [] };
+    const paths: string[] = [];
+    const images: string[] = [];
+    for (const asset of [...new Set(assets)].filter((entry) => entry.startsWith('assets/')).slice(0, MAX_ATTACHED)) {
+      const preview = await deckPicturePreview(deckDirOf(workspaceId), asset);
+      if (preview) {
+        paths.push(asset);
+        images.push(preview);
+      }
+    }
+    return { paths, images };
+  }, [workspaceId]);
+
   /** Draws one batch of pages, filling each as soon as its block is complete. */
   const drawBatch = useCallback(async (ids: string[], reference: { number: number; svg: string } | null): Promise<string | null> => {
     const deck = deckOf(workspaceId);
@@ -191,6 +233,7 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
     const indexes = ids.map((id) => design.slides.findIndex((slide) => slide.id === id)).filter((index) => index >= 0);
     if (indexes.length === 0) return null;
     store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, ...Object.fromEntries(ids.map((id) => [id, 'writing' as const])) } }));
+    const attached = await attachPictures(deck.brief.engine, indexes.flatMap((index) => design.slides[index].pictures ?? []));
     const { system, prompt } = buildSlidesPrompt({
       title: deck.meta.title,
       language: design.language,
@@ -199,7 +242,7 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
       pages: design.slides,
       draw: indexes,
       attachments: design.attachments,
-      seesImages: false,
+      attachedPictures: attached.paths,
       reference,
     });
     const filled = new Set<string>();
@@ -217,6 +260,7 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
     const numbers = indexes.map((index) => index + 1);
     const label = numbers.length === 1 ? `Drawing slide ${numbers[0]}` : `Drawing slides ${numbers[0]}–${numbers[numbers.length - 1]}`;
     const result = await runAi(deck.brief.engine, label, system, prompt, {
+      images: attached.images,
       onText: (text) => {
         const blocks = extractSlideBlocks(text);
         if (blocks.length > seen) {
@@ -234,7 +278,7 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
       return result.ok ? 'Some slides came back unusable. Select them and choose "Draw again".' : result.error ?? 'The AI run failed.';
     }
     return null;
-  }, [applyBlock, runAi, store, workspaceId]);
+  }, [applyBlock, attachPictures, runAi, store, workspaceId]);
 
   /**
    * Pass 2: draws the given pages. The cover goes first, alone, so the other
@@ -283,6 +327,7 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
     const slide = design.slides[index];
     startRun('action', { [slideId]: 'queued' });
     store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [slideId]: 'writing' } }));
+    const attached = await attachPictures(deck.brief.engine, [...(slide.pictures ?? []), ...svgAssetRefs(slide.svg)]);
     const { system, prompt } = buildRefinePrompt({
       title: deck.meta.title,
       language: design.language,
@@ -294,16 +339,16 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
       notes: slide.notes,
       instruction,
       attachments: design.attachments,
-      seesImages: false,
+      attachedPictures: attached.paths,
     });
-    const result = await runAi(deck.brief.engine, label, system, prompt);
+    const result = await runAi(deck.brief.engine, label, system, prompt, { images: attached.images });
     const proposal = result.ok ? toProposal(extractSlideBlocks(result.text, true)[0], deck.size) : null;
     // The slide itself is unchanged either way; the review card reports a failure.
     store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [slideId]: 'done' } }));
     endRun(null);
     if (proposal) return { ok: true, proposal };
     return { ok: false, cancelled: result.cancelled, error: result.ok ? 'The AI did not return a usable slide. Try again.' : result.cancelled ? 'Stopped.' : result.error ?? 'The AI run failed.' };
-  }, [endRun, runAi, startRun, store, workspaceId]);
+  }, [attachPictures, endRun, runAi, startRun, store, workspaceId]);
 
   /** A new page to insert at `at`; the caller shows it for review. */
   const newSlide = useCallback(async (at: number, description: string): Promise<ProposalResult> => {
@@ -321,7 +366,6 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
       at,
       description,
       attachments: design.attachments,
-      seesImages: false,
       reference: reference ? { number: design.slides.indexOf(reference) + 1, svg: reference.svg } : null,
     });
     const result = await runAi(deck.brief.engine, 'Designing a new slide', system, prompt);
@@ -337,7 +381,7 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
     const design = deck?.design;
     if (!deck || !design) return false;
     startRun('outline');
-    const imagePaths = design.attachments.filter((entry) => entry.kind === 'image').map((entry) => joinPath(deckDir, entry.path));
+    const shown = await showDeckPictures(deck.brief.engine, design.attachments);
     const { system, prompt } = buildDirectionPrompt({
       prompt: instruction,
       attachments: design.attachments,
@@ -345,11 +389,11 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
       slideCount: design.slides.length,
       language: design.language,
       canvas: designCanvas(deck.size),
-      seesImages: seesImages(deck.brief.engine) && imagePaths.length > 0,
+      seesImages: shown.view,
       keepPages: design.slides,
       previous: design.system,
     });
-    const result = await runAi(deck.brief.engine, 'Inventing a new design', system, prompt, { images: imagePaths });
+    const result = await runAi(deck.brief.engine, 'Inventing a new design', system, prompt, { images: shown.images });
     const direction = result.ok ? parseDirection(result.text) : null;
     if (!direction) {
       store().updateRun(workspaceId, { phase: result.cancelled ? 'cancelled' : 'failed', endedAt: Date.now(), error: result.cancelled ? null : result.ok ? 'The AI did not return a usable design. Try again.' : result.error });
@@ -358,9 +402,43 @@ export function useDesignGenerator(workspaceId: string, deckDir: string) {
     store().edit(workspaceId, (current) => (current.design ? { ...current, design: { ...current.design, system: direction.system } } : current));
     await drawSlides(design.slides.map((slide) => slide.id), { fresh: true });
     return true;
-  }, [deckDir, drawSlides, runAi, startRun, store, workspaceId]);
+  }, [drawSlides, runAi, showDeckPictures, startRun, store, workspaceId]);
 
-  return { direct, drawSlides, refine, newSlide, redesign, cancel, seesImages };
+  /**
+   * Puts the deck's pictures on its slides: the AI picks the pages and
+   * pictures, then only those pages are redrawn. One Undo restores them.
+   * Resolves to the number of pages that got pictures, or null on failure.
+   */
+  const placePictures = useCallback(async (): Promise<number | null> => {
+    const deck = deckOf(workspaceId);
+    const design = deck?.design;
+    if (!deck || !design) return null;
+    const known = placeablePictures(design.attachments).map((entry) => entry.path);
+    if (known.length === 0) return 0;
+    startRun('outline');
+    const shown = await showDeckPictures(deck.brief.engine, design.attachments);
+    const { system, prompt } = buildPicturePlanPrompt({ title: deck.meta.title, pages: design.slides, attachments: design.attachments, seesImages: shown.view });
+    const result = await runAi(deck.brief.engine, 'Choosing pictures for each slide', system, prompt, { images: shown.images });
+    const plan = result.ok ? parsePicturePlan(result.text, design.slides.length, known) : null;
+    if (!plan || plan.pages.size === 0) {
+      store().updateRun(workspaceId, { phase: result.cancelled ? 'cancelled' : 'failed', endedAt: Date.now(), error: result.cancelled ? null : result.ok ? 'The AI did not place any picture. Try again.' : result.error });
+      return null;
+    }
+    const ids = design.slides.filter((_, index) => plan.pages.has(index)).map((slide) => slide.id);
+    store().edit(workspaceId, (current) => {
+      if (!current.design) return current;
+      const slides = current.design.slides.map((slide) => {
+        const entry = plan.pages.get(design.slides.findIndex((original) => original.id === slide.id));
+        return entry ? { ...slide, pictures: entry.pictures, brief: entry.brief || slide.brief } : slide;
+      });
+      const attachments = current.design.attachments.map((entry) => (plan.notes[entry.path] ? { ...entry, caption: plan.notes[entry.path] } : entry));
+      return { ...current, design: { ...current.design, slides, attachments } };
+    });
+    await drawSlides(ids);
+    return ids.length;
+  }, [drawSlides, runAi, showDeckPictures, startRun, store, workspaceId]);
+
+  return { direct, drawSlides, refine, newSlide, redesign, placePictures, cancel, seesImages };
 }
 
 function toProposal(block: SlideBlock | undefined, size: DeckSize): SlideProposal | null {

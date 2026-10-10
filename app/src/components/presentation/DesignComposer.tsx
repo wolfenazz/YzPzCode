@@ -2,14 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { ArrowRight, FileArrowUp, FileText, ImageSquare, Paperclip, PresentationChart, Sparkle, Stop, X } from '@phosphor-icons/react';
+import { ArrowRight, FileArrowUp, FileText, FolderSimple, ImageSquare, Paperclip, PresentationChart, Sparkle, Stop, X } from '@phosphor-icons/react';
 import type { DeckRun } from '../../stores/presentationSessionStore';
+import type { FileEntry } from '../../types';
+import { localFileUrl } from '../../utils/mediaFiles';
+import { findMentionedPaths, isPictureName, MAX_DECK_PICTURES } from '../../utils/presentation/designPictures';
 import { formatDuration } from '../../utils/presentation/timing';
 import type { DeckSize } from '../../utils/presentation/types';
 import { fileName, joinPath } from '../../utils/writing/document';
 import { SOURCE_EXTENSIONS } from '../../utils/writing/sources';
 import type { EngineChoice } from '../../utils/writing/types';
-import { IMAGE_EXTENSIONS, saveDroppedFile } from './designAssets';
+import { IMAGE_EXTENSIONS, saveDroppedFile, scanFolderPictures } from './designAssets';
 import { EnginePicker } from './EnginePicker';
 import type { DeckListing } from './useDeckDocument';
 
@@ -20,6 +23,18 @@ export interface ComposerFile {
   use: 'auto' | 'slides' | 'style';
   /** Thumbnail data URL for pictures. */
   preview?: string;
+}
+
+/** A folder of pictures, picked or named in the description; its pictures go to the AI like picked ones. */
+interface ComposerFolder {
+  path: string;
+  name: string;
+  pictures: string[];
+  /** Usable pictures in the folder, including any beyond the deck's limit. */
+  total: number;
+  use: ComposerFile['use'];
+  /** The text in the description it was found from; null when picked. */
+  mention: string | null;
 }
 
 export interface ComposerInput {
@@ -67,6 +82,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   const still = reduce || !animations;
   const [prompt, setPrompt] = useState('');
   const [files, setFiles] = useState<ComposerFile[]>([]);
+  const [folders, setFolders] = useState<ComposerFolder[]>([]);
   const [slideCount, setSlideCount] = useState<number | null>(null);
   const [size, setSize] = useState<DeckSize>(defaultSize);
   const [language, setLanguage] = useState('');
@@ -76,7 +92,12 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   const [now, setNow] = useState(Date.now());
   const textarea = useRef<HTMLTextAreaElement>(null);
   const dragDepth = useRef(0);
+  /** Paths already looked up on disk: what each one is. */
+  const lookedUp = useRef(new Map<string, 'folder' | 'file' | 'none'>());
+  /** Folders the user removed after they were found in the description. */
+  const dismissed = useRef(new Set<string>());
   const ready = prompt.trim().length >= 8 && !busy;
+  const pictureCount = files.filter((file) => file.kind === 'image').length + folders.reduce((sum, folder) => sum + folder.pictures.length, 0);
 
   useEffect(() => {
     if (!busy) return;
@@ -103,6 +124,70 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
     setFiles((current) => [...current, ...added.filter((file) => !current.some((entry) => entry.path === file.path))]);
   }, [files]);
 
+  const addFolder = useCallback(async (path: string, mention: string | null): Promise<void> => {
+    const key = path.toLowerCase();
+    if (folders.some((folder) => folder.path.toLowerCase() === key)) return;
+    if (!mention && pictureCount >= MAX_DECK_PICTURES) {
+      setFileError(`A deck takes up to ${MAX_DECK_PICTURES} pictures.`);
+      return;
+    }
+    const { paths, total } = await scanFolderPictures(path, MAX_DECK_PICTURES);
+    if (paths.length === 0) {
+      if (!mention) setFileError(`No pictures in ${fileName(path)} (PNG, JPEG, GIF or WebP).`);
+      return;
+    }
+    const picked = files.filter((file) => file.kind === 'image').length;
+    // The room is counted on the latest folders: a folder found a moment ago may just have been dropped.
+    setFolders((current) => {
+      if (current.some((folder) => folder.path.toLowerCase() === key)) return current;
+      const room = MAX_DECK_PICTURES - picked - current.reduce((sum, folder) => sum + folder.pictures.length, 0);
+      return room > 0 ? [...current, { path, name: fileName(path) || path, pictures: paths.slice(0, room), total, use: 'auto', mention }] : current;
+    });
+  }, [files, folders, pictureCount]);
+
+  const pickFolder = async (): Promise<void> => {
+    setFileError(null);
+    const picked = await open({ directory: true, defaultPath: workspacePath });
+    if (typeof picked === 'string') void addFolder(picked, null);
+  };
+
+  /** What a path is on disk, remembered. */
+  const lookUp = useCallback(async (path: string): Promise<'folder' | 'file' | 'none'> => {
+    const known = lookedUp.current.get(path.toLowerCase());
+    if (known) return known;
+    let kind: 'folder' | 'file' | 'none' = 'none';
+    if (await invoke<FileEntry[]>('list_directory_entries', { path }).then(() => true, () => false)) kind = 'folder';
+    else if (await invoke<boolean>('path_exists', { path }).catch(() => false)) kind = 'file';
+    lookedUp.current.set(path.toLowerCase(), kind);
+    return kind;
+  }, []);
+
+  // Folders and files named in the description ("pictures are in @C:\…\public")
+  // are attached as if picked; deleting the path from the text detaches them.
+  useEffect(() => {
+    if (busy) return;
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const mentions = findMentionedPaths(prompt, workspacePath);
+        // A folder found from the description stays only while the description still names it
+        // (typing "…\website\public" drops "…\website", found during a pause).
+        const named = new Set(mentions.flatMap((mention) => mention.candidates.map((candidate) => candidate.toLowerCase())));
+        setFolders((current) => current.filter((folder) => folder.mention === null || named.has(folder.path.toLowerCase())));
+        for (const mention of mentions) {
+          for (const candidate of mention.candidates) {
+            const kind = await lookUp(candidate);
+            if (kind === 'none') continue;
+            if (kind === 'folder' && !dismissed.current.has(candidate.toLowerCase())) await addFolder(candidate, mention.raw);
+            if (kind === 'file' && (isPictureName(candidate) || SOURCE_EXTENSIONS.includes(candidate.split('.').pop()?.toLowerCase() ?? '')) && !dismissed.current.has(candidate.toLowerCase())) await addPaths([candidate]);
+            break;
+          }
+        }
+      })();
+    }, 500);
+    return () => window.clearTimeout(timer);
+    // Only the description drives this; the helpers guard against duplicates themselves.
+  }, [prompt, busy, workspacePath]);
+
   const pick = async (): Promise<void> => {
     const picked = await open({ multiple: true, defaultPath: workspacePath, filters: [{ name: 'Pictures and documents', extensions: [...IMAGE_EXTENSIONS, ...SOURCE_EXTENSIONS] }] });
     if (!picked) return;
@@ -128,7 +213,9 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
 
   const submit = (): void => {
     if (!ready) return;
-    onCreate({ prompt: prompt.trim(), files, slideCount, size, language: language.trim() });
+    const fromFolders = folders.flatMap((folder) => folder.pictures.map((path): ComposerFile => ({ path, name: fileName(path), kind: 'image', use: folder.use })));
+    const all = [...files, ...fromFolders.filter((file) => !files.some((entry) => entry.path.toLowerCase() === file.path.toLowerCase()))];
+    onCreate({ prompt: prompt.trim(), files: all, slideCount, size, language: language.trim() });
   };
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -165,7 +252,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
           Describe it. <em>We design it.</em>
         </motion.h1>
         <motion.p className="pd-home__lede" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.12 }}>
-          Say what the presentation is for and who will see it. Add your notes, documents, logo or photos. The AI invents a look made for this deck and draws every slide.
+          Say what the presentation is for and who will see it. Add your notes, documents, logo or photos, or a folder of pictures. The AI invents a look made for this deck and draws every slide with your pictures on it.
         </motion.p>
 
         <motion.div className="pd-composer" data-busy={designing || undefined} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.18 }}>
@@ -188,8 +275,36 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
             autoFocus
           />
 
-          {files.length > 0 && (
+          {(files.length > 0 || folders.length > 0) && (
             <div className="pd-files">
+              {folders.map((folder) => (
+                <div key={folder.path} className="pd-file" data-kind="folder" title={`${folder.path}${folder.mention ? '\nFound in your description' : ''}`}>
+                  <span className="pd-file__thumb pd-file__mosaic" aria-hidden="true">
+                    {folder.pictures.slice(0, 4).map((path) => <img key={path} src={localFileUrl(path)} alt="" loading="lazy" />)}
+                  </span>
+                  <span className="pd-file__text">
+                    <span className="pd-file__name"><FolderSimple size={11} weight="fill" /> {folder.name}</span>
+                    <span className="pd-file__line">
+                      <button type="button" className="pd-file__use" disabled={designing} onClick={() => setFolders((current) => current.map((entry) => (entry.path === folder.path ? { ...entry, use: NEXT_USE[entry.use] } : entry)))} title="Click to change how these pictures are used">
+                        {USE_LABEL[folder.use]}
+                      </button>
+                      <span className="pd-file__meta">{folder.total > folder.pictures.length ? `${folder.pictures.length} of ${folder.total}` : folder.pictures.length} picture{folder.total === 1 ? '' : 's'}{folder.mention ? ' · from your description' : ''}</span>
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="pr-icon-btn pr-icon-btn--xs"
+                    aria-label={`Remove ${folder.name}`}
+                    disabled={designing}
+                    onClick={() => {
+                      dismissed.current.add(folder.path.toLowerCase());
+                      setFolders((current) => current.filter((entry) => entry.path !== folder.path));
+                    }}
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
               {files.map((file) => (
                 <div key={file.path} className="pd-file" data-kind={file.kind} title={file.path}>
                   {file.preview ? <img src={file.preview} alt="" className="pd-file__thumb" /> : <span className="pd-file__icon"><FileText size={16} /></span>}
@@ -201,7 +316,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                       </button>
                     ) : <span className="pd-file__use pd-file__use--static">Source</span>}
                   </span>
-                  <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label={`Remove ${file.name}`} disabled={designing} onClick={() => setFiles((current) => current.filter((entry) => entry.path !== file.path))}><X size={11} /></button>
+                  <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label={`Remove ${file.name}`} disabled={designing} onClick={() => { dismissed.current.add(file.path.toLowerCase()); setFiles((current) => current.filter((entry) => entry.path !== file.path)); }}><X size={11} /></button>
                 </div>
               ))}
             </div>
@@ -237,6 +352,9 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
             <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost" disabled={designing || files.length >= MAX_FILES} onClick={() => void pick()} title="Documents become the content; pictures can go on slides or set the mood">
               <Paperclip size={14} /> Add files
             </button>
+            <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost" disabled={designing || pictureCount >= MAX_DECK_PICTURES} onClick={() => void pickFolder()} title="Use the pictures in a folder (its subfolders too). You can also paste a folder path into the description.">
+              <FolderSimple size={14} /> Add folder
+            </button>
             <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost" aria-expanded={showOptions} disabled={designing} onClick={() => setShowOptions((value) => !value)}>
               {slideCount ? `${slideCount} slides` : 'Auto length'} · {size}{language.trim() ? ` · ${language.trim()}` : ''}
             </button>
@@ -255,7 +373,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
               <span className="pd-progress__orb" data-still={still || undefined} aria-hidden="true" />
               <span>
                 <strong>Art-directing your deck</strong>
-                <span>Inventing a visual identity and planning the story{files.some((file) => file.kind === 'document') ? ' from your files' : ''} · {formatDuration(elapsed)}</span>
+                <span>Inventing a visual identity and planning the story{files.some((file) => file.kind === 'document') ? ' from your files' : ''}{pictureCount > 0 ? ` around your ${pictureCount} picture${pictureCount === 1 ? '' : 's'}` : ''} · {formatDuration(elapsed)}</span>
               </span>
             </div>
           )}
@@ -284,7 +402,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                     <span className="pr-deck-row__text">
                       <span className="pr-deck-row__name">{deck.title}</span>
                       <span className="pr-deck-row__meta">
-                        {deck.slides} slide{deck.slides === 1 ? '' : 's'}{deck.preserve ? ' · original design' : deck.designed ? ' · AI-designed' : ''} · {new Date(deck.modifiedAt).toLocaleDateString()}
+                        {deck.slides} slide{deck.slides === 1 ? '' : 's'}{deck.preserve ? ' · original design' : deck.imported ? ' · PowerPoint' : deck.designed ? ' · AI-designed' : ''} · {new Date(deck.modifiedAt).toLocaleDateString()}
                       </span>
                     </span>
                   </button>

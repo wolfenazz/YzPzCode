@@ -742,3 +742,229 @@ test('dominant colours of a picture', () => {
   assert.equal(designColors.normalizeHex('#abc'), '#AABBCC');
   assert.notEqual(designColors.ensureContrast('#777777', '#FFFFFF', 7), '#777777');
 });
+
+const designPictures = await load('designPictures');
+
+test('folder and file paths named in a description are found', () => {
+  const text = 'you can get the pics you need to desgen the presentation from : @C:\\Users\\nasee\\Desktop\\files\\CODING\\fahad-project\\website\\public\n\nTM471-Full.docx';
+  const [mention, ...rest] = designPictures.findMentionedPaths(text);
+  assert.equal(rest.length, 0);
+  assert.equal(mention.raw, 'C:\\Users\\nasee\\Desktop\\files\\CODING\\fahad-project\\website\\public');
+  assert.deepEqual(mention.candidates, [mention.raw]);
+  const spaced = designPictures.findMentionedPaths('Photos in C:\\My Pictures\\Trip 2024 are the best.');
+  assert.deepEqual(spaced[0].candidates, ['C:\\My Pictures\\Trip 2024 are the best', 'C:\\My Pictures\\Trip 2024 are the', 'C:\\My Pictures\\Trip 2024 are', 'C:\\My Pictures\\Trip 2024', 'C:\\My Pictures\\Trip', 'C:\\My']);
+  assert.equal(designPictures.findMentionedPaths('see /home/me/pics and/or TCP/IP').map((entry) => entry.candidates.at(-1)).join('|'), '/home/me/pics');
+  const relative = designPictures.findMentionedPaths('use @website/public/pics please, mail me@site.com', 'D:\\work');
+  assert.equal(relative.length, 1);
+  assert.ok(relative[0].candidates.includes('D:\\work\\website\\public\\pics'));
+  assert.equal(designPictures.findMentionedPaths('@C:\\x\\y', 'D:\\work').length, 1, '@C:\\… is not also read as a relative path');
+});
+
+test('folder pictures: one per name, PNG before WebP, usable names in assets/', () => {
+  const entries = ['street-food.webp', 'street-food.png', 'Banner.png', 'file.svg', 'clip.mp4', 'Noddles..png', 'b.gif']
+    .map((name) => ({ name, path: `C:\\p\\${name}` }));
+  assert.deepEqual(designPictures.folderPictures(entries).map((entry) => entry.name), ['b.gif', 'Banner.png', 'Noddles..png', 'street-food.png']);
+  const frames = Array.from({ length: 30 }, (_, index) => ({ name: `frame-${String(index + 1).padStart(3, '0')}.webp`, path: `C:\\v\\frames\\frame-${String(index + 1).padStart(3, '0')}.webp` }));
+  const steps = ['step-01.png', 'step-02.png', 'step-03.png'].map((name) => ({ name, path: `C:\\v\\${name}` }));
+  assert.deepEqual(designPictures.folderPictures([...frames, ...steps]).map((entry) => entry.name), ['frame-001.webp', 'step-01.png', 'step-02.png', 'step-03.png'], 'a long frame sequence keeps its first frame; short numbered sets stay');
+  const used = new Set(['banner.png']);
+  assert.equal(designPictures.assetName('C:\\p\\Banner.png', used), 'Banner-2.png');
+  assert.equal(designPictures.assetName('C:\\p\\Noddles..png', used), 'Noddles.png');
+  assert.equal(designPictures.assetName('C:\\p\\my photo (1).jpg', used), 'my-photo-1-.jpg');
+  const known = ['assets/Burger.png', 'assets/map.png'];
+  assert.equal(designPictures.matchPicture('ASSETS/burger.PNG', known), 'assets/Burger.png');
+  assert.equal(designPictures.matchPicture('C:\\x\\map.png', known), 'assets/map.png');
+  assert.equal(designPictures.matchPicture('assets/none.png', known), null);
+  assert.deepEqual(designPictures.matchPictures(['map.png', 'assets/map.png', 'x.png', 'Burger.png'], known), ['assets/map.png', 'assets/Burger.png']);
+});
+
+test('art direction plans pictures onto pages, and drawing prompts insist on placing them', () => {
+  const attachments = [
+    { path: 'assets/truck.png', name: 'truck.png', kind: 'image', use: 'auto', width: 1200, height: 800 },
+    { path: 'assets/mood.png', name: 'mood.png', kind: 'image', use: 'style' },
+  ];
+  const direction = designPrompts.buildDirectionPrompt({ prompt: 'Food trucks in Bahrain', attachments, sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: 'sheets' });
+  assert.match(direction.prompt, /attached as contact sheets/);
+  assert.match(direction.prompt, /PLACING THE PICTURES/);
+  assert.match(direction.prompt, /"pictures": \["assets\/…"\]/);
+  assert.match(direction.prompt, /"pictureNotes"/);
+  const plain = designPrompts.buildDirectionPrompt({ prompt: 'x', attachments: [], sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: false });
+  assert.doesNotMatch(plain.prompt, /PLACING THE PICTURES|"pictures"/);
+
+  const reply = JSON.stringify({
+    title: 'Trucks',
+    design: {},
+    pages: [{ role: 'cover', title: 'Cover', brief: 'b', pictures: ['truck.png', 'assets/unknown.png'] }, { title: 'Two', pictures: 'nope' }],
+    pictureNotes: { 'assets/truck.png': 'A red food truck at night', 'ghost.png': 'x' },
+  });
+  const known = designPrompts.placeablePictures(attachments).map((entry) => entry.path);
+  const parsed = designPrompts.parseDirection(reply, known);
+  assert.deepEqual(parsed.pages[0].pictures, ['assets/truck.png']);
+  assert.equal(parsed.pages[1].pictures, undefined);
+  assert.deepEqual(parsed.pictureNotes, { 'assets/truck.png': 'A red food truck at night' });
+
+  const pages = [{ role: 'cover', title: 'Cover', brief: 'b', density: 'anchor', pictures: ['assets/truck.png'] }, { role: 'content', title: 'Two', brief: 'b2', density: 'dense' }];
+  const withCaption = [{ ...attachments[0], caption: 'A red food truck at night' }, attachments[1]];
+  const draw = designPrompts.buildSlidesPrompt({ title: 'T', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, draw: [0], attachments: withCaption, attachedPictures: ['assets/truck.png'] });
+  assert.match(draw.prompt, /Pictures \(place every one\): assets\/truck\.png/);
+  assert.match(draw.prompt, /Shows: A red food truck at night/);
+  assert.match(draw.prompt, /never replace one with a drawn stand-in/);
+  assert.match(draw.prompt, /ATTACHED TO THIS MESSAGE, in this order: assets\/truck\.png/);
+  assert.doesNotMatch(draw.prompt, /mood\.png/, 'look references are not offered for slides');
+  const other = designPrompts.buildSlidesPrompt({ title: 'T', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, draw: [1], attachments: withCaption });
+  assert.match(other.prompt, /1\. \[cover, anchor\] Cover · pictures: assets\/truck\.png/);
+  assert.doesNotMatch(other.prompt, /ATTACHED TO THIS MESSAGE/);
+});
+
+test('a picture plan for an existing deck is read against the deck pictures', () => {
+  const attachments = [{ path: 'assets/map.png', name: 'map.png', kind: 'image', use: 'auto' }];
+  const pages = [{ role: 'cover', title: 'A', brief: 'a', density: 'anchor' }, { role: 'content', title: 'B', brief: 'b', density: 'dense' }];
+  const { prompt } = designPrompts.buildPicturePlanPrompt({ title: 'Deck', pages, attachments, seesImages: true });
+  assert.match(prompt, /1\. \[cover\] A/);
+  assert.match(prompt, /List only the pages that get pictures/);
+  const plan = designPrompts.parsePicturePlan(JSON.stringify({ pages: [{ n: 2, pictures: ['map.png'], brief: 'The map, framed in a phone' }, { n: 9, pictures: ['map.png'] }, { n: 1, pictures: ['x.png'] }], pictureNotes: { 'map.png': 'App map screen' } }), 2, ['assets/map.png']);
+  assert.deepEqual([...plan.pages.entries()], [[1, { pictures: ['assets/map.png'], brief: 'The map, framed in a phone' }]]);
+  assert.deepEqual(plan.notes, { 'assets/map.png': 'App map screen' });
+  assert.equal(designPrompts.parsePicturePlan('nothing', 2, []), null);
+  const stored = designPrompts.sanitizeDesignedSlide({ id: 's1', title: 'T', svg: '', pictures: ['assets/a.png', '../x.png', 'C:/abs.png', 5] }, CANVAS);
+  assert.deepEqual(stored.pictures, ['assets/a.png']);
+  assert.equal(designPrompts.sanitizeAttachment({ path: 'assets/a.png', kind: 'image', caption: '  A truck ' }).caption, 'A truck');
+});
+
+// Opening PowerPoint files as editable slides ----------------------------------------------------
+
+const slideModel = await load('slideModel');
+const slideGeometry = await load('slideGeometry');
+const slideEdit = await load('slideEdit');
+const pptxRender = await load('pptxRender');
+const modelPptx = await load('modelPptx');
+const measure = slideModel.estimateMeasure;
+
+test('opening a .pptx keeps one slide per slide, with text, notes and models', async () => {
+  const deck = await pptxRender.importPptx(await fixturePptx(), { fileTitle: 'fixture', measure });
+  assert.equal(deck.slides.length, 3, 'one slide in, one slide out');
+  assert.equal(deck.size, '16:9');
+  assert.deepEqual(deck.canvas, { width: 1280, height: 720 });
+  const [first, second] = deck.slides;
+  assert.equal(first.notes, 'Original notes');
+  assert.match(first.text, /Original title/);
+  assert.match(first.text, /First point\nSecond point/);
+  assert.match(first.svg, /data-m="/, 'elements carry their model');
+  assert.match(first.svg, /<rect data-bg="1"/, 'the background comes first');
+  const models = slideEdit.slideModels(first.svg);
+  const title = models.find((model) => model.k === 'shape' && model.tx && slideModel.bodyText(model.tx) === 'Original title');
+  assert.ok(title, 'the title is a text box');
+  const run = title.tx.p[0].r[0];
+  assert.equal(run.b, true);
+  assert.equal(run.f, 'Georgia');
+  assert.equal(run.c, '#C2410C');
+  assert.ok(Math.abs(run.sz - 32 * (4 / 3)) < 0.5, `32 pt is ${(32 * 4) / 3} px, got ${run.sz}`);
+  const body = models.find((model) => model.k === 'shape' && model.tx && /First point/.test(slideModel.bodyText(model.tx)));
+  assert.ok(body.tx.p.every((para) => para.bu), 'bullets come across');
+  assert.match(second.svg, /data-kind="chart"/, 'charts are drawn');
+  // Stored slides pass the SVG sanitiser with their models intact.
+  const stored = svgSafe.sanitizeSvg(first.svg, deck.canvas).svg;
+  assert.deepEqual(slideEdit.slideModels(stored).map((model) => model.id), models.map((model) => model.id));
+});
+
+test('text layout wraps, numbers, anchors and shrinks on overflow', () => {
+  const run = (t, extra = {}) => ({ t, sz: 20, f: 'Calibri', c: '#111111', ...extra });
+  const body = { p: [{ r: [run('one two three four five six seven eight nine ten')] }], ins: [0, 0, 0, 0], anc: 't', wrap: true };
+  const wide = slideModel.layoutText(body, 2000, 400, measure);
+  const narrow = slideModel.layoutText(body, 120, 400, measure);
+  assert.equal(wide.paragraphs[0].lines.length, 1);
+  assert.ok(narrow.paragraphs[0].lines.length > 2, 'wraps inside a narrow box');
+  assert.ok(Math.abs(wide.height - 24) < 0.01, 'single spacing is 1.2 × the size');
+  const noWrap = slideModel.layoutText({ ...body, wrap: false }, 120, 400, measure);
+  assert.equal(noWrap.paragraphs[0].lines.length, 1);
+  const numbered = { p: ['a', 'b', 'c'].map((t) => ({ r: [run(t)], bu: { num: 'romanUcPeriod' } })), ins: [0, 0, 0, 0], anc: 'b', wrap: true };
+  const laid = slideModel.layoutText(numbered, 400, 300, measure);
+  assert.deepEqual(laid.paragraphs.map((para) => para.bullet.text), ['I.', 'II.', 'III.']);
+  assert.ok(laid.paragraphs[2].lines[0].baseline > 280, 'bottom anchoring');
+  assert.equal(slideModel.numberLabel('alphaLcParenR', 28), 'ab)');
+  const tall = { p: Array.from({ length: 12 }, () => ({ r: [run('line')] })), ins: [0, 0, 0, 0], anc: 't', wrap: true, fit: 'norm' };
+  const shrunk = slideModel.layoutText(tall, 300, 120, measure, { refit: true });
+  assert.ok(shrunk.fs < 1 && shrunk.height <= 121, 'shrinks to fit');
+  const svg = slideModel.textSvg(body, narrow, 120);
+  assert.match(svg, /<text xml:space="preserve"/);
+  assert.doesNotMatch(svg.match(/<text[^>]*>/)[0], /text-decoration/, 'decorations live on runs only');
+});
+
+test('preset and custom geometry become path data', () => {
+  const round = slideGeometry.presetPaths('roundRect', 200, 100, { adj: 50000 });
+  assert.match(round[0].d, /A50 50/);
+  assert.equal(slideGeometry.presetPaths('textNoShape', 10, 10).length, 0);
+  assert.match(slideGeometry.presetPaths('somethingUnknown', 10, 20)[0].d, /^M0 0 L10 0 L10 20 L0 20 Z$/);
+  assert.equal(slideGeometry.presetPaths('line', 50, 0)[0].fill, 'none');
+  const custom = slideGeometry.customPaths([{ w: 100, h: 100, fill: 'norm', stroke: true, cmds: [['M', 0, 0], ['L', 100, 0], ['L', 100, 100], ['Z']] }], 50, 20);
+  assert.equal(custom[0].d, 'M0 0 L50 0 L50 20 Z');
+  const vars = slideGeometry.evaluateGuides([{ name: 'half', fmla: '*/ w 1 2' }, { name: 'off', fmla: '+- half 10 0' }], slideGeometry.guideVars(300, 100));
+  assert.equal(vars.get('off'), 160);
+});
+
+test('slide editing moves, resizes, duplicates, arranges, deletes and wraps drawn artwork', () => {
+  const box = { x: 100, y: 100, w: 300, h: 60 };
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect data-bg="1" x="0" y="0" width="1280" height="720" fill="#FFFFFF"/><circle cx="900" cy="300" r="50" fill="#123456"/></svg>';
+  const inserted = slideEdit.insertElement(svg, slideEdit.textBoxModel(box, 'Hello there', { font: 'Calibri', size: 24, color: '#222222' }), { measure });
+  svg = inserted.svg;
+  assert.equal(inserted.id, 'e1');
+  svg = slideEdit.moveElements(svg, ['e1'], 20, -10, { measure });
+  assert.equal(slideEdit.elementModel(svg, 'e1').box.x, 120);
+  svg = slideEdit.resizeElement(svg, 'e1', { x: 120, y: 90, w: 80, h: 60 }, { measure });
+  const resized = slideEdit.elementModel(svg, 'e1');
+  assert.equal(resized.box.w, 80);
+  assert.ok(resized.box.h > 60, 'a "resize shape to fit text" box grows when its text wraps');
+  const copy = slideEdit.duplicateElements(svg, ['e1'], 16, { measure });
+  assert.equal(copy.ids.length, 1);
+  assert.notEqual(copy.ids[0], 'e1');
+  assert.equal(slideEdit.elementModel(copy.svg, copy.ids[0]).box.x, 136);
+  svg = slideEdit.arrangeElement(copy.svg, copy.ids[0], 'back');
+  assert.deepEqual(slideEdit.listElements(svg).map((info) => info.id), [copy.ids[0], 'e1']);
+  // Drawn artwork (the circle, second under the root) becomes an art element that moves as one piece.
+  const adopted = slideEdit.adoptNode(svg, 1, { x: 850, y: 250, w: 100, h: 100 });
+  assert.ok(adopted);
+  const moved = slideEdit.moveElements(adopted.svg, [adopted.id], 10, 0, { measure });
+  assert.match(moved, new RegExp(`data-el="${adopted.id}"[^>]*data-box="860 250 100 100"`));
+  assert.match(moved, /transform="translate\(10 0\)"/);
+  svg = slideEdit.deleteElements(moved, ['e1', adopted.id]);
+  assert.deepEqual(slideEdit.listElements(svg).map((info) => info.id), [copy.ids[0]]);
+  assert.doesNotMatch(slideEdit.svgForAi(svg), /data-m=/, 'the AI never sees model data');
+  assert.equal(slideEdit.backgroundColor(slideEdit.setBackground(svg, '#0A0A0A')), '#0A0A0A');
+  const blank = slideEdit.blankSlide(svg);
+  assert.equal(slideEdit.listElements(blank).length, 0);
+  assert.match(blank, /data-bg="1"/);
+});
+
+test('a theme change recolours every element and keeps text readable', () => {
+  const from = { background: '#FBF3E4', surface: '#F0E2C8', text: '#2A1A14', muted: '#7A6A60', primary: '#C33A22', secondary: '#1F5C63', accent: '#F2A31B' };
+  const to = { background: '#0E1220', surface: '#1A2033', text: '#F2F4FA', muted: '#9AA3B8', primary: '#7AA2FF', secondary: '#6EE7B7', accent: '#F6B26B' };
+  const color = slideEdit.paletteColorMap(from, to);
+  assert.equal(color('#C33A22'), '#7AA2FF', 'roles map to roles');
+  assert.equal(color('#FBF3E4'), '#0E1220');
+  const card = { k: 'shape', id: 'e1', box: { x: 0, y: 0, w: 400, h: 200 }, geom: { prst: 'rect' }, fill: { t: 'solid', c: '#F2A31B' }, line: null, tx: { p: [{ r: [{ t: 'Readable', sz: 24, f: 'Calibri', c: '#FBF3E4' }] }], ins: [0, 0, 0, 0], anc: 't', wrap: true } };
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect data-bg="1" x="0" y="0" width="1280" height="720" fill="#FBF3E4"/></svg>';
+  svg = slideEdit.insertElement(svg, card, { measure }).svg;
+  const themed = slideEdit.applyThemeMap(svg, { color, font: (family) => family, ink: { dark: to.background, light: to.text } }, { measure });
+  const model = slideEdit.slideModels(themed)[0];
+  assert.equal(model.fill.c, '#F6B26B');
+  assert.ok(slideEdit.contrast(model.tx.p[0].r[0].c, model.fill.c) >= 3, 'text on the recoloured card stays readable');
+  assert.equal(slideEdit.backgroundColor(themed), '#0E1220');
+});
+
+test('modelled elements export as native PowerPoint text boxes, pictures and tables', async () => {
+  const deck = await pptxRender.importPptx(await fixturePptx(), { fileTitle: 'fixture', measure });
+  const converted = svgPptx.convertSvgSlide(deck.slides[0].svg, { slideWidthEmu: 12192000, slideHeightEmu: 6858000, picture: () => null, measure });
+  assert.match(converted.shapes, /<a:t>Original title<\/a:t>/);
+  assert.match(converted.shapes, /<a:buChar char="[^"]+"\/>[\s\S]*<a:t>First point<\/a:t>/);
+  assert.match(converted.shapes, /typeface="Georgia"/);
+  assert.match(converted.background, /<p:bg>/);
+  const cell = (t) => ({ tx: { p: [{ r: t ? [{ t, sz: 16, f: 'Calibri', c: '#000000' }] : [] }], ins: [4, 4, 4, 4], anc: 't', wrap: true }, fill: { t: 'none' } });
+  const table = { k: 'table', id: 't1', box: { x: 0, y: 0, w: 200, h: 60 }, cols: [100, 100], rows: [{ h: 30, cells: [{ ...cell('A'), fill: { t: 'solid', c: '#EEEEEE' }, span: [2, 1] }, { ...cell(''), merged: true }] }] };
+  let id = 1;
+  const context = (picture) => ({ emuPerPx: 9525, x: (px) => Math.round(px * 9525), y: (px) => Math.round(px * 9525), nextId: () => id++, picture, lang: 'en-US' });
+  const xml = modelPptx.elementXml(table, context(() => null));
+  assert.match(xml, /<a:tc gridSpan="2">/);
+  assert.match(xml, /<a:tc hMerge="1">/);
+  const picture = modelPptx.elementXml({ k: 'pic', id: 'p', box: { x: 10, y: 10, w: 50, h: 50 }, href: 'assets/a.png', crop: [0.1, 0, 0.1, 0], line: null }, context(() => 'rId7'));
+  assert.match(picture, /<a:blip r:embed="rId7"><\/a:blip><a:srcRect l="10000" t="0" r="10000" b="0"\/>/);
+});

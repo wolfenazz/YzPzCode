@@ -15,6 +15,8 @@ export interface DeckListing {
   preserve: boolean;
   /** AI-designed (SVG) deck. */
   designed: boolean;
+  /** Opened from a PowerPoint file. */
+  imported: boolean;
 }
 
 async function listDecks(workspacePath: string): Promise<DeckListing[]> {
@@ -26,7 +28,8 @@ async function listDecks(workspacePath: string): Promise<DeckListing[]> {
     const entries = await invoke<FileEntry[]>('list_directory_entries', { path: folder.path }).catch(() => [] as FileEntry[]);
     for (const entry of entries) {
       if (!entry.isDir && entry.name.toLowerCase().endsWith(YZDECK_EXTENSION)) {
-        decks.push({ path: entry.path, title: folder.name, modifiedAt: entry.modifiedAt, slides: 0, preserve: false, designed: false });
+        // The file system reports seconds since the epoch.
+        decks.push({ path: entry.path, title: folder.name, modifiedAt: entry.modifiedAt * 1000, slides: 0, preserve: false, designed: false, imported: false });
       }
     }
   }
@@ -38,6 +41,7 @@ async function listDecks(workspacePath: string): Promise<DeckListing[]> {
       deck.slides = parsed.source ? parsed.source.slides.length : parsed.design ? parsed.design.slides.length : parsed.slides.length;
       deck.preserve = Boolean(parsed.source);
       deck.designed = Boolean(parsed.design);
+      deck.imported = Boolean(parsed.design?.origin);
     } catch {
       deck.title = fileName(deck.path).replace(YZDECK_EXTENSION, '');
     }

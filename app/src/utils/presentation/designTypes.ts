@@ -66,6 +66,8 @@ export interface DesignedSlide {
   svg: string;
   notes: string;
   hidden?: boolean;
+  /** Deck pictures (`assets/…`) this page shows; the AI places them when it draws the page. */
+  pictures?: string[];
 }
 
 /** A file the user gave with the description. */
@@ -80,6 +82,18 @@ export interface DesignAttachment {
   height?: number;
   /** Dominant colours, most common first. */
   colors?: string[];
+  /** What the picture shows, written by an AI that saw it (for the engines that cannot). */
+  caption?: string;
+}
+
+/** Where a deck came from when it was not designed by the AI. */
+export interface DeckOrigin {
+  kind: 'pptx';
+  /** The PowerPoint file it was opened from. */
+  file: string;
+  importedAt: number;
+  /** The file's own look, for "Original" in the theme gallery. */
+  system: DesignSystem;
 }
 
 /** The `design` section of a `.yzdeck` file. */
@@ -92,6 +106,8 @@ export interface DesignedDeck {
   language: string;
   system: DesignSystem;
   slides: DesignedSlide[];
+  /** Set for decks opened from a PowerPoint file. */
+  origin?: DeckOrigin;
 }
 
 /** One page of the storyline the art-direction run returns. */
@@ -100,6 +116,8 @@ export interface StoryPage {
   title: string;
   brief: string;
   density: DesignDensity;
+  /** Deck pictures (`assets/…`) planned for this page. */
+  pictures?: string[];
 }
 
 export interface DirectionResult {
@@ -107,4 +125,6 @@ export interface DirectionResult {
   language: string;
   system: DesignSystem;
   pages: StoryPage[];
+  /** What each picture shows, by `assets/…` path (only from engines that saw them). */
+  pictureNotes: Record<string, string>;
 }

@@ -4,7 +4,7 @@
 import { joinPath, slugify } from '../writing/document';
 import { clampSlideCount, sanitizeAttachment, sanitizeDesignedSlide, sanitizeDesignSystem } from './designPrompts';
 import { designCanvas } from './designStyles';
-import type { DesignAttachment, DesignedDeck, DesignedSlide } from './designTypes';
+import type { DeckOrigin, DesignAttachment, DesignedDeck, DesignedSlide } from './designTypes';
 import type { EngineChoice } from '../writing/types';
 import { getLayout, nearestLayout } from './layouts';
 import { blockText, runsText, textBlock } from './richText';
@@ -152,9 +152,17 @@ function sanitizeDesign(value: unknown, size: DeckSize): DesignedDeck | undefine
     attachments: Array.isArray(raw.attachments) ? raw.attachments.map(sanitizeAttachment).filter((entry): entry is DesignAttachment => entry !== null) : [],
     slideCount: clampSlideCount(raw.slideCount),
     language: String(raw.language ?? '').slice(0, 40),
-    system: sanitizeDesignSystem(raw.system),
+    system: sanitizeDesignSystem(raw.system, { stored: true }),
     slides,
+    ...(sanitizeOrigin(raw.origin) ? { origin: sanitizeOrigin(raw.origin)! } : {}),
   };
+}
+
+function sanitizeOrigin(value: unknown): DeckOrigin | null {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Record<string, unknown>;
+  if (raw.kind !== 'pptx' || typeof raw.file !== 'string') return null;
+  return { kind: 'pptx', file: raw.file.slice(0, 1000), importedAt: Number(raw.importedAt) || 0, system: sanitizeDesignSystem(raw.system, { stored: true }) };
 }
 
 /** Parses and repairs a `.yzdeck` file. Throws with a readable message when it is not one. */

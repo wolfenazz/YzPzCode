@@ -14,14 +14,14 @@ import { isAbsolutePath, readFileBytes, writeFileBytes } from '../../utils/prese
 import { ASSETS_FOLDER, createBrief, createDeck, duplicateSlide } from '../../utils/presentation/deck';
 import { getLayout, PX_PER_IN, SLIDE_HEIGHT, slideWidth } from '../../utils/presentation/layouts';
 import { openPptx } from '../../utils/presentation/pptxPackage';
-import { initialPreserveSlides } from '../../utils/presentation/pptxPreserve';
 import type { DeckPass, SlideAction } from '../../utils/presentation/prompts';
 import type { PlanContext } from '../../utils/presentation/render';
 import { changeLayout, emptySlide } from '../../utils/presentation/sanitize';
-import { getTheme } from '../../utils/presentation/themes';
 import { newDesignedSlideId } from '../../utils/presentation/designPrompts';
+import { assetName } from '../../utils/presentation/designPictures';
 import { designCanvas } from '../../utils/presentation/designStyles';
-import type { DesignAttachment, DesignedSlide } from '../../utils/presentation/designTypes';
+import type { DesignAttachment, DesignedSlide, DesignSystem } from '../../utils/presentation/designTypes';
+import type { ImportedTheme } from '../../utils/presentation/pptxRender';
 import { svgPlainText } from '../../utils/presentation/svgText';
 import type { Block, LayoutId, RichPara, Slide, YzDeck } from '../../utils/presentation/types';
 import { fileName, joinPath, parentPath } from '../../utils/writing/document';
@@ -29,13 +29,14 @@ import { localFileUrl } from '../../utils/mediaFiles';
 import type { WorkspaceConfig } from '../../types';
 import { DeckAiPanel } from './DeckAiPanel';
 import { DeckToolbar, type InsertKind } from './DeckToolbar';
-import { pictureInfo } from './designAssets';
+import { pictureInfo, picturesToShow } from './designAssets';
 import { DesignComposer, type ComposerInput } from './DesignComposer';
 import { DesignedEditor } from './DesignedEditor';
 import { DesignedExportDialog } from './DesignedExportDialog';
 import { ExportDialog } from './ExportDialog';
 import { Filmstrip, type SlideCommand } from './Filmstrip';
-import { ImportDialog, type ImportMode } from './ImportDialog';
+import { ImportDialog } from './ImportDialog';
+import { ensureFonts, measureSlideText, pptxFontFamilies } from './deckFonts';
 import { PreserveEditor } from './PreserveEditor';
 import { PresenterMode } from './PresenterMode';
 import { StockImagePicker } from './StockImagePicker';
@@ -96,6 +97,24 @@ const withoutFit = (slide: Slide, slot?: string): Slide => {
   return Object.keys(fit).length > 0 ? { ...slide, fit } : (({ fit: _unused, ...rest }) => rest)(slide);
 };
 
+/** The deck's design system from a PowerPoint theme (its own colours and fonts, kept as they are). */
+function importedSystem(theme: ImportedTheme, fileTitle: string): DesignSystem {
+  return {
+    name: theme.name && !/^office/i.test(theme.name) ? theme.name : 'Original',
+    concept: `The look of ${fileTitle}.pptx, as designed in PowerPoint.`,
+    style: 'custom',
+    mode: 'briefing',
+    dark: theme.dark,
+    palette: theme.palette,
+    chartColors: theme.chartColors,
+    fonts: theme.fonts,
+    type: { display: 72, title: 40, body: 24, caption: 16 },
+    shapeLanguage: 'As in the original file.',
+    motif: 'As in the original file.',
+    imagery: 'As in the original file.',
+  };
+}
+
 /** Presenting time for a designed slide: its notes, or a share of its words. */
 function designedSeconds(slide: DesignedSlide): number {
   if (slide.hidden) return 0;
@@ -114,7 +133,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const generator = useDeckGenerator(workspaceId);
 
   const [creating, setCreating] = useState(false);
-  const [importState, setImportState] = useState<{ path: string | null; busy: boolean; error: string | null } | null>(null);
+  const [importState, setImportState] = useState<{ path: string | null; busy: boolean; error: string | null; progress: { done: number; total: number } | null } | null>(null);
   const [exporting, setExporting] = useState<{ writePreserved?: (path: string) => Promise<void> } | null>(null);
   const [filmstripOpen, setFilmstripOpen] = useState(true);
   const [sideOpen, setSideOpen] = useState(true);
@@ -136,7 +155,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
 
   const deck = session.deck;
   const deckDir = session.deckPath ? parentPath(session.deckPath) : '';
-  const designer = useDesignGenerator(workspaceId, deckDir);
+  const designer = useDesignGenerator(workspaceId);
   const preserve = Boolean(deck?.source);
   const designed = Boolean(deck?.design);
   const defaultEngine = usePresentationStore((state) => state.defaultEngine);
@@ -192,22 +211,27 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
       const engine = usePresentationStore.getState().defaultEngine;
       const pictures = input.files.filter((file) => file.kind === 'image');
       const used = new Set<string>();
-      const assetName = (path: string): string => {
-        const base = fileName(path).replace(/[^\w.-]+/g, '-').replace(/^-+/, '') || 'picture.png';
-        let name = base;
-        for (let counter = 2; used.has(name.toLowerCase()); counter += 1) name = base.replace(/(\.[^.]+)?$/, `-${counter}$1`);
-        used.add(name.toLowerCase());
-        return name;
-      };
-      const attachments: DesignAttachment[] = await Promise.all(input.files.map(async (file): Promise<DesignAttachment> => {
-        if (file.kind === 'document') return { path: file.path, name: file.name, kind: 'document', use: 'auto' };
-        const info = file.preview ? await pictureInfo(file.preview).catch(() => null) : null;
-        return { path: `${ASSETS_FOLDER}/${assetName(file.path)}`, name: file.name, kind: 'image', use: file.use, ...(info ?? {}) };
-      }));
+      // Pictures are read one at a time: a folder can hold dozens of large files.
+      let attachments: DesignAttachment[] = [];
+      for (const file of input.files) {
+        if (file.kind === 'document') {
+          attachments.push({ path: file.path, name: file.name, kind: 'document', use: 'auto' });
+          continue;
+        }
+        const path = `${ASSETS_FOLDER}/${assetName(file.path, used)}`;
+        const dataUrl = file.preview ?? await invoke<string>('read_file_as_base64', { path: file.path }).catch(() => null);
+        const info = dataUrl ? await pictureInfo(dataUrl).catch(() => null) : null;
+        attachments.push({ path, name: file.name, kind: 'image', use: file.use, ...(info ?? {}) });
+      }
+      // Engines that see are shown every picture: each one when they fit in a message, else contact sheets.
+      const shown = pictures.length > 0 && designer.seesImages(engine)
+        ? await picturesToShow(pictures.map((file) => file.path), pictures.map((file) => file.name), joinPath(workspace.path, 'Presentations', '.attachments', '.shown')).catch(() => null)
+        : null;
       const direction = await designer.direct({
         prompt: input.prompt,
         attachments,
-        imagePaths: pictures.map((file) => file.path),
+        imagePaths: shown?.images ?? [],
+        pictureView: shown?.view ?? false,
         documents: input.files.filter((file) => file.kind === 'document').map((file) => file.path),
         slideCount: input.slideCount,
         language: input.language,
@@ -215,6 +239,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         engine,
       });
       if (!direction) return;
+      attachments = attachments.map((entry) => (direction.pictureNotes[entry.path] ? { ...entry, caption: direction.pictureNotes[entry.path] } : entry));
       const slides: DesignedSlide[] = storySlides(direction, newDesignedSlideId);
       const prefs = usePresentationStore.getState();
       const deck = createDeck({
@@ -246,49 +271,50 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     for (const [name, bytes] of Object.entries(assets)) await writeFileBytes(joinPath(dir, ASSETS_FOLDER, name), bytes);
   };
 
-  /** Converts PowerPoint bytes into a designed deck and opens it. */
-  const rebuild = useCallback(async (bytes: Uint8Array, title: string, themeId: string | null): Promise<void> => {
-    const { pptxToDeck } = await import('../../utils/presentation/pptxToDeck');
-    const imported = await pptxToDeck(bytes, title);
+  /**
+   * Opens PowerPoint bytes as an editable deck: every slide is drawn as PowerPoint draws it
+   * (one in, one out), its pictures are copied into the deck and its theme becomes the deck's.
+   */
+  const openPowerPoint = useCallback(async (bytes: Uint8Array, sourcePath: string, onProgress?: (done: number, total: number) => void): Promise<void> => {
+    const pkg = await openPptx(bytes);
+    await ensureFonts(await pptxFontFamilies(pkg.zip));
+    const { importPptx } = await import('../../utils/presentation/pptxRender');
+    const fileTitle = fileName(sourcePath).replace(/\.pptx$/i, '');
+    const imported = await importPptx(bytes, { fileTitle, measure: measureSlideText, onProgress });
+    const system = importedSystem(imported.theme, fileTitle);
+    const slides: DesignedSlide[] = imported.slides.map((slide, index) => ({
+      id: newDesignedSlideId(),
+      role: index === 0 ? 'cover' : 'content',
+      title: (/^Slide \d+$/.test(slide.title) && slide.text ? slide.text.split('\n')[0] : slide.title).slice(0, 120) || `Slide ${index + 1}`,
+      brief: slide.text.slice(0, 3000),
+      density: 'dense',
+      svg: slide.svg,
+      notes: slide.notes,
+      ...(slide.hidden ? { hidden: true } : {}),
+    }));
     const prefs = usePresentationStore.getState();
     const deck = createDeck({
-      title: imported.title,
-      brief: { ...createBrief(prefs.defaultEngine, Math.max(3, Math.min(30, imported.slides.length)), prefs.defaultTone), topic: imported.title },
-      theme: themeId ? getTheme(themeId) : imported.theme,
+      title: fileTitle,
+      brief: { ...createBrief(prefs.defaultEngine, Math.max(3, Math.min(30, slides.length)), prefs.defaultTone), topic: fileTitle },
       size: imported.size,
-      slides: imported.slides,
+      design: { prompt: '', attachments: [], slideCount: null, language: '', system, slides, origin: { kind: 'pptx', file: sourcePath, importedAt: Date.now(), system } },
     });
     const path = documents.pathFor(deck.meta.title);
     await writeAssets(parentPath(path), imported.assets);
     await documents.createDeckFile(deck, path);
-    setToast({ title: 'Rebuilt in a theme', description: `${imported.slides.length} slides · ${deck.theme.name}` });
+    setToast({ title: `${slides.length} slide${slides.length === 1 ? '' : 's'} opened`, description: imported.warnings[0] ?? `${fileName(sourcePath)} · click anything on a slide to edit it` });
   }, [documents]);
 
-  const importPowerPoint = useCallback(async (path: string, mode: ImportMode, themeId: string | null): Promise<void> => {
-    setImportState({ path, busy: true, error: null });
-    const title = fileName(path).replace(/\.pptx$/i, '');
+  const importPowerPoint = useCallback(async (path: string): Promise<void> => {
+    setImportState({ path, busy: true, error: null, progress: null });
     try {
       const bytes = await readFileBytes(path);
-      if (mode === 'rebuild') {
-        await rebuild(bytes, title, themeId);
-      } else {
-        const pkg = await openPptx(bytes);
-        const prefs = usePresentationStore.getState();
-        const deck = createDeck({
-          title,
-          brief: { ...createBrief(prefs.defaultEngine, Math.max(3, Math.min(30, pkg.slides.length)), prefs.defaultTone), topic: title },
-          size: Math.abs(pkg.width / pkg.height - 4 / 3) < 0.05 ? '4:3' : '16:9',
-          source: { mode: 'preserve', pptxFile: 'source.pptx', originalPath: path, slides: initialPreserveSlides(pkg) },
-        });
-        const deckFile = documents.pathFor(title);
-        await writeFileBytes(joinPath(parentPath(deckFile), 'source.pptx'), bytes);
-        await documents.createDeckFile(deck, deckFile);
-      }
+      await openPowerPoint(bytes, path, (done, total) => setImportState((current) => current && { ...current, progress: { done, total } }));
       setImportState(null);
     } catch (error) {
-      setImportState({ path, busy: false, error: error instanceof Error ? error.message : String(error) });
+      setImportState({ path, busy: false, error: error instanceof Error ? error.message : String(error), progress: null });
     }
-  }, [documents, rebuild]);
+  }, [openPowerPoint]);
 
   // Requests from the Files view: open a deck, or import a PowerPoint file.
   const request = usePresentationSessionStore((state) => state.requests[workspaceId]);
@@ -297,7 +323,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     store().clearRequest(workspaceId);
     restored.current = true;
     if (request.kind === 'open') void documents.openDeck(request.path);
-    else setImportState({ path: request.path, busy: false, error: null });
+    else setImportState({ path: request.path, busy: false, error: null, progress: null });
   }, [documents, request, store, workspaceId]);
 
   // Editing --------------------------------------------------------------------
@@ -694,7 +720,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           visible={visible}
           generator={generator}
           onExport={(write) => setExporting({ writePreserved: write })}
-          onRebuild={(bytes) => void rebuild(bytes, deck.meta.title, null).catch((error: unknown) => store().update(workspaceId, { error: `Could not rebuild: ${error instanceof Error ? error.message : String(error)}` }))}
+          onRebuild={(bytes) => void openPowerPoint(bytes, deck.source?.originalPath || `${deck.meta.title}.pptx`).catch((error: unknown) => store().update(workspaceId, { error: `Could not open the slides: ${error instanceof Error ? error.message : String(error)}` }))}
           onToast={(title, description) => setToast({ title, description })}
         />
       ) : deck && context ? (
@@ -866,7 +892,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           onCreate={(input) => void createDesigned(input)}
           onCancel={designer.cancel}
           onOpen={(path) => void documents.openDeck(path)}
-          onImport={() => setImportState({ path: null, busy: false, error: null })}
+          onImport={() => setImportState({ path: null, busy: false, error: null, progress: null })}
         />
       )}
 
@@ -879,7 +905,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
             onChange={(event) => {
               const value = event.target.value;
               if (value === '__new') void documents.closeDeck();
-              else if (value === '__import') setImportState({ path: null, busy: false, error: null });
+              else if (value === '__import') setImportState({ path: null, busy: false, error: null, progress: null });
               else if (value === '__close') void documents.closeDeck();
               else if (value) void documents.openDeck(value);
             }}
@@ -898,9 +924,10 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           workspacePath={workspace.path}
           initialPath={importState.path}
           busy={importState.busy}
+          progress={importState.progress}
           error={importState.error}
           onClose={() => setImportState(null)}
-          onImport={(path, mode, themeId) => void importPowerPoint(path, mode, themeId)}
+          onImport={(path) => void importPowerPoint(path)}
         />
       )}
 

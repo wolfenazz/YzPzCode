@@ -320,7 +320,7 @@ export const PreserveEditor: React.FC<PreserveEditorProps> = ({ workspaceId, ses
         <div className="pr-toolbar__group">
           <button type="button" className="pr-icon-btn" title="Undo (Ctrl Z)" disabled={session.past.length === 0} onClick={() => store().undo(workspaceId)}><ArrowArcLeft size={15} /></button>
           <button type="button" className="pr-icon-btn" title="Redo (Ctrl Y)" disabled={session.future.length === 0} onClick={() => store().redo(workspaceId)}><ArrowArcRight size={15} /></button>
-          <button type="button" className="pr-tool" title="Convert to an editable deck in a theme" disabled={!original} onClick={async () => { if (original) onRebuild(await applyPreserve(original, slides)); }}><MagicWand size={14} /> Rebuild in a theme</button>
+          <button type="button" className="pr-tool" title="Open these slides in the slide editor: move, restyle and add anything (a new presentation; this one stays)" disabled={!original} onClick={async () => { if (original) onRebuild(await applyPreserve(original, slides)); }}><MagicWand size={14} /> Open in the slide editor</button>
           <button type="button" className="pr-tool" title={`Write ${slugify(deck.meta.title)}.pptx in the presentation folder`} disabled={!original} onClick={() => void savePowerPoint()}><FloppyDisk size={14} /> Save PowerPoint</button>
           {source.originalPath && <button type="button" className="pr-tool" disabled={!original} onClick={() => void saveOverOriginal()}>Save over original</button>}
           <button type="button" className="pr-icon-btn" data-active={aiOpen || undefined} title="AI presenter" onClick={() => setAiOpen((value) => !value)}><Sparkle size={15} weight={aiOpen ? 'fill' : 'regular'} /></button>

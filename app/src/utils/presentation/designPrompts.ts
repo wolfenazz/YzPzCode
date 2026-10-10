@@ -8,7 +8,9 @@
 
 import { extractJson } from '../writing/prompts';
 import { contrastRatio, ensureContrast, luminance, mix, normalizeHex } from './designColors';
+import { matchPicture, matchPictures } from './designPictures';
 import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT, DESIGN_FONTS, DESIGN_MODES, fontStack, knownFont, stylesIn, VISUAL_STYLES } from './designStyles';
+import { svgForAi } from './slideEdit';
 import { sanitizeSvg } from './svgSafe';
 import type {
   DesignAttachment, DesignDensity, DesignedSlide, DesignMode, DesignSlideRole, DesignSystem, DirectionResult, StoryPage,
@@ -53,7 +55,17 @@ const text = (value: unknown, max: number, fallback = ''): string => {
 };
 
 /** Repairs a design system from the AI or a file: valid colours, readable text, known fonts, sane sizes. */
-export function sanitizeDesignSystem(value: unknown): DesignSystem {
+/** A plausible font family name (letters, digits, spaces, dashes), for stored decks. */
+const plausibleFont = (value: unknown): string | null => {
+  const name = String(value ?? '').split(',')[0].trim().replace(/^['"]|['"]$/g, '');
+  return /^[\p{L}\p{N}][\p{L}\p{N} .&-]{0,62}$/u.test(name) ? name : null;
+};
+
+/**
+ * Repairs a design system. AI output is held to the Office-safe fonts and readable contrast;
+ * `stored` systems (a saved deck: imported, or chosen in the editor) keep their fonts and colours.
+ */
+export function sanitizeDesignSystem(value: unknown, options: { stored?: boolean } = {}): DesignSystem {
   const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const rawPalette = (raw.palette && typeof raw.palette === 'object' ? raw.palette : {}) as Record<string, unknown>;
   const base = FALLBACK_SYSTEM.palette;
@@ -64,8 +76,8 @@ export function sanitizeDesignSystem(value: unknown): DesignSystem {
   const palette = {
     background,
     surface,
-    text: ensureContrast(pick('text'), background, 7),
-    muted: ensureContrast(pick('muted'), background, 4.5),
+    text: options.stored && normalizeHex(rawPalette.text) ? normalizeHex(rawPalette.text)! : ensureContrast(pick('text'), background, 7),
+    muted: options.stored && normalizeHex(rawPalette.muted) ? normalizeHex(rawPalette.muted)! : ensureContrast(pick('muted'), background, 4.5),
     primary: pick('primary'),
     secondary: pick('secondary'),
     accent: pick('accent'),
@@ -85,7 +97,10 @@ export function sanitizeDesignSystem(value: unknown): DesignSystem {
     dark,
     palette,
     chartColors: chartColors.length >= 3 ? chartColors : [palette.primary, palette.accent, palette.secondary, palette.muted, mix(palette.primary, palette.background, 0.5)],
-    fonts: { heading: knownFont(fonts.heading) ?? DEFAULT_HEADING_FONT, body: knownFont(fonts.body) ?? DEFAULT_BODY_FONT },
+    fonts: {
+      heading: knownFont(fonts.heading) ?? (options.stored ? plausibleFont(fonts.heading) : null) ?? DEFAULT_HEADING_FONT,
+      body: knownFont(fonts.body) ?? (options.stored ? plausibleFont(fonts.body) : null) ?? DEFAULT_BODY_FONT,
+    },
     type: {
       display: clampNumber(type.display, 48, 220, 88),
       title: clampNumber(type.title, 28, 72, 44),
@@ -98,31 +113,56 @@ export function sanitizeDesignSystem(value: unknown): DesignSystem {
   };
 }
 
-export function sanitizeStoryPage(value: unknown): StoryPage | null {
+/** A relative `assets/…` path a stored page may list (the same rule the SVG sanitiser applies to hrefs). */
+const isAssetPath = (value: unknown): value is string => typeof value === 'string' && /^[\w][\w./ -]*$/.test(value) && !value.split('/').includes('..');
+
+/**
+ * Repairs one storyline page. `known` (the deck's `assets/…` pictures) turns
+ * the picture names the AI wrote into real deck paths; without it, stored
+ * paths are kept when they are safe.
+ */
+export function sanitizeStoryPage(value: unknown, known?: string[]): StoryPage | null {
   const raw = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const title = text(raw.title, 200);
   if (!title) return null;
   const role = ROLES.includes(raw.role as DesignSlideRole) ? raw.role as DesignSlideRole : 'content';
+  const pictures = known
+    ? matchPictures(raw.pictures ?? raw.images, known)
+    : Array.isArray(raw.pictures) ? [...new Set(raw.pictures.filter(isAssetPath))].slice(0, 6) : [];
   return {
     role,
     title,
     brief: text(raw.brief ?? raw.content ?? raw.purpose, 3000),
     density: DENSITIES.includes(raw.density as DesignDensity) ? raw.density as DesignDensity : role === 'content' || role === 'data' ? 'dense' : 'anchor',
+    ...(pictures.length > 0 ? { pictures } : {}),
   };
 }
 
-/** Parses the art-direction reply. Null when it holds no usable storyline. */
-export function parseDirection(reply: string): DirectionResult | null {
+/** What each picture shows, keyed by its deck path, from a `{ "assets/…": "caption" }` reply object. */
+export function sanitizePictureNotes(value: unknown, known: string[]): Record<string, string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const out: Record<string, string> = {};
+  for (const [key, caption] of Object.entries(value as Record<string, unknown>)) {
+    const path = matchPicture(key, known);
+    const note = text(caption, 300);
+    if (path && note) out[path] = note;
+  }
+  return out;
+}
+
+/** Parses the art-direction reply. Null when it holds no usable storyline. `known`: the deck's picture paths. */
+export function parseDirection(reply: string, known: string[] = []): DirectionResult | null {
   const raw = extractJson(reply) as Record<string, unknown> | null;
   if (!raw || typeof raw !== 'object') return null;
   const list = Array.isArray(raw.pages) ? raw.pages : Array.isArray(raw.slides) ? raw.slides : [];
-  const pages = list.map(sanitizeStoryPage).filter((page): page is StoryPage => page !== null).slice(0, MAX_DESIGN_SLIDES);
+  const pages = list.map((page) => sanitizeStoryPage(page, known)).filter((page): page is StoryPage => page !== null).slice(0, MAX_DESIGN_SLIDES);
   if (pages.length === 0) return null;
   return {
     title: text(raw.title, 200, pages[0].title),
     language: text(raw.language, 40, 'English'),
     system: sanitizeDesignSystem(raw.design ?? raw.system),
     pages,
+    pictureNotes: sanitizePictureNotes(raw.pictureNotes, known),
   };
 }
 
@@ -136,14 +176,34 @@ function fontCatalog(): string {
   return DESIGN_FONTS.map((font) => `${font.name} (${font.character})`).join('; ');
 }
 
-export function describeAttachments(attachments: DesignAttachment[], seesImages: boolean): string {
+/**
+ * How the engine sees the pictures: not at all, each attached in list order,
+ * or as attached contact sheets whose tiles carry the list numbers.
+ */
+export type PictureView = boolean | 'sheets';
+
+export function describeAttachments(attachments: DesignAttachment[], seen: PictureView): string {
   const pictures = attachments.filter((entry) => entry.kind === 'image');
   if (pictures.length === 0) return '';
   const use = (entry: DesignAttachment): string => (entry.use === 'slides' ? 'must appear on a slide' : entry.use === 'style' ? 'look reference only, do not place it' : 'place it where it helps, or use it as a look reference');
+  const how = seen === 'sheets' ? ' (attached as contact sheets: each tile is labelled with its number below)' : seen ? ' (attached to this message, in this order)' : '';
   return [
-    `PICTURES THE USER GAVE${seesImages ? ' (attached to this message, in this order)' : ''}:`,
-    ...pictures.map((entry, index) => `${index + 1}. ${entry.path} — ${entry.width && entry.height ? `${entry.width}×${entry.height}px, ` : ''}${entry.colors?.length ? `dominant colours ${entry.colors.join(' ')}, ` : ''}${use(entry)}`),
+    `PICTURES THE USER GAVE${how}:`,
+    ...pictures.map((entry, index) => `${index + 1}. ${entry.path} — ${entry.width && entry.height ? `${entry.width}×${entry.height}px, ` : ''}${entry.colors?.length ? `dominant colours ${entry.colors.join(' ')}, ` : ''}${use(entry)}${entry.caption ? `. Shows: ${entry.caption}` : ''}`),
   ].join('\n');
+}
+
+/** Pictures the AI may place on slides (look references excluded). */
+export const placeablePictures = (attachments: DesignAttachment[]): DesignAttachment[] => attachments.filter((entry) => entry.kind === 'image' && entry.use !== 'style');
+
+/** How to plan pictures onto pages; shared by art direction and the picture plan. */
+function picturePlanRules(seen: PictureView): string {
+  return `PLACING THE PICTURES — they are the user's real product, places and people, so the deck must show them:
+- Every picture marked "must appear" goes on at least one page. Of the others, use every one that carries the story (usually most of them): the cover and closing, the context or problem, the product and its screens, the people it serves.
+- List the pictures a page shows in its "pictures" array (exact paths from the list, at most 3 per page). A picture appears on one page only, except a logo, which may also sign the cover and the closing.
+- Never plan a drawn illustration of something a picture already shows (no drawn truck when there is a truck photo, no drawn phone when there are app screenshots); app screenshots sit in a simple device frame, logos on a quiet field.
+- Name in the page's brief how its picture is used (full-bleed with a scrim, a framed phone, a strip of three, a cut-out beside the claim).${seen ? `
+- In "pictureNotes" describe what every picture shows in one line: subject, orientation, where the subject sits, light or dark, any text in it.` : ''}`;
 }
 
 const canvasLine = (canvas: { width: number; height: number }): string => `${canvas.width}×${canvas.height} px (${canvas.width > canvas.height * 1.5 ? '16:9' : '4:3'})`;
@@ -206,8 +266,29 @@ function systemBlock(system: DesignSystem): string {
   ].join('\n');
 }
 
-function storylineBlock(pages: Array<Pick<DesignedSlide, 'role' | 'title' | 'brief' | 'density'>>, drawNow: Set<number>): string {
-  return pages.map((page, index) => `${drawNow.has(index) ? '▶' : ' '} ${index + 1}. [${page.role}, ${page.density}] ${page.title}${drawNow.has(index) && page.brief ? `\n     Brief: ${page.brief.replace(/\n+/g, ' ')}` : ''}`).join('\n');
+type StoryLine = Pick<DesignedSlide, 'role' | 'title' | 'brief' | 'density' | 'pictures'>;
+
+function storylineBlock(pages: StoryLine[], drawNow: Set<number>): string {
+  return pages.map((page, index) => {
+    const now = drawNow.has(index);
+    const brief = now && page.brief ? `\n     Brief: ${page.brief.replace(/\n+/g, ' ')}` : '';
+    const pictures = page.pictures?.length ? (now ? `\n     Pictures (place every one): ${page.pictures.join(', ')}` : ` · pictures: ${page.pictures.join(', ')}`) : '';
+    return `${now ? '▶' : ' '} ${index + 1}. [${page.role}, ${page.density}] ${page.title}${brief}${pictures}`;
+  }).join('\n');
+}
+
+/**
+ * The pictures block of a drawing prompt: every placeable picture, the rule
+ * that a page's listed pictures are placed for real, and which ones are
+ * attached to the message.
+ */
+function picturesForDrawing(attachments: DesignAttachment[], attached: string[] | undefined): string {
+  const placeable = placeablePictures(attachments);
+  if (placeable.length === 0) return '';
+  const list = describeAttachments(placeable, false);
+  const rules = 'Every picture listed on a page you draw ("Pictures (place every one)") goes on that page as an <image> of its real file, framed to its aspect ratio; never replace one with a drawn stand-in, and never draw an illustration of what a listed picture shows. A page without a list may use a picture from above only when it clearly strengthens the page and no other page uses it.';
+  const seen = attached?.length ? `\nATTACHED TO THIS MESSAGE, in this order: ${attached.join(', ')}. Look at them to choose the crop, where text can sit and the scrim.` : '';
+  return `${list}\n${rules}${seen}`;
 }
 
 const SLIDE_FORMAT = (numbers: number[]): string => `Reply with exactly ${numbers.length === 1 ? 'one block' : `${numbers.length} blocks, in order`} and nothing else (no Markdown fences, no commentary):
@@ -231,7 +312,7 @@ export interface DirectionInput {
   slideCount: number | null;
   language: string;
   canvas: { width: number; height: number };
-  seesImages: boolean;
+  seesImages: PictureView;
   /** Restyle: keep this storyline and design a new look per `prompt`. */
   keepPages?: StoryPage[];
   /** Restyle: the look being replaced, so the new one is clearly different. */
@@ -252,7 +333,7 @@ How to decide:
 VISUAL STYLE CATALOG:
 ${styleCatalog()}`;
 
-const DIRECTION_FORMAT = `Reply with one JSON object only (no Markdown fences, no commentary):
+const directionFormat = (pictures: boolean, notes: boolean): string => `Reply with one JSON object only (no Markdown fences, no commentary):
 {
   "title": "deck title",
   "language": "language of the slides",
@@ -270,8 +351,8 @@ const DIRECTION_FORMAT = `Reply with one JSON object only (no Markdown fences, n
     "imagery": "how pictures are cropped, framed and treated"
   },
   "pages": [
-    { "role": "cover|agenda|section|content|data|quote|closing", "title": "…", "brief": "…", "density": "anchor|dense|breathing" }
-  ]
+    { "role": "cover|agenda|section|content|data|quote|closing", "title": "…", "brief": "…", "density": "anchor|dense|breathing"${pictures ? ', "pictures": ["assets/…"]' : ''} }
+  ]${notes ? ',\n  "pictureNotes": { "assets/…": "what the picture shows" }' : ''}
 }`;
 
 export function buildDirectionPrompt(input: DirectionInput): AiPrompt {
@@ -280,7 +361,7 @@ export function buildDirectionPrompt(input: DirectionInput): AiPrompt {
     parts.push(`RESTYLE an existing deck. Keep its ${input.keepPages.length} pages exactly (same order, titles and briefs; copy them into "pages") and design a new visual identity.`);
     parts.push(`What the user wants from the new look:\n${input.prompt.trim() || 'Something clearly different and more striking.'}`);
     if (input.previous) parts.push(`The current look, which the new one must clearly differ from: "${input.previous.name}" — ${input.previous.style}, background ${input.previous.palette.background}, primary ${input.previous.palette.primary}, ${input.previous.fonts.heading} / ${input.previous.fonts.body}.`);
-    parts.push(`PAGES:\n${input.keepPages.map((page, index) => `${index + 1}. [${page.role}, ${page.density}] ${page.title}\n   ${page.brief.replace(/\n+/g, ' ')}`).join('\n')}`);
+    parts.push(`PAGES:\n${input.keepPages.map((page, index) => `${index + 1}. [${page.role}, ${page.density}] ${page.title}\n   ${page.brief.replace(/\n+/g, ' ')}${page.pictures?.length ? `\n   Pictures: ${page.pictures.join(', ')}` : ''}`).join('\n')}`);
   } else {
     parts.push(`WHAT THE USER WANTS:\n${input.prompt.trim()}`);
     parts.push(input.slideCount
@@ -290,12 +371,14 @@ export function buildDirectionPrompt(input: DirectionInput): AiPrompt {
   }
   parts.push(`Canvas: ${canvasLine(input.canvas)}.`);
   const pictures = describeAttachments(input.attachments, input.seesImages);
-  if (pictures) parts.push(`${pictures}\nWhen pictures are given, let their colours and mood inform the palette, and plan where the ones meant for slides appear (name the file in that page's brief).`);
+  const placeable = placeablePictures(input.attachments).length > 0;
+  if (pictures) parts.push(`${pictures}\nLet the pictures' colours and mood inform the palette.`);
+  if (placeable) parts.push(picturePlanRules(input.seesImages));
   if (input.sources.trim() && !input.keepPages) {
     const sources = input.sources.length > MAX_SOURCE_CHARS ? `${input.sources.slice(0, MAX_SOURCE_CHARS)}\n[…truncated…]` : input.sources;
     parts.push(`SOURCE MATERIAL (use its facts; do not invent numbers it does not support):\n${sources}`);
   }
-  parts.push(DIRECTION_FORMAT);
+  parts.push(directionFormat(placeable, placeable && Boolean(input.seesImages)));
   return { system: DIRECTION_SYSTEM, prompt: parts.join('\n\n') };
 }
 
@@ -306,11 +389,12 @@ export interface SlidesPromptInput {
   language: string;
   system: DesignSystem;
   canvas: { width: number; height: number };
-  pages: Array<Pick<DesignedSlide, 'role' | 'title' | 'brief' | 'density'>>;
+  pages: StoryLine[];
   /** Zero-based indexes of the pages to draw now. */
   draw: number[];
   attachments: DesignAttachment[];
-  seesImages: boolean;
+  /** Deck pictures attached to the message (engines that see), in order. */
+  attachedPictures?: string[];
   /** A finished page whose look the new ones must match (usually the cover). */
   reference?: { number: number; svg: string } | null;
 }
@@ -318,8 +402,9 @@ export interface SlidesPromptInput {
 const MAX_REFERENCE_CHARS = 14_000;
 
 function referenceBlock(reference: { number: number; svg: string } | null | undefined): string {
-  if (!reference?.svg || reference.svg.length > MAX_REFERENCE_CHARS) return '';
-  return `IDENTITY REFERENCE — page ${reference.number}, already drawn. Match its palette use, type, motif and finish (do not copy its layout):\n${reference.svg}`;
+  const svg = reference?.svg ? svgForAi(reference.svg) : '';
+  if (!reference || !svg || svg.length > MAX_REFERENCE_CHARS) return '';
+  return `IDENTITY REFERENCE — page ${reference.number}, already drawn. Match its palette use, type, motif and finish (do not copy its layout):\n${svg}`;
 }
 
 export function buildSlidesPrompt(input: SlidesPromptInput): AiPrompt {
@@ -329,7 +414,7 @@ export function buildSlidesPrompt(input: SlidesPromptInput): AiPrompt {
     systemBlock(input.system),
     `STORYLINE (draw only the pages marked ▶; the others are context for continuity):\n${storylineBlock(input.pages, new Set(input.draw))}`,
   ];
-  const pictures = describeAttachments(input.attachments.filter((entry) => entry.use !== 'style'), input.seesImages);
+  const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
   const reference = referenceBlock(input.reference);
   if (reference) parts.push(reference);
@@ -357,13 +442,14 @@ export interface RefineInput {
   language: string;
   system: DesignSystem;
   canvas: { width: number; height: number };
-  pages: Array<Pick<DesignedSlide, 'role' | 'title' | 'brief' | 'density'>>;
+  pages: StoryLine[];
   index: number;
   svg: string;
   notes: string;
   instruction: string;
   attachments: DesignAttachment[];
-  seesImages: boolean;
+  /** Deck pictures attached to the message (engines that see), in order. */
+  attachedPictures?: string[];
 }
 
 export function buildRefinePrompt(input: RefineInput): AiPrompt {
@@ -373,9 +459,9 @@ export function buildRefinePrompt(input: RefineInput): AiPrompt {
     systemBlock(input.system),
     `STORYLINE:\n${storylineBlock(input.pages, new Set([input.index]))}`,
   ];
-  const pictures = describeAttachments(input.attachments.filter((entry) => entry.use !== 'style'), input.seesImages);
+  const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
-  parts.push(`CURRENT PAGE ${number}:\n${input.svg}\n<notes>${input.notes}</notes>`);
+  parts.push(`CURRENT PAGE ${number}:\n${svgForAi(input.svg)}\n<notes>${input.notes}</notes>`);
   parts.push(`REDRAW PAGE ${number}. Instruction from the user: ${input.instruction.trim()}\nKeep the design system and every fact unless the instruction changes them. Keep pictures that are on the page unless told otherwise.`);
   parts.push(SLIDE_FORMAT([number]));
   return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
@@ -397,13 +483,63 @@ export function buildNewSlidePrompt(input: NewSlideInput): AiPrompt {
     systemBlock(input.system),
     `STORYLINE:\n${storylineBlock(pages, new Set([input.at]))}`,
   ];
-  const pictures = describeAttachments(input.attachments.filter((entry) => entry.use !== 'style'), input.seesImages);
+  const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
   const reference = referenceBlock(input.reference);
   if (reference) parts.push(reference);
   parts.push(`ADD a new page ${number} to the deck: ${input.description.trim()}\nWrite its real content (choose a fitting role and title) and draw it in the deck's design.`);
   parts.push(SLIDE_FORMAT([number]));
   return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
+}
+
+// Planning pictures onto an existing deck ---------------------------------------------
+
+export interface PicturePlanInput {
+  title: string;
+  pages: StoryLine[];
+  attachments: DesignAttachment[];
+  seesImages: PictureView;
+}
+
+/** Asks which deck pictures each page should show (for a deck drawn before its pictures were added). */
+export function buildPicturePlanPrompt(input: PicturePlanInput): AiPrompt {
+  const placeable = placeablePictures(input.attachments);
+  const parts = [
+    `DECK: "${input.title}"`,
+    `PAGES:\n${input.pages.map((page, index) => `${index + 1}. [${page.role}] ${page.title}\n   ${page.brief.replace(/\n+/g, ' ')}`).join('\n')}`,
+    describeAttachments(placeable, input.seesImages),
+    picturePlanRules(input.seesImages),
+    `Reply with one JSON object only (no Markdown fences, no commentary):
+{
+  "pages": [ { "n": 1, "pictures": ["assets/…"], "brief": "the page's brief, rewritten only to say how its pictures are used" } ]${input.seesImages ? ',\n  "pictureNotes": { "assets/…": "what the picture shows" }' : ''}
+}
+List only the pages that get pictures.`,
+  ];
+  return {
+    system: "You are the art director of a presentation studio. You decide which of the user's pictures each page of a finished storyline shows, so the deck tells its story with the real product, places and people.",
+    prompt: parts.filter(Boolean).join('\n\n'),
+  };
+}
+
+export interface PicturePlan {
+  /** Zero-based page index → its pictures and (when given) its new brief. */
+  pages: Map<number, { pictures: string[]; brief: string }>;
+  notes: Record<string, string>;
+}
+
+/** Reads the picture plan. Null when the reply holds no usable plan. */
+export function parsePicturePlan(reply: string, pageCount: number, known: string[]): PicturePlan | null {
+  const raw = extractJson(reply) as Record<string, unknown> | null;
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.pages)) return null;
+  const pages = new Map<number, { pictures: string[]; brief: string }>();
+  for (const entry of raw.pages) {
+    const page = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+    const index = Math.round(Number(page.n ?? page.page)) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= pageCount || pages.has(index)) continue;
+    const pictures = matchPictures(page.pictures, known);
+    if (pictures.length > 0) pages.set(index, { pictures, brief: text(page.brief, 3000) });
+  }
+  return { pages, notes: sanitizePictureNotes(raw.pictureNotes, known) };
 }
 
 // Reading slide replies --------------------------------------------------------------
@@ -504,6 +640,7 @@ export function sanitizeAttachment(value: unknown): DesignAttachment | null {
     ...(Number(raw.width) > 0 ? { width: Math.round(Number(raw.width)) } : {}),
     ...(Number(raw.height) > 0 ? { height: Math.round(Number(raw.height)) } : {}),
     ...(colors?.length ? { colors } : {}),
+    ...(text(raw.caption, 300) ? { caption: text(raw.caption, 300) } : {}),
   };
 }
 

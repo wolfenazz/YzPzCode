@@ -8,6 +8,8 @@
 // is left out and reported. Uses the global DOMParser; no other dependencies.
 
 import { normalizeHex } from './designColors';
+import { elementXml } from './modelPptx';
+import type { SlideElement } from './slideModel';
 
 export interface PptxPicture {
   data: Uint8Array;
@@ -48,6 +50,10 @@ const multiply = (m: Matrix, n: Matrix): Matrix => [
   m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
   m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5],
 ];
+const isIdentity = (m: Matrix): boolean => {
+  // A modelled element's own transform only places it; its model already holds the position.
+  return Math.abs(m[0] - 1) < 1e-9 && Math.abs(m[3] - 1) < 1e-9 && Math.abs(m[1]) < 1e-9 && Math.abs(m[2]) < 1e-9;
+};
 const apply = (m: Matrix, x: number, y: number): [number, number] => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 
 function parseTransform(value: string | null): Matrix {
@@ -520,6 +526,45 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
 
   const shapeName = (el: Element, fallback: string): string => xml(el.getAttribute('id') || `${fallback} ${nextId}`);
 
+  function registerPicture(href: string, picture: PptxPicture): string {
+    let rId = mediaByHref.get(href);
+    if (!rId) {
+      rId = `${relPrefix}${media.length + 1}`;
+      mediaByHref.set(href, rId);
+      media.push({ rId, picture });
+    }
+    return rId;
+  }
+
+  // Elements that carry their slide model are written as the PowerPoint objects they describe.
+  const modelContext = {
+    emuPerPx: sx,
+    x: emuX,
+    y: emuY,
+    nextId: () => nextId++,
+    picture: (href: string): string | null => {
+      const picture = options.picture(href);
+      if (!picture) {
+        warnings.add(`A picture could not be placed: ${href.slice(0, 80)}`);
+        return null;
+      }
+      return registerPicture(href, picture);
+    },
+    lang,
+  };
+  function modelShapes(el: Element): Out[] | null {
+    const raw = el.getAttribute('data-m');
+    if (!raw) return null;
+    let model: SlideElement;
+    try {
+      model = JSON.parse(raw) as SlideElement;
+    } catch {
+      return null;
+    }
+    const out = elementXml(model, modelContext);
+    return out ? [{ xml: out, box: { x: model.box.x, y: model.box.y, w: model.box.w, h: model.box.h } }] : [];
+  }
+
   // Gradients ---------------------------------------------------------------------------
   function gradientStops(grad: Element, alpha: number): Array<{ o: number; hex: string; a: number }> {
     let source: Element | null = grad;
@@ -931,12 +976,7 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
       slideFrame = segBox(transformSegs(rectSegs(frame.x, frame.y, frame.w, frame.h, 0, 0), ctx.m)) ?? frame;
       warnings.add('A skewed picture was placed upright.');
     }
-    let rId = mediaByHref.get(href);
-    if (!rId) {
-      rId = `${relPrefix}${media.length + 1}`;
-      mediaByHref.set(href, rId);
-      media.push({ rId, picture });
-    }
+    const rId = registerPicture(href, picture);
     const alpha = ctx.opacity < 0.999 ? `<a:alphaModFix amt="${pct(ctx.opacity)}"/>` : '';
     const id = nextId++;
     return {
@@ -965,6 +1005,8 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
       case 'g':
       case 'svg':
       case 'a': {
+        const modelled = name === 'g' && isIdentity(parent.m) ? modelShapes(el) : null;
+        if (modelled) return modelled;
         // A nested filter on a group applies to each shape inside it.
         const out: Out[] = [];
         for (const child of Array.from(el.childNodes)) if (child.nodeType === 1) out.push(...render(child as Element, ctx, depth + 1));
