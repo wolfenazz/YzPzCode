@@ -155,7 +155,8 @@ export async function readPptxTheme(pkg: PptxPackage): Promise<DeckTheme> {
   const fonts = doc ? descendants(doc, 'a:fontScheme')[0] ?? null : null;
   const font = (kind: string): string | undefined => {
     const typeface = fonts ? childPath(fonts, `a:${kind}`, 'a:latin')?.getAttribute('typeface') : undefined;
-    return typeface && !typeface.startsWith('+') ? typeface : undefined;
+    if (!typeface || typeface.startsWith('+')) return undefined;
+    return typeface.replace(/\s*\((?:West(?:ern)?\s*European|East(?:ern)?\s*European|Complex\s*Script|All\s*Scripts|Headings?|Body|Latin|Theme)\)/gi, '').trim();
   };
   return themeFromScheme({
     name: scheme?.getAttribute('name') ?? undefined,

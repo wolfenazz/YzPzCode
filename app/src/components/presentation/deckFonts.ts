@@ -131,3 +131,11 @@ export function svgFontFamilies(svgs: string[]): Set<string> {
   }
   return families;
 }
+
+/** Strips localized script suffixes and office tags (e.g. `(West European)`, `(Headings)`, `(Body)`) for clean UI display. */
+export function cleanFontDisplay(name: string | undefined | null): string {
+  if (!name) return '';
+  return name
+    .replace(/\s*\((?:West(?:ern)?\s*European|East(?:ern)?\s*European|Complex\s*Script|All\s*Scripts|Headings?|Body|Latin|Theme)\)/gi, '')
+    .trim();
+}

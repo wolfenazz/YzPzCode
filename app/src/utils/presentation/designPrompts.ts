@@ -135,6 +135,7 @@ export function sanitizeStoryPage(value: unknown, known?: string[]): StoryPage |
     brief: text(raw.brief ?? raw.content ?? raw.purpose, 3000),
     density: DENSITIES.includes(raw.density as DesignDensity) ? raw.density as DesignDensity : role === 'content' || role === 'data' ? 'dense' : 'anchor',
     ...(pictures.length > 0 ? { pictures } : {}),
+    ...(typeof raw.photo === 'string' && raw.photo.trim() && pictures.length === 0 ? { photo: text(raw.photo, 80) } : {}),
   };
 }
 
@@ -188,8 +189,8 @@ export function describeAttachments(attachments: DesignAttachment[], seen: Pictu
   const use = (entry: DesignAttachment): string => (entry.use === 'slides' ? 'must appear on a slide' : entry.use === 'style' ? 'look reference only, do not place it' : 'place it where it helps, or use it as a look reference');
   const how = seen === 'sheets' ? ' (attached as contact sheets: each tile is labelled with its number below)' : seen ? ' (attached to this message, in this order)' : '';
   return [
-    `PICTURES THE USER GAVE${how}:`,
-    ...pictures.map((entry, index) => `${index + 1}. ${entry.path} — ${entry.width && entry.height ? `${entry.width}×${entry.height}px, ` : ''}${entry.colors?.length ? `dominant colours ${entry.colors.join(' ')}, ` : ''}${use(entry)}${entry.caption ? `. Shows: ${entry.caption}` : ''}`),
+    `PICTURES${pictures.some((entry) => entry.credit) ? ' (the user’s, and photos found on the web)' : ' THE USER GAVE'}${how}:`,
+    ...pictures.map((entry, index) => `${index + 1}. ${entry.path} — ${entry.width && entry.height ? `${entry.width}×${entry.height}px, ` : ''}${entry.colors?.length ? `dominant colours ${entry.colors.join(' ')}, ` : ''}${use(entry)}${entry.caption ? `. Shows: ${entry.caption}` : ''}${entry.credit ? `. Web photo: print the credit "${entry.credit}" small (caption size, muted) along the picture's edge` : ''}`),
   ].join('\n');
 }
 
@@ -317,7 +318,15 @@ export interface DirectionInput {
   keepPages?: StoryPage[];
   /** Restyle: the look being replaced, so the new one is clearly different. */
   previous?: DesignSystem;
+  /** The app can fetch real photos from the web for pages that ask for one. */
+  webPhotos?: boolean;
 }
+
+/** How to ask for real photographs from the web. */
+const WEB_PHOTO_RULES = `PHOTOS FROM THE WEB — the app can fetch real, openly licensed photographs (never AI images) for pages that ask for one:
+- Give a page a "photo" (2–5 concrete English search words, e.g. "container port cranes dusk") only where a real photograph makes it stronger: the cover, a section opener, a place, a product category, people at work. Leave it out for data, agenda and quote pages, and for pages that already show the user's pictures.
+- At most one per page and on no more than half of the pages. Ask for what can really be photographed, never abstract ideas ("growth", "innovation").
+- Plan those pages so a photo of unknown framing works (full-bleed with a scrim, or a generous frame), and say so in the brief.`;
 
 const DIRECTION_SYSTEM = `You are the art director and content strategist of a presentation studio. For every deck you invent a UNIQUE visual identity from the brief — never a stock template, never generic corporate blue with white cards — and you plan a storyline a designer can draw page by page. (Method: ppt-master by Hugo He.)
 
@@ -333,7 +342,7 @@ How to decide:
 VISUAL STYLE CATALOG:
 ${styleCatalog()}`;
 
-const directionFormat = (pictures: boolean, notes: boolean): string => `Reply with one JSON object only (no Markdown fences, no commentary):
+const directionFormat = (pictures: boolean, notes: boolean, photos = false): string => `Reply with one JSON object only (no Markdown fences, no commentary):
 {
   "title": "deck title",
   "language": "language of the slides",
@@ -351,7 +360,7 @@ const directionFormat = (pictures: boolean, notes: boolean): string => `Reply wi
     "imagery": "how pictures are cropped, framed and treated"
   },
   "pages": [
-    { "role": "cover|agenda|section|content|data|quote|closing", "title": "…", "brief": "…", "density": "anchor|dense|breathing"${pictures ? ', "pictures": ["assets/…"]' : ''} }
+    { "role": "cover|agenda|section|content|data|quote|closing", "title": "…", "brief": "…", "density": "anchor|dense|breathing"${pictures ? ', "pictures": ["assets/…"]' : ''}${photos ? ', "photo": "search words (only where a real photo helps)"' : ''} }
   ]${notes ? ',\n  "pictureNotes": { "assets/…": "what the picture shows" }' : ''}
 }`;
 
@@ -378,7 +387,9 @@ export function buildDirectionPrompt(input: DirectionInput): AiPrompt {
     const sources = input.sources.length > MAX_SOURCE_CHARS ? `${input.sources.slice(0, MAX_SOURCE_CHARS)}\n[…truncated…]` : input.sources;
     parts.push(`SOURCE MATERIAL (use its facts; do not invent numbers it does not support):\n${sources}`);
   }
-  parts.push(directionFormat(placeable, placeable && Boolean(input.seesImages)));
+  const photos = Boolean(input.webPhotos) && !input.keepPages;
+  if (photos) parts.push(WEB_PHOTO_RULES);
+  parts.push(directionFormat(placeable, placeable && Boolean(input.seesImages), photos));
   return { system: DIRECTION_SYSTEM, prompt: parts.join('\n\n') };
 }
 

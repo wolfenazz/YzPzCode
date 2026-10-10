@@ -853,3 +853,48 @@ export function defaultOutline(type: ReportTypeDef, targetWords: number): Outlin
 /** Rough page count at ~420 words a page with headings, tables and white space. */
 export const wordsToPages = (words: number): number => Math.max(1, Math.round(words / 420));
 export const pagesToWords = (pages: number): number => Math.max(300, Math.round(pages * 420));
+
+// Composer copy ---------------------------------------------------------------
+
+/** How the composer for a report type asks for its brief. */
+export interface ComposerCopy {
+  /** The question above the description box. */
+  ask: string;
+  placeholder: string;
+}
+
+const COMPOSER_COPY: Record<string, ComposerCopy> = {
+  'senior-project': { ask: 'What did your team build?', placeholder: 'The problem, what you designed and built, the tools you used, how you tested it and what the results showed…' },
+  'research-paper': { ask: 'What does your research show?', placeholder: 'The question, your data and method, the main findings, and why they matter…' },
+  'thesis-chapter': { ask: 'What does this chapter argue?', placeholder: 'Its role in the thesis, the themes it covers, the debates it engages with, and where it leads…' },
+  'literature-review': { ask: 'Which literature are you reviewing?', placeholder: 'The topic and scope, the themes you expect, key authors or studies, and the gap you want to show…' },
+  'lab-report': { ask: 'What was the experiment?', placeholder: 'The aim, the setup, what you measured and what you observed. Attach your data sheet if you have one…' },
+  'research-proposal': { ask: 'What study are you proposing?', placeholder: 'The problem, the research questions, how you will answer them, timeline and expected impact…' },
+  'case-study': { ask: 'Which case are you analysing?', placeholder: 'The organisation or event, what happened, the decision at stake, and the lens you want to use…' },
+  'business-plan': { ask: 'What is the business?', placeholder: 'The product, the customer, how it makes money, the team, traction so far and what you need…' },
+  'feasibility-study': { ask: 'What project are you assessing?', placeholder: 'The proposal, its constraints, costs and benefits you know of, and the decision it must support…' },
+  'market-analysis': { ask: 'Which market are you analysing?', placeholder: 'The industry and region, the segments you care about, known competitors and the question to answer…' },
+  'swot-analysis': { ask: 'Who or what is the analysis for?', placeholder: 'The organisation or product, its situation today, the market around it and the strategic question…' },
+  'project-status': { ask: 'Where does the project stand?', placeholder: 'What was done this period, what is late, budget position, risks and the decisions you need…' },
+  'business-proposal': { ask: 'What are you proposing, and to whom?', placeholder: 'The client and their need, your solution, deliverables, timeline and price…' },
+  'financial-analysis': { ask: 'Which company and period?', placeholder: 'The company, the years to analyse, what the reader needs to decide. Attach or paste the statements…' },
+  'annual-report': { ask: 'What happened this year?', placeholder: 'The organisation, the year’s highlights, results in figures, governance changes and the outlook…' },
+  'investment-memo': { ask: 'What is the investment?', placeholder: 'The target, the thesis, deal terms, valuation basis, key risks and your recommendation…' },
+  'budget-report': { ask: 'Which budget are you reporting on?', placeholder: 'The department and period, budget against actual, the main variances and why they happened…' },
+  'audit-summary': { ask: 'What was audited?', placeholder: 'The entity or process, the standard, the scope, what you found and how severe it is…' },
+  'technical-report': { ask: 'What did you investigate?', placeholder: 'The system, the question, how you tested or analysed it, the results and what you recommend…' },
+  'white-paper': { ask: 'What case does the paper make?', placeholder: 'The problem, who has it, the approach you argue for and the evidence behind it…' },
+  'technical-spec': { ask: 'What are you specifying?', placeholder: 'The system or feature, who needs it, requirements, constraints and how it will be accepted…' },
+  'post-mortem': { ask: 'What went wrong?', placeholder: 'What happened and when, who was affected, how it was resolved and what caused it…' },
+  'user-manual': { ask: 'What should the reader learn to do?', placeholder: 'The product, who uses it, the main tasks to cover and common problems…' },
+  'policy-brief': { ask: 'What policy question is this about?', placeholder: 'The problem, who decides, the evidence, the options and what you recommend…' },
+  'grant-proposal': { ask: 'What are you asking funding for?', placeholder: 'The need, the programme, its objectives and activities, the budget and how you will measure success…' },
+  'ngo-impact': { ask: 'Which programme are you reporting on?', placeholder: 'The programme and period, who it reached, outcomes in figures, a story or two and lessons learned…' },
+  'meeting-minutes': { ask: 'Which meeting?', placeholder: 'Paste your raw notes: who attended, what was discussed, what was decided and who owes what…' },
+  essay: { ask: 'What is the essay about?', placeholder: 'The subject, your argument, the reader you have in mind and the points that carry it…' },
+  custom: { ask: 'What are you writing?', placeholder: 'Describe the document: what it is for, who reads it, what it must cover and how long it should be…' },
+};
+
+export function composerCopy(type: ReportTypeDef): ComposerCopy {
+  return COMPOSER_COPY[type.id] ?? COMPOSER_COPY.custom;
+}

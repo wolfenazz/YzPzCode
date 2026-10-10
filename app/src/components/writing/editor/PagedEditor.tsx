@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { EditorContent, useEditor, type Editor } from '@tiptap/react';
+import { Selection } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
 import { TextStyleKit } from '@tiptap/extension-text-style';
 import { TextAlign } from '@tiptap/extension-text-align';
@@ -29,6 +30,7 @@ import {
   WritingCommands,
   WritingContext,
 } from './extensions';
+import { ScrollKeeper } from './scrollKeeper';
 
 export interface PageGeometry {
   pageWidth: number;
@@ -176,6 +178,8 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
         customHeader: hasCover ? { 1: { headerLeft: '', headerRight: '' } } : {},
         customFooter: hasCover ? { 1: { footerLeft: '', footerRight: '' } } : {},
       }),
+      // Last, so it measures after the pagination has resized the pages.
+      ScrollKeeper,
     ],
     content: content as never,
     editable,
@@ -203,6 +207,10 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
     loadedKey.current = contentKey;
     editor.storage.writingContext.docDir = docDir;
     editor.chain().setMeta('wrExternal', true).setMeta('addToHistory', false).setContent(content as never, { emitUpdate: false }).run();
+    // Replacing the whole document leaves the cursor at its end: a new report opens at the top.
+    editor.view.dispatch(editor.state.tr.setSelection(Selection.atStart(editor.state.doc)).setMeta('wrExternal', true).setMeta('addToHistory', false));
+    const desk = (editor.view.dom as HTMLElement).closest('.wr-desk');
+    if (desk) desk.scrollTop = 0;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, contentKey]);
 

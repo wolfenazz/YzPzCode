@@ -222,6 +222,52 @@ test('style sanitising clamps values and fills gaps', () => {
   assert.deepEqual(stylePresets.pageDimensions('a4', 'landscape'), { width: 297, height: 210 });
 });
 
+const styleAi = await load('styleAi');
+
+test('outline replies can propose the title', () => {
+  const reply = '```json\n{"title":"  Water Use in\\nArid Farms ","subtitle":"A field study","sections":[{"title":"Introduction"}]}\n```';
+  assert.deepEqual(prompts.parseOutlineTitle(reply), { title: 'Water Use in Arid Farms', subtitle: 'A field study' });
+  assert.equal(prompts.parseOutlineTitle('{"sections":[]}'), null);
+  assert.equal(prompts.parseOutlineTitle('nothing'), null);
+  const brief = documentModule.createBrief('essay');
+  assert.match(prompts.buildOutlinePrompt(brief, '', []).prompt, /No title was given/);
+  brief.details.title = 'On Walking';
+  assert.match(prompts.buildOutlinePrompt(brief, '', []).prompt, /Use "On Walking" as the title/);
+});
+
+test('every report type has composer copy', () => {
+  for (const type of reportTypes.REPORT_TYPES) {
+    const copy = reportTypes.composerCopy(type);
+    assert.ok(copy.ask.endsWith('?'), type.id);
+    assert.ok(copy.placeholder.length > 20, type.id);
+  }
+});
+
+test('restyle replies are applied strictly', () => {
+  const current = stylePresets.styleFromTheme('classic-academic');
+  const reply = 'Here you go:\n{"bodyFont":"garamond","headingFont":"Comic Sans MS","bodySize":40,"lineHeight":"1.6","headingColor":"#FFE","accentColor":"#1d4ed8","cover":"corporate","margins":{"left":5},"pageNumbers":"middle","summary":"Warm editorial serif."}';
+  const result = styleAi.parseRestyle(reply, current);
+  assert.equal(result.style.bodyFont, 'Garamond');
+  assert.equal(result.style.headingFont, current.headingFont, 'unknown fonts are ignored');
+  assert.equal(result.style.bodySize, 14, 'sizes are clamped');
+  assert.equal(result.style.lineHeight, 1.6);
+  assert.equal(result.style.headingColor, current.headingColor, 'unreadable colours are ignored');
+  assert.equal(result.style.accentColor, '#1d4ed8');
+  assert.equal(result.style.cover, 'corporate');
+  assert.deepEqual(result.style.margins, { top: 12, right: 12, bottom: 12, left: 12 });
+  assert.equal(result.style.pageNumbers, current.pageNumbers, 'unknown options are ignored');
+  assert.equal(result.style.themeId, 'custom');
+  assert.equal(result.summary, 'Warm editorial serif.');
+  assert.ok(result.changes.includes('Body font') && result.changes.includes('Cover') && !result.changes.includes('Heading font'));
+  assert.equal(styleAi.parseRestyle('{"bodyFont":"Wingdings"}', current), null);
+  assert.equal(styleAi.parseRestyle('no json', current), null);
+  assert.ok(styleAi.contrastOnWhite('#000000') > 20);
+  assert.ok(styleAi.contrastOnWhite('#ffffee') < 1.1);
+  const prompt = styleAi.buildRestylePrompt(current, 'Make it corporate', { typeName: 'Business Plan', title: 'Acme' });
+  assert.match(prompt.prompt, /Make it corporate/);
+  assert.match(prompt.prompt, /Times New Roman/);
+});
+
 // Export ------------------------------------------------------------------
 
 const printHtml = await load('printHtml');
@@ -297,4 +343,67 @@ test('docx export writes real Word structures', async () => {
   assert.match(documentXml, /\(Smith, 2024\)/);
   assert.match(documentXml, /w:titlePg/);
   assert.match(documentXml, /\[Figure: Sensor layout\]/);
+});
+
+const pictures = await load('pictures');
+
+test('the writer asks for web photos with [Photo: words | caption], and pictures survive a rewrite', () => {
+  const blocks = markdown.parseBlocks('[Photo: drip irrigation field | Drip lines in an arid farm]\n\n![Pump house](assets/pump.jpg "Photo: Ann Lee / Unsplash")\n\n[Figure: Water use by month]');
+  assert.deepEqual(blocks[0].attrs, { src: null, alt: 'Drip lines in an arid farm', caption: 'Drip lines in an arid farm', query: 'drip irrigation field' });
+  assert.equal(blocks[1].attrs.src, 'assets/pump.jpg');
+  assert.equal(blocks[1].attrs.credit, 'Photo: Ann Lee / Unsplash');
+  assert.equal(blocks[2].attrs.src, null);
+  const back = markdown.blocksToMarkdown(blocks);
+  assert.match(back, /\[Photo: drip irrigation field \| Drip lines in an arid farm\]/);
+  assert.match(back, /!\[Pump house\]\(assets\/pump\.jpg "Photo: Ann Lee \/ Unsplash"\)/);
+  assert.match(back, /\[Figure: Water use by month\]/);
+  assert.deepEqual(markdown.parseBlocks(back).map((block) => block.attrs), blocks.map((block) => block.attrs));
+  assert.equal(markdown.blocksToMarkdown([{ type: 'figure', attrs: { src: 'data:image/png;base64,AAAA', caption: 'Inline' } }]), '[Figure: Inline]');
+
+  const brief = documentModule.createBrief('technical-report');
+  const outline = reportTypes.defaultOutline(reportTypes.getReportType('technical-report'), 3000);
+  const input = { brief, outline, index: 1, written: [], sources: '', references: [] };
+  assert.doesNotMatch(prompts.buildSectionPrompt(input).prompt, /\[Photo:/);
+  assert.match(prompts.buildSectionPrompt({ ...input, photos: true }).prompt, /\[Photo: 2–5 concrete English search words \| Caption\]/);
+  assert.match(prompts.buildRewritePrompt({ brief, action: 'grammar', passage: 'x', references: [] }).prompt, /Keep picture lines/);
+});
+
+test('page flow: space to the next page, unknown past the last page', async () => {
+  const { spaceToPageEnd } = await load('pageFlow');
+  // Page 1 content 100–1000, break band 1000–1100, page 2 content 1100–2000, band 2000–2100.
+  const bands = [{ top: 1000, bottom: 1100 }, { top: 2000, bottom: 2100 }];
+  assert.equal(spaceToPageEnd(100, bands, 100), 0, 'the first line of page 1 already starts a page');
+  assert.equal(spaceToPageEnd(1100, bands, 100), 0, 'right after a band starts a page');
+  assert.equal(spaceToPageEnd(400, bands, 100), 601);
+  assert.equal(spaceToPageEnd(1500, bands, 100), 501);
+  // Past the last band the pagination has not added pages yet: unknown, never 0
+  // (0 dropped the padding, shortened the document and made the pages flicker).
+  assert.equal(spaceToPageEnd(2500, bands, 100), null);
+  assert.equal(spaceToPageEnd(2100, bands, 100), 0);
+  assert.equal(spaceToPageEnd(500, [], 100), null);
+});
+
+test('streaming writes keep the blocks that did not change', async () => {
+  const { commonPrefixLength } = await load('pageFlow');
+  const same = (a, b) => a === b;
+  assert.equal(commonPrefixLength(['a', 'b', 'c'], ['a', 'b', 'c2'], same), 2);
+  assert.equal(commonPrefixLength(['a', 'b'], ['a', 'b', 'c'], same), 2);
+  assert.equal(commonPrefixLength(['a', 'b', 'c'], ['a'], same), 1);
+  assert.equal(commonPrefixLength([], ['a'], same), 0);
+  assert.equal(commonPrefixLength(['x'], ['a'], same), 0);
+});
+
+test('web photo results: printable, the right way round, search order otherwise', () => {
+  const at = (width, height, name = 'a.jpg') => ({ fullUrl: `https://example.org/${name}`, width, height });
+  assert.equal(pictures.choosePicture([]), null);
+  assert.equal(pictures.choosePicture([at(2000, 1000, 'x.svg'), { fullUrl: 'http://insecure.org/a.jpg', width: 2000, height: 1000 }]), null);
+  const small = at(400, 300, 'small.jpg');
+  const tall = at(1000, 1600, 'tall.jpg');
+  const wide = at(1600, 1000, 'wide.jpg');
+  assert.equal(pictures.choosePicture([small, tall, wide]), wide);
+  assert.equal(pictures.choosePicture([small, tall, wide], 'portrait'), tall);
+  assert.equal(pictures.choosePicture([wide, at(1800, 1100, 'second.jpg')]), wide);
+  assert.equal(pictures.choosePicture([at(4000, 800, 'banner.jpg'), wide]), wide, 'extreme panoramas lose');
+  assert.equal(pictures.cleanPictureQuery('  "Container port" cranes, at dusk!! (wide) extra words here '), 'Container port cranes at dusk wide');
+  assert.equal(pictures.pictureStem('Container port: cranes'), 'container-port-cranes');
 });

@@ -33,6 +33,13 @@ const MARKDOWN_CONTRACT = [
   '- No code fences around the answer, no preamble ("Here is…"), no closing remarks.',
 ].join('\n');
 
+const PHOTO_RULE = '- Where a real photograph would genuinely help the reader (a place, a product, equipment, people at work), and only there, write on its own line: [Photo: 2–5 concrete English search words | Caption]. The app finds an openly licensed photo for it. At most one per section; never for charts, data, diagrams or abstract ideas (use [Figure: …] for those).';
+
+/** The output contract, plus the photo rule when web photos are on. */
+function markdownContract(photos: boolean): string {
+  return [MARKDOWN_CONTRACT, '- Keep picture lines such as ![Caption](assets/…) exactly as they are.', photos ? PHOTO_RULE : ''].filter(Boolean).join('\n');
+}
+
 function describeDetails(brief: ReportBrief, type: ReportTypeDef): string {
   const { details } = brief;
   const lines: string[] = [];
@@ -99,7 +106,10 @@ export function buildOutlinePrompt(brief: ReportBrief, sources: string, referenc
     sourcesBlock(sources),
     '',
     'Return ONLY a JSON object, with no Markdown fence and no commentary, in exactly this shape:',
-    '{"sections":[{"title":"Introduction","notes":"What this section must cover, specific to this report (1–3 sentences)","targetWords":600,"subsections":["Background","Objectives"],"unnumbered":false}]}',
+    '{"title":"The report title","subtitle":"","sections":[{"title":"Introduction","notes":"What this section must cover, specific to this report (1–3 sentences)","targetWords":600,"subsections":["Background","Objectives"],"unnumbered":false}]}',
+    brief.details.title.trim()
+      ? `Use "${brief.details.title.trim()}" as the title.`
+      : 'No title was given: write a precise, professional title for this report (and a subtitle only if it adds information), in the language of the report.',
     'Rules: section titles must be specific to this report, not generic, where the convention allows. "unnumbered" is true only for front or back matter such as Abstract, Executive Summary, Acknowledgements and References. Word targets must add up to roughly the total. Do not include a table of contents or a title page; the app adds them.',
   ].filter((line) => line !== '').join('\n');
   return { system: WRITER_SYSTEM_PROMPT, prompt };
@@ -129,9 +139,11 @@ export interface SectionPromptInput {
   written: WrittenSection[];
   sources: string;
   references: Reference[];
+  /** The writer may ask for web photos. */
+  photos?: boolean;
 }
 
-export function buildSectionPrompt({ brief, outline, index, written, sources, references }: SectionPromptInput): AiPrompt {
+export function buildSectionPrompt({ brief, outline, index, written, sources, references, photos }: SectionPromptInput): AiPrompt {
   const type = getReportType(brief.typeId);
   const section = outline[index];
   const isReferences = /^(references|bibliography|works cited|reference list)$/i.test(section.title.trim());
@@ -173,7 +185,7 @@ export function buildSectionPrompt({ brief, outline, index, written, sources, re
     '',
     citationRules(brief, references),
     '',
-    MARKDOWN_CONTRACT,
+    markdownContract(Boolean(photos) && !isReferences),
     sourcesBlock(sources),
   ].filter((line) => line !== '').join('\n');
   return { system: WRITER_SYSTEM_PROMPT, prompt };
@@ -220,9 +232,11 @@ export interface RewritePromptInput {
   sectionTitle?: string;
   instruction?: string;
   references: Reference[];
+  /** The writer may ask for web photos. */
+  photos?: boolean;
 }
 
-export function buildRewritePrompt({ brief, action, passage, sectionTitle, instruction, references }: RewritePromptInput): AiPrompt {
+export function buildRewritePrompt({ brief, action, passage, sectionTitle, instruction, references, photos }: RewritePromptInput): AiPrompt {
   const type = getReportType(brief.typeId);
   const task = action === 'custom' ? (instruction?.trim() || ACTION_INSTRUCTIONS.rewrite) : ACTION_INSTRUCTIONS[action];
   const extra = action !== 'custom' && instruction?.trim() ? `Additional instruction: ${instruction.trim()}` : '';
@@ -239,7 +253,7 @@ export function buildRewritePrompt({ brief, action, passage, sectionTitle, instr
     buildStyleRules(humanizer, brief.voice),
     '',
     references.length > 0 ? 'Keep citation markers such as [@key] exactly as they are.' : '',
-    action === 'grammar' ? '' : MARKDOWN_CONTRACT,
+    action === 'grammar' ? 'Keep picture lines such as ![Caption](assets/…) exactly as they are.' : markdownContract(Boolean(photos)),
     'Output only the resulting passage.',
     '',
     '<passage>',
@@ -328,4 +342,13 @@ function fromMarkdown(text: string, totalWords: number): OutlineSection[] | null
 /** Parses the outline the model returned: JSON first, then a Markdown or numbered list. */
 export function parseOutline(text: string, totalWords: number): OutlineSection[] | null {
   return fromJson(extractJson(text), totalWords) ?? fromMarkdown(text, totalWords);
+}
+
+/** The title and subtitle the outline reply proposes, when it has them. */
+export function parseOutlineTitle(text: string): { title: string; subtitle: string } | null {
+  const value = extractJson(text) as { title?: unknown; subtitle?: unknown } | null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const clean = (raw: unknown): string => (typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, 200) : '');
+  const title = clean(value.title);
+  return title ? { title, subtitle: clean(value.subtitle) } : null;
 }

@@ -113,6 +113,8 @@ export interface ReportBrief {
   voice: VoiceSettings;
   humanizer: HumanizerSettings;
   engine: EngineChoice;
+  /** Real photographs from the web where they help the reader; missing means 'web'. */
+  pictures?: 'web' | 'none';
 }
 
 export interface OutlineSection {

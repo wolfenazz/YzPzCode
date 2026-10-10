@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { BookmarkSimple, CaretDown, CaretUp, Minus, NotePencil, Plus, Sparkle, Warning, X } from '@phosphor-icons/react';
+import { BookmarkSimple, CaretDown, CaretUp, Minus, NotePencil, Plus, PresentationChart, Sparkle, Warning, X } from '@phosphor-icons/react';
 import SwipeToast from '../reactbits/SwipeToast';
 import { useAppStore } from '../../stores/appStore';
 import { selectPresentationSession, usePresentationSessionStore } from '../../stores/presentationSessionStore';
@@ -25,6 +25,8 @@ import type { ImportedTheme } from '../../utils/presentation/pptxRender';
 import { svgPlainText } from '../../utils/presentation/svgText';
 import type { Block, LayoutId, RichPara, Slide, YzDeck } from '../../utils/presentation/types';
 import { fileName, joinPath, parentPath } from '../../utils/writing/document';
+import { MAX_WEB_PHOTOS } from '../../utils/writing/pictures';
+import { fetchWebPictures, webPicturesEnabled } from '../../utils/webPictures';
 import { localFileUrl } from '../../utils/mediaFiles';
 import type { WorkspaceConfig } from '../../types';
 import { DeckAiPanel } from './DeckAiPanel';
@@ -36,7 +38,7 @@ import { DesignedExportDialog } from './DesignedExportDialog';
 import { ExportDialog } from './ExportDialog';
 import { Filmstrip, type SlideCommand } from './Filmstrip';
 import { ImportDialog } from './ImportDialog';
-import { ensureFonts, measureSlideText, pptxFontFamilies } from './deckFonts';
+import { cleanFontDisplay, ensureFonts, measureSlideText, pptxFontFamilies } from './deckFonts';
 import { PreserveEditor } from './PreserveEditor';
 import { PresenterMode } from './PresenterMode';
 import { StockImagePicker } from './StockImagePicker';
@@ -107,7 +109,10 @@ function importedSystem(theme: ImportedTheme, fileTitle: string): DesignSystem {
     dark: theme.dark,
     palette: theme.palette,
     chartColors: theme.chartColors,
-    fonts: theme.fonts,
+    fonts: {
+      heading: cleanFontDisplay(theme.fonts.heading) || theme.fonts.heading,
+      body: cleanFontDisplay(theme.fonts.body) || theme.fonts.body,
+    },
     type: { display: 72, title: 40, body: 24, caption: 16 },
     shapeLanguage: 'As in the original file.',
     motif: 'As in the original file.',
@@ -237,6 +242,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         language: input.language,
         size: input.size,
         engine,
+        webPhotos: webPicturesEnabled(),
       });
       if (!direction) return;
       attachments = attachments.map((entry) => (direction.pictureNotes[entry.path] ? { ...entry, caption: direction.pictureNotes[entry.path] } : entry));
@@ -256,6 +262,25 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         const target = attachments.filter((entry) => entry.kind === 'image')[index];
         await writeFileBytes(joinPath(folder, target.path), await readFileBytes(file.path));
         if (file.path.toLowerCase().startsWith(inbox)) void invoke('delete_entry', { path: file.path }).catch(() => undefined);
+      }
+      // Pages that asked for a real photo get one from the web, credited on the slide.
+      const photoPages = direction.pages
+        .map((page, index) => ({ query: page.photo ?? '', index }))
+        .filter((entry) => entry.query && !slides[entry.index]?.pictures?.length)
+        .slice(0, MAX_WEB_PHOTOS);
+      if (photoPages.length > 0 && deck.design) {
+        const found = await fetchWebPictures(photoPages.map((entry) => entry.query), joinPath(folder, ASSETS_FOLDER));
+        const added: DesignAttachment[] = [];
+        for (const [index, picture] of found.entries()) {
+          if (!picture) continue;
+          const asset = `${ASSETS_FOLDER}/${fileName(picture.path)}`;
+          const dataUrl = await invoke<string>('read_file_as_base64', { path: picture.path }).catch(() => null);
+          const info = dataUrl ? await pictureInfo(dataUrl).catch(() => null) : null;
+          added.push({ path: asset, name: fileName(picture.path), kind: 'image', use: 'slides', width: picture.width, height: picture.height, ...(info ?? {}), caption: `A photo of ${picture.query}`, credit: picture.credit });
+          const slide = slides[photoPages[index].index];
+          if (slide) slide.pictures = [asset];
+        }
+        if (added.length > 0) deck.design = { ...deck.design, attachments: [...deck.design.attachments, ...added], slides };
       }
       await documents.createDeckFile(deck, path);
       void designer.drawSlides(slides.map((slide) => slide.id));
@@ -695,6 +720,40 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     : null;
   const warningCount = Object.keys(session.warnings).length;
 
+  const currentDeckTitle = deck?.meta?.title || 'Untitled';
+  const hasCurrentInList = Boolean(session.deckPath && documents.decks.some((entry) => entry.path === session.deckPath));
+  const deckSwitcher = deck ? (
+    <div className="pr-status__deck-switch" title={`Switch presentation: ${currentDeckTitle}`}>
+      <PresentationChart size={12} className="pr-status__deck-icon" />
+      <select
+        className="pr-status__deck-select"
+        value={session.deckPath ?? ''}
+        aria-label="Switch presentation"
+        onChange={(event) => {
+          const value = event.target.value;
+          if (value === '__new') void documents.closeDeck();
+          else if (value === '__import') setImportState({ path: null, busy: false, error: null, progress: null });
+          else if (value === '__close') void documents.closeDeck();
+          else if (value) void documents.openDeck(value);
+        }}
+      >
+        {!hasCurrentInList && session.deckPath && (
+          <option value={session.deckPath}>{currentDeckTitle}</option>
+        )}
+        {documents.decks.map((entry) => (
+          <option key={entry.path} value={entry.path}>
+            {entry.path === session.deckPath ? currentDeckTitle : entry.title}
+          </option>
+        ))}
+        <option disabled>──────────</option>
+        <option value="__new">+ New presentation…</option>
+        <option value="__import">Open PowerPoint…</option>
+        <option value="__close">Close presentation</option>
+      </select>
+      <CaretDown size={9} className="pr-status__deck-caret" />
+    </div>
+  ) : null;
+
   return (
     <div className="pr-root" aria-hidden={!visible}>
       {deck && designed ? (
@@ -706,6 +765,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           deckDir={deckDir}
           visible={visible}
           generator={designer}
+          deckSwitcher={deckSwitcher}
           onSave={() => void documents.save()}
           onExport={() => setExporting({})}
           onPresent={(startId) => setPresenting({ startId })}
@@ -719,6 +779,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           deckDir={deckDir}
           visible={visible}
           generator={generator}
+          deckSwitcher={deckSwitcher}
           onExport={(write) => setExporting({ writePreserved: write })}
           onRebuild={(bytes) => void openPowerPoint(bytes, deck.source?.originalPath || `${deck.meta.title}.pptx`).catch((error: unknown) => store().update(workspaceId, { error: `Could not open the slides: ${error instanceof Error ? error.message : String(error)}` }))}
           onToast={(title, description) => setToast({ title, description })}
@@ -862,20 +923,39 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
             )}
           </div>
           <div className="pr-status">
-            <span className="pr-status__item"><span className={`pr-status__dot${session.error ? ' is-error' : session.dirty || session.saving ? ' is-dirty' : ''}`} />{session.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}</span>
-            <span className="pr-status__item">Slide {selectedIndex + 1} of {deck.slides.length}</span>
-            {warningCount > 0 && (
-              <button type="button" className="pr-status__item pr-status__warn" onClick={() => { setSideOpen(true); setSideTab('ai'); }}>
-                <Warning size={12} weight="fill" /> {warningCount} slide{warningCount === 1 ? '' : 's'} with overflowing text
-              </button>
-            )}
-            <span className="pr-status__item">{deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}{deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}</span>
+            <div className="pr-status__group pr-status__group--left">
+              <span className="pr-status__item">
+                <span className={`pr-status__dot${session.error ? ' is-error' : session.dirty || session.saving ? ' is-dirty' : ''}`} />
+                {session.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}
+              </span>
+              <span className="pr-status__sep" />
+              <span className="pr-status__item">Slide {selectedIndex + 1} of {deck.slides.length}</span>
+              {warningCount > 0 && (
+                <>
+                  <span className="pr-status__sep" />
+                  <button type="button" className="pr-status__item pr-status__warn" onClick={() => { setSideOpen(true); setSideTab('ai'); }}>
+                    <Warning size={12} weight="fill" /> {warningCount} slide{warningCount === 1 ? '' : 's'} with overflowing text
+                  </button>
+                </>
+              )}
+            </div>
+
             <span className="pr-status__spacer" />
-            <span className="pr-status__zoom">
-              <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.4, Math.round((value - 0.1) * 10) / 10))}><Minus size={11} /></button>
-              <button type="button" className="pr-status__zoom-value" title="Fit" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
-              <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(2.5, Math.round((value + 0.1) * 10) / 10))}><Plus size={11} /></button>
-            </span>
+
+            <div className="pr-status__group pr-status__group--right">
+              {deckSwitcher}
+              <span className="pr-status__sep" />
+              <span className="pr-status__item pr-status__engine" title={`AI Engine: ${deck.brief.engine.engine}`}>
+                <Sparkle size={11} weight="fill" className="pr-status__engine-icon" />
+                <span>{deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}{deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}</span>
+              </span>
+              <span className="pr-status__sep" />
+              <span className="pr-status__zoom">
+                <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label="Zoom out" onClick={() => setZoom((value) => Math.max(0.4, Math.round((value - 0.1) * 10) / 10))}><Minus size={11} /></button>
+                <button type="button" className="pr-status__zoom-value" title="Fit" onClick={() => setZoom(1)}>{Math.round(zoom * 100)}%</button>
+                <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label="Zoom in" onClick={() => setZoom((value) => Math.min(2.5, Math.round((value + 0.1) * 10) / 10))}><Plus size={11} /></button>
+              </span>
+            </div>
           </div>
         </div>
       ) : (
@@ -894,29 +974,6 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           onOpen={(path) => void documents.openDeck(path)}
           onImport={() => setImportState({ path: null, busy: false, error: null, progress: null })}
         />
-      )}
-
-      {deck && (
-        <div className="pr-deck-switch">
-          <select
-            className="pr-select pr-select--ghost"
-            value={session.deckPath ?? ''}
-            aria-label="Open presentation"
-            onChange={(event) => {
-              const value = event.target.value;
-              if (value === '__new') void documents.closeDeck();
-              else if (value === '__import') setImportState({ path: null, busy: false, error: null, progress: null });
-              else if (value === '__close') void documents.closeDeck();
-              else if (value) void documents.openDeck(value);
-            }}
-          >
-            {documents.decks.map((entry) => <option key={entry.path} value={entry.path}>{entry.title}</option>)}
-            {!documents.decks.some((entry) => entry.path === session.deckPath) && session.deckPath && <option value={session.deckPath}>{deck.meta.title}</option>}
-            <option value="__new">+ New presentation…</option>
-            <option value="__import">Open PowerPoint…</option>
-            <option value="__close">Close presentation</option>
-          </select>
-        </div>
       )}
 
       {importState && (

@@ -151,7 +151,8 @@ const RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const TABLE_DIVIDER = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEF = /^\[\^([^\]]+)\]:\s*(.*)$/;
 const FIGURE = /^\s*\[(?:Figure|Fig\.)\s*:?\s*([^\]]+)\]\s*$/i;
-const IMAGE = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/;
+const PHOTO = /^\s*\[Photo\s*:\s*([^\]|]+?)\s*(?:\|\s*([^\]]+?))?\s*\]\s*$/i;
+const IMAGE = /^\s*!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\s*$/;
 const TABLE_CAPTION = /^\s*(?:\*\*|_)?Table(?:\s+\d+(?:\.\d+)*)?\s*[:.—-]\s*(.+?)(?:\*\*|_)?\s*$/i;
 const BIBLIOGRAPHY = /^\s*\[\[BIBLIOGRAPHY\]\]\s*$/i;
 const PAGE_BREAK = /^\s*(?:\\pagebreak|\\newpage|<!--\s*pagebreak\s*-->|\[\[page ?break\]\])\s*$/i;
@@ -315,9 +316,17 @@ export function parseBlocks(source: string, opts: MarkdownOptions = {}): DocNode
       continue;
     }
 
+    const photo = PHOTO.exec(line);
+    if (photo) {
+      const caption = (photo[2] ?? photo[1]).trim();
+      blocks.push({ type: 'figure', attrs: { src: null, alt: caption, caption, query: photo[1].trim() } });
+      index += 1;
+      continue;
+    }
+
     const image = IMAGE.exec(line);
     if (image) {
-      blocks.push({ type: 'figure', attrs: { src: image[2], alt: image[1], caption: image[1] } });
+      blocks.push({ type: 'figure', attrs: { src: image[2], alt: image[1], caption: image[1], ...(image[3] ? { credit: image[3] } : {}) } });
       index += 1;
       continue;
     }
@@ -494,8 +503,14 @@ export function blocksToMarkdown(nodes: DocNode[], depth = 0): string {
         return '\\pagebreak';
       case 'bibliography':
         return '[[BIBLIOGRAPHY]]';
-      case 'figure':
-        return `[Figure: ${String(node.attrs?.caption ?? '')}]`;
+      case 'figure': {
+        const caption = String(node.attrs?.caption ?? '').replace(/[[\]]/g, '');
+        const credit = String(node.attrs?.credit ?? '').replace(/"/g, "'");
+        // Inline (data:) pictures would flood a prompt; they stay a placeholder.
+        if (node.attrs?.src && !/^data:/.test(String(node.attrs.src)) && !/\s/.test(String(node.attrs.src))) return `![${caption}](${String(node.attrs.src)}${credit ? ` "${credit}"` : ''})`;
+        if (node.attrs?.query) return `[Photo: ${String(node.attrs.query)} | ${caption}]`;
+        return `[Figure: ${caption}]`;
+      }
       case 'table': {
         const rows = (node.content ?? []).map((row) =>
           `| ${(row.content ?? []).map((cell) => inlineToMarkdown(cell.content?.[0]?.content).replace(/\|/g, '\\|')).join(' | ')} |`);

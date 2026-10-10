@@ -25,6 +25,7 @@ interface PreserveEditorProps {
   deckDir: string;
   visible: boolean;
   generator: ReturnType<typeof useDeckGenerator>;
+  deckSwitcher?: React.ReactNode;
   onExport: (write: (path: string) => Promise<void>) => void;
   onRebuild: (bytes: Uint8Array) => void;
   onToast: (title: string, description: string) => void;
@@ -76,7 +77,7 @@ function PreserveThumb({ slide, index, info, selected, svg, onSelect, onContext 
   );
 }
 
-export const PreserveEditor: React.FC<PreserveEditorProps> = ({ workspaceId, session, deck, deckDir, visible, generator, onExport, onRebuild, onToast }) => {
+export const PreserveEditor: React.FC<PreserveEditorProps> = ({ workspaceId, session, deck, deckDir, visible, generator, deckSwitcher, onExport, onRebuild, onToast }) => {
   const source = deck.source!;
   const store = usePresentationSessionStore.getState;
   const [original, setOriginal] = useState<Uint8Array | null>(null);
@@ -433,10 +434,30 @@ export const PreserveEditor: React.FC<PreserveEditorProps> = ({ workspaceId, ses
       </div>
 
       <div className="pr-status">
-        <span className="pr-status__item"><span className={`pr-status__dot${session.error ? ' is-error' : session.dirty || session.saving ? ' is-dirty' : ''}`} />{session.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}</span>
-        <span className="pr-status__item">Slide {selectedIndex + 1} of {slides.length}</span>
-        <span className="pr-status__item">{fileName(source.originalPath || source.pptxFile)}</span>
-        {rendering && <span className="pr-status__item">Updating preview…</span>}
+        <div className="pr-status__group pr-status__group--left">
+          <span className="pr-status__item">
+            <span className={`pr-status__dot${session.error ? ' is-error' : session.dirty || session.saving ? ' is-dirty' : ''}`} />
+            {session.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}
+          </span>
+          <span className="pr-status__sep" />
+          <span className="pr-status__item">Slide {selectedIndex + 1} of {slides.length}</span>
+          {rendering && (
+            <>
+              <span className="pr-status__sep" />
+              <span className="pr-status__item pr-status__updating">Updating preview…</span>
+            </>
+          )}
+        </div>
+
+        <span className="pr-status__spacer" />
+
+        <div className="pr-status__group pr-status__group--right">
+          {deckSwitcher}
+          <span className="pr-status__sep" />
+          <span className="pr-status__item pr-status__file" title={source.originalPath || source.pptxFile}>
+            {fileName(source.originalPath || source.pptxFile)}
+          </span>
+        </div>
       </div>
 
       {menu && createPortal(

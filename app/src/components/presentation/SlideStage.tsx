@@ -61,6 +61,9 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
   const height = canvas.height * scale;
   const host = useRef<HTMLDivElement>(null);
   const markup = useMemo(() => (svg ? prepareSvgForDisplay(svg, { prefix, resolveHref }) : ''), [prefix, resolveHref, svg]);
+  // React 19 re-applies `dangerouslySetInnerHTML` whenever the object changes, so it must be stable:
+  // a rebuilt slide drops the live drag transform (flicker) and the hidden state of text being edited.
+  const svgHtml = useMemo(() => ({ __html: markup }), [markup]);
   const elements = useMemo(() => listElements(svg), [svg]);
   const byId = useMemo(() => new Map(elements.map((info) => [info.id, info])), [elements]);
   const [rawBoxes, setRawBoxes] = useState<Record<string, Box>>({});
@@ -395,7 +398,16 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
     return { top: info.model, model, body, rect };
   }, [byId, editing, textDefaults]);
 
-  const editorHtml = useMemo(() => (editTarget ? bodyToHtml(editTarget.body, scale) : ''), [editTarget, scale]);
+  /** One editing session: the same target keeps the same key while the slide re-renders. */
+  const editKey = editing ? (editing.kind === 'model' ? `m:${editing.topId}:${editing.nestedId}` : `r:${editing.textIndex}`) : '';
+  // The editor's starting content, fixed for the session: re-applying it would wipe what has been typed.
+  const editorContent = useMemo(() => {
+    if (!editing) return { __html: '' };
+    if (editing.kind === 'model') return { __html: editTarget ? bodyToHtml(editTarget.body, scale) : '' };
+    const lines = svgTextItems(svg)[editing.textIndex]?.lines ?? [];
+    return { __html: lines.map((line) => `<div>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;') || '<br>'}</div>`).join('') };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editKey]);
   const committed = useRef(false);
 
   // Hide the drawn text while it is being typed over.
@@ -406,6 +418,7 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
     return () => node?.removeAttribute('data-editing');
   }, [editing, markup, topNode]);
 
+  // Focus and select the text once, when editing starts (not on every re-render while typing).
   useEffect(() => {
     committed.current = false;
     const editor = editorRef.current;
@@ -417,7 +430,8 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
     const selectionNow = window.getSelection();
     selectionNow?.removeAllRanges();
     selectionNow?.addRange(range);
-  }, [editTarget, editing, editorRef]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editKey, editorRef]);
 
   const finishEditing = useCallback((keep: boolean): void => {
     if (committed.current || !editing) return;
@@ -468,8 +482,30 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
     : editing?.kind === 'raw' ? editing.box : null;
   const rawText = editing?.kind === 'raw' ? (svgRoot()?.querySelectorAll('text')[editing.textIndex] as SVGTextElement | undefined) : undefined;
   const rawStyle = rawText ? getComputedStyle(rawText) : null;
-  const rawLines = editing?.kind === 'raw' ? svgTextItems(svg)[editing.textIndex]?.lines ?? [] : [];
-  const escapeLine = (line: string): string => line.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  // Drawn text never wraps: its editor grows from the text's anchor, one line per line, spaced like the slide.
+  const rawEditorStyle = ((): React.CSSProperties => {
+    if (!rawStyle || editing?.kind !== 'raw') return {};
+    const anchor = rawStyle.textAnchor === 'middle' ? 'middle' : rawStyle.textAnchor === 'end' ? 'end' : 'start';
+    const box = editing.box;
+    const step = Number.parseFloat(rawText?.querySelector('tspan[dy]')?.getAttribute('dy') ?? '');
+    const size = Number.parseFloat(rawStyle.fontSize);
+    return {
+      left: (anchor === 'middle' ? box.x + box.w / 2 : anchor === 'end' ? box.x + box.w : box.x) * scale,
+      width: 'max-content',
+      minWidth: 24,
+      height: 'auto',
+      transform: anchor === 'middle' ? 'translateX(-50%)' : anchor === 'end' ? 'translateX(-100%)' : undefined,
+      textAlign: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left',
+      whiteSpace: 'pre',
+      fontFamily: rawStyle.fontFamily,
+      fontSize: size * scale,
+      fontWeight: rawStyle.fontWeight as React.CSSProperties['fontWeight'],
+      fontStyle: rawStyle.fontStyle,
+      letterSpacing: rawStyle.letterSpacing,
+      color: /^url\(/.test(rawStyle.fill) || rawStyle.fill === 'none' ? undefined : rawStyle.fill,
+      lineHeight: Number.isFinite(step) && step > 0 ? `${step * scale}px` : 1.2,
+    };
+  })();
 
   if (!svg) return null;
 
@@ -484,13 +520,13 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
       onPointerLeave={() => setHover(null)}
       onDoubleClick={onDoubleClick}
     >
-      <div ref={host} className="ps-stage__svg" dangerouslySetInnerHTML={{ __html: markup }} />
+      <div ref={host} className="ps-stage__svg" dangerouslySetInnerHTML={svgHtml} />
       {editable && (
         <div className="ps-stage__overlay" aria-hidden={!editing}>
           {!editing && elements.filter((info) => info.kind === 'text' && !selection.includes(info.id)).map((info) => (
             <div key={`hit-${info.id}`} className="ps-hit" data-hit={info.id} style={frame(info.box, info.rot)} onPointerEnter={() => setHover(info.id)} />
           ))}
-          {hover && boxOf(hover) && <div className="ps-hover" style={frame(boxOf(hover)!, byId.get(hover)?.rot)} />}
+          {!editing && hover && boxOf(hover) && <div className="ps-hover" style={frame(boxOf(hover)!, byId.get(hover)?.rot)} />}
           {!editing && selection.map((id) => {
             const box = boxOf(id);
             if (!box) return null;
@@ -509,7 +545,7 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
           {marquee && <div className="ps-marquee" style={frame(marquee)} />}
           {editing && editorBox && (
             <div
-              key={editing.kind === 'model' ? editing.nestedId : `raw${editing.textIndex}`}
+              key={editKey}
               ref={editorRef}
               className="ps-editor"
               data-anchor={editing.kind === 'model' ? editTarget?.body.anc : 't'}
@@ -518,9 +554,11 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
               spellCheck
               style={{
                 ...frame(editorBox, editing.kind === 'model' ? editTarget?.top.rot : 0),
-                ...(rawStyle ? { fontFamily: rawStyle.fontFamily, fontSize: Number.parseFloat(rawStyle.fontSize) * scale, fontWeight: rawStyle.fontWeight as React.CSSProperties['fontWeight'], color: rawStyle.fill, minWidth: 40, height: 'auto', lineHeight: 1.25 } : {}),
+                // A text box grows downward as it is typed into, as it does once the text is kept.
+                ...(editing.kind === 'model' ? { height: 'auto', minHeight: Math.max(1, editorBox.h * scale) } : {}),
+                ...rawEditorStyle,
               }}
-              dangerouslySetInnerHTML={{ __html: editing.kind === 'model' ? editorHtml : rawLines.map((line) => `<div>${escapeLine(line) || '<br>'}</div>`).join('') }}
+              dangerouslySetInnerHTML={editorContent}
               onPointerDown={(event) => event.stopPropagation()}
               onDoubleClick={(event) => event.stopPropagation()}
               onBlur={() => finishEditing(true)}

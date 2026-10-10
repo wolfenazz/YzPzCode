@@ -102,7 +102,7 @@ function ProfilesTab({ onEdit }: { onEdit: (profile: ReportProfile | null) => vo
     >
       {message && <Notice tone={message.tone}>{message.text}</Notice>}
       {profiles.length === 0 ? (
-        <SettingsEmpty icon={BookmarkSimple} title="No profiles yet">Create one here, or save one from the last step of the report wizard.</SettingsEmpty>
+        <SettingsEmpty icon={BookmarkSimple} title="No profiles yet">A profile keeps your names, institution, house style and voice for one kind of report. Pick it in the report's composer.</SettingsEmpty>
       ) : profiles.map((profile) => {
         const type = getReportType(profile.typeId);
         return (
@@ -268,13 +268,11 @@ function EnginesTab(): React.JSX.Element {
 function StorageTab(): React.JSX.Element {
   const autosave = useWritingStore((state) => state.autosaveDelayMs);
   const snapshots = useWritingStore((state) => state.snapshotLimit);
-  const openWizard = useWritingStore((state) => state.openWizardOnStart);
   const setPreference = useWritingStore((state) => state.setPreference);
   return (
     <SettingsGroup title="Saving" description="Reports are saved as .yzdoc files in each writing workspace's Reports folder, with their images and exports beside them.">
       <SliderRow label="Autosave after typing stops" value={autosave} min={500} max={10000} step={250} format={(value) => `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)} s`} onChange={(value) => setPreference('autosaveDelayMs', value)} />
       <SliderRow label="Version history" description="Copies kept in the report's .history folder, at most one every five minutes." value={snapshots} min={0} max={100} step={5} format={(value) => (value === 0 ? 'Off' : `${value} versions`)} onChange={(value) => setPreference('snapshotLimit', value)} />
-      <ToggleRow label="Open the report wizard in empty writing workspaces" checked={openWizard} onChange={(value) => setPreference('openWizardOnStart', value)} />
     </SettingsGroup>
   );
 }

@@ -180,7 +180,8 @@ function block(node: DocNode, ctx: Context, order: string[]): string {
       const body = data
         ? `<img src="${escapeHtml(data)}" alt="${escapeHtml(String(node.attrs?.alt ?? caption))}" style="width:${width}%">`
         : `<div class="figure-placeholder">${escapeHtml(caption || 'Figure')}</div>`;
-      return `<figure${id ? ` id="${id}"` : ''}>${body}${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''}</figure>`;
+      const credit = data ? String(node.attrs?.credit ?? '') : '';
+      return `<figure${id ? ` id="${id}"` : ''}>${body}${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ''}${credit ? `<div class="figure-credit">${escapeHtml(credit)}</div>` : ''}</figure>`;
     }
     case 'bibliography': return bibliographyHtml(ctx, order);
     case 'tableOfContents':
@@ -328,6 +329,7 @@ figure { margin: 1em 0; text-align: center; break-inside: avoid; counter-increme
 figure img { max-width: 100%; }
 figcaption { margin-top: 0.4em; font-size: 0.88em; }
 figcaption::before { content: "Figure " counter(figure) ". "; font-weight: 700; }
+.figure-credit { margin-top: 0.2em; font-size: 0.75em; color: #6b6b78; }
 .figure-placeholder { padding: 2.4em 1em; border: 1px dashed #b4b4be; color: #6b6b78; font-style: italic; }
 .footnote { float: footnote; font-size: 8.5pt; line-height: 1.3; text-align: left; text-indent: 0; }
 ::footnote-call { content: counter(footnote); vertical-align: super; font-size: 0.68em; line-height: 0; color: ${style.accentColor}; }

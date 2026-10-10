@@ -5,6 +5,7 @@ import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/p
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { lintText, type LintIssue } from '../../../utils/writing/humanizer';
+import { spaceToPageEnd } from '../../../utils/writing/pageFlow';
 import { breakerRects } from './pageGeometry';
 import {
   BibliographyView,
@@ -132,6 +133,10 @@ export const Figure = Node.create({
     alt: { default: '' },
     caption: { default: '' },
     width: { default: 80 },
+    /** Search words for a web photo the writer asked for; cleared once a picture is in. */
+    query: { default: null },
+    /** Credit line of a web photo ("Photo: Ann Lee / Unsplash"). */
+    credit: { default: '' },
   }),
   parseHTML: () => [{
     tag: 'figure',
@@ -142,12 +147,13 @@ export const Figure = Node.create({
         src: img?.getAttribute('src') ?? null,
         alt: img?.getAttribute('alt') ?? '',
         caption: figure.querySelector('figcaption')?.textContent ?? '',
+        credit: figure.getAttribute('data-credit') ?? '',
       };
     },
   }],
   renderHTML: ({ node }) => [
     'figure',
-    { class: 'wr-figure' },
+    { class: 'wr-figure', 'data-credit': node.attrs.credit || null },
     ['img', { src: node.attrs.src ?? '', alt: node.attrs.alt }],
     ['figcaption', {}, node.attrs.caption],
   ],
@@ -289,9 +295,9 @@ export const AiStream = Extension.create({
 
 export const lintKey = new PluginKey<{ enabled: boolean; phrases: string[]; decorations: DecorationSet }>('wrLint');
 
-function lintDecorations(doc: PmNode, phrases: string[]): DecorationSet {
+function lintDecorations(doc: PmNode, phrases: string[], from = 0, to = doc.content.size): Decoration[] {
   const decorations: Decoration[] = [];
-  doc.descendants((node, pos) => {
+  doc.nodesBetween(from, to, (node, pos) => {
     if (!node.isTextblock || node.type.name === 'codeBlock' || node.type.name === 'heading') return node.isBlock;
     const offsets: number[] = [];
     let text = '';
@@ -318,7 +324,40 @@ function lintDecorations(doc: PmNode, phrases: string[]): DecorationSet {
     }
     return false;
   });
-  return DecorationSet.create(doc, decorations);
+  return decorations;
+}
+
+/** The top-level blocks a transaction touched, in the new document; null when no text moved. */
+function changedBlocks(tr: Transaction): { from: number; to: number } | null {
+  let from = Infinity;
+  let to = -Infinity;
+  tr.mapping.maps.forEach((map, index) => {
+    const rest = tr.mapping.slice(index + 1);
+    map.forEach((_oldStart, _oldEnd, newStart, newEnd) => {
+      from = Math.min(from, rest.map(newStart, -1));
+      to = Math.max(to, rest.map(newEnd, 1));
+    });
+  });
+  if (from > to) return null;
+  const { doc } = tr;
+  const $from = doc.resolve(Math.max(0, Math.min(from, doc.content.size)));
+  const $to = doc.resolve(Math.max(0, Math.min(to, doc.content.size)));
+  return {
+    from: $from.depth > 0 ? $from.before(1) : $from.pos,
+    to: $to.depth > 0 ? $to.after(1) : $to.pos,
+  };
+}
+
+/** Maps the lint marks through `tr` and checks again only the blocks it changed (keeps streaming cheap). */
+function updateLint(previous: DecorationSet, tr: Transaction, phrases: string[]): DecorationSet {
+  const range = changedBlocks(tr);
+  const mapped = previous.map(tr.mapping, tr.doc);
+  if (!range) return mapped;
+  // `find` also returns marks that only touch the range (a neighbour's block mark): keep those.
+  const stale = mapped.find(range.from, range.to).filter((decoration) => decoration.from < range.to && decoration.to > range.from);
+  return mapped
+    .remove(stale)
+    .add(tr.doc, lintDecorations(tr.doc, phrases, range.from, range.to));
 }
 
 /** Highlights AI-sounding phrases and flat rhythm when the humanizer review is on. */
@@ -335,7 +374,8 @@ export const HumanizerLint = Extension.create({
             const enabled = meta?.enabled ?? value.enabled;
             const phrases = meta?.phrases ?? value.phrases;
             if (!enabled) return { enabled, phrases, decorations: DecorationSet.empty };
-            if (meta || tr.docChanged) return { enabled, phrases, decorations: lintDecorations(state.doc, phrases) };
+            if (meta) return { enabled, phrases, decorations: DecorationSet.create(state.doc, lintDecorations(state.doc, phrases)) };
+            if (tr.docChanged) return { enabled, phrases, decorations: updateLint(value.decorations, tr, phrases) };
             return value;
           },
         },
@@ -355,7 +395,30 @@ export const HumanizerLint = Extension.create({
  * extension lays pages out with floated "breaker" blocks that push line boxes
  * down; padding an element so its content would start inside a breaker moves
  * that content to the top of the next page.
+ *
+ * The padding is a node decoration, so ProseMirror owns it. (Writing it straight
+ * onto the DOM made ProseMirror treat it as a foreign edit and redraw the node
+ * without it: the document lost pages, the padding came back, and the pages and
+ * scrollbar flickered for ever.)
  */
+interface PagePad {
+  pos: number;
+  top: number;
+  bottom: number;
+}
+
+const pageFlowKey = new PluginKey<DecorationSet>('wrPageFlow');
+
+function padDecorations(doc: PmNode, pads: PagePad[]): DecorationSet {
+  const decorations: Decoration[] = [];
+  for (const { pos, top, bottom } of pads) {
+    const node = doc.nodeAt(pos);
+    const style = [top > 0 ? `padding-top: ${top}px` : '', bottom > 0 ? `padding-bottom: ${bottom}px` : ''].filter(Boolean).join('; ');
+    if (node && style) decorations.push(Decoration.node(pos, pos + node.nodeSize, { style }));
+  }
+  return DecorationSet.create(doc, decorations);
+}
+
 export const PageFlow = Extension.create<{ sectionBreaks: boolean }>({
   name: 'pageFlow',
   addOptions: () => ({ sectionBreaks: true }),
@@ -364,8 +427,19 @@ export const PageFlow = Extension.create<{ sectionBreaks: boolean }>({
     const storage = this.storage as { sectionBreaks: boolean };
     storage.sectionBreaks = this.options.sectionBreaks;
     return [
-      new Plugin({
-        key: new PluginKey('wrPageFlow'),
+      new Plugin<DecorationSet>({
+        key: pageFlowKey,
+        state: {
+          init: () => DecorationSet.empty,
+          apply: (tr, set) => {
+            const pads = tr.getMeta(pageFlowKey) as PagePad[] | undefined;
+            if (pads) return padDecorations(tr.doc, pads);
+            return tr.docChanged ? set.map(tr.mapping, tr.doc) : set;
+          },
+        },
+        props: {
+          decorations: (state) => pageFlowKey.getState(state),
+        },
         view: (view: EditorView) => {
           let frame = 0;
           let observer: ResizeObserver | null = null;
@@ -391,14 +465,6 @@ export const PageFlow = Extension.create<{ sectionBreaks: boolean }>({
   },
 });
 
-/** Space from `y` to the end of its page's content area, or 0 when `y` already starts a page. */
-function spaceToPageEnd(y: number, breakers: Array<{ top: number; bottom: number }>, pageTop: number): number {
-  const previousEnd = [pageTop, ...breakers.map((breaker) => breaker.bottom)].filter((edge) => edge <= y + 0.5).pop() ?? pageTop;
-  if (y - previousEnd < 2) return 0;
-  const next = breakers.find((breaker) => breaker.top > y);
-  return next ? Math.max(0, next.top - y + 1) : 0;
-}
-
 let layoutDepth = 0;
 
 function layoutBreaks(view: EditorView, sectionBreaks: boolean): void {
@@ -411,41 +477,66 @@ function layoutBreaks(view: EditorView, sectionBreaks: boolean): void {
   // Rects are in screen pixels; padding is in CSS pixels (they differ when the page is zoomed).
   const scale = root.offsetWidth > 0 ? root.getBoundingClientRect().width / root.offsetWidth : 1;
 
-  const targets = Array.from(root.querySelectorAll<HTMLElement>('[data-break-before], [data-break-after], h1[data-section-id]'))
-    .filter((element) => element.parentElement === root);
+  const targets: Array<{ element: HTMLElement; pos: number }> = [];
+  view.state.doc.forEach((_node, offset) => {
+    const dom = view.nodeDOM(offset);
+    if (dom instanceof HTMLElement && dom.parentElement === root && dom.matches('[data-break-before], [data-break-after], h1[data-section-id]')) {
+      targets.push({ element: dom, pos: offset });
+    }
+  });
+  // The breakers are floats at the top of the editor: padding the text never moves them.
+  const breakers = breakerRects(root);
+  const pads: PagePad[] = [];
   let changed = false;
   let firstSection = true;
-  for (const element of targets) {
-    const isSectionHeading = element.tagName === 'H1';
-    const breakBefore = element.hasAttribute('data-break-before') || (isSectionHeading && sectionBreaks && !firstSection);
-    if (isSectionHeading) firstSection = false;
-    const breakers = breakerRects(root);
-    if (breakBefore) {
-      const current = parseFloat(element.style.paddingTop) || 0;
-      const top = element.getBoundingClientRect().top;
-      const needed = Math.round(spaceToPageEnd(top, breakers, pageTop) / scale);
-      if (Math.abs(needed - current) > 1) {
-        element.style.paddingTop = needed > 0 ? `${needed}px` : '';
+  // Each padding moves everything after it, so it is written as it is measured; ProseMirror
+  // must not see these writes (it would redraw the nodes). The decorations dispatched
+  // below carry the same values, so later redraws keep them.
+  const observer = (view as unknown as { domObserver?: { stop: () => void; start: () => void } }).domObserver;
+  observer?.stop();
+  try {
+    for (const { element, pos } of targets) {
+      const isSectionHeading = element.tagName === 'H1';
+      const breakBefore = element.hasAttribute('data-break-before') || (isSectionHeading && sectionBreaks && !firstSection);
+      if (isSectionHeading) firstSection = false;
+      let top = 0;
+      if (breakBefore) {
+        const current = parseFloat(element.style.paddingTop) || 0;
+        const space = spaceToPageEnd(element.getBoundingClientRect().top, breakers, pageTop);
+        // Past the last page: keep the padding until the pagination has added pages.
+        top = space === null ? current : Math.round(space / scale);
+        if (Math.abs(top - current) > 1) {
+          element.style.paddingTop = top > 0 ? `${top}px` : '';
+          changed = true;
+        } else {
+          top = current;
+        }
+      } else if (element.style.paddingTop) {
+        element.style.paddingTop = '';
         changed = true;
       }
-    } else if (element.style.paddingTop) {
-      element.style.paddingTop = '';
-      changed = true;
-    }
-    if (element.hasAttribute('data-break-after')) {
-      const current = parseFloat(element.style.paddingBottom) || 0;
-      const contentBottom = element.getBoundingClientRect().bottom - current * scale;
-      const needed = Math.round(spaceToPageEnd(contentBottom, breakerRects(root), pageTop) / scale);
-      if (Math.abs(needed - current) > 1) {
-        element.style.paddingBottom = needed > 0 ? `${needed}px` : '';
-        changed = true;
+      let bottom = 0;
+      if (element.hasAttribute('data-break-after')) {
+        const current = parseFloat(element.style.paddingBottom) || 0;
+        const contentBottom = element.getBoundingClientRect().bottom - current * scale;
+        const space = spaceToPageEnd(contentBottom, breakers, pageTop);
+        bottom = space === null ? current : Math.round(space / scale);
+        if (Math.abs(bottom - current) > 1) {
+          element.style.paddingBottom = bottom > 0 ? `${bottom}px` : '';
+          changed = true;
+        } else {
+          bottom = current;
+        }
       }
+      if (top > 0 || bottom > 0) pads.push({ pos, top, bottom });
     }
+  } finally {
+    observer?.start();
   }
-  // Let the pagination extension recount pages after the layout moved.
+  // Store the padding and let the pagination extension recount pages after the layout moved.
   if (changed && layoutDepth < 4) {
     layoutDepth += 1;
-    view.dispatch(view.state.tr.setMeta('addToHistory', false).setMeta('wrPageFlow', true));
+    view.dispatch(view.state.tr.setMeta(pageFlowKey, pads).setMeta('addToHistory', false).setMeta('wrPageFlow', true));
     layoutDepth -= 1;
   }
 }

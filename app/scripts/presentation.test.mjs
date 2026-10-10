@@ -968,3 +968,23 @@ test('modelled elements export as native PowerPoint text boxes, pictures and tab
   const picture = modelPptx.elementXml({ k: 'pic', id: 'p', box: { x: 10, y: 10, w: 50, h: 50 }, href: 'assets/a.png', crop: [0.1, 0, 0.1, 0], line: null }, context(() => 'rId7'));
   assert.match(picture, /<a:blip r:embed="rId7"><\/a:blip><a:srcRect l="10000" t="0" r="10000" b="0"\/>/);
 });
+
+test('art direction can ask for real web photos, and drawing prompts carry their credit', () => {
+  const plain = designPrompts.buildDirectionPrompt({ prompt: 'Ports of the Gulf', attachments: [], sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: false });
+  assert.doesNotMatch(plain.prompt, /PHOTOS FROM THE WEB|"photo"/);
+  const withPhotos = designPrompts.buildDirectionPrompt({ prompt: 'Ports of the Gulf', attachments: [], sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: false, webPhotos: true });
+  assert.match(withPhotos.prompt, /PHOTOS FROM THE WEB/);
+  assert.match(withPhotos.prompt, /"photo": "search words/);
+  const restyle = designPrompts.buildDirectionPrompt({ prompt: 'x', attachments: [], sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: false, webPhotos: true, keepPages: [{ role: 'cover', title: 'A', brief: 'b', density: 'anchor' }] });
+  assert.doesNotMatch(restyle.prompt, /PHOTOS FROM THE WEB/);
+
+  const reply = JSON.stringify({ title: 'Ports', design: {}, pages: [{ role: 'cover', title: 'Cover', brief: 'b', photo: '  container port cranes dusk ' }, { title: 'Data', brief: 'b' }] });
+  const direction = designPrompts.parseDirection(reply);
+  assert.equal(direction.pages[0].photo, 'container port cranes dusk');
+  assert.equal(direction.pages[1].photo, undefined);
+
+  const attachments = [{ path: 'assets/web-port.jpg', name: 'web-port.jpg', kind: 'image', use: 'slides', width: 1600, height: 1000, credit: 'Photo: Ann Lee / Unsplash' }];
+  const described = designPrompts.describeAttachments(attachments, false);
+  assert.match(described, /photos found on the web/);
+  assert.match(described, /print the credit "Photo: Ann Lee \/ Unsplash"/);
+});

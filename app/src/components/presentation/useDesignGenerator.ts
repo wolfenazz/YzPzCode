@@ -55,6 +55,8 @@ export interface DirectionRequest {
   language: string;
   size: DeckSize;
   engine: EngineChoice;
+  /** Pages may ask for real photos from the web. */
+  webPhotos?: boolean;
 }
 
 /** A redrawn or new page the user reviews before it replaces anything. */
@@ -171,6 +173,7 @@ export function useDesignGenerator(workspaceId: string) {
       language: request.language,
       canvas: designCanvas(request.size),
       seesImages: seesImages(request.engine) && request.imagePaths.length > 0 ? request.pictureView : false,
+      webPhotos: request.webPhotos,
     });
     const result = await runAi(request.engine, 'Inventing the design and the storyline', system, prompt, { images: seesImages(request.engine) ? request.imagePaths : [] });
     if (!result.ok) {
@@ -453,5 +456,5 @@ function toProposal(block: SlideBlock | undefined, size: DeckSize): SlideProposa
 
 /** Placeholder pages for a storyline, drawn by `drawSlides`. */
 export function storySlides(direction: DirectionResult, newId: () => string): DesignedSlide[] {
-  return direction.pages.map((page) => ({ id: newId(), ...page, svg: '', notes: '' }));
+  return direction.pages.map(({ photo: _photo, ...page }) => ({ id: newId(), ...page, svg: '', notes: '' }));
 }

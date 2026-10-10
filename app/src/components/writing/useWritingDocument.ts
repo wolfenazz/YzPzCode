@@ -212,6 +212,13 @@ export function useWritingDocument(workspaceId: string, workspacePath: string, g
     return path;
   }, [flush, loadDoc, refreshReports, reports, workspacePath]);
 
+  /** Saves and closes the open report; the studio returns to its home. */
+  const closeReport = useCallback(async (): Promise<void> => {
+    await flush();
+    update(workspaceId, (current) => ({ docPath: null, meta: null, brief: null, outline: [], bibliography: [], dirty: false, saving: false, error: null, run: null, contentVersion: current.contentVersion + 1 }));
+    void refreshReports();
+  }, [flush, refreshReports, update, workspaceId]);
+
   const deleteReport = useCallback(async (path: string): Promise<void> => {
     const session = useWritingSessionStore.getState().sessions[workspaceId];
     await invoke('delete_entry', { path: parentPath(path) });
@@ -229,6 +236,7 @@ export function useWritingDocument(workspaceId: string, workspacePath: string, g
     refreshReports,
     openReport,
     createReport,
+    closeReport,
     deleteReport,
     loadDoc,
     save,

@@ -126,7 +126,7 @@ export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, de
     try {
       const dataUrl = await invoke<string>('read_file_as_base64', { path: picked });
       await invoke('write_file_bytes', { path: target, base64Data: dataUrl.slice(dataUrl.indexOf(',') + 1) });
-      updateAttributes({ src: `assets/${fileName(target)}` });
+      updateAttributes({ src: `assets/${fileName(target)}`, query: null, credit: '' });
     } catch (error) {
       console.error('Could not add the image:', error);
     }
@@ -140,8 +140,8 @@ export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, de
         ) : (
           <button type="button" className="wr-figure__placeholder" onClick={() => void chooseImage()}>
             <ImageSquare size={28} weight="thin" />
-            <span className="wr-figure__placeholder-title">Figure placeholder</span>
-            <span className="wr-figure__placeholder-hint">{String(node.attrs.caption || 'Click to insert an image')}</span>
+            <span className="wr-figure__placeholder-title">{node.attrs.query ? 'Photo' : 'Figure placeholder'}</span>
+            <span className="wr-figure__placeholder-hint">{node.attrs.query ? `From the web: “${String(node.attrs.query)}”. Click to use your own picture.` : String(node.attrs.caption || 'Click to insert an image')}</span>
           </button>
         )}
         <div className="wr-figure__tools">
@@ -164,6 +164,7 @@ export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, de
         placeholder="Figure caption"
         onChange={(event) => updateAttributes({ caption: event.target.value, alt: event.target.value })}
       />
+      {node.attrs.credit && <div className="wr-figure__credit">{String(node.attrs.credit)}</div>}
     </NodeViewWrapper>
   );
 };

@@ -84,6 +84,8 @@ export interface DesignAttachment {
   colors?: string[];
   /** What the picture shows, written by an AI that saw it (for the engines that cannot). */
   caption?: string;
+  /** Web photos: the credit line printed with the picture ("Photo: Ann Lee / Unsplash"). */
+  credit?: string;
 }
 
 /** Where a deck came from when it was not designed by the AI. */
@@ -118,6 +120,8 @@ export interface StoryPage {
   density: DesignDensity;
   /** Deck pictures (`assets/…`) planned for this page. */
   pictures?: string[];
+  /** Search words for a real photo from the web this page should show (art direction only). */
+  photo?: string;
 }
 
 export interface DirectionResult {

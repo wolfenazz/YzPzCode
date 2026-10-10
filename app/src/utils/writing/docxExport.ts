@@ -288,6 +288,13 @@ function blockNodes(node: DocNode, b: Builder, opts: BlockOptions = {}): Array<P
           children: [new TextRun({ text: 'Figure ', bold: true }), new SequentialIdentifier('Figure'), new TextRun({ text: `. ${caption}` })],
         }));
       }
+      const credit = image ? String(node.attrs?.credit ?? '') : '';
+      if (credit) {
+        out.push(new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: credit, size: 16, color: '6B6B78' })],
+        }));
+      }
       return out;
     }
     case 'bibliography': {

@@ -24,6 +24,8 @@ export const SvgSlide: React.FC<SvgSlideProps> = memo(function SvgSlide({ svg, w
   const host = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const markup = useMemo(() => (svg ? prepareSvgForDisplay(svg, { prefix, resolveHref, indexTargets: interactive }) : ''), [interactive, prefix, resolveHref, svg]);
+  // Stable, so a re-render does not rebuild the slide (React 19 compares the object, not the string).
+  const html = useMemo(() => ({ __html: markup }), [markup]);
 
   // A frame around the selected text, measured from the drawn element.
   useLayoutEffect(() => {
@@ -67,7 +69,7 @@ export const SvgSlide: React.FC<SvgSlideProps> = memo(function SvgSlide({ svg, w
 
   return (
     <div ref={host} className="pd-slide" data-interactive={interactive || undefined} style={{ width, height }} onClick={onClick}>
-      <div className="pd-slide__svg" dangerouslySetInnerHTML={{ __html: markup }} />
+      <div className="pd-slide__svg" dangerouslySetInnerHTML={html} />
       {highlight && <span className="pd-slide__highlight" style={highlight} aria-hidden="true" />}
     </div>
   );

@@ -29,7 +29,7 @@ import type { SlideRunStatus, SlideTransition, YzDeck } from '../../utils/presen
 import { fileName, joinPath } from '../../utils/writing/document';
 import { localFileUrl } from '../../utils/mediaFiles';
 import { IMAGE_EXTENSIONS, pictureInfo, scanFolderPictures } from './designAssets';
-import { ensureFonts, measureSlideText, svgFontFamilies } from './deckFonts';
+import { cleanFontDisplay, ensureFonts, measureSlideText, svgFontFamilies } from './deckFonts';
 import { EnginePicker } from './EnginePicker';
 import { FormatBar, type AlignHow, type ShapeKind } from './FormatBar';
 import { SlideStage, type EditTarget, type StageApi } from './SlideStage';
@@ -47,6 +47,7 @@ interface DesignedEditorProps {
   deckDir: string;
   visible: boolean;
   generator: Generator;
+  deckSwitcher?: React.ReactNode;
   onSave: () => void;
   onExport: () => void;
   onPresent: (startId: string | null) => void;
@@ -182,7 +183,7 @@ function coverCrop(iw: number, ih: number, w: number, h: number): [number, numbe
   return [0, cut, 0, cut];
 }
 
-export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, workspacePath, session, deck, deckDir, visible, generator, onSave, onExport, onPresent, onToast }) => {
+export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, workspacePath, session, deck, deckDir, visible, generator, deckSwitcher, onSave, onExport, onPresent, onToast }) => {
   const design = deck.design!;
   const canvas = useMemo(() => svgSize(design.slides.find((entry) => entry.svg)?.svg ?? '', designCanvas(deck.size)), [deck.size, design.slides]);
   const store = usePresentationSessionStore.getState;
@@ -925,7 +926,10 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
           {slide && (
             <div className="pr-notes" data-open={notesOpen || undefined}>
               <button type="button" className="pr-notes__head" onClick={() => setNotesOpen((value) => !value)}>
-                <NotePencil size={13} /> Speaker notes {notesOpen ? <CaretDown size={11} /> : <CaretUp size={11} />}
+                <NotePencil size={13} />
+                <span>Speaker notes</span>
+                {slide.notes?.trim() && <span className="pr-notes__badge" title="This slide has speaker notes" />}
+                <span className="pr-notes__caret">{notesOpen ? <CaretDown size={11} /> : <CaretUp size={11} />}</span>
               </button>
               {notesOpen && (
                 <textarea
@@ -1148,21 +1152,21 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                     <label>
                       <span>Headings</span>
                       <select className="pr-select" value={(fontDraft ?? design.system.fonts).heading} onChange={(event) => setFontDraft({ ...(fontDraft ?? design.system.fonts), heading: event.target.value })}>
-                        {fontChoices.map((family) => <option key={family} value={family}>{family}</option>)}
+                        {fontChoices.map((family) => <option key={family} value={family}>{cleanFontDisplay(family) || family}</option>)}
                       </select>
                     </label>
                     <label>
                       <span>Body</span>
                       <select className="pr-select" value={(fontDraft ?? design.system.fonts).body} onChange={(event) => setFontDraft({ ...(fontDraft ?? design.system.fonts), body: event.target.value })}>
-                        {fontChoices.map((family) => <option key={family} value={family}>{family}</option>)}
+                        {fontChoices.map((family) => <option key={family} value={family}>{cleanFontDisplay(family) || family}</option>)}
                       </select>
                     </label>
                   </div>
                   <div className="pd-fonts" style={{ background: design.system.palette.background, color: design.system.palette.text }}>
                     <span style={{ fontFamily: `'${(fontDraft ?? design.system.fonts).heading}'`, color: design.system.palette.primary }}>Aa</span>
                     <span>
-                      <strong style={{ fontFamily: `'${(fontDraft ?? design.system.fonts).heading}'` }}>{(fontDraft ?? design.system.fonts).heading}</strong>
-                      <span style={{ fontFamily: `'${(fontDraft ?? design.system.fonts).body}'`, color: design.system.palette.muted }}>{(fontDraft ?? design.system.fonts).body}</span>
+                      <strong style={{ fontFamily: `'${(fontDraft ?? design.system.fonts).heading}'` }}>{cleanFontDisplay((fontDraft ?? design.system.fonts).heading)}</strong>
+                      <span style={{ fontFamily: `'${(fontDraft ?? design.system.fonts).body}'`, color: design.system.palette.muted }}>{cleanFontDisplay((fontDraft ?? design.system.fonts).body)}</span>
                     </span>
                   </div>
                   <button
@@ -1280,12 +1284,44 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       </div>
 
       <div className="pr-status">
-        <span className="pr-status__item"><span className={`pr-status__dot${session.error ? ' is-error' : session.dirty || session.saving ? ' is-dirty' : ''}`} />{session.error ?? run?.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}</span>
-        <span className="pr-status__item">Slide {selectedIndex + 1} of {design.slides.length}</span>
-        {selectionLabel && <span className="pr-status__item">{selectionLabel}</span>}
+        <div className="pr-status__group pr-status__group--left">
+          <span className="pr-status__item">
+            <span className={`pr-status__dot${session.error ? ' is-error' : session.dirty || session.saving ? ' is-dirty' : ''}`} />
+            {session.error ?? run?.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}
+          </span>
+          <span className="pr-status__sep" />
+          <span className="pr-status__item">Slide {selectedIndex + 1} of {design.slides.length}</span>
+          {selectionLabel && (
+            <>
+              <span className="pr-status__sep" />
+              <span className="pr-status__item pr-status__selection" title={selectionLabel}>{selectionLabel}</span>
+            </>
+          )}
+        </div>
+
         <span className="pr-status__spacer" />
-        <span className="pr-status__item">{deck.size} · {design.system.fonts.heading} / {design.system.fonts.body}</span>
-        <span className="pr-status__item">{deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}{deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}</span>
+
+        <div className="pr-status__group pr-status__group--right">
+          {deckSwitcher}
+          <span className="pr-status__sep" />
+          <span
+            className="pr-status__item pr-status__meta"
+            title={`Slide size: ${deck.size} · Heading font: ${design.system.fonts.heading} · Body font: ${design.system.fonts.body}`}
+          >
+            <span className="pr-status__badge">{deck.size}</span>
+            <span className="pr-status__fonts">
+              {cleanFontDisplay(design.system.fonts.heading)} / {cleanFontDisplay(design.system.fonts.body)}
+            </span>
+          </span>
+          <span className="pr-status__sep" />
+          <span
+            className="pr-status__item pr-status__engine"
+            title={`AI Engine: ${deck.brief.engine.engine}${deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}`}
+          >
+            <Sparkle size={11} weight="fill" className="pr-status__engine-icon" />
+            <span>{deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}{deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}</span>
+          </span>
+        </div>
       </div>
 
       {menu && menuSlide && createPortal(
