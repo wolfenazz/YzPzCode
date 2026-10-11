@@ -14,6 +14,7 @@ mod open_file_commands;
 mod os_commands;
 mod presentation_commands;
 mod terminal_commands;
+mod tts_commands;
 mod window_commands;
 mod writing_commands;
 
@@ -33,5 +34,6 @@ pub use open_file_commands::*;
 pub use os_commands::*;
 pub use presentation_commands::*;
 pub use terminal_commands::*;
+pub use tts_commands::*;
 pub use window_commands::*;
 pub use writing_commands::*;

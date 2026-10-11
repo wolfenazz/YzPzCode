@@ -5,6 +5,7 @@ import { open, save } from '@tauri-apps/plugin-dialog';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { ArrowRight, FolderOpen, X } from '@phosphor-icons/react';
 import { writeFileBytes } from '../../utils/presentation/assets';
+import { animationsOn } from '../../utils/presentation/deck';
 import { designCanvas } from '../../utils/presentation/designStyles';
 import type { YzDeck } from '../../utils/presentation/types';
 import { joinPath, slugify } from '../../utils/writing/document';
@@ -14,7 +15,7 @@ import { SvgSlide } from './SvgSlide';
 type Format = 'pptx' | 'pptx-pictures' | 'pdf' | 'png' | 'html';
 
 const FORMATS: Array<{ id: Format; label: string; hint: string; badge: string; color: string; extension: string }> = [
-  { id: 'pptx', label: 'PowerPoint', hint: 'Native, editable shapes and text, speaker notes, the deck colours in the theme', badge: 'PPTX', color: '#c43e1c', extension: 'pptx' },
+  { id: 'pptx', label: 'PowerPoint', hint: 'Native, editable shapes and text, element animations, speaker notes, the deck colours in the theme', badge: 'PPTX', color: '#c43e1c', extension: 'pptx' },
   { id: 'pptx-pictures', label: 'PowerPoint, exact look', hint: 'Each slide as one picture: looks identical everywhere, text not editable', badge: 'PPTX', color: '#a4373a', extension: 'pptx' },
   { id: 'pdf', label: 'PDF', hint: 'One page per slide, exactly as designed', badge: 'PDF', color: '#b42318', extension: 'pdf' },
   { id: 'png', label: 'Images', hint: 'A 1920-wide PNG for every slide, into a folder', badge: 'PNG', color: '#0f766e', extension: 'png' },
@@ -115,6 +116,8 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
           picture: (href) => usable.get(href) ?? null,
           measure: measureText,
           lang: langTag(design.language),
+          animations: animationsOn(deck),
+          transition: deck.transition,
         });
         pngs = [];
         await writeFileBytes(path, bytes);

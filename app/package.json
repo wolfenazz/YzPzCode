@@ -1,13 +1,14 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.29.0",
+  "version": "5.30.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",
     "build": "node scripts/ensure-drawio.mjs && tsc && vite build --configLoader runner",
     "test:terminal-mouse": "node --test scripts/test-terminal-mouse-modes.mjs scripts/test-terminal-session-creation.mjs",
     "test:terminal-rendering": "node --test scripts/terminal-rendering.test.mjs",
+    "test:workspace-view": "node --test scripts/workspace-view.test.mjs",
     "test:workspace-setup": "node --test scripts/workspace-setup.test.mjs scripts/test-terminal-session-creation.mjs",
     "test:workspace-background": "node --test scripts/workspace-background.test.mjs scripts/light-rays-lifecycle.test.mjs scripts/setup-background.test.mjs scripts/galaxy-lifecycle.test.mjs",
     "test:custom-theme": "node --test scripts/custom-theme.test.mjs",

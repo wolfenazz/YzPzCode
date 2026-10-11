@@ -218,11 +218,17 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
     const wanted = queries.slice(0, Math.max(0, MAX_WEB_PHOTOS - placed - fetching.current.size));
     if (wanted.length === 0) return;
     wanted.forEach((query) => fetching.current.add(query));
-    const found = await fetchWebPictures(wanted, joinPath(parentPath(docPath), 'assets'));
+    // Its own run (the AI's web search, or the photo service), beside the section being written.
+    const found = await fetchWebPictures(wanted, joinPath(parentPath(docPath), 'assets'), current.brief.engine).catch((error: unknown) => {
+      console.warn('Web photos failed:', error);
+      return null;
+    });
     wanted.forEach((query, index) => {
       fetching.current.delete(query);
-      if (!found[index]) notFound.current.add(query);
+      // A failed search is tried again next time; "nothing found" is not.
+      if (found && !found[index]) notFound.current.add(query);
     });
+    if (!found) return;
     const live = getEditor();
     if (!live || session()?.docPath !== docPath) return;
     const byQuery = new Map(wanted.map((query, index) => [query, found[index]] as const));

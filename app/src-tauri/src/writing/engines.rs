@@ -72,6 +72,8 @@ pub struct RunContext<'a> {
     pub prompt: &'a str,
     /// Pictures copied into the run folder, for engines that can look at them.
     pub images: &'a [PathBuf],
+    /// Let the engine search and read the web (finding photos); off for writing.
+    pub web: bool,
 }
 
 impl WritingEngine {
@@ -131,6 +133,13 @@ impl WritingEngine {
         matches!(self, Self::Claude | Self::Codex)
     }
 
+    /// Whether a run can be given web search (Claude's WebSearch/WebFetch,
+    /// Codex's live `web_search`, Grok's built-in search). Only those tools are
+    /// added: no shell, no file edits.
+    pub fn searches_web(self) -> bool {
+        matches!(self, Self::Claude | Self::Codex | Self::Grok)
+    }
+
     pub fn build_args(self, ctx: &RunContext<'_>) -> Vec<OsString> {
         let mut args: Vec<OsString> = Vec::new();
         match self {
@@ -166,9 +175,14 @@ impl WritingEngine {
                     args.push(OsString::from("--system-prompt-file"));
                     args.push(ctx.run_dir.join("system.md").into_os_string());
                 }
+                if ctx.web {
+                    // Print mode cannot ask for permission, so the two web tools are pre-approved.
+                    push(&mut args, "--allowedTools");
+                    push(&mut args, "WebSearch,WebFetch");
+                }
                 // Variadic, so it must come last.
                 push(&mut args, "--tools");
-                push(&mut args, "");
+                push(&mut args, if ctx.web { "WebSearch,WebFetch" } else { "" });
             }
             Self::Codex => {
                 for flag in [
@@ -201,6 +215,11 @@ impl WritingEngine {
                     push(&mut args, "-c");
                     args.push(OsString::from(format!("model_reasoning_effort={effort}")));
                 }
+                if ctx.web {
+                    // The search runs on OpenAI's side; the read-only sandbox still applies to the shell.
+                    push(&mut args, "-c");
+                    push(&mut args, "web_search=\"live\"");
+                }
                 args.push(OsString::from("-"));
             }
             Self::Grok => {
@@ -211,12 +230,18 @@ impl WritingEngine {
                     "streaming-messages-json",
                     "--include-partial-messages",
                     "--no-subagents",
-                    "--disable-web-search",
                     "--no-plan",
-                    "--max-turns",
-                    "1",
                 ] {
                     args.push(OsString::from(flag));
+                }
+                if ctx.web {
+                    // Searching takes a few turns before the answer.
+                    push(&mut args, "--max-turns");
+                    push(&mut args, "12");
+                } else {
+                    push(&mut args, "--disable-web-search");
+                    push(&mut args, "--max-turns");
+                    push(&mut args, "1");
                 }
                 if let Some(model) = ctx.model {
                     args.push(OsString::from("-m"));
@@ -664,6 +689,7 @@ mod tests {
             has_system_file: true,
             prompt: "",
             images: &[],
+            web: false,
         });
         let args: Vec<String> = args
             .iter()
@@ -686,6 +712,7 @@ mod tests {
             has_system_file: false,
             prompt: "",
             images: &[],
+            web: false,
         });
         assert_eq!(args[0], "--no-daemon");
         assert_eq!(args[1], "exec");
@@ -705,6 +732,7 @@ mod tests {
             has_system_file: false,
             prompt: "",
             images: &[],
+            web: false,
         };
         let args = |ctx: RunContext<'_>| -> Vec<String> {
             WritingEngine::Opencode
@@ -734,6 +762,7 @@ mod tests {
             has_system_file: false,
             prompt: "Write it",
             images: &[],
+            web: false,
         });
         assert_eq!(&args[args.len() - 2..], ["-p", "Write it"]);
     }
@@ -749,6 +778,7 @@ mod tests {
             has_system_file: false,
             prompt: "",
             images: &images,
+            web: false,
         };
         let claude: Vec<String> = WritingEngine::Claude
             .build_args(&context)
@@ -770,6 +800,45 @@ mod tests {
         assert_eq!(codex.last().unwrap(), "-");
         assert!(WritingEngine::Claude.sees_images() && WritingEngine::Codex.sees_images());
         assert!(!WritingEngine::Opencode.sees_images());
+    }
+
+    #[test]
+    fn web_search_adds_only_the_web_tools() {
+        let dir = std::env::temp_dir();
+        let context = |web| RunContext {
+            run_dir: &dir,
+            model: None,
+            effort: None,
+            has_system_file: false,
+            prompt: "",
+            images: &[],
+            web,
+        };
+        let args = |engine: WritingEngine, web| -> Vec<String> {
+            engine
+                .build_args(&context(web))
+                .iter()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let claude = args(WritingEngine::Claude, true);
+        assert_eq!(&claude[claude.len() - 2..], ["--tools", "WebSearch,WebFetch"]);
+        assert!(claude
+            .windows(2)
+            .any(|pair| pair == ["--allowedTools", "WebSearch,WebFetch"]));
+        assert!(!args(WritingEngine::Claude, false).contains(&"--allowedTools".to_string()));
+
+        let codex = args(WritingEngine::Codex, true);
+        assert!(codex
+            .windows(2)
+            .any(|pair| pair == ["-c", "web_search=\"live\""]));
+        assert!(codex.windows(2).any(|pair| pair == ["--sandbox", "read-only"]));
+        assert_eq!(codex.last().unwrap(), "-");
+        assert!(!args(WritingEngine::Codex, false).iter().any(|a| a.starts_with("web_search")));
+
+        assert!(!args(WritingEngine::Grok, true).contains(&"--disable-web-search".to_string()));
+        assert!(args(WritingEngine::Grok, false).contains(&"--disable-web-search".to_string()));
+        assert!(!WritingEngine::Opencode.searches_web());
     }
 
     #[test]

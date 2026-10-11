@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tts-synthesize"
+description = "Enables the tts_synthesize command without any pre-configured scope."
+commands.allow = ["tts_synthesize"]
+
+[[permission]]
+identifier = "deny-tts-synthesize"
+description = "Denies the tts_synthesize command without any pre-configured scope."
+commands.deny = ["tts_synthesize"]

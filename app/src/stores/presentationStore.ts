@@ -6,7 +6,9 @@ import { DECK_THEMES, DEFAULT_THEME_ID, getTheme, sanitizeTheme } from '../utils
 import type { DeckSize, DeckTemplate, DeckTheme, DeckTone } from '../utils/presentation/types';
 import type { EngineChoice } from '../utils/writing/types';
 
-export type StockProvider = 'off' | 'openverse' | 'unsplash' | 'pexels';
+/** Where web photos come from: `ai` = the deck's own AI CLI searches the web; the rest are photo services. */
+export type StockProvider = 'off' | 'ai' | 'openverse' | 'unsplash' | 'pexels';
+const STOCK_PROVIDER_IDS: StockProvider[] = ['off', 'ai', 'openverse', 'unsplash', 'pexels'];
 
 /** Presentation preferences, custom themes and templates. Decks live in `.yzdeck` files, never here. */
 interface PresentationStore {
@@ -29,7 +31,7 @@ interface PresentationStore {
   /** Themes made in the theme editor or imported. */
   customThemes: DeckTheme[];
   templates: DeckTemplate[];
-  /** Where "Search photos" looks; Openverse needs no key. */
+  /** Where web photos come from (and where "Search photos" looks, `ai` meaning Openverse there). */
   stockProvider: StockProvider;
   stockKeys: { unsplash: string; pexels: string };
 
@@ -58,7 +60,7 @@ export const usePresentationStore = create<PresentationStore>()(persist((set) =>
   lastDeckByWorkspace: {},
   customThemes: [],
   templates: [],
-  stockProvider: 'openverse',
+  stockProvider: 'ai',
   stockKeys: { unsplash: '', pexels: '' },
 
   saveTheme: (theme) => set((state) => ({
@@ -87,7 +89,18 @@ export const usePresentationStore = create<PresentationStore>()(persist((set) =>
   }),
 }), {
   name: 'yzpzcode-presentation',
-  version: 1,
+  version: 2,
+  // v2: the AI searches the web for photos. The old default (Openverse) and a
+  // service without its key move to it; a keyed Unsplash/Pexels or "off" stays.
+  migrate: (persisted, version) => {
+    const saved = (persisted ?? {}) as Partial<PresentationStore>;
+    if (version < 2) {
+      const provider = saved.stockProvider;
+      const keyed = (provider === 'unsplash' || provider === 'pexels') && Boolean(saved.stockKeys?.[provider]);
+      if (provider !== 'off' && !keyed) saved.stockProvider = 'ai';
+    }
+    return saved as PresentationStore;
+  },
   merge: (persisted, current) => {
     const saved = (persisted ?? {}) as Partial<PresentationStore>;
     const count = Number(saved.defaultSlideCount);
@@ -100,7 +113,7 @@ export const usePresentationStore = create<PresentationStore>()(persist((set) =>
       customThemes,
       templates,
       stockKeys: { unsplash: String(saved.stockKeys?.unsplash ?? ''), pexels: String(saved.stockKeys?.pexels ?? '') },
-      stockProvider: (['off', 'openverse', 'unsplash', 'pexels'] as const).includes(saved.stockProvider as StockProvider) ? saved.stockProvider as StockProvider : current.stockProvider,
+      stockProvider: STOCK_PROVIDER_IDS.includes(saved.stockProvider as StockProvider) ? saved.stockProvider as StockProvider : current.stockProvider,
       defaultEngine: { ...DEFAULT_DECK_ENGINE, ...(saved.defaultEngine ?? {}) },
       defaultThemeId: themeId,
       defaultSlideCount: Number.isFinite(count) ? Math.min(MAX_SLIDES, Math.max(MIN_SLIDES, count)) : current.defaultSlideCount,

@@ -186,6 +186,11 @@ export interface YzDeck {
   showNumbers: boolean;
   /** How slides change in presenter mode and the HTML deck. */
   transition: SlideTransition;
+  /**
+   * Designed decks: elements build in on each slide (slideshow and exported PowerPoint).
+   * Unset means on, except for decks opened from a PowerPoint file.
+   */
+  animations?: boolean;
   outline: OutlineSlide[];
   slides: Slide[];
   source?: PreserveSource;

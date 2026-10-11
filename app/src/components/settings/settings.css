@@ -605,9 +605,13 @@
   cursor: pointer;
 }
 
-.st-select option {
+:is(.st-select, .st-input) option {
   color: var(--text-primary);
   background: var(--popover);
+}
+
+:is(.st-select, .st-input) option:disabled {
+  color: var(--text-secondary);
 }
 
 .st-control-w {

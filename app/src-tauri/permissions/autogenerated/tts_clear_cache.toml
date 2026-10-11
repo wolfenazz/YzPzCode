@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tts-clear-cache"
+description = "Enables the tts_clear_cache command without any pre-configured scope."
+commands.allow = ["tts_clear_cache"]
+
+[[permission]]
+identifier = "deny-tts-clear-cache"
+description = "Denies the tts_clear_cache command without any pre-configured scope."
+commands.deny = ["tts_clear_cache"]

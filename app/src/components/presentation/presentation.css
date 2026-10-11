@@ -1109,6 +1109,249 @@ textarea.pr-input {
   border-bottom: 1px solid var(--pr-hairline);
 }
 
+/* Narration row: toggle takes the free space, NarrateButton + model picker sit at the inline end. */
+.pr-notes__head--with-narrate {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  padding-inline-end: 8px;
+  cursor: default;
+}
+
+.pr-notes__head--with-narrate:hover {
+  color: var(--pr-ink-soft);
+  background: transparent;
+}
+
+.pr-notes__toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0;
+  padding-inline-start: 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.pr-notes__toggle:hover {
+  color: var(--pr-ink);
+}
+
+.pr-notes__narrate {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+
+.pr-notes__picker-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.pr-notes__picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.pr-notes__picker-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.pr-notes__picker-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--accent-light);
+  color: var(--text-primary);
+}
+
+/* The notes row sits at the bottom of the editor, so the list opens upward over
+   the stage: opening downward ran it under the footer and clipped the voices.
+   It sits inside the uppercase, letter-spaced notes header, so the type is reset. */
+.pr-notes__picker-pop {
+  position: absolute;
+  inset-inline-end: 0;
+  bottom: calc(100% + 8px);
+  z-index: 60;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(460px, calc(100vh - 160px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px;
+  border: 1px solid var(--pr-hairline-strong);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 20px 50px -18px rgba(0, 0, 0, 0.55);
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: start;
+  cursor: default;
+}
+
+/* Narration progress: one chip in the notes row, the per-slide list in the voice popover. */
+.pr-notes__status {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  overflow: hidden;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.pr-notes__status:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.pr-notes__status[data-tone="ok"] {
+  color: var(--st-success);
+}
+
+.pr-notes__status[data-tone="warn"] {
+  color: var(--st-warning);
+}
+
+.pr-notes__status[data-tone="busy"] {
+  color: var(--text-primary);
+}
+
+.pr-notes__status-label {
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-notes__status-bar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--bg-tertiary);
+}
+
+.pr-notes__status-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+
+.pr-voices {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--pr-hairline);
+}
+
+.pr-voices__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pr-voices__count {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-voices__note {
+  margin: 0 0 6px;
+  padding: 0 2px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--st-warning);
+}
+
+.pr-voices__list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 150px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pr-voices__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-voices__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pr-voices__row[data-state="ready"] .pr-voices__state {
+  color: var(--st-success);
+}
+
+.pr-voices__row[data-state="preparing"] {
+  background: var(--accent-light);
+  color: var(--text-primary);
+}
+
+.pr-voices__row[data-state="failed"] .pr-voices__state,
+.pr-voices__row[data-state="needsVoice"] .pr-voices__state,
+.pr-voices__row[data-state="tooLong"] .pr-voices__state {
+  color: var(--st-warning);
+}
+
+.animations-disabled .pr-notes__status,
+.animations-disabled .pr-notes__status-bar > span,
+.animations-disabled .pr-notes__toggle,
+.animations-disabled .pr-notes__picker-btn,
+.animations-disabled .pr-notes__picker-pop {
+  transition-duration: 0ms !important;
+  animation: none !important;
+}
+
 .pr-notes__input {
   display: block;
   width: 100%;
@@ -2879,6 +3122,108 @@ textarea.pr-input {
   white-space: nowrap;
 }
 
+/* Local TTS narration row + voice picker (float above the control bar). */
+.pr-show__narrate {
+  position: absolute;
+  inset-inline-start: 50%;
+  bottom: 66px;
+  z-index: 3;
+  display: flex;
+  max-width: 94vw;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: rgba(24, 24, 27, 0.86);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  color: #f4f4f5;
+  font-size: 12px;
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+  transition: opacity 200ms ease, transform 200ms ease;
+  pointer-events: none;
+}
+
+[dir="rtl"] .pr-show__narrate {
+  transform: translateX(50%) translateY(8px);
+}
+
+.pr-show[data-controls] .pr-show__narrate {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+[dir="rtl"] .pr-show[data-controls] .pr-show__narrate {
+  transform: translateX(50%) translateY(0);
+}
+
+.pr-show__models {
+  position: absolute;
+  inset-inline-start: 50%;
+  bottom: 118px;
+  z-index: 3;
+  width: min(420px, 92vw);
+  max-height: 38vh;
+  overflow-y: auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(24, 24, 27, 0.95);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.7);
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+  transition: opacity 200ms ease, transform 200ms ease;
+  pointer-events: none;
+}
+
+[dir="rtl"] .pr-show__models {
+  transform: translateX(50%) translateY(8px);
+}
+
+.pr-show[data-controls] .pr-show__models {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+[dir="rtl"] .pr-show[data-controls] .pr-show__models {
+  transform: translateX(50%) translateY(0);
+}
+
+.pr-show__narrate-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  color: rgba(244, 244, 245, 0.8);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pr-show__narrate-auto input[type="checkbox"] {
+  accent-color: var(--accent, #7c8aff);
+  cursor: pointer;
+}
+
+.pr-show__narrate-error {
+  max-width: 260px;
+  overflow: hidden;
+  color: #fca5a5;
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Reduced motion: the slideshow never animates its chrome. */
+.animations-disabled .pr-show__bar,
+.animations-disabled .pr-show__narrate,
+.animations-disabled .pr-show__models {
+  transition: none;
+}
+
 .pr-show__presenter {
   display: grid;
   width: 100%;
@@ -2982,8 +3327,10 @@ textarea.pr-input {
   justify-content: space-between;
 }
 
-.pr-show__notes-head > span:last-child {
+.pr-show__notes-head > span:last-child,
+.pr-show__notes-head > .pr-show__notes-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
 }
 

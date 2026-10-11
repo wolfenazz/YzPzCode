@@ -1,0 +1,20 @@
+# YzPzCode TTS — Lahgtna-Chatterbox (Arabic dialects) model deps.
+# Install into the managed per-user venv ONLY when the user selects Lahgtna:
+#     <venv-python> -m pip install -r requirements-tts-lahgtna.txt
+#
+# System prerequisites (checked by Rust env.rs, NOT installed here):
+#     Python >= 3.10, ffmpeg on PATH (Chatterbox resampling needs it).
+# Weights: oddadmix/lahgtna-chatterbox-v1 from Hugging Face
+#     (https://huggingface.co/oddadmix/lahgtna-chatterbox-v1), larger/slower
+#     than SILMA. Dialects EG/SA/MA/IQ/... mapped in tts_bridge.py
+#     DIALECT_TO_CHATTERBOX_LANG. License: check the HF model page.
+#
+# STABILITY NOTE (plan risk): Lahgtna/Chatterbox upstream APIs drift.
+# tts_bridge.py isolates its loader (load_lahgtna, lazy import) so the SILMA
+# default NEVER breaks because of this file. If Lahgtna synthesis fails with
+# an ImportError/AttributeError, re-pin chatterbox-tts below and keep the
+# other two requirements files untouched.
+
+chatterbox-tts==0.1.7
+huggingface-hub>=0.23
+torch>=2.2  # CPU wheel is enough (CUDA not required)

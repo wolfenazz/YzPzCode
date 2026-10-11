@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tts-delete-model"
+description = "Enables the tts_delete_model command without any pre-configured scope."
+commands.allow = ["tts_delete_model"]
+
+[[permission]]
+identifier = "deny-tts-delete-model"
+description = "Denies the tts_delete_model command without any pre-configured scope."
+commands.deny = ["tts_delete_model"]

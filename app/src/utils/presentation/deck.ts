@@ -211,12 +211,16 @@ export function parseDeck(text: string): YzDeck {
     size,
     showNumbers: value.showNumbers !== false,
     transition: value.transition === 'none' || value.transition === 'slide' ? value.transition : 'fade',
+    ...(typeof value.animations === 'boolean' ? { animations: value.animations } : {}),
     outline: sanitizeOutline(value.outline),
     slides,
     ...(source ? { source } : {}),
     ...(design ? { design } : {}),
   };
 }
+
+/** Whether a designed deck's elements animate: on unless switched off, and off for imported PowerPoint files unless switched on. */
+export const animationsOn = (deck: Pick<YzDeck, 'animations' | 'design'>): boolean => deck.animations ?? !deck.design?.origin;
 
 /** The slide's title text, for the filmstrip and the AI. */
 export function slideTitle(slide: Slide): string {

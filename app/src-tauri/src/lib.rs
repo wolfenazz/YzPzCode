@@ -11,6 +11,7 @@ mod ide;
 mod ios;
 mod open_files;
 mod terminal;
+mod tts;
 mod types;
 mod utils;
 mod writing;
@@ -24,6 +25,7 @@ use ide::IdeDetector;
 use tauri::Emitter;
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
 use terminal::{ManagedCommandManager, TerminalManager};
+use tts::TtsManager;
 
 fn setup_panic_hooks() {
     std::panic::set_hook(Box::new(|panic_info| {
@@ -81,6 +83,7 @@ pub fn run() {
     let flutter_setup_manager = android::FlutterSetupManager::default();
     let writing_ai_runner = writing::WritingAiRunner::default();
     let print_jobs = writing::PrintJobs::default();
+    let tts_manager = TtsManager::default();
     let protocol_print_jobs = print_jobs.clone();
     let launch_directory =
         std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
@@ -157,6 +160,7 @@ pub fn run() {
         .manage(flutter_setup_manager.clone())
         .manage(writing_ai_runner.clone())
         .manage(print_jobs)
+        .manage(tts_manager.clone())
         .setup(move |app| {
             terminal_manager.set_app_handle(app.handle().clone());
             agent_executor.set_app_handle(app.handle().clone());
@@ -218,9 +222,11 @@ pub fn run() {
                 let managed_command_manager_clone = managed_command_manager.clone();
                 let browser_manager_clone = browser_manager.clone();
                 let writing_ai_runner_clone = writing_ai_runner.clone();
+                let tts_manager_clone = tts_manager.clone();
 
                 app.listen("tauri://close-requested", move |_event| {
                     writing_ai_runner_clone.stop_all();
+                    tts_manager_clone.stop_all();
                     if let Err(e) = managed_command_manager_clone.stop_all() {
                         eprintln!(
                             "Warning: failed to stop managed commands on close-requested: {}",
@@ -430,6 +436,15 @@ pub fn run() {
                 commands::export_writing_pdf,
                 commands::stock_image_search,
                 commands::stock_image_download,
+                commands::tts_status,
+                commands::tts_ensure_env,
+                commands::tts_list_models,
+                commands::tts_download_model,
+                commands::tts_cancel_download,
+                commands::tts_delete_model,
+                commands::tts_clear_cache,
+                commands::tts_synthesize,
+                commands::tts_cancel_synth,
             ];
             move |invoke: tauri::ipc::Invoke| {
                 // Extension content uses VS Code's own API. It must never gain
@@ -461,6 +476,7 @@ pub fn run() {
             app.state::<android::EmulatorManager>().shutdown_owned();
             app.state::<ios::SimulatorManager>().shutdown_owned();
             app.state::<writing::WritingAiRunner>().stop_all();
+            app.state::<tts::TtsManager>().stop_all();
         }
         // macOS delivers Finder/Open-With requests as file URLs instead of
         // process arguments. Keeping them in the same durable queue gives
@@ -488,6 +504,7 @@ pub fn run() {
             app.state::<android::EmulatorManager>().shutdown_owned();
             app.state::<ios::SimulatorManager>().shutdown_owned();
             app.state::<writing::WritingAiRunner>().stop_all();
+            app.state::<tts::TtsManager>().stop_all();
         }
     });
 }

@@ -407,3 +407,36 @@ test('web photo results: printable, the right way round, search order otherwise'
   assert.equal(pictures.cleanPictureQuery('  "Container port" cranes, at dusk!! (wide) extra words here '), 'Container port cranes at dusk wide');
   assert.equal(pictures.pictureStem('Container port: cranes'), 'container-port-cranes');
 });
+
+test('photos found by the AI web search: one list per request, real files only', () => {
+  const { system, prompt } = pictures.buildPhotoSearchPrompt([
+    { queries: ['solar panels on house roofs', 'rooftop solar'], prefer: 'landscape' },
+    { queries: ['"parents" with adult son!'], prefer: 'portrait' },
+  ]);
+  assert.match(system, /web search/i);
+  assert.match(system, /Never use paid stock/);
+  assert.match(prompt, /1\. solar panels on house roofs \(or: rooftop solar\)\. landscape\./);
+  assert.match(prompt, /2\. parents with adult son\. portrait\./);
+
+  const reply = `I'll search for these {now}.\n\n\`\`\`json\n${JSON.stringify({ results: [
+    { n: 2, photos: [{ url: 'https://images.pexels.com/photos/1/a.jpeg?w=1600', page: 'https://www.pexels.com/photo/1/', credit: 'Ann / Pexels', width: 1600, height: 2400 }] },
+    { n: 1, photos: [
+      { url: 'https://upload.wikimedia.org/a.jpg', page: 'https://commons.wikimedia.org/wiki/File:a.jpg', credit: 'Bo / Wikimedia Commons, CC BY-SA 4.0' },
+      { url: 'https://upload.wikimedia.org/a.jpg', credit: 'duplicate' },
+      { url: 'https://media.gettyimages.com/photos/x.jpg', credit: 'paid' },
+      { url: 'https://example.org/drawing.svg', credit: 'svg' },
+      { url: 'http://insecure.org/b.jpg', credit: 'not https' },
+      { url: 'https://cdn.pixabay.com/c.jpg' },
+    ] },
+  ] })}\n\`\`\``;
+  const found = pictures.parsePhotoSearch(reply, 2);
+  assert.equal(found.length, 2);
+  assert.deepEqual(found[0].map((photo) => photo.fullUrl), ['https://upload.wikimedia.org/a.jpg', 'https://cdn.pixabay.com/c.jpg']);
+  assert.equal(found[0][1].credit, 'cdn.pixabay.com', 'a missing credit falls back to the site');
+  assert.equal(found[1][0].height, 2400);
+  assert.equal(found[1][0].credit, 'Ann / Pexels');
+
+  const single = pictures.parsePhotoSearch('{"photos":[{"url":"https://images.unsplash.com/p?w=1600","credit":"Cy / Unsplash"}]}', 1);
+  assert.equal(single[0][0].fullUrl, 'https://images.unsplash.com/p?w=1600');
+  assert.deepEqual(pictures.parsePhotoSearch('No luck, sorry.', 2), [[], []]);
+});

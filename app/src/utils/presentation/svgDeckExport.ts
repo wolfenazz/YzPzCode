@@ -8,8 +8,9 @@ import JSZip from 'jszip';
 import PptxGenJS from 'pptxgenjs';
 import { designCanvas } from './designStyles';
 import type { DesignSystem } from './designTypes';
+import { animationPlan, timingXml, transitionXml } from './slideAnimation';
 import { convertSvgSlide, type PptxPicture, type TextMeasurer } from './svgPptx';
-import type { DeckSize } from './types';
+import type { DeckSize, SlideTransition } from './types';
 
 export interface DesignedPptxSlide {
   svg: string;
@@ -29,6 +30,10 @@ export interface DesignedPptxInput {
   picture: (href: string) => PptxPicture | null;
   measure?: TextMeasurer;
   lang?: string;
+  /** Write each slide's element animations (editable mode). */
+  animations?: boolean;
+  /** The slide change written on every slide (editable mode). */
+  transition?: SlideTransition;
 }
 
 export interface DesignedPptxResult {
@@ -127,6 +132,12 @@ export async function buildDesignedPptx(input: DesignedPptxInput): Promise<Desig
       let next = slideXml.replace(/(<\/p:grpSpPr>)([\s\S]*?)(<\/p:spTree>)/, (_match, open: string, _shapes: string, close: string) => `${open}${converted.shapes}${close}`);
       if (converted.background) {
         next = next.replace(/<p:bg>[\s\S]*?<\/p:bg>/, '').replace(/(<p:cSld\b[^>]*>)/, `$1${converted.background}`);
+      }
+      // Slide change, then the element animations (the schema order is clrMapOvr, transition, timing).
+      const timing = input.animations ? timingXml(animationPlan(slide.svg), new Map(converted.targets.map((target) => [target.index, target.ids]))) : '';
+      const extras = `${transitionXml(input.transition)}${timing}`;
+      if (extras) {
+        next = /<\/p:clrMapOvr>/.test(next) ? next.replace('</p:clrMapOvr>', `</p:clrMapOvr>${extras}`) : next.replace(/<\/p:sld>\s*$/, `${extras}</p:sld>`);
       }
       zip.file(slidePath, next);
       if (converted.media.length > 0) {

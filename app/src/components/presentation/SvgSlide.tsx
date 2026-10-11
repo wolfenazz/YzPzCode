@@ -1,4 +1,5 @@
-import React, { memo, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { tagAnimation, type AnimPlan } from '../../utils/presentation/slideAnimation';
 import { prepareSvgForDisplay } from '../../utils/presentation/svgSafe';
 
 interface SvgSlideProps {
@@ -15,17 +16,50 @@ interface SvgSlideProps {
   onText?: (index: number) => void;
   onImage?: (index: number) => void;
   onBackground?: () => void;
+  /** Slideshow: the elements start hidden and appear step by step; `revealed` clicks are shown. */
+  build?: { plan: AnimPlan; revealed: number };
 }
 
 /** One designed slide, drawn from its SVG at `width` px. */
-export const SvgSlide: React.FC<SvgSlideProps> = memo(function SvgSlide({ svg, width, canvas, resolveHref, placeholder, interactive, selectedText, onText, onImage, onBackground }) {
+export const SvgSlide: React.FC<SvgSlideProps> = memo(function SvgSlide({ svg, width, canvas, resolveHref, placeholder, interactive, selectedText, onText, onImage, onBackground, build }) {
   const prefix = `s${useId().replace(/[^\w]/g, '')}`;
   const height = (width / canvas.width) * canvas.height;
   const host = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-  const markup = useMemo(() => (svg ? prepareSvgForDisplay(svg, { prefix, resolveHref, indexTargets: interactive }) : ''), [interactive, prefix, resolveHref, svg]);
+  const plan = build?.plan;
+  const markup = useMemo(() => {
+    if (!svg) return '';
+    return prepareSvgForDisplay(plan ? tagAnimation(svg, plan) : svg, { prefix, resolveHref, indexTargets: interactive });
+  }, [interactive, plan, prefix, resolveHref, svg]);
   // Stable, so a re-render does not rebuild the slide (React 19 compares the object, not the string).
   const html = useMemo(() => ({ __html: markup }), [markup]);
+
+  // Building up: every wrapper starts hidden; the opening step, then each click, flips its elements to "in"
+  // (a CSS transition per effect). The first flip waits two frames so the hidden state is painted first.
+  const revealed = build?.revealed ?? null;
+  const builtFor = useRef('');
+  useEffect(() => {
+    const root = host.current;
+    if (!root || revealed === null) return;
+    const nodes = Array.from(root.querySelectorAll('[data-step]'));
+    const apply = (): void => {
+      for (const node of nodes) node.setAttribute('data-state', Number(node.getAttribute('data-step')) <= revealed ? 'in' : 'out');
+    };
+    if (builtFor.current !== markup) {
+      builtFor.current = markup;
+      let second = 0;
+      let pending = true;
+      const first = requestAnimationFrame(() => {
+        second = requestAnimationFrame(() => { pending = false; apply(); });
+      });
+      return () => {
+        cancelAnimationFrame(first);
+        cancelAnimationFrame(second);
+        if (pending) builtFor.current = '';
+      };
+    }
+    apply();
+  }, [markup, revealed]);
 
   // A frame around the selected text, measured from the drawn element.
   useLayoutEffect(() => {

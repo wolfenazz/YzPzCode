@@ -1,10 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { SyntheticEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { ArrowCounterClockwise, CaretLeft, CaretRight, Minus, Monitor, Plus, Presentation, X } from '@phosphor-icons/react';
+import { ArrowCounterClockwise, CaretDown, CaretLeft, CaretRight, Minus, Monitor, Plus, Presentation, X } from '@phosphor-icons/react';
 import { formatDuration } from '../../utils/presentation/timing';
 import type { SlideTransition } from '../../utils/presentation/types';
+import { useTtsPlayback } from '../../hooks/useTtsPlayback';
+import { useTtsStore } from '../../stores/ttsStore';
+import { ttsBilingual } from '../../utils/tts/strings';
+import { NarrateButton } from '../tts/NarrateButton';
+import { TtsModelPicker } from '../tts/TtsModelPicker';
 
 /** What the slideshow needs of a slide; layout decks and designed decks both fit. */
 export interface PresentableSlide {
@@ -24,6 +30,8 @@ interface PresenterModeProps<T extends PresentableSlide> {
   /** Planned seconds on a slide, for the pace indicator. */
   seconds: (slide: T) => number;
   onExit: (lastId: string | null) => void;
+  /** Optional host toast surface for narration errors (falls back to inline error). */
+  onToast?: (message: string) => void;
 }
 
 const NEXT_KEYS = new Set(['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter', 'n', 'N']);
@@ -50,7 +58,7 @@ function useNow(active: boolean): number {
 }
 
 /** Fullscreen slideshow with a presenter view (notes, next slide, timer). */
-export function PresenterMode<T extends PresentableSlide>({ slides, aspect, transition, startId, renderSlide, seconds: slideSeconds, onExit }: PresenterModeProps<T>): React.ReactPortal {
+export function PresenterMode<T extends PresentableSlide>({ slides, aspect, transition, startId, renderSlide, seconds: slideSeconds, onExit, onToast }: PresenterModeProps<T>): React.ReactPortal {
   const visible = useMemo(() => slides.filter((slide) => !slide.hidden), [slides]);
   const [index, setIndex] = useState(() => Math.max(0, visible.findIndex((slide) => slide.id === startId)));
   const [direction, setDirection] = useState(1);
@@ -68,7 +76,53 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
   const current = visible[index] ?? null;
   const next = visible[index + 1] ?? null;
 
-  const exit = useCallback(() => onExit(current?.id ?? null), [current, onExit]);
+  // Local TTS narration (Task 5): one hook for the R shortcut + autoplay +
+  // stop-on-navigate. The bar/notes NarrateButtons own their own hook
+  // instances driving the same shared <audio> element, so stopping here
+  // always halts any narration and each button self-corrects on slide change
+  // via its slideId cleanup.
+  const { status: ttsStatus, errorMsg: ttsErrorMsg, speak, stop: stopTts } = useTtsPlayback();
+  const autoplayInPresenter = useTtsStore((state) => state.autoplayInPresenter);
+  const setAutoplayInPresenter = useTtsStore((state) => state.setAutoplayInPresenter);
+  const [modelsOpen, setModelsOpen] = useState<boolean>(false);
+  const [ttsInlineError, setTtsInlineError] = useState<string | null>(null);
+
+  const notifyTts = useCallback((message: string): void => {
+    if (onToast) onToast(message);
+    else setTtsInlineError(message);
+  }, [onToast]);
+
+  useEffect(() => {
+    if (ttsErrorMsg) notifyTts(ttsErrorMsg);
+  }, [ttsErrorMsg, notifyTts]);
+
+  const currentNotes: string = current?.notes ?? '';
+  const currentId: string | null = current?.id ?? null;
+  const hasNotes: boolean = currentNotes.trim().length > 0;
+  const ttsBusy: boolean = ttsStatus === 'preparing' || ttsStatus === 'synthesizing' || ttsStatus === 'playing';
+
+  const toggleNarration = useCallback((): void => {
+    if (ttsBusy) {
+      stopTts();
+      return;
+    }
+    if (!current || !hasNotes) {
+      notifyTts(ttsBilingual('emptyNotes'));
+      return;
+    }
+    setTtsInlineError(null);
+    void speak(currentNotes, { slideId: current.id });
+  }, [ttsBusy, current, hasNotes, currentNotes, speak, stopTts, notifyTts]);
+
+  const absorbTts = useCallback((event: SyntheticEvent): void => {
+    event.stopPropagation();
+  }, []);
+
+  const exit = useCallback(() => {
+    stopTts();
+    setModelsOpen(false);
+    onExit(current?.id ?? null);
+  }, [current, onExit, stopTts]);
 
   // Fullscreen for the whole window while presenting; restored on exit.
   useEffect(() => {
@@ -86,13 +140,14 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
   }, []);
 
   const go = useCallback((target: number) => {
+    stopTts();
     setBlank(null);
     setIndex((value) => {
       const clamped = Math.max(0, Math.min(visible.length - 1, target));
       setDirection(clamped >= value ? 1 : -1);
       return clamped;
     });
-  }, [visible.length]);
+  }, [visible.length, stopTts]);
 
   const wake = useCallback(() => {
     setControls(true);
@@ -105,12 +160,35 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
     return () => { if (hideTimer.current) window.clearTimeout(hideTimer.current); };
   }, [wake]);
 
+  // Always halt narration when the slideshow unmounts.
+  useEffect(() => {
+    return () => stopTts();
+  }, [stopTts]);
+
+  // Optional per-slide autoplay (default off, persisted). The go() stop above
+  // halts the previous slide; this speaks the new one. Cleanup stops when the
+  // slide changes again or autoplay is toggled off mid-synthesis.
+  useEffect(() => {
+    if (!autoplayInPresenter) return;
+    if (!current || current.notes.trim().length === 0) return;
+    setTtsInlineError(null);
+    void speak(current.notes, { slideId: current.id });
+    return () => stopTts();
+  }, [autoplayInPresenter, current, speak, stopTts]);
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       // The slideshow owns the keyboard while it is open.
       event.stopPropagation();
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const { key } = event;
+      const target = event.target as HTMLElement | null;
+      const inTtsUi: boolean = Boolean(
+        target && typeof target.closest === 'function' && target.closest('[data-tts-ui]'),
+      );
+      // Never steal Space/Enter/arrows from the narration controls themselves
+      // (play button, speed select, model list, autoplay checkbox).
+      if (inTtsUi && (key === ' ' || key === 'Enter' || key.startsWith('Arrow'))) return;
       if (/^[0-9]$/.test(key)) {
         typed.current = `${typed.current}${key}`.slice(-3);
         event.preventDefault();
@@ -123,7 +201,11 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
         return;
       }
       typed.current = '';
-      if (key === 'Escape') { event.preventDefault(); exit(); }
+      if (key === 'Escape') {
+        if (modelsOpen) { event.preventDefault(); setModelsOpen(false); }
+        else { event.preventDefault(); exit(); }
+      }
+      else if (key === 'r' || key === 'R') { event.preventDefault(); toggleNarration(); }
       else if (NEXT_KEYS.has(key)) { event.preventDefault(); if (blank) setBlank(null); else go(index + 1); }
       else if (PREV_KEYS.has(key)) { event.preventDefault(); if (blank) setBlank(null); else go(index - 1); }
       else if (key === 'Home') { event.preventDefault(); go(0); }
@@ -136,7 +218,7 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [blank, exit, go, index, visible.length]);
+  }, [blank, exit, go, index, modelsOpen, toggleNarration, visible.length]);
 
   const naturalWidth = aspect.width;
   const naturalHeight = aspect.height;
@@ -184,7 +266,7 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
       aria-label="Slideshow"
       onMouseMove={wake}
       onClick={(event) => {
-        if ((event.target as HTMLElement).closest('button, .pr-show__notes')) return;
+        if ((event.target as HTMLElement).closest('button, [data-tts-ui], .pr-show__notes')) return;
         if (!presenter) go(index + 1);
       }}
       onContextMenu={(event) => { event.preventDefault(); go(index - 1); }}
@@ -217,10 +299,16 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
             </div>
             <div className="pr-show__notes-head">
               <span className="pr-show__label">Notes · about {formatDuration(current ? slideSeconds(current) : 0)}</span>
-              <span>
+              <div className="pr-show__notes-actions" data-tts-ui onMouseDown={absorbTts} onClick={absorbTts} onKeyDown={absorbTts}>
+                <NarrateButton
+                  text={currentNotes}
+                  slideId={currentId ?? undefined}
+                  variant="compact"
+                  onToast={notifyTts}
+                />
                 <button type="button" className="pr-show__btn" aria-label="Smaller notes" onClick={() => setNotesSize((value) => Math.max(12, value - 2))}><Minus size={12} /></button>
                 <button type="button" className="pr-show__btn" aria-label="Larger notes" onClick={() => setNotesSize((value) => Math.min(40, value + 2))}><Plus size={12} /></button>
-              </span>
+              </div>
             </div>
             <div className="pr-show__notes" style={{ fontSize: notesSize }}>{current?.notes || <em>No speaker notes for this slide.</em>}</div>
           </aside>
@@ -229,6 +317,61 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
         stage(current, audienceWidth, true)
       )}
 
+      {modelsOpen && (
+        <div
+          className="pr-show__models"
+          data-tts-ui
+          role="dialog"
+          aria-label="Narration voices"
+          onMouseDown={absorbTts}
+          onClick={absorbTts}
+          onKeyDown={absorbTts}
+        >
+          <TtsModelPicker variant="compact" slideId={currentId ?? undefined} onToast={notifyTts} />
+        </div>
+      )}
+      <div
+        className="pr-show__narrate"
+        data-tts-ui
+        onMouseDown={absorbTts}
+        onClick={absorbTts}
+        onKeyDown={absorbTts}
+      >
+        <NarrateButton
+          text={currentNotes}
+          slideId={currentId ?? undefined}
+          onToast={notifyTts}
+        />
+        <span className="pr-show__sep" aria-hidden="true" />
+        <button
+          type="button"
+          className="pr-show__btn"
+          data-active={modelsOpen || undefined}
+          title="Narration voice (per-slide override)"
+          aria-expanded={modelsOpen}
+          onClick={() => setModelsOpen((value) => !value)}
+        >
+          Voice <CaretDown size={12} aria-hidden="true" />
+        </button>
+        <label
+          className="pr-show__narrate-auto"
+          title="Auto-narrate each slide's notes when it appears (off by default)"
+          onClick={absorbTts}
+        >
+          <input
+            type="checkbox"
+            checked={autoplayInPresenter}
+            onChange={(event) => setAutoplayInPresenter(event.target.checked)}
+            aria-label="Auto-narrate slides"
+          />
+          Auto
+        </label>
+        {ttsInlineError && !onToast && (
+          <span className="pr-show__narrate-error" title={ttsInlineError} role="alert">
+            {ttsInlineError}
+          </span>
+        )}
+      </div>
       <div className="pr-show__bar">
         <button type="button" className="pr-show__btn" aria-label="Previous slide" disabled={index === 0} onClick={() => go(index - 1)}><CaretLeft size={16} /></button>
         <span className="pr-show__count">{index + 1} / {visible.length}</span>
@@ -237,7 +380,7 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
         <button type="button" className="pr-show__btn" data-active={presenter || undefined} title="Presenter view (S)" onClick={() => setPresenter((value) => !value)}>
           {presenter ? <Monitor size={15} /> : <Presentation size={15} />} {presenter ? 'Audience view' : 'Presenter view'}
         </button>
-        <span className="pr-show__hint">B black · W white · number + Enter to jump</span>
+        <span className="pr-show__hint">B black · W white · R narrate · number + Enter to jump</span>
         <button type="button" className="pr-show__btn" title="End the show (Esc)" onClick={exit}><X size={15} /> End</button>
       </div>
     </div>,

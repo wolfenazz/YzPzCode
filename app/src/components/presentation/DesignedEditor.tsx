@@ -7,7 +7,7 @@ import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalList
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowClockwise, ArrowCounterClockwise, ArrowDown, ArrowUp, ArrowUUpLeft, CaretDown, CaretUp, Check, ClipboardText, Copy, CopySimple, Export, Eye, EyeSlash,
-  FileArrowUp, FolderSimple, ImageSquare, NotePencil, PaintBrush, PaperPlaneRight, Play, Plus, Scissors, SlidersHorizontal, Sparkle, SquaresFour, Stack, Stop, Trash, X,
+  FileArrowUp, FolderSimple, ImageSquare, NotePencil, PaintBrush, PaperPlaneRight, Play, Plus, Scissors, SlidersHorizontal, Sparkle, SpeakerHigh, SquaresFour, Stack, Stop, Trash, X,
 } from '@phosphor-icons/react';
 import type { PresentationSession } from '../../stores/presentationSessionStore';
 import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
@@ -34,6 +34,10 @@ import { EnginePicker } from './EnginePicker';
 import { FormatBar, type AlignHow, type ShapeKind } from './FormatBar';
 import { SlideStage, type EditTarget, type StageApi } from './SlideStage';
 import { SvgSlide } from './SvgSlide';
+import { NarrateButton } from '../tts/NarrateButton';
+import { TtsModelPicker } from '../tts/TtsModelPicker';
+import { NarrationChip, NarrationSlideList } from '../tts/NarrationProgress';
+import { useTtsStore } from '../../stores/ttsStore';
 import type { ProposalResult, SlideProposal, useDesignGenerator } from './useDesignGenerator';
 
 type Generator = ReturnType<typeof useDesignGenerator>;
@@ -201,6 +205,16 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const [review, setReview] = useState<Review | null>(null);
   const [showBefore, setShowBefore] = useState(false);
   const [notesOpen, setNotesOpen] = useState(true);
+  const [ttsPickerOpen, setTtsPickerOpen] = useState(false);
+  useEffect(() => {
+    if (!ttsPickerOpen) return;
+    const closeOutside = (event: MouseEvent) => {
+      if (!(event.target as Element | null)?.closest?.('.pr-notes__picker-wrap')) setTtsPickerOpen(false);
+    };
+    document.addEventListener('mousedown', closeOutside, true);
+    return () => document.removeEventListener('mousedown', closeOutside, true);
+  }, [ttsPickerOpen]);
+  const ttsEnabled = useTtsStore((state) => state.enabled);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [stageMenu, setStageMenu] = useState<{ x: number; y: number } | null>(null);
   const [adding, setAdding] = useState<string | null>(null);
@@ -925,12 +939,73 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
           </div>
           {slide && (
             <div className="pr-notes" data-open={notesOpen || undefined}>
-              <button type="button" className="pr-notes__head" onClick={() => setNotesOpen((value) => !value)}>
-                <NotePencil size={13} />
-                <span>Speaker notes</span>
-                {slide.notes?.trim() && <span className="pr-notes__badge" title="This slide has speaker notes" />}
-                <span className="pr-notes__caret">{notesOpen ? <CaretDown size={11} /> : <CaretUp size={11} />}</span>
-              </button>
+              <div className="pr-notes__head pr-notes__head--with-narrate">
+                <button
+                  type="button"
+                  className="pr-notes__toggle"
+                  onClick={() => setNotesOpen((value) => !value)}
+                  aria-expanded={notesOpen}
+                  title={notesOpen ? 'Hide speaker notes' : 'Show speaker notes'}
+                >
+                  <NotePencil size={13} />
+                  <span>Speaker notes</span>
+                  {slide.notes?.trim() && <span className="pr-notes__badge" title="This slide has speaker notes" />}
+                  <span className="pr-notes__caret">{notesOpen ? <CaretDown size={11} /> : <CaretUp size={11} />}</span>
+                </button>
+                {ttsEnabled && (
+                  <div className="pr-notes__narrate">
+                    <NarrationChip onOpen={() => setTtsPickerOpen(true)} />
+                    <NarrateButton
+                      text={slide.notes ?? ''}
+                      slideId={slide.id}
+                      disabled={!(slide.notes?.trim())}
+                      title="Narrate speaker notes with local TTS"
+                      onToast={(message: string) => onToast('Narration failed', message)}
+                    />
+                    <div className="pr-notes__picker-wrap">
+                      <button
+                        type="button"
+                        className="pr-notes__picker-btn"
+                        aria-expanded={ttsPickerOpen}
+                        aria-haspopup="dialog"
+                        aria-label="Narration voice and model"
+                        title="Narration voice and model"
+                        onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                          event.stopPropagation();
+                          setTtsPickerOpen((value: boolean) => !value);
+                        }}
+                        onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation()}
+                        onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) => {
+                          event.stopPropagation();
+                          if (event.key === 'Escape') setTtsPickerOpen(false);
+                        }}
+                      >
+                        <SpeakerHigh size={14} aria-hidden="true" />
+                      </button>
+                      {ttsPickerOpen && (
+                        <div
+                          className="pr-notes__picker-pop"
+                          role="dialog"
+                          aria-label="Narration voice and model"
+                          onMouseDown={(event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation()}
+                          onClick={(event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation()}
+                          onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+                            event.stopPropagation();
+                            if (event.key === 'Escape') setTtsPickerOpen(false);
+                          }}
+                        >
+                          <NarrationSlideList slides={design.slides} />
+                          <TtsModelPicker
+                            variant="compact"
+                            slideId={slide.id}
+                            onToast={(message: string) => onToast('Narration model', message)}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
               {notesOpen && (
                 <textarea
                   className="pr-notes__input"

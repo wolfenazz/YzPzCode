@@ -336,6 +336,9 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
       restorePreview(state.originals);
       return;
     }
+    // Drawn artwork is measured where it sits, so the live drag transform comes off first: measured
+    // with it on, the stored box already contains the drag and the move is counted twice.
+    restorePreview(state.originals);
     const adopted = adopt(state.ids);
     if (state.mode === 'move') {
       const next = moveElements(adopted.svg, adopted.ids, target.x - state.start.x, target.y - state.start.y, { measure });

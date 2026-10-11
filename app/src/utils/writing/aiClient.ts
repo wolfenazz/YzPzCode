@@ -35,6 +35,8 @@ export interface AiRunOptions {
   timeoutSecs?: number;
   /** Absolute paths of pictures to show engines that can see them (Claude Code, Codex). */
   images?: string[];
+  /** Give the engine its web search tools (finding photos); ignored by engines without them. */
+  webSearch?: boolean;
   /** Called with the full text so far whenever it changes. */
   onText?: (text: string) => void;
 }
@@ -97,6 +99,7 @@ export function startAiRun(options: AiRunOptions): AiRun {
       prompt: options.prompt,
       timeoutSecs: options.timeoutSecs ?? null,
       images: options.images ?? [],
+      webSearch: options.webSearch ?? false,
     },
     onEvent: channel,
   }).catch((error: unknown) => {

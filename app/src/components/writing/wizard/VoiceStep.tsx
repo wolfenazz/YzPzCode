@@ -107,12 +107,12 @@ export const EnginePicker: React.FC<{ value: EngineChoice; onChange: (value: Eng
       )}
       <label className="wr-field">
         <span className="wr-field__label">Model <span className="wr-field__hint">— blank uses the CLI default</span></span>
-        <ModelInput className="wr-input" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loadingModels} placeholder={value.engine === 'claude' ? 'e.g. opus, sonnet' : value.engine === 'codex' ? 'e.g. gpt-5-codex' : value.engine === 'opencode' ? 'First signed-in provider' : ''} />
+        <ModelInput className="wr-select" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loadingModels} placeholder={value.engine === 'claude' ? 'e.g. opus, sonnet' : value.engine === 'codex' ? 'e.g. gpt-5-codex' : value.engine === 'opencode' ? 'First signed-in provider' : ''} />
       </label>
       {hasEfforts(models, value.model) && (
         <label className="wr-field">
           <span className="wr-field__label">Thinking effort <span className="wr-field__hint">— how long the model reasons before answering</span></span>
-          <EffortSelect className="wr-input" value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort })} models={models} model={value.model} />
+          <EffortSelect className="wr-select" value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort })} models={models} model={value.model} />
         </label>
       )}
     </div>

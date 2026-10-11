@@ -135,11 +135,14 @@ function ImagesTab(): React.JSX.Element {
   const setPreference = usePresentationStore((state) => state.setPreference);
   const setStockKey = usePresentationStore((state) => state.setStockKey);
   const meta = STOCK_PROVIDERS.find((entry) => entry.id === provider);
+  const hint = provider === 'ai'
+    ? 'The deck’s or report’s own AI (Claude Code, Codex or Grok) searches the web for openly licensed photos and the app downloads them. No account or key. Other engines use Openverse; “Search photos” in a picture’s editor uses Openverse too.'
+    : meta?.hint ?? 'Photos from the web are turned off.';
   return (
     <>
-      <SettingsGroup title="Stock photos" description="“Search photos” in a picture's editor looks here. Searches go straight from this computer to the service; photos are saved into the deck's assets folder with their credit.">
-        <SettingsRow label="Service" description={meta?.hint ?? 'Photo search is turned off.'}>
-          <Segmented<StockProvider> label="Photo service" value={provider} options={[{ value: 'off', label: 'Off' }, ...STOCK_PROVIDERS.map((entry) => ({ value: entry.id, label: entry.label }))]} onChange={(value) => setPreference('stockProvider', value)} />
+      <SettingsGroup title="Photos from the web" description="Real photos for slides and reports, saved into the document's assets folder with their credit. Pictures are downloaded straight to this computer.">
+        <SettingsRow label="Source" description={hint}>
+          <Segmented<StockProvider> label="Photo source" value={provider} options={[{ value: 'off', label: 'Off' }, { value: 'ai', label: 'AI web search' }, ...STOCK_PROVIDERS.map((entry) => ({ value: entry.id, label: entry.label }))]} onChange={(value) => setPreference('stockProvider', value)} />
         </SettingsRow>
         <Field label="Unsplash access key" hint="From unsplash.com/developers (free). Stored on this computer only.">
           {(id) => <input id={id} className="st-input" type="password" value={keys.unsplash} placeholder="Access key" onChange={(event) => setStockKey('unsplash', event.target.value)} />}
@@ -190,11 +193,11 @@ function EnginesTab(): React.JSX.Element {
       </SettingsGroup>
       <SettingsGroup title="Requests">
         <SettingsRow label="Default model" description="Leave blank to use the CLI's own default.">
-          <ModelInput className="st-input st-control-w" value={engine.model} models={models} loading={loading} placeholder="CLI default" onChange={(model) => setEngine({ ...engine, model })} />
+          <ModelInput className="st-select st-control-w" value={engine.model} models={models} loading={loading} placeholder="CLI default" onChange={(model) => setEngine({ ...engine, model })} />
         </SettingsRow>
         {hasEfforts(models, engine.model) && (
           <SettingsRow label="Thinking effort" description="How long the model reasons before answering. Higher is slower and uses more of your limits.">
-            <EffortSelect className="st-input st-control-w" value={engine.effort ?? ''} onChange={(effort) => setEngine({ ...engine, effort })} models={models} model={engine.model} />
+            <EffortSelect className="st-select st-control-w" value={engine.effort ?? ''} onChange={(effort) => setEngine({ ...engine, effort })} models={models} model={engine.model} />
           </SettingsRow>
         )}
         <SliderRow label="Slides per AI call" description="Smaller batches show slides sooner; larger ones keep the deck more consistent." value={batchSize} min={2} max={8} format={(value) => `${value} slides`} onChange={(value) => setPreference('batchSize', value)} />

@@ -731,6 +731,77 @@ test('designed decks export to a .pptx with shapes, pictures, notes and theme co
   assert.match(presentation, /<p:sldSz cx="12192000" cy="6858000"/);
 });
 
+const slideAnimation = await load('slideAnimation');
+
+test('a slide gets an animation plan: backdrop and title open it, each block is one click', () => {
+  const plan = slideAnimation.animationPlan(SAMPLE_SLIDE);
+  // Top-level elements: 0 defs, 1 background, 2 bloom, 3 header, 4 card, 5 arrow, 6 picture, 7 triangle, 8 source.
+  assert.equal(plan.steps, 3);
+  assert.deepEqual(plan.items.map((item) => item.index), [2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(plan.items.map((item) => item.step), [0, 0, 1, 2, 2, 3, 3]);
+  const effect = (index) => plan.items.find((item) => item.index === index).effect;
+  assert.equal(effect(2), 'fade');
+  assert.equal(effect(3), 'float');
+  assert.equal(effect(6), 'zoom');
+  assert.equal(plan.rtl, false);
+  assert.ok(plan.items.every((item) => item.delay >= 0 && item.delay <= 720));
+  assert.equal(slideAnimation.animationPlan(SAMPLE_SLIDE), plan, 'plans are cached per slide');
+
+  const tagged = slideAnimation.tagAnimation(SAMPLE_SLIDE, plan);
+  assert.equal((tagged.match(/data-step="/g) ?? []).length, 7);
+  assert.match(tagged, /data-step="2" data-fx="zoom" data-state="out"/);
+  assert.equal(slideAnimation.tagAnimation('<svg xmlns="http://www.w3.org/2000/svg"/>', slideAnimation.EMPTY_PLAN), '<svg xmlns="http://www.w3.org/2000/svg"/>');
+
+  // Many blocks share steps; right-to-left text wipes from the right.
+  const blocks = Array.from({ length: 14 }, (_, i) => `<g id="b${i}"><text x="10" y="${40 + i * 20}">مرحبا بكم ${i}</text></g>`).join('');
+  const crowded = slideAnimation.animationPlan(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect width="1280" height="720" fill="#fff"/>${blocks}</svg>`);
+  assert.equal(crowded.steps, slideAnimation.MAX_CLICKS);
+  assert.equal(crowded.rtl, true);
+  assert.equal(slideAnimation.animationPlan('').steps, 0);
+});
+
+test('the PowerPoint timing animates each step in order and targets real shapes', async () => {
+  const plan = slideAnimation.animationPlan(SAMPLE_SLIDE);
+  const xml = slideAnimation.timingXml(plan, new Map([[2, [10]], [3, [11]], [4, [12]], [5, [13]], [6, [14]], [7, [15]], [8, [16]]]));
+  assert.equal(new DOMParser().parseFromString(xml.replace('<p:timing>', '<p:timing xmlns:p="p">'), 'text/xml').getElementsByTagName('parsererror').length, 0);
+  assert.match(xml, /nodeType="mainSeq"/);
+  assert.equal((xml.match(/nodeType="clickEffect"/g) ?? []).length, 3, 'one click effect per step');
+  assert.equal((xml.match(/nodeType="afterEffect"/g) ?? []).length, 1, 'the opening step starts by itself');
+  assert.match(xml, /<p:cond evt="onBegin" delay="0"><p:tn val="2"\/><\/p:cond>/);
+  assert.match(xml, /presetID="42" presetClass="entr"/);
+  assert.match(xml, /presetID="53" presetClass="entr"/);
+  assert.match(xml, /<p:attrName>ppt_y<\/p:attrName>/);
+  const ids = [...xml.matchAll(/<p:cTn id="(\d+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, ids.length, 'every timing node id is unique');
+  assert.equal(slideAnimation.timingXml(plan, new Map()), '', 'nothing to animate without shapes');
+  assert.equal(slideAnimation.transitionXml('fade'), '<p:transition spd="med"><p:fade/></p:transition>');
+  assert.equal(slideAnimation.transitionXml('none'), '');
+
+  const system = designPrompts.sanitizeDesignSystem({ name: 'Anim' });
+  const build = (animations) => svgDeckExport.buildDesignedPptx({
+    title: 'Solar', size: '16:9', system, mode: 'editable', animations, transition: 'fade',
+    slides: [{ svg: SAMPLE_SLIDE, notes: '' }],
+    picture: (href) => (href === 'assets/panel.jpg' ? PICTURE : null),
+  });
+  const on = await JSZip.loadAsync((await build(true)).bytes);
+  const slide = await on.file('ppt/slides/slide1.xml').async('string');
+  assert.equal(new DOMParser().parseFromString(slide, 'text/xml').getElementsByTagName('parsererror').length, 0);
+  assert.match(slide, /<\/p:clrMapOvr><p:transition spd="med"><p:fade\/><\/p:transition><p:timing>/, 'schema order: clrMapOvr, transition, timing');
+  const shapeIds = new Set([...slide.matchAll(/<p:cNvPr id="(\d+)"/g)].map((match) => match[1]));
+  const targets = [...slide.matchAll(/<p:spTgt spid="(\d+)"\/>/g)].map((match) => match[1]);
+  assert.ok(targets.length > 0);
+  assert.ok(targets.every((id) => shapeIds.has(id)), 'every animation targets a shape on the slide');
+  const off = await JSZip.loadAsync((await build(false)).bytes);
+  assert.doesNotMatch(await off.file('ppt/slides/slide1.xml').async('string'), /<p:timing>/);
+});
+
+test('animations are on for designed decks and off for imported PowerPoint files unless chosen', () => {
+  assert.equal(deckModule.animationsOn({ design: { slides: [] } }), true);
+  assert.equal(deckModule.animationsOn({ design: { origin: { kind: 'pptx' } } }), false);
+  assert.equal(deckModule.animationsOn({ animations: true, design: { origin: { kind: 'pptx' } } }), true);
+  assert.equal(deckModule.animationsOn({ animations: false, design: { slides: [] } }), false);
+});
+
 test('dominant colours of a picture', () => {
   const pixels = [];
   for (let i = 0; i < 60; i += 1) pixels.push(200, 30, 40, 255);
@@ -987,4 +1058,86 @@ test('art direction can ask for real web photos, and drawing prompts carry their
   const described = designPrompts.describeAttachments(attachments, false);
   assert.match(described, /photos found on the web/);
   assert.match(described, /print the credit "Photo: Ann Lee \/ Unsplash"/);
+});
+
+test('a request for a picture from the internet is recognised, in English and Arabic', () => {
+  const { wantsWebPhoto } = designPrompts;
+  assert.equal(wantsWebPhoto('اريدك ان تأتي بصورة من الانترنت عن البر بالوالدين وتضعها هنا'), true);
+  assert.equal(wantsWebPhoto('Add a picture from the internet about this topic'), true);
+  assert.equal(wantsWebPhoto('find a related photo and put it here'), true);
+  assert.equal(wantsWebPhoto('Use a real photograph of the port'), true);
+  assert.equal(wantsWebPhoto('Make this page more visual'), false);
+  assert.equal(wantsWebPhoto('Make the title bigger'), false);
+  assert.equal(wantsWebPhoto(''), false);
+});
+
+test('photo queries and the deck photo plan are read from replies', () => {
+  assert.deepEqual(designPrompts.parsePhotoQueries('{"queries":[" son kissing mother hand ","son kissing mother hand","elderly mother son"]}'), ['son kissing mother hand', 'elderly mother son']);
+  assert.deepEqual(designPrompts.parsePhotoQueries('["a","b","c","d"]'), ['a', 'b', 'c']);
+  assert.deepEqual(designPrompts.parsePhotoQueries('no json'), []);
+
+  const reply = JSON.stringify({ pages: [
+    { n: 1, queries: ['family dinner table', 'family'], brief: 'Full-bleed photo with a scrim' },
+    { n: 3, photo: 'old man walking' },
+    { n: 99, queries: ['x'] },
+    { n: 1, queries: ['dup'] },
+    { n: 2, queries: [] },
+  ] });
+  const plan = designPrompts.parsePhotoPlan(reply, 5, 8);
+  assert.deepEqual([...plan.keys()], [0, 2]);
+  assert.deepEqual(plan.get(0).queries, ['family dinner table', 'family']);
+  assert.deepEqual(plan.get(2).queries, ['old man walking']);
+  assert.equal(designPrompts.parsePhotoPlan(reply, 5, 1).size, 1);
+
+  const prompt = designPrompts.buildPhotoPlanPrompt({ title: 'Deck', pages: [{ role: 'cover', title: 'Cover', brief: 'b', density: 'anchor' }, { role: 'content', title: 'Two', brief: 'c', density: 'dense', pictures: ['assets/a.png'] }], max: 4 });
+  assert.match(prompt.prompt, /at most 4 pages/);
+  assert.match(prompt.prompt, /\(already shows a picture\)/);
+});
+
+test('a redraw is told which elements are selected and that a picture takes their place', () => {
+  const pages = [{ role: 'cover', title: 'Cover', brief: 'b', density: 'anchor' }];
+  const base = { title: 'Deck', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, index: 0, svg: '<svg>x</svg>', notes: '', instruction: 'Put a picture here', attachments: [] };
+  assert.doesNotMatch(designPrompts.buildRefinePrompt(base).prompt, /SELECTED ON THE PAGE/);
+  const { prompt } = designPrompts.buildRefinePrompt({ ...base, selection: [{ id: 'e3', kind: 'art', box: { x: 100.4, y: 80, w: 540, h: 540 }, label: 'Artwork' }] });
+  assert.match(prompt, /SELECTED ON THE PAGE/);
+  assert.match(prompt, /data-el="e3" \(drawn artwork\) at x 100, y 80, 540 × 540 px/);
+  assert.match(prompt, /picture goes exactly where the selected element is/);
+
+  const asked = designPrompts.buildDirectionPrompt({ prompt: 'x', attachments: [], sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: false, webPhotos: true, photosRequested: true });
+  assert.match(asked.prompt, /asked for pictures from the internet/);
+  const unasked = designPrompts.buildDirectionPrompt({ prompt: 'x', attachments: [], sources: '', slideCount: null, language: 'auto', canvas: CANVAS, seesImages: false, webPhotos: false, photosRequested: true });
+  assert.doesNotMatch(unasked.prompt, /asked for pictures from the internet/);
+});
+
+const slideSelection = await load('slideSelection');
+
+test('picking slides: click, Ctrl-click, Shift-click range and the checkbox', () => {
+  const order = ['a', 'b', 'c', 'd', 'e'];
+  const { pickSlide, selectAll, selectedInOrder } = slideSelection;
+  assert.deepEqual(pickSlide(order, ['a', 'c'], 'd', 'only'), ['d']);
+  // Ctrl-click adds and shows the slide (it goes last); clicking a picked slide removes it.
+  assert.deepEqual(pickSlide(order, ['a'], 'c', 'toggle'), ['a', 'c']);
+  assert.deepEqual(pickSlide(order, ['a', 'c'], 'a', 'toggle'), ['c']);
+  // The last remaining slide cannot be taken away.
+  assert.deepEqual(pickSlide(order, ['c'], 'c', 'toggle'), ['c']);
+  // Shift-click: from the slide on the stage to the clicked one, the clicked one last.
+  assert.deepEqual(pickSlide(order, ['b'], 'd', 'range'), ['b', 'c', 'd']);
+  assert.deepEqual(pickSlide(order, ['d'], 'b', 'range'), ['d', 'c', 'b']);
+  // The checkbox adds without moving the stage.
+  assert.deepEqual(pickSlide(order, ['b'], 'e', 'check'), ['e', 'b']);
+  assert.deepEqual(pickSlide(order, ['e', 'b'], 'e', 'check'), ['b']);
+  assert.deepEqual(pickSlide(order, [], 'c', 'check'), ['c']);
+  // Unknown ids (a deleted slide) are ignored.
+  assert.deepEqual(pickSlide(order, ['a', 'zz'], 'c', 'toggle'), ['a', 'c']);
+  assert.deepEqual(selectAll(order, 'c'), ['a', 'b', 'd', 'e', 'c']);
+  assert.deepEqual(selectedInOrder(order, ['d', 'a']), ['a', 'd']);
+});
+
+test('redesigning selected slides keeps the content and passes the user\'s direction', () => {
+  const plain = designPrompts.redesignInstruction('');
+  assert.match(plain, /keep every fact, number and the message/);
+  assert.match(plain, /more striking/);
+  const wish = designPrompts.redesignInstruction('  darker, like a magazine ');
+  assert.match(wish, /Direction from the user: darker, like a magazine/);
+  assert.doesNotMatch(wish, /more striking than it is now/);
 });

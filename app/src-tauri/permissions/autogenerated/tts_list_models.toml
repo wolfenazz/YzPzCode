@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tts-list-models"
+description = "Enables the tts_list_models command without any pre-configured scope."
+commands.allow = ["tts_list_models"]
+
+[[permission]]
+identifier = "deny-tts-list-models"
+description = "Denies the tts_list_models command without any pre-configured scope."
+commands.deny = ["tts_list_models"]

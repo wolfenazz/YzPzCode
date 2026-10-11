@@ -20,7 +20,8 @@ const EASE = [0.32, 0.72, 0, 1] as const;
 export const StockImagePicker: React.FC<StockImagePickerProps> = ({ initialQuery, busy, error, onClose, onPick }) => {
   const saved = usePresentationStore((state) => state.stockProvider);
   const keys = usePresentationStore((state) => state.stockKeys);
-  const [provider, setProvider] = useState<StockProviderId>(saved === 'off' ? 'openverse' : saved);
+  // Browsing needs a service with a result grid; the AI's own web search has none.
+  const [provider, setProvider] = useState<StockProviderId>(saved === 'off' || saved === 'ai' ? 'openverse' : saved);
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
   const [results, setResults] = useState<StockImage[]>([]);

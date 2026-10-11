@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useEditorState, type Editor } from '@tiptap/react';
 import {
   ArrowArcLeft,
   ArrowArcRight,
   BookBookmark,
+  CircleNotch,
   Code,
   DotsThree,
   Eraser,
@@ -17,6 +18,8 @@ import {
   Minus,
   Plus,
   Quotes,
+  SpeakerHigh,
+  Stop,
   Table,
   TextAlignCenter,
   TextAlignJustify,
@@ -31,6 +34,10 @@ import {
 } from '@phosphor-icons/react';
 import { DOCUMENT_FONTS, fontStack } from '../../utils/writing/stylePresets';
 import type { Reference, ReportStyle } from '../../utils/writing/types';
+import { useTtsPlayback } from '../../hooks/useTtsPlayback';
+import { TTS_SPEEDS, useTtsStore } from '../../stores/ttsStore';
+import { ttsBilingual } from '../../utils/tts/strings';
+import { REPORT_NARRATION_MAX_CHARS, selectionOrSectionNarrationText } from './reportNarration';
 import { Dropdown, MenuItem, MenuLabel, MenuSep } from './ui';
 
 const FONT_SIZES = ['8pt', '9pt', '10pt', '10.5pt', '11pt', '12pt', '14pt', '16pt', '18pt', '20pt', '24pt', '28pt', '36pt'];
@@ -61,9 +68,10 @@ interface StudioToolbarProps {
   style: ReportStyle;
   bibliography: Reference[];
   onOpenReferences: () => void;
+  onToast?: (message: string) => void;
 }
 
-export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bibliography, onOpenReferences }) => {
+export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bibliography, onOpenReferences, onToast }) => {
   const [linkDraft, setLinkDraft] = useState<string | null>(null);
   const state = useEditorState({
     editor,
@@ -93,9 +101,46 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
         color: attrs.color ?? '',
         canUndo: current.can().undo(),
         canRedo: current.can().redo(),
+        hasSelection: !current.state.selection.empty,
       };
     },
   });
+
+  const ttsEnabled = useTtsStore((state) => state.enabled);
+  const ttsSpeed = useTtsStore((state) => state.speed);
+  const setTtsSpeed = useTtsStore((state) => state.setSpeed);
+  const { status: ttsStatus, errorMsg: ttsError, speak: ttsSpeak, stop: ttsStop } = useTtsPlayback();
+
+  useEffect(() => {
+    if (ttsError) onToast?.(ttsError);
+  }, [ttsError, onToast]);
+
+  const ttsBusy = ttsStatus === 'preparing' || ttsStatus === 'synthesizing' || ttsStatus === 'playing';
+  // Full section text goes to the backend in one call: the Python bridge
+  // chunks (~250 chars) and joins to a single WAV, so long sections play
+  // without cutoff up to the backend ceiling; beyond it we ask for a slice.
+  const narrate = (): void => {
+    if (!editor) return;
+    if (ttsBusy) {
+      ttsStop();
+      return;
+    }
+    const target = selectionOrSectionNarrationText(editor);
+    if (!target) {
+      onToast?.(ttsBilingual('selectOrSection'));
+      return;
+    }
+    if (target.text.length > REPORT_NARRATION_MAX_CHARS) {
+      onToast?.(ttsBilingual('tooLong'));
+      return;
+    }
+    void ttsSpeak(target.text);
+  };
+  const narrateLabel: string = ttsBusy
+    ? 'Stop narration · إيقاف السرد'
+    : state?.hasSelection
+      ? 'Read selection aloud · قراءة المحدد'
+      : 'Read section aloud · قراءة القسم';
 
   const disabled = !editor;
   const chain = () => editor!.chain().focus();
@@ -271,6 +316,28 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
           </>
         )}
       </Dropdown>
+
+      {ttsEnabled && (
+        <>
+          <Sep />
+          <Btn label={narrateLabel} active={ttsBusy} disabled={disabled} onClick={narrate}>
+            {ttsStatus === 'preparing' || ttsStatus === 'synthesizing'
+              ? <CircleNotch {...ICON} className="animate-spin" />
+              : ttsBusy
+                ? <Stop {...ICON} weight="fill" />
+                : <SpeakerHigh {...ICON} />}
+          </Btn>
+          <Dropdown label={<span className="wr-tb__value" style={{ width: 36 }}>{ttsSpeed}x</span>} title="Narration speed" disabled={disabled} width={120}>
+            {(close) => (
+              <>
+                {TTS_SPEEDS.map((speed) => (
+                  <MenuItem key={speed} label={`${speed}x`} checked={ttsSpeed === speed} onSelect={() => { setTtsSpeed(speed); close(); }} />
+                ))}
+              </>
+            )}
+          </Dropdown>
+        </>
+      )}
     </div>
   );
 };

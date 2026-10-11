@@ -36,6 +36,16 @@ fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .user_agent(USER_AGENT)
         .timeout(Duration::from_secs(30))
+        // A public address may not redirect into this computer or the local network.
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 5 {
+                attempt.error("too many redirects")
+            } else if allowed_url(attempt.url().as_str()).is_err() {
+                attempt.stop()
+            } else {
+                attempt.follow()
+            }
+        }))
         .build()
         .map_err(|e| e.to_string())
 }
@@ -234,17 +244,49 @@ pub async fn stock_image_search(
     })
 }
 
+/// Loopback, private, link-local and other non-public addresses.
+fn is_local_ip(ip: std::net::IpAddr) -> bool {
+    match ip {
+        std::net::IpAddr::V4(v4) => {
+            v4.is_loopback()
+                || v4.is_private()
+                || v4.is_link_local()
+                || v4.is_unspecified()
+                || v4.is_broadcast()
+                // 100.64.0.0/10 (carrier-grade NAT)
+                || (v4.octets()[0] == 100 && (v4.octets()[1] & 0xC0) == 64)
+        }
+        std::net::IpAddr::V6(v6) => {
+            let first = v6.segments()[0];
+            v6.is_loopback()
+                || v6.is_unspecified()
+                || (first & 0xFE00) == 0xFC00 // unique local
+                || (first & 0xFFC0) == 0xFE80 // link local
+                || v6.to_ipv4_mapped().is_some_and(|v4| is_local_ip(std::net::IpAddr::V4(v4)))
+        }
+    }
+}
+
+/// Image addresses come from search services and from the AI's own web
+/// searches, so anything on this computer or the local network is refused.
 fn allowed_url(url: &str) -> Result<reqwest::Url, String> {
     let parsed = reqwest::Url::parse(url).map_err(|_| "Not a valid image address.".to_string())?;
     if parsed.scheme() != "https" && parsed.scheme() != "http" {
         return Err("Only web images can be downloaded.".into());
     }
-    match parsed.host_str() {
-        Some(host) if host != "localhost" && !host.starts_with("127.") && host != "[::1]" => {
-            Ok(parsed)
+    let local = match parsed.host() {
+        Some(url::Host::Domain(host)) => {
+            let host = host.to_ascii_lowercase();
+            host == "localhost" || host.ends_with(".localhost") || host.ends_with(".local") || !host.contains('.')
         }
-        _ => Err("Only web images can be downloaded.".into()),
+        Some(url::Host::Ipv4(ip)) => is_local_ip(ip.into()),
+        Some(url::Host::Ipv6(ip)) => is_local_ip(ip.into()),
+        None => true,
+    };
+    if local {
+        return Err("Only web images can be downloaded.".into());
     }
+    Ok(parsed)
 }
 
 /// File extension for an image content type.
@@ -305,6 +347,9 @@ pub async fn stock_image_download(
     if !content_type.starts_with("image/") {
         return Err("That address did not return an image.".into());
     }
+    if content_type.starts_with("image/svg") {
+        return Err("That address is a drawing (SVG), not a photo.".into());
+    }
     if response.content_length().unwrap_or(0) as usize > MAX_IMAGE_BYTES {
         return Err("The image is larger than 25 MB.".into());
     }
@@ -363,6 +408,14 @@ mod tests {
         assert!(allowed_url("file:///C:/secret.png").is_err());
         assert!(allowed_url("http://localhost:8080/a.png").is_err());
         assert!(allowed_url("http://127.0.0.1/a.png").is_err());
+        assert!(allowed_url("http://192.168.1.1/a.png").is_err());
+        assert!(allowed_url("http://10.0.0.5/a.png").is_err());
+        assert!(allowed_url("http://169.254.169.254/latest").is_err());
+        assert!(allowed_url("http://[::1]/a.png").is_err());
+        assert!(allowed_url("http://[fd00::1]/a.png").is_err());
+        assert!(allowed_url("http://router/a.png").is_err());
+        assert!(allowed_url("https://upload.wikimedia.org/a.jpg").is_ok());
+        assert!(allowed_url("https://8.8.8.8/a.jpg").is_ok());
         assert_eq!(image_extension("image/png"), "png");
         assert_eq!(image_extension("image/jpeg; charset=binary"), "jpg");
     }

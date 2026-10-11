@@ -30,7 +30,7 @@ export const EnginePicker: React.FC<{ value: EngineChoice; onChange: (value: Eng
       </label>
       <label className="pr-field">
         <span className="pr-field__label">Model <span className="pr-field__opt">optional</span></span>
-        <ModelInput className="pr-input" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loading} placeholder="CLI default" />
+        <ModelInput className="pr-select" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loading} placeholder="CLI default" />
       </label>
       {hasEfforts(models, value.model) && (
         <label className="pr-field">

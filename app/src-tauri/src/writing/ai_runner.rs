@@ -41,6 +41,9 @@ pub struct WritingAiRunRequest {
     /// Absolute paths of pictures to show the engine (engines that can see only).
     #[serde(default)]
     pub images: Vec<String>,
+    /// Let the engine search the web (finding photos). Ignored by engines without web search.
+    #[serde(default)]
+    pub web_search: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -259,6 +262,7 @@ impl WritingAiRunner {
             has_system_file: takes_system_file,
             prompt: &prompt,
             images: &images,
+            web: request.web_search && engine.searches_web(),
         });
         let mut std_cmd = build_command(&binary, &args);
         std_cmd.current_dir(&run_dir);
@@ -525,6 +529,7 @@ mod tests {
                     prompt: "Write two short paragraphs (about 80 words in total) on why irrigation scheduling matters in arid farms. Then a two-row Markdown table with a caption line 'Table: Water use'.".into(),
                     timeout_secs: Some(180),
                     images: Vec::new(),
+                    web_search: false,
                 },
                 channel,
             )

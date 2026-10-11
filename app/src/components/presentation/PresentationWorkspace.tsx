@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { BookmarkSimple, CaretDown, CaretUp, Minus, NotePencil, Plus, PresentationChart, Sparkle, Warning, X } from '@phosphor-icons/react';
+import { BookmarkSimple, CaretDown, CaretUp, Minus, NotePencil, Plus, PresentationChart, SpeakerHigh, Sparkle, Warning, X } from '@phosphor-icons/react';
 import SwipeToast from '../reactbits/SwipeToast';
 import { useAppStore } from '../../stores/appStore';
 import { selectPresentationSession, usePresentationSessionStore } from '../../stores/presentationSessionStore';
@@ -48,6 +48,11 @@ import { SlideRenderer } from './SlideRenderer';
 import { SlideReviewCard, type SlideReview } from './SlideReviewCard';
 import { SlotInspector } from './SlotInspector';
 import { SvgSlide } from './SvgSlide';
+import { NarrateButton } from '../tts/NarrateButton';
+import { TtsModelPicker } from '../tts/TtsModelPicker';
+import { NarrationChip, NarrationSlideList } from '../tts/NarrationProgress';
+import { useNarrationPrewarm } from '../../hooks/useNarrationPrewarm';
+import { useTtsStore } from '../../stores/ttsStore';
 import { useDeckDocument } from './useDeckDocument';
 import { useDeckGenerator, type GenerationTarget } from './useDeckGenerator';
 import { storySlides, useDesignGenerator } from './useDesignGenerator';
@@ -144,6 +149,16 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const [sideOpen, setSideOpen] = useState(true);
   const [sideTab, setSideTab] = useState<'edit' | 'ai'>('ai');
   const [notesOpen, setNotesOpen] = useState(true);
+  const [ttsPickerOpen, setTtsPickerOpen] = useState(false);
+  useEffect(() => {
+    if (!ttsPickerOpen) return;
+    const closeOutside = (event: MouseEvent) => {
+      if (!(event.target as Element | null)?.closest?.('.pr-notes__picker-wrap')) setTtsPickerOpen(false);
+    };
+    document.addEventListener('mousedown', closeOutside, true);
+    return () => document.removeEventListener('mousedown', closeOutside, true);
+  }, [ttsPickerOpen]);
+  const ttsEnabled = useTtsStore((state) => state.enabled);
   const [zoom, setZoom] = useState(1);
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
   const [review, setReview] = useState<(SlideReview & { ids: string[]; request: { action: SlideAction; scope: 'selected' | 'all'; instruction?: string; ids: string[] } }) | null>(null);
@@ -169,6 +184,8 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const selectedId = session.selectedIds[session.selectedIds.length - 1] ?? null;
   const selectedIndex = deck && selectedId ? deck.slides.findIndex((slide) => slide.id === selectedId) : -1;
   const selectedSlide = selectedIndex >= 0 ? deck!.slides[selectedIndex] : null;
+  // Narration for every slide's notes is prepared while the deck is open, so Narrate starts at once.
+  useNarrationPrewarm(deck?.design?.slides ?? deck?.slides, selectedId, visible);
 
   const resolveImage = useCallback((src: string): string => {
     if (!src) return '';
@@ -269,7 +286,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         .filter((entry) => entry.query && !slides[entry.index]?.pictures?.length)
         .slice(0, MAX_WEB_PHOTOS);
       if (photoPages.length > 0 && deck.design) {
-        const found = await fetchWebPictures(photoPages.map((entry) => entry.query), joinPath(folder, ASSETS_FOLDER));
+        const found = await fetchWebPictures(photoPages.map((entry) => entry.query), joinPath(folder, ASSETS_FOLDER), engine);
         const added: DesignAttachment[] = [];
         for (const [index, picture] of found.entries()) {
           if (!picture) continue;
@@ -860,9 +877,73 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
               />
               {selectedSlide && (
                 <div className="pr-notes" data-open={notesOpen || undefined}>
-                  <button type="button" className="pr-notes__head" onClick={() => setNotesOpen((value) => !value)}>
-                    <NotePencil size={13} /> Speaker notes {notesOpen ? <CaretDown size={11} /> : <CaretUp size={11} />}
-                  </button>
+                  <div className="pr-notes__head pr-notes__head--with-narrate">
+                    <button
+                      type="button"
+                      className="pr-notes__toggle"
+                      onClick={() => setNotesOpen((value) => !value)}
+                      aria-expanded={notesOpen}
+                      title={notesOpen ? 'Hide speaker notes' : 'Show speaker notes'}
+                    >
+                      <NotePencil size={13} />
+                      <span>Speaker notes</span>
+                      {selectedSlide.notes?.trim() && <span className="pr-notes__badge" title="This slide has speaker notes" />}
+                      <span className="pr-notes__caret">{notesOpen ? <CaretDown size={11} /> : <CaretUp size={11} />}</span>
+                    </button>
+                    {ttsEnabled && (
+                      <div className="pr-notes__narrate">
+                        <NarrationChip onOpen={() => setTtsPickerOpen(true)} />
+                        <NarrateButton
+                          text={selectedSlide.notes ?? ''}
+                          slideId={selectedSlide.id}
+                          disabled={!(selectedSlide.notes?.trim())}
+                          title="Narrate speaker notes with local TTS"
+                          onToast={(message: string) => setToast({ title: 'Narration failed', description: message })}
+                        />
+                        <div className="pr-notes__picker-wrap">
+                          <button
+                            type="button"
+                            className="pr-notes__picker-btn"
+                            aria-expanded={ttsPickerOpen}
+                            aria-haspopup="dialog"
+                            aria-label="Narration voice and model"
+                            title="Narration voice and model"
+                            onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                              event.stopPropagation();
+                              setTtsPickerOpen((value: boolean) => !value);
+                            }}
+                            onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => event.stopPropagation()}
+                            onKeyDown={(event: React.KeyboardEvent<HTMLButtonElement>) => {
+                              event.stopPropagation();
+                              if (event.key === 'Escape') setTtsPickerOpen(false);
+                            }}
+                          >
+                            <SpeakerHigh size={14} aria-hidden="true" />
+                          </button>
+                          {ttsPickerOpen && (
+                            <div
+                              className="pr-notes__picker-pop"
+                              role="dialog"
+                              aria-label="Narration voice and model"
+                              onMouseDown={(event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation()}
+                              onClick={(event: React.MouseEvent<HTMLDivElement>) => event.stopPropagation()}
+                              onKeyDown={(event: React.KeyboardEvent<HTMLDivElement>) => {
+                                event.stopPropagation();
+                                if (event.key === 'Escape') setTtsPickerOpen(false);
+                              }}
+                            >
+                              <NarrationSlideList slides={deck?.slides} />
+                              <TtsModelPicker
+                                variant="compact"
+                                slideId={selectedSlide.id}
+                                onToast={(message: string) => setToast({ title: 'Narration model', description: message })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   {notesOpen && (
                     <textarea
                       className="pr-notes__input"
@@ -972,6 +1053,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           onCreate={(input) => void createDesigned(input)}
           onCancel={designer.cancel}
           onOpen={(path) => void documents.openDeck(path)}
+          onDelete={(path) => void documents.deleteDeck(path)}
           onImport={() => setImportState({ path: null, busy: false, error: null, progress: null })}
         />
       )}
@@ -1031,6 +1113,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           startId={presenting.startId}
           renderSlide={(slide, width) => <SvgSlide svg={slide.svg} width={width} canvas={designCanvas(deck.size)} resolveHref={resolveImage} />}
           seconds={designedSeconds}
+          onToast={(message: string) => setToast({ title: 'Narration', description: message })}
           onExit={(lastId) => {
             setPresenting(null);
             if (lastId) select([lastId]);
@@ -1046,6 +1129,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           startId={presenting.startId}
           renderSlide={(slide, width) => <SlideRenderer context={context} slide={slide} index={deck.slides.indexOf(slide)} width={width} resolveImage={resolveImage} />}
           seconds={slideSeconds}
+          onToast={(message: string) => setToast({ title: 'Narration', description: message })}
           onExit={(lastId) => {
             setPresenting(null);
             if (lastId) select([lastId]);

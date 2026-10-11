@@ -133,6 +133,19 @@ input,
 textarea,
 select {
   font-family: var(--font-ui);
+  color-scheme: inherit;
+}
+
+select option,
+select optgroup {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+select option:disabled,
+select optgroup:disabled {
+  color: var(--text-secondary);
+  opacity: 0.6;
 }
 
 /* `font-mono` is used broadly for metadata and compact controls. Give those

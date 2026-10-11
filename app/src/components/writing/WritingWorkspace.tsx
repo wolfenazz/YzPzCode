@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Editor } from '@tiptap/react';
 import type { Transaction } from '@tiptap/pm/state';
 import { open } from '@tauri-apps/plugin-dialog';
-import { CaretRight, Export, Minus, Plus, SidebarSimple } from '@phosphor-icons/react';
+import { BookBookmark, Export, Minus, PaintBrush, Plus, SidebarSimple, Sparkle } from '@phosphor-icons/react';
 import { useWritingSessionStore, selectSession } from '../../stores/writingSessionStore';
 import { useWritingStore } from '../../stores/writingStore';
 import { createBrief, createDoc, fileName, parentPath, reportPath } from '../../utils/writing/document';
@@ -21,6 +21,8 @@ import { pageCount, pageOfElement } from './editor/pageGeometry';
 import { OutlinePanel } from './OutlinePanel';
 import { ReferencesPanel } from './ReferencesPanel';
 import { ReportComposer } from './ReportComposer';
+import { Inspector, InspectorBody, InspectorTabs, type InspectorTab } from '../studio/Inspector';
+import { BarSeparator, StudioTopBar, type StudioRun, type StudioSaveState } from '../studio/StudioTopBar';
 import { ReviewCard, type ReviewState } from './ReviewCard';
 import { SelectionMenu } from './SelectionMenu';
 import { StudioToolbar } from './StudioToolbar';
@@ -38,10 +40,10 @@ interface WritingWorkspaceProps {
 
 type PanelId = 'assistant' | 'design' | 'references';
 
-const PANELS: Array<{ id: PanelId; label: string }> = [
-  { id: 'assistant', label: 'Assistant' },
-  { id: 'design', label: 'Design' },
-  { id: 'references', label: 'References' },
+const PANELS: Array<InspectorTab<PanelId>> = [
+  { id: 'assistant', label: 'Assistant', icon: <Sparkle size={14} /> },
+  { id: 'design', label: 'Design', icon: <PaintBrush size={14} /> },
+  { id: 'references', label: 'References', icon: <BookBookmark size={14} /> },
 ];
 
 const EMPTY_DOC: DocNode = { type: 'doc', content: [{ type: 'paragraph' }] };
@@ -66,7 +68,8 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
   const [composerError, setComposerError] = useState<string | null>(null);
   /** The planned report is being written to disk. */
   const [creating, setCreating] = useState(false);
-  const [panel, setPanel] = useState<PanelId | null>('assistant');
+  const [panel, setPanel] = useState<PanelId>('assistant');
+  const [panelOpen, setPanelOpen] = useState(true);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [lintEnabled, setLintEnabled] = useState(false);
@@ -409,44 +412,51 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
   } : null), [docDir, exporting, session.bibliography, session.brief]);
 
   const title = session.brief?.details.title || session.meta?.title || 'Untitled';
-  const saveState = session.error ? session.error : session.saving ? 'Saving…' : session.dirty ? 'Edited' : 'Saved';
+  const save: StudioSaveState = session.error
+    ? { text: session.error, state: 'error' }
+    : session.saving
+      ? { text: 'Saving…', state: 'saving' }
+      : session.dirty
+        ? { text: 'Edited', state: 'unsaved' }
+        : { text: 'Saved', state: 'saved', title: session.lastSavedAt ? `Saved ${new Date(session.lastSavedAt).toLocaleTimeString()}` : undefined };
   const current = session.outline.find((section) => section.id === session.run?.currentSectionId);
+  const sectionTotal = session.run ? Object.keys(session.run.sectionStatus).length : 0;
+  const sectionsDone = session.run ? Object.values(session.run.sectionStatus).filter((status) => status === 'done').length : 0;
+  const runBar: StudioRun | null = busy
+    ? {
+      label: session.run?.phase === 'outline' ? 'Planning the report' : 'Writing',
+      detail: session.run?.phase === 'writing' ? current?.title : undefined,
+      progress: session.run?.phase === 'writing' && sectionTotal > 0 ? sectionsDone / sectionTotal : null,
+      onStop: generator.cancel,
+    }
+    : null;
   const composing = !hasDoc && (session.run?.phase === 'outline' || creating);
 
   return (
     <div className="wr-root" aria-hidden={!visible}>
       {hasDoc && session.brief ? (
         <div className="wr-studio">
-          <header className="wr-topbar">
-            <button type="button" className={`wr-icon${outlineOpen ? ' is-on' : ''}`} title="Outline" aria-label="Toggle outline" aria-pressed={outlineOpen} onClick={() => setOutlineOpen((value) => !value)}>
-              <SidebarSimple size={15} />
+          <StudioTopBar
+            backLabel="Documents"
+            onBack={() => void goHome()}
+            title={session.brief.details.title}
+            titlePlaceholder={session.meta?.title || 'Untitled'}
+            onTitle={(value) => setDetails({ title: value })}
+            meta={getReportType(session.brief.typeId).name}
+            save={save}
+            run={runBar}
+          >
+            <button type="button" className="sx-icon" aria-pressed={outlineOpen} aria-label="Outline" title="Outline" onClick={() => setOutlineOpen((value) => !value)}>
+              <SidebarSimple size={16} />
             </button>
-            <nav className="wr-crumbs" aria-label="Location">
-              <button type="button" className="wr-crumbs__link" onClick={() => void goHome()}>Documents</button>
-              <CaretRight size={10} className="wr-crumbs__sep" />
-              <input
-                className="wr-crumbs__title"
-                value={session.brief.details.title}
-                placeholder={session.meta?.title || 'Untitled'}
-                aria-label="Title"
-                size={Math.max(8, Math.min(60, (session.brief.details.title || title).length + 1))}
-                onChange={(event) => setDetails({ title: event.target.value })}
-                onKeyDown={(event) => { event.stopPropagation(); if (event.key === 'Enter') (event.target as HTMLInputElement).blur(); }}
-              />
-            </nav>
-            <span className={`wr-save${session.error ? ' is-error' : ''}`} title={session.lastSavedAt ? `Saved ${new Date(session.lastSavedAt).toLocaleTimeString()}` : undefined}>{saveState}</span>
-            <span className="wr-spacer" />
-            <div className="wr-seg" role="tablist" aria-label="Side panel">
-              {PANELS.map((entry) => (
-                <button key={entry.id} type="button" role="tab" aria-selected={panel === entry.id} className="wr-seg__item" onClick={() => setPanel((value) => (value === entry.id ? null : entry.id))}>
-                  {entry.label}
-                </button>
-              ))}
-            </div>
-            <button type="button" className="wr-btn wr-btn--primary" onClick={() => setExporting(true)} title="Export (Ctrl+Shift+E)"><Export size={13} /> Export</button>
-          </header>
+            <button type="button" className="sx-icon sx-icon--mirror" aria-pressed={panelOpen} aria-label="Side panel" title="Assistant, design and references" onClick={() => setPanelOpen((value) => !value)}>
+              <SidebarSimple size={16} />
+            </button>
+            <BarSeparator />
+            <button type="button" className="sx-btn sx-btn--primary" onClick={() => setExporting(true)} title="Export (Ctrl+Shift+E)"><Export size={14} /> Export</button>
+          </StudioTopBar>
 
-          <StudioToolbar editor={editor} style={session.brief.style} bibliography={session.bibliography} onOpenReferences={() => setPanel('references')} />
+          <StudioToolbar editor={editor} style={session.brief.style} bibliography={session.bibliography} onOpenReferences={() => { setPanel('references'); setPanelOpen(true); }} onToast={showToast} />
 
           <div className="wr-studio__body">
             {outlineOpen && (
@@ -470,8 +480,10 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
                 />
               </div>
             </div>
-            {panel && (
-              <aside className="wr-panel" aria-label={PANELS.find((entry) => entry.id === panel)?.label}>
+            {panelOpen && (
+              <Inspector label="Side panel">
+                <InspectorTabs tabs={PANELS} value={panel} onChange={setPanel} label="Side panel" />
+                <InspectorBody>
                 {panel === 'assistant' && (
                   <AssistantPanel
                     editor={editor}
@@ -481,7 +493,6 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
                     onWriteRemaining={() => void generator.generateSections({ skipWritten: true })}
                     onRewriteAll={() => void generator.generateSections()}
                     onHumanizeAll={() => void humanizeAll()}
-                    onCancel={generator.cancel}
                     onInstruction={onInstruction}
                     onBriefChange={setBrief}
                   />
@@ -507,19 +518,12 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
                     onSourceFilesChange={(sourceFiles) => setDetails({ sourceFiles })}
                   />
                 )}
-              </aside>
+                </InspectorBody>
+              </Inspector>
             )}
           </div>
 
           <footer className="wr-status">
-            {busy && session.run?.phase === 'writing' ? (
-              <span className="wr-status__item wr-status__run">
-                <span className="wr-pulse" aria-hidden="true" /> Writing{current ? ` ${current.title}` : '…'}
-                <button type="button" className="wr-link" onClick={generator.cancel}>Stop</button>
-              </span>
-            ) : (
-              <span className="wr-status__item">{getReportType(session.brief.typeId).name}</span>
-            )}
             <span className="wr-status__item">Page {pages.current} of {pages.total}</span>
             <span className="wr-status__item">{wordCount.toLocaleString()} words</span>
             <span className="wr-spacer" />
@@ -530,7 +534,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
             </span>
           </footer>
 
-          {editor && <SelectionMenu editor={editor} busy={busy || review?.status === 'running'} onAction={onSelectionAction} />}
+          {editor && <SelectionMenu editor={editor} busy={busy || review?.status === 'running'} onAction={onSelectionAction} onToast={showToast} />}
         </div>
       ) : composerType ? (
         <ReportComposer

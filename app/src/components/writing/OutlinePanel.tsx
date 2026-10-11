@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import { ArrowClockwise } from '@phosphor-icons/react';
 import type { GenerationRun } from '../../stores/writingSessionStore';
+import { Inspector, InspectorHead } from '../studio/Inspector';
 
 interface OutlineEntry {
   pos: number;
@@ -66,28 +67,30 @@ export const OutlinePanel: React.FC<OutlinePanelProps> = ({ editor, run, busy, o
     });
   };
 
+  const sections = entries.filter((entry) => entry.level === 1).length;
+
   return (
-    <aside className="wr-outline-panel" aria-label="Outline">
-      <div className="wr-panel-title">Outline</div>
+    <Inspector label="Outline" side="left" width={248}>
+      <InspectorHead title="Outline" count={sections > 0 ? sections : undefined} />
       <div className="wr-outline-panel__list">
-        {entries.length === 0 && <p className="wr-note wr-outline-panel__empty">Headings appear here as the document takes shape.</p>}
+        {entries.length === 0 && <p className="sx-hint wr-outline-panel__empty">Headings appear here as the document takes shape.</p>}
         {entries.map((entry) => {
           const status = entry.sectionId ? run?.sectionStatus[entry.sectionId] : undefined;
           return (
             <div key={`${entry.pos}-${entry.text}`} className={`wr-outline-item is-level-${entry.level}${activePos === entry.pos ? ' is-active' : ''}`}>
-              <button type="button" className="wr-outline-item__link" onClick={() => jump(entry.pos)} title={entry.text}>
+              <button type="button" className="wr-outline-item__link" onClick={() => jump(entry.pos)} title={entry.text} aria-current={activePos === entry.pos || undefined}>
                 {status && status !== 'done' && <span className={`wr-dot is-${status}`} aria-label={status} />}
                 <span className="wr-outline-item__text">{entry.text}</span>
               </button>
               {entry.sectionId && entry.level === 1 && (
-                <button type="button" className="wr-icon wr-outline-item__action" title="Write this section again" aria-label={`Write ${entry.text} again`} disabled={busy} onClick={() => onWriteSection(entry.sectionId!)}>
-                  <ArrowClockwise size={12} />
+                <button type="button" className="sx-icon wr-outline-item__action" title="Write this section again" aria-label={`Write ${entry.text} again`} disabled={busy} onClick={() => onWriteSection(entry.sectionId!)}>
+                  <ArrowClockwise size={13} />
                 </button>
               )}
             </div>
           );
         })}
       </div>
-    </aside>
+    </Inspector>
   );
 };

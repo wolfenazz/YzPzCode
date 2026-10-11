@@ -1,19 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { ArrowRight, FileArrowUp, FileText, FolderSimple, ImageSquare, Paperclip, PresentationChart, Sparkle, Stop, X } from '@phosphor-icons/react';
+import { ArrowRight, FileArrowUp, FileText, FolderSimple, Paperclip, SlidersHorizontal, Stop, Trash, X } from '@phosphor-icons/react';
 import type { DeckRun } from '../../stores/presentationSessionStore';
 import type { FileEntry } from '../../types';
 import { localFileUrl } from '../../utils/mediaFiles';
 import { findMentionedPaths, isPictureName, MAX_DECK_PICTURES } from '../../utils/presentation/designPictures';
 import { formatDuration } from '../../utils/presentation/timing';
 import type { DeckSize } from '../../utils/presentation/types';
-import { fileName, joinPath } from '../../utils/writing/document';
+import { isAbsolutePath } from '../../utils/presentation/assets';
+import { fileName, joinPath, parentPath } from '../../utils/writing/document';
 import { SOURCE_EXTENSIONS } from '../../utils/writing/sources';
 import type { EngineChoice } from '../../utils/writing/types';
+import { relativeTime } from '../writing/ui';
 import { IMAGE_EXTENSIONS, saveDroppedFile, scanFolderPictures } from './designAssets';
 import { EnginePicker } from './EnginePicker';
+import { SvgSlide } from './SvgSlide';
 import type { DeckListing } from './useDeckDocument';
 
 export interface ComposerFile {
@@ -58,28 +60,77 @@ interface DesignComposerProps {
   onCreate: (input: ComposerInput) => void;
   onCancel: () => void;
   onOpen: (path: string) => void;
+  /** Moves the deck's folder to the workspace trash. */
+  onDelete: (path: string) => void;
   onImport: () => void;
 }
 
-const EASE = [0.32, 0.72, 0, 1] as const;
 const COUNTS: Array<number | null> = [null, 5, 8, 12, 16];
 const MAX_FILES = 12;
 const isImage = (path: string): boolean => IMAGE_EXTENSIONS.includes(path.split('.').pop()?.toLowerCase() ?? '');
 
-const EXAMPLES = [
-  'A pitch for our neighbourhood solar co-op to the city council: panel costs are down 40% since 2020, 120 households have joined, and we need €80k for phase two.',
-  'A 15-minute lesson introducing photosynthesis to 14-year-olds. Playful and visual, with a simple experiment they can do at home.',
-  'Launch keynote for a minimalist mechanical keyboard brand. Dark, premium, few words, big product moments.',
-  'Board update from the attached report: what moved this quarter, why churn rose, and the pricing change we recommend.',
+/** Short label → the description it fills in. */
+const EXAMPLES: Array<{ label: string; prompt: string }> = [
+  { label: 'Pitch to the city council', prompt: 'A pitch for our neighbourhood solar co-op to the city council: panel costs are down 40% since 2020, 120 households have joined, and we need €80k for phase two.' },
+  { label: 'Lesson for 14-year-olds', prompt: 'A 15-minute lesson introducing photosynthesis to 14-year-olds. Playful and visual, with a simple experiment they can do at home.' },
+  { label: 'Product launch keynote', prompt: 'Launch keynote for a minimalist mechanical keyboard brand. Dark, premium, few words, big product moments.' },
+  { label: 'Board update from a report', prompt: 'Board update from the attached report: what moved this quarter, why churn rose, and the pricing change we recommend.' },
 ];
 
-const USE_LABEL: Record<ComposerFile['use'], string> = { auto: 'AI decides', slides: 'On slides', style: 'Inspiration' };
-const NEXT_USE: Record<ComposerFile['use'], ComposerFile['use']> = { auto: 'slides', slides: 'style', style: 'auto' };
+const USES: Array<{ value: ComposerFile['use']; label: string }> = [
+  { value: 'auto', label: 'AI decides' },
+  { value: 'slides', label: 'On slides' },
+  { value: 'style', label: 'Inspiration' },
+];
+
+/** How a picture (or a folder of them) is used: a quiet select inside its chip. */
+const UseSelect: React.FC<{ value: ComposerFile['use']; disabled: boolean; onChange: (use: ComposerFile['use']) => void }> = ({ value, disabled, onChange }) => (
+  <select className="pd-chip__use" value={value} disabled={disabled} onChange={(event) => onChange(event.target.value as ComposerFile['use'])} aria-label="How the pictures are used" title="On slides: placed on the slides. Inspiration: sets the look only.">
+    {USES.map((use) => <option key={use.value} value={use.value}>{use.label}</option>)}
+  </select>
+);
+
+/** A recent deck, shown by its cover slide; deleting asks once, in place. */
+const DeckCard: React.FC<{ deck: DeckListing; disabled: boolean; onOpen: (path: string) => void; onDelete: (path: string) => void }> = ({ deck, disabled, onOpen, onDelete }) => {
+  const [confirming, setConfirming] = useState(false);
+  const dir = parentPath(deck.path);
+  const resolveHref = useCallback((href: string): string => (/^data:/.test(href) ? href : localFileUrl(isAbsolutePath(href) ? href : joinPath(dir, href))), [dir]);
+  const kind = deck.preserve ? 'Original design' : deck.imported ? 'PowerPoint' : null;
+  return (
+    <div className="pd-deck" data-shape={deck.cover && deck.cover.canvas.width / deck.cover.canvas.height < 1.5 ? '4:3' : undefined}>
+      <button type="button" className="pd-deck__open" disabled={disabled || confirming} onClick={() => onOpen(deck.path)} title={deck.path}>
+        <span className="pd-deck__cover">
+          {deck.cover ? (
+            <SvgSlide svg={deck.cover.svg} width={320} canvas={deck.cover.canvas} resolveHref={resolveHref} />
+          ) : (
+            <span className="pd-deck__blank" dir="auto">{deck.title}</span>
+          )}
+        </span>
+        <span className="pd-deck__name" dir="auto">{deck.title}</span>
+        <span className="pd-deck__meta">
+          {deck.slides} slide{deck.slides === 1 ? '' : 's'}{kind ? ` · ${kind}` : ''} · {relativeTime(deck.modifiedAt)}
+        </span>
+      </button>
+      {confirming ? (
+        // Over the cover, so the card keeps its size.
+        <span className="pd-deck__confirm" onKeyDown={(event) => { if (event.key === 'Escape') setConfirming(false); }}>
+          <span>Delete this deck?</span>
+          <span className="pd-deck__confirm-actions">
+            <button type="button" className="pd-btn pd-btn--sm pd-btn--danger" onClick={() => { setConfirming(false); onDelete(deck.path); }}>Delete</button>
+            <button type="button" className="pd-btn pd-btn--sm" onClick={() => setConfirming(false)} autoFocus>Keep</button>
+          </span>
+        </span>
+      ) : (
+        <button type="button" className="pd-deck__delete" disabled={disabled} aria-label={`Delete ${deck.title}`} title="Delete" onClick={() => setConfirming(true)}>
+          <Trash size={13} />
+        </button>
+      )}
+    </div>
+  );
+};
 
 /** The new-presentation screen: describe it, add files, and the AI designs a deck from scratch. */
-export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, workspacePath, decks, engine, defaultSize, run, busy, animations, onEngine, onCreate, onCancel, onOpen, onImport }) => {
-  const reduce = useReducedMotion();
-  const still = reduce || !animations;
+export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, workspacePath, decks, engine, defaultSize, run, busy, animations, onEngine, onCreate, onCancel, onOpen, onDelete, onImport }) => {
   const [prompt, setPrompt] = useState('');
   const [files, setFiles] = useState<ComposerFile[]>([]);
   const [folders, setFolders] = useState<ComposerFolder[]>([]);
@@ -110,7 +161,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
     const element = textarea.current;
     if (!element) return;
     element.style.height = 'auto';
-    element.style.height = `${Math.min(320, Math.max(120, element.scrollHeight))}px`;
+    element.style.height = `${Math.min(320, Math.max(132, element.scrollHeight))}px`;
   }, [prompt]);
 
   const addPaths = useCallback(async (paths: string[]): Promise<void> => {
@@ -219,7 +270,8 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   };
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
-    event.stopPropagation();
+    // Typing in the composer never reaches the workspace shortcuts.
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.stopPropagation();
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       event.preventDefault();
       submit();
@@ -229,6 +281,8 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   const designing = busy || run?.phase === 'outline';
   const elapsed = run ? Math.max(0, ((run.endedAt ?? now) - run.startedAt) / 1000) : 0;
   const failed = !busy && run?.phase === 'failed' && run.error;
+  const hasDocuments = files.some((file) => file.kind === 'document');
+  const summary = [slideCount ? `${slideCount} slides` : 'Auto length', size, language.trim()].filter(Boolean).join(' · ');
 
   return (
     <div
@@ -243,27 +297,29 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
         setDragging(false);
         if (!busy) void addFiles(Array.from(event.dataTransfer.files));
       }}
+      onKeyDown={onKeyDown}
     >
-      <div className="pd-home__inner">
-        <motion.span className="pr-eyebrow" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE }}>
-          <PresentationChart size={12} weight="fill" /> {workspaceName} · Presentation studio
-        </motion.span>
-        <motion.h1 className="pd-home__title" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: EASE, delay: 0.05 }}>
-          Describe it. <em>We design it.</em>
-        </motion.h1>
-        <motion.p className="pd-home__lede" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.12 }}>
-          Say what the presentation is for and who will see it. Add your notes, documents, logo or photos, or a folder of pictures. The AI invents a look made for this deck and draws every slide with your pictures on it.
-        </motion.p>
+      <div className="pd-home__inner" data-still={!animations || undefined}>
+        <header className="pd-home__head">
+          <div>
+            <div className="pd-home__kicker">{workspaceName}</div>
+            <h1 className="pd-home__title">New presentation</h1>
+          </div>
+          <button type="button" className="pd-btn" disabled={designing} onClick={onImport}>
+            <FileArrowUp size={14} /> Open PowerPoint file
+          </button>
+        </header>
 
-        <motion.div className="pd-composer" data-busy={designing || undefined} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, ease: EASE, delay: 0.18 }}>
+        <label className="pd-home__ask" htmlFor="pd-composer-input">What is it for, and who will see it?</label>
+        <div className="pd-composer" data-busy={designing || undefined}>
           <textarea
+            id="pd-composer-input"
             ref={textarea}
             className="pd-composer__input"
             value={prompt}
             disabled={designing}
-            placeholder="e.g. A 10-minute talk for new hires about how our support team works: the three tiers, response times, and the tools they will use on day one. Friendly and clear."
+            placeholder="A 10-minute talk for new hires about how our support team works: the three tiers, response times, and the tools they will use on day one. Friendly and clear."
             onChange={(event) => setPrompt(event.target.value)}
-            onKeyDown={onKeyDown}
             onPaste={(event) => {
               const pasted = Array.from(event.clipboardData.files);
               if (pasted.length > 0) {
@@ -271,29 +327,20 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                 void addFiles(pasted);
               }
             }}
-            aria-label="Describe your presentation"
             autoFocus
           />
 
           {(files.length > 0 || folders.length > 0) && (
-            <div className="pd-files">
+            <div className="pd-chips">
               {folders.map((folder) => (
-                <div key={folder.path} className="pd-file" data-kind="folder" title={`${folder.path}${folder.mention ? '\nFound in your description' : ''}`}>
-                  <span className="pd-file__thumb pd-file__mosaic" aria-hidden="true">
-                    {folder.pictures.slice(0, 4).map((path) => <img key={path} src={localFileUrl(path)} alt="" loading="lazy" />)}
-                  </span>
-                  <span className="pd-file__text">
-                    <span className="pd-file__name"><FolderSimple size={11} weight="fill" /> {folder.name}</span>
-                    <span className="pd-file__line">
-                      <button type="button" className="pd-file__use" disabled={designing} onClick={() => setFolders((current) => current.map((entry) => (entry.path === folder.path ? { ...entry, use: NEXT_USE[entry.use] } : entry)))} title="Click to change how these pictures are used">
-                        {USE_LABEL[folder.use]}
-                      </button>
-                      <span className="pd-file__meta">{folder.total > folder.pictures.length ? `${folder.pictures.length} of ${folder.total}` : folder.pictures.length} picture{folder.total === 1 ? '' : 's'}{folder.mention ? ' · from your description' : ''}</span>
-                    </span>
-                  </span>
+                <span key={folder.path} className="pd-chip" title={`${folder.path}${folder.mention ? '\nFound in your description' : ''}`}>
+                  {folder.pictures[0] ? <img className="pd-chip__thumb" src={localFileUrl(folder.pictures[0])} alt="" loading="lazy" /> : <FolderSimple size={13} />}
+                  <span className="pd-chip__name">{folder.name}</span>
+                  <span className="pd-chip__meta">{folder.total > folder.pictures.length ? `${folder.pictures.length} of ${folder.total}` : folder.pictures.length}</span>
+                  <UseSelect value={folder.use} disabled={designing} onChange={(use) => setFolders((current) => current.map((entry) => (entry.path === folder.path ? { ...entry, use } : entry)))} />
                   <button
                     type="button"
-                    className="pr-icon-btn pr-icon-btn--xs"
+                    className="pd-chip__remove"
                     aria-label={`Remove ${folder.name}`}
                     disabled={designing}
                     onClick={() => {
@@ -303,124 +350,105 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                   >
                     <X size={11} />
                   </button>
-                </div>
+                </span>
               ))}
               {files.map((file) => (
-                <div key={file.path} className="pd-file" data-kind={file.kind} title={file.path}>
-                  {file.preview ? <img src={file.preview} alt="" className="pd-file__thumb" /> : <span className="pd-file__icon"><FileText size={16} /></span>}
-                  <span className="pd-file__text">
-                    <span className="pd-file__name">{file.name}</span>
-                    {file.kind === 'image' ? (
-                      <button type="button" className="pd-file__use" disabled={designing} onClick={() => setFiles((current) => current.map((entry) => (entry.path === file.path ? { ...entry, use: NEXT_USE[entry.use] } : entry)))} title="Click to change how this picture is used">
-                        {USE_LABEL[file.use]}
-                      </button>
-                    ) : <span className="pd-file__use pd-file__use--static">Source</span>}
-                  </span>
-                  <button type="button" className="pr-icon-btn pr-icon-btn--xs" aria-label={`Remove ${file.name}`} disabled={designing} onClick={() => { dismissed.current.add(file.path.toLowerCase()); setFiles((current) => current.filter((entry) => entry.path !== file.path)); }}><X size={11} /></button>
-                </div>
+                <span key={file.path} className="pd-chip" title={file.path}>
+                  {file.preview ? <img className="pd-chip__thumb" src={file.preview} alt="" /> : <FileText size={13} />}
+                  <span className="pd-chip__name">{file.name}</span>
+                  {file.kind === 'image' && (
+                    <UseSelect value={file.use} disabled={designing} onChange={(use) => setFiles((current) => current.map((entry) => (entry.path === file.path ? { ...entry, use } : entry)))} />
+                  )}
+                  <button type="button" className="pd-chip__remove" aria-label={`Remove ${file.name}`} disabled={designing} onClick={() => { dismissed.current.add(file.path.toLowerCase()); setFiles((current) => current.filter((entry) => entry.path !== file.path)); }}><X size={11} /></button>
+                </span>
               ))}
             </div>
           )}
 
           {showOptions && !designing && (
             <div className="pd-options">
-              <div className="pd-option">
-                <span className="pr-field__label">Slides</span>
+              <div className="pd-options__row">
+                <span>Slides</span>
                 <div className="pd-segmented" role="radiogroup" aria-label="Number of slides">
                   {COUNTS.map((count) => (
                     <button key={count ?? 'auto'} type="button" role="radio" aria-checked={slideCount === count} onClick={() => setSlideCount(count)}>{count ?? 'Auto'}</button>
                   ))}
                 </div>
               </div>
-              <div className="pd-option">
-                <span className="pr-field__label">Shape</span>
+              <div className="pd-options__row">
+                <span>Shape</span>
                 <div className="pd-segmented" role="radiogroup" aria-label="Slide shape">
                   {(['16:9', '4:3'] as const).map((value) => <button key={value} type="button" role="radio" aria-checked={size === value} onClick={() => setSize(value)}>{value}</button>)}
                 </div>
               </div>
-              <label className="pd-option">
-                <span className="pr-field__label">Language</span>
-                <input className="pr-input pd-option__lang" value={language} placeholder="Same as my description" onChange={(event) => setLanguage(event.target.value)} onKeyDown={(event) => event.stopPropagation()} />
+              <label className="pd-options__row">
+                <span>Language</span>
+                <input className="pd-control" value={language} placeholder="Same as the description" onChange={(event) => setLanguage(event.target.value)} />
               </label>
-              <div className="pd-option pd-option--engine">
+              <div className="pd-options__engine">
                 <EnginePicker value={engine} onChange={onEngine} />
               </div>
             </div>
           )}
 
           <div className="pd-composer__bar">
-            <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost" disabled={designing || files.length >= MAX_FILES} onClick={() => void pick()} title="Documents become the content; pictures can go on slides or set the mood">
+            <button type="button" className="pd-btn pd-btn--ghost" disabled={designing || files.length >= MAX_FILES} onClick={() => void pick()} title="Documents become the content; pictures can go on slides or set the look">
               <Paperclip size={14} /> Add files
             </button>
-            <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost" disabled={designing || pictureCount >= MAX_DECK_PICTURES} onClick={() => void pickFolder()} title="Use the pictures in a folder (its subfolders too). You can also paste a folder path into the description.">
+            <button type="button" className="pd-btn pd-btn--ghost" disabled={designing || pictureCount >= MAX_DECK_PICTURES} onClick={() => void pickFolder()} title="Use the pictures in a folder (its subfolders too). You can also write a folder path in the description.">
               <FolderSimple size={14} /> Add folder
             </button>
-            <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost" aria-expanded={showOptions} disabled={designing} onClick={() => setShowOptions((value) => !value)}>
-              {slideCount ? `${slideCount} slides` : 'Auto length'} · {size}{language.trim() ? ` · ${language.trim()}` : ''}
+            <button type="button" className={`pd-btn pd-btn--ghost${showOptions ? ' is-on' : ''}`} aria-expanded={showOptions} disabled={designing} onClick={() => setShowOptions((value) => !value)}>
+              <SlidersHorizontal size={14} /> {summary}
             </button>
             <span className="pd-composer__spacer" />
             {designing ? (
-              <button type="button" className="pr-btn pr-btn--lg" onClick={onCancel}><Stop size={14} weight="fill" /> Stop</button>
+              <button type="button" className="pd-btn" onClick={onCancel}><Stop size={12} weight="fill" /> Stop</button>
             ) : (
-              <button type="button" className="pr-btn pr-btn--primary pr-btn--lg" disabled={!ready} onClick={submit} title="Ctrl+Enter">
-                <Sparkle size={14} weight="fill" /> Design my deck <ArrowRight size={14} weight="bold" />
+              <button type="button" className="pd-btn pd-btn--primary" disabled={!ready} onClick={submit} title="Ctrl+Enter">
+                Design deck <ArrowRight size={13} weight="bold" />
               </button>
             )}
           </div>
 
           {designing && (
-            <div className="pd-progress" role="status" aria-live="polite">
-              <span className="pd-progress__orb" data-still={still || undefined} aria-hidden="true" />
+            <div className="pd-composer__status" role="status" aria-live="polite">
               <span>
-                <strong>Art-directing your deck</strong>
-                <span>Inventing a visual identity and planning the story{files.some((file) => file.kind === 'document') ? ' from your files' : ''}{pictureCount > 0 ? ` around your ${pictureCount} picture${pictureCount === 1 ? '' : 's'}` : ''} · {formatDuration(elapsed)}</span>
+                Choosing a look and planning the story{hasDocuments ? ' from your files' : ''}{pictureCount > 0 ? ` around ${pictureCount} picture${pictureCount === 1 ? '' : 's'}` : ''}
               </span>
+              <span className="pd-composer__time">{formatDuration(elapsed)}</span>
             </div>
           )}
-          {failed && <div className="pr-error">{run?.error}</div>}
-          {fileError && <div className="pr-error">{fileError}</div>}
-        </motion.div>
+        </div>
+        {failed && <p className="pd-home__error">{run?.error}</p>}
+        {fileError && <p className="pd-home__error">{fileError}</p>}
 
-        {!designing && !prompt.trim() && (
-          <motion.div className="pd-examples" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.3 }}>
-            {EXAMPLES.map((example) => (
-              <button key={example} type="button" className="pd-example" onClick={() => { setPrompt(example); textarea.current?.focus(); }}>
-                {example}
-              </button>
-            ))}
-          </motion.div>
-        )}
-
-        <div className="pd-home__foot">
-          {decks.length > 0 && (
-            <div className="pd-recent">
-              <div className="pr-label">Recent presentations</div>
-              <div className="pd-recent__list">
-                {decks.slice(0, 6).map((deck) => (
-                  <button key={deck.path} type="button" className="pr-deck-row" disabled={designing} onClick={() => onOpen(deck.path)}>
-                    <span className="pr-deck-row__glyph" aria-hidden="true">{deck.designed ? <Sparkle size={14} /> : <PresentationChart size={15} />}</span>
-                    <span className="pr-deck-row__text">
-                      <span className="pr-deck-row__name">{deck.title}</span>
-                      <span className="pr-deck-row__meta">
-                        {deck.slides} slide{deck.slides === 1 ? '' : 's'}{deck.preserve ? ' · original design' : deck.imported ? ' · PowerPoint' : deck.designed ? ' · AI-designed' : ''} · {new Date(deck.modifiedAt).toLocaleDateString()}
-                      </span>
-                    </span>
+        {!designing && (
+          <div className="pd-home__hints">
+            {!prompt.trim() && (
+              <span className="pd-examples">
+                <span className="pd-examples__label">Try</span>
+                {EXAMPLES.map((example) => (
+                  <button key={example.label} type="button" className="pd-examples__item" title={example.prompt} onClick={() => { setPrompt(example.prompt); textarea.current?.focus(); }}>
+                    {example.label}
                   </button>
                 ))}
-              </div>
+              </span>
+            )}
+            <span className="pd-home__keys">Ctrl+Enter to start</span>
+          </div>
+        )}
+
+        {decks.length > 0 && (
+          <section className="pd-home__section">
+            <h2 className="pd-home__heading">Recent</h2>
+            <div className="pd-decks">
+              {decks.slice(0, 8).map((deck) => <DeckCard key={deck.path} deck={deck} disabled={designing} onOpen={onOpen} onDelete={onDelete} />)}
             </div>
-          )}
-          <button type="button" className="pr-btn pr-btn--sm pr-btn--ghost pd-home__import" disabled={designing} onClick={onImport}>
-            <FileArrowUp size={14} /> Open a PowerPoint file instead
-          </button>
-        </div>
+          </section>
+        )}
       </div>
-      {dragging && (
-        <div className="pd-drop" aria-hidden="true">
-          <ImageSquare size={28} weight="duotone" />
-          <span>Drop pictures or documents</span>
-        </div>
-      )}
+      {dragging && <div className="pd-drop" aria-hidden="true">Drop pictures or documents to use them</div>}
     </div>
   );
 };

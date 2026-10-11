@@ -252,11 +252,11 @@ function EnginesTab(): React.JSX.Element {
       </SettingsGroup>
       <SettingsGroup title="Requests">
         <SettingsRow label="Default model" description="Leave blank to use the CLI's own default.">
-          <ModelInput className="st-input st-control-w" value={defaultEngine.model} models={models} loading={loadingModels} placeholder="CLI default" onChange={(model) => setDefaultEngine({ ...defaultEngine, model })} />
+          <ModelInput className="st-select st-control-w" value={defaultEngine.model} models={models} loading={loadingModels} placeholder="CLI default" onChange={(model) => setDefaultEngine({ ...defaultEngine, model })} />
         </SettingsRow>
         {hasEfforts(models, defaultEngine.model) && (
           <SettingsRow label="Thinking effort" description="How long the model reasons before answering. Higher is slower and uses more of your limits.">
-            <EffortSelect className="st-input st-control-w" value={defaultEngine.effort ?? ''} onChange={(effort) => setDefaultEngine({ ...defaultEngine, effort })} models={models} model={defaultEngine.model} />
+            <EffortSelect className="st-select st-control-w" value={defaultEngine.effort ?? ''} onChange={(effort) => setDefaultEngine({ ...defaultEngine, effort })} models={models} model={defaultEngine.model} />
           </SettingsRow>
         )}
         <SliderRow label="Time limit per AI call" description="A section that takes longer is stopped." value={timeout} min={60} max={1800} step={30} format={(value) => `${Math.round(value / 60)} min`} onChange={(value) => setPreference('aiTimeoutSecs', value)} />

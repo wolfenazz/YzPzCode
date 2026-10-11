@@ -6,6 +6,7 @@ import { usePresentationStore } from '../../stores/presentationStore';
 import { listWritingEngines, type WritingEngineInfo } from '../../utils/writing/aiClient';
 import { useEngineModels } from '../../utils/writing/useEngineModels';
 import type { EngineChoice, WritingEngineId } from '../../utils/writing/types';
+import { Field, Hint, Select, Toggle } from '../studio/Inspector';
 import { EffortSelect, hasEfforts } from './EffortSelect';
 import { ModelInput } from './ModelInput';
 
@@ -109,27 +110,24 @@ export const EngineFields: React.FC<{ value: EngineChoice; onChange: (value: Eng
   const { models, loading } = useEngineModels(value.engine, Boolean(selected?.installed));
   return (
     <>
-      <label className="wr-row-field">
-        <span>Writer</span>
-        <select className="wr-control" value={value.engine} onChange={(event) => onChange({ ...value, engine: event.target.value as WritingEngineId, model: '', effort: '' })}>
+      <Field label="Writer">
+        <Select value={value.engine} onChange={(event) => onChange({ ...value, engine: event.target.value as WritingEngineId, model: '', effort: '' })}>
           {(engines ?? [{ engine: value.engine, displayName: value.engine, installed: true } as WritingEngineInfo]).map((engine) => (
             <option key={engine.engine} value={engine.engine} disabled={!engine.installed}>
               {engine.displayName}{engine.installed ? '' : ' (not installed)'}
             </option>
           ))}
-        </select>
-      </label>
-      <label className="wr-row-field">
-        <span>Model</span>
-        <ModelInput className="wr-control" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loading} placeholder="CLI default" />
-      </label>
+        </Select>
+      </Field>
+      <Field label="Model">
+        <ModelInput className="sx-input" value={value.model} onChange={(model) => onChange({ ...value, model })} models={models} loading={loading} placeholder="CLI default" />
+      </Field>
       {hasEfforts(models, value.model) && (
-        <label className="wr-row-field">
-          <span>Thinking</span>
-          <EffortSelect className="wr-control" value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort })} models={models} model={value.model} />
-        </label>
+        <Field label="Thinking">
+          <EffortSelect className="sx-input" value={value.effort ?? ''} onChange={(effort) => onChange({ ...value, effort })} models={models} model={value.model} />
+        </Field>
       )}
-      {selected && !selected.installed && <p className="wr-note is-error">{selected.displayName} is not installed. Install it from Settings → Agents, or pick another writer.</p>}
+      {selected && !selected.installed && <Hint error>{selected.displayName} is not installed. Install it from Settings → Agents, or pick another writer.</Hint>}
     </>
   );
 };
@@ -138,15 +136,17 @@ export const EngineFields: React.FC<{ value: EngineChoice; onChange: (value: Eng
 export const WebPhotosToggle: React.FC<{ value: boolean; onChange: (value: boolean) => void }> = ({ value, onChange }) => {
   const provider = usePresentationStore((state) => state.stockProvider);
   const keys = usePresentationStore((state) => state.stockKeys);
-  const service = provider === 'off' ? null : provider === 'openverse' || !keys[provider] ? 'Openverse' : provider === 'unsplash' ? 'Unsplash' : 'Pexels';
+  const service = provider === 'off' ? null
+    : provider === 'ai' ? 'the writer searches the web'
+      : provider === 'openverse' || !keys[provider] ? 'Openverse' : provider === 'unsplash' ? 'Unsplash' : 'Pexels';
   return (
-    <label className="wr-switch-row" title={service ? `Openly licensed photos from ${service}, credited under each picture` : undefined}>
-      <span>
-        Photos from the web
-        <span className="wr-note wr-switch-row__hint">{service ? `Where they help · ${service}` : 'Off in Settings → Presentation → Images'}</span>
-      </span>
-      <input type="checkbox" className="wr-switch" checked={Boolean(service) && value} disabled={!service} onChange={(event) => onChange(event.target.checked)} />
-    </label>
+    <Toggle
+      label="Photos from the web"
+      hint={service ? `Where they help · ${service}` : 'Off in Settings → Presentation → Images'}
+      checked={Boolean(service) && value}
+      disabled={!service}
+      onChange={onChange}
+    />
   );
 };
 

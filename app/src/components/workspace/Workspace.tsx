@@ -22,6 +22,7 @@ import { useBrowser } from '../../hooks/useBrowser';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
 import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
+import { resolveWorkspaceView } from '../../utils/workspaceView';
 import type { ExtensionInfo, ExtensionInstallProgress } from '../../types';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { getTerminalForTarget } from '../../utils/terminalRegistry';
@@ -228,7 +229,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       const state = useAppStore.getState();
       const savedActiveView = state.activeViewByWorkspace[wsId];
       if (savedActiveView) {
-        setActiveView(savedActiveView);
+        const workspace = state.openWorkspaces.find((entry) => entry.id === wsId);
+        setActiveView(resolveWorkspaceView(savedActiveView, workspace, (state.sessionsByWorkspace[wsId] ?? []).length));
       }
     });
   }, [currentWorkspace?.id, restoredFilePathsByWorkspace, clearRestoredFilePaths, openFile, setActiveView]);

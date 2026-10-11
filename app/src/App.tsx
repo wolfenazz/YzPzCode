@@ -8,6 +8,7 @@ import { CustomCursor } from './components/common/CustomCursor';
 import { BoxLoader } from './components/common/BoxLoader';
 import { TooltipProvider } from './components/ui/tooltip';
 import { useAppStore } from './stores/appStore';
+import { resolveWorkspaceView } from './utils/workspaceView';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { useExtensionActivity } from './hooks/useExtensionActivity';
 import { useEffectiveTheme } from './hooks/useEffectiveTheme';
@@ -158,7 +159,11 @@ function App() {
       const targetId = state.activeWorkspaceId || state.openWorkspaces[0]?.id;
       if (targetId) {
         state.switchWorkspace(targetId);
-        state.setActiveView('terminal');
+        // A studio reopens in its own view; the terminal grid is the start of a coding workspace.
+        const target = state.openWorkspaces.find((workspace) => workspace.id === targetId);
+        state.setActiveView(target?.kind === 'writing' || target?.kind === 'presentation'
+          ? resolveWorkspaceView(state.activeViewByWorkspace[targetId], target, 0)
+          : 'terminal');
         state.setView('workspace');
         return;
       }

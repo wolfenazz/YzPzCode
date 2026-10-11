@@ -1,0 +1,14 @@
+# YzPzCode TTS — SILMA TTS v1 (default bilingual AR/EN) model deps.
+# Install into the managed per-user venv ONLY when the user selects SILMA:
+#     <venv-python> -m pip install -r requirements-tts-silma.txt
+#
+# System prerequisites (checked by Rust env.rs, NOT installed here):
+#     Python >= 3.10, ffmpeg on PATH.
+# Weights: auto-downloaded by silma-tts from Hugging Face silma-ai/silma-tts
+#     into <appData>/tts-models on first synthesis (~300-600MB).
+# License: Apache-2.0 (weights) / MIT (code). HF: https://huggingface.co/silma-ai/silma-tts
+# Docs: https://github.com/SILMA-AI/silma-tts (needs ffmpeg + torch).
+# CPU-only synthesis is supported; no GPU requirement.
+
+silma-tts==1.0.5
+torch>=2.2  # CPU wheel is enough on Win/macOS/Linux pip (CUDA not required)

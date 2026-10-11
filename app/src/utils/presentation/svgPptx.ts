@@ -40,6 +40,8 @@ export interface ConvertedSlide {
   shapes: string;
   media: Array<{ rId: string; picture: PptxPicture }>;
   warnings: string[];
+  /** For each top-level SVG element (its index among the root's element children) the shape ids written for it. */
+  targets: Array<{ index: number; ids: number[] }>;
 }
 
 type Matrix = [number, number, number, number, number, number];
@@ -1116,7 +1118,13 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
   const rootCtx = inherit(root, INITIAL);
   rootCtx.m = IDENTITY;
   const shapes: string[] = [];
-  for (const el of top) {
+  const targets: ConvertedSlide['targets'] = [];
+  /** The id of the shape (or group, or picture) a piece of XML starts with. */
+  const shapeId = (shapeXml: string): number | null => {
+    const found = /<p:cNvPr id="(\d+)"/.exec(shapeXml);
+    return found ? Number(found[1]) : null;
+  };
+  for (const [index, el] of top.entries()) {
     if (el === skip) continue;
     const out = render(el, rootCtx, 0);
     if (out.length === 0) continue;
@@ -1130,10 +1138,13 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
       const ext = `<a:ext cx="${Math.max(1, Math.round((maxX - minX) * sx))}" cy="${Math.max(1, Math.round((maxY - minY) * sy))}"/>`;
       const chOff = `<a:chOff x="${emuX(minX)}" y="${emuY(minY)}"/>`;
       const chExt = `<a:chExt cx="${Math.max(1, Math.round((maxX - minX) * sx))}" cy="${Math.max(1, Math.round((maxY - minY) * sy))}"/>`;
-      shapes.push(`<p:grpSp><p:nvGrpSpPr><p:cNvPr id="${nextId++}" name="${shapeName(el, 'Group')}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm>${off}${ext}${chOff}${chExt}</a:xfrm></p:grpSpPr>${out.map((o) => o.xml).join('')}</p:grpSp>`);
+      const groupId = nextId++;
+      shapes.push(`<p:grpSp><p:nvGrpSpPr><p:cNvPr id="${groupId}" name="${shapeName(el, 'Group')}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm>${off}${ext}${chOff}${chExt}</a:xfrm></p:grpSpPr>${out.map((o) => o.xml).join('')}</p:grpSp>`);
+      targets.push({ index, ids: [groupId] });
     } else {
       shapes.push(...out.map((o) => o.xml));
+      targets.push({ index, ids: out.map((o) => shapeId(o.xml)).filter((id): id is number => id !== null) });
     }
   }
-  return { background, shapes: shapes.join(''), media, warnings: [...warnings] };
+  return { background, shapes: shapes.join(''), media, warnings: [...warnings], targets };
 }

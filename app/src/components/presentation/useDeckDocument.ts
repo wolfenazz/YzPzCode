@@ -4,6 +4,7 @@ import type { FileContent, FileEntry } from '../../types';
 import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
 import { usePresentationStore } from '../../stores/presentationStore';
 import { deckPath, parseDeck, PRESENTATIONS_FOLDER, serializeDeck, YZDECK_EXTENSION } from '../../utils/presentation/deck';
+import { designCanvas } from '../../utils/presentation/designStyles';
 import type { YzDeck } from '../../utils/presentation/types';
 import { fileName, joinPath, parentPath } from '../../utils/writing/document';
 
@@ -17,6 +18,8 @@ export interface DeckListing {
   designed: boolean;
   /** Opened from a PowerPoint file. */
   imported: boolean;
+  /** The first shown slide of a designed deck, for the home's cover thumbnail. */
+  cover?: { svg: string; canvas: { width: number; height: number } };
 }
 
 async function listDecks(workspacePath: string): Promise<DeckListing[]> {
@@ -42,6 +45,8 @@ async function listDecks(workspacePath: string): Promise<DeckListing[]> {
       deck.preserve = Boolean(parsed.source);
       deck.designed = Boolean(parsed.design);
       deck.imported = Boolean(parsed.design?.origin);
+      const first = parsed.design?.slides.find((slide) => !slide.hidden && slide.svg);
+      if (first) deck.cover = { svg: first.svg, canvas: designCanvas(parsed.size) };
     } catch {
       deck.title = fileName(deck.path).replace(YZDECK_EXTENSION, '');
     }

@@ -1,18 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/react';
-import { CaretDown, Sparkle, TextB, TextItalic, TextUnderline, ArrowRight } from '@phosphor-icons/react';
+import { CaretDown, CircleNotch, SpeakerHigh, Sparkle, Stop, TextB, TextItalic, TextUnderline, ArrowRight } from '@phosphor-icons/react';
 import { REWRITE_ACTIONS, type RewriteAction } from '../../utils/writing/prompts';
+import { useTtsPlayback } from '../../hooks/useTtsPlayback';
+import { useTtsStore } from '../../stores/ttsStore';
+import { ttsBilingual } from '../../utils/tts/strings';
+import { REPORT_NARRATION_MAX_CHARS, selectionNarrationText } from './reportNarration';
 
 interface SelectionMenuProps {
   editor: Editor;
   busy: boolean;
   onAction: (action: RewriteAction, instruction?: string) => void;
+  onToast?: (message: string) => void;
 }
 
-export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAction }) => {
+export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAction, onToast }) => {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState('');
+  const ttsEnabled = useTtsStore((state) => state.enabled);
+  const { status: ttsStatus, errorMsg: ttsError, speak: ttsSpeak, stop: ttsStop } = useTtsPlayback();
+
+  useEffect(() => {
+    if (ttsError) onToast?.(ttsError);
+  }, [ttsError, onToast]);
 
   useEffect(() => {
     const close = (): void => setOpen(false);
@@ -24,6 +35,25 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAc
     setOpen(false);
     setInstruction('');
     onAction(action, text);
+  };
+
+  const ttsBusy = ttsStatus === 'preparing' || ttsStatus === 'synthesizing' || ttsStatus === 'playing';
+  // Text is captured synchronously on click, before the bubble auto-closes.
+  const narrateSelection = (): void => {
+    if (ttsBusy) {
+      ttsStop();
+      return;
+    }
+    const text = selectionNarrationText(editor);
+    if (!text) {
+      onToast?.(ttsBilingual('selectOrSection'));
+      return;
+    }
+    if (text.length > REPORT_NARRATION_MAX_CHARS) {
+      onToast?.(ttsBilingual('tooLong'));
+      return;
+    }
+    void ttsSpeak(text);
   };
 
   return (
@@ -62,6 +92,27 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAc
             </div>
           )}
         </div>
+        {ttsEnabled && (
+          <>
+            <span className="wr-bubble__sep" />
+            <button
+              type="button"
+              className="wr-bubble__ai"
+              dir="auto"
+              aria-label={ttsBusy ? 'Stop narration · إيقاف السرد' : 'Read selection aloud · قراءة المحدد بصوت عالٍ'}
+              title={ttsBusy ? 'Stop narration · إيقاف السرد' : 'Read selection aloud · قراءة المحدد بصوت عالٍ'}
+              aria-pressed={ttsBusy}
+              onClick={narrateSelection}
+            >
+              {ttsStatus === 'preparing' || ttsStatus === 'synthesizing'
+                ? <CircleNotch size={14} className="animate-spin" aria-hidden="true" />
+                : ttsBusy
+                  ? <Stop size={14} weight="fill" aria-hidden="true" />
+                  : <SpeakerHigh size={14} aria-hidden="true" />}
+              {ttsBusy ? 'Stop' : 'Read aloud'}
+            </button>
+          </>
+        )}
       </div>
     </BubbleMenu>
   );

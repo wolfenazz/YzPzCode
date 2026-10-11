@@ -320,6 +320,8 @@ export interface DirectionInput {
   previous?: DesignSystem;
   /** The app can fetch real photos from the web for pages that ask for one. */
   webPhotos?: boolean;
+  /** The description asks for pictures from the internet: plan photos for several pages. */
+  photosRequested?: boolean;
 }
 
 /** How to ask for real photographs from the web. */
@@ -341,6 +343,9 @@ How to decide:
 
 VISUAL STYLE CATALOG:
 ${styleCatalog()}`;
+
+/** Added when the user's description asks for pictures from the internet. */
+const WEB_PHOTOS_REQUESTED = `The user asked for pictures from the internet, so the deck must really have them: give a "photo" to the cover and to at least one in three of the other pages (up to 8 in all), choosing the pages where a real photograph of the subject (people, places, objects, scenes) helps most. This overrides the "half of the pages" limit above. Write the search words in English even when the slides are in another language, naming the concrete thing to photograph ("grandmother hugging grandson", "mosque courtyard morning light").`;
 
 const directionFormat = (pictures: boolean, notes: boolean, photos = false): string => `Reply with one JSON object only (no Markdown fences, no commentary):
 {
@@ -389,6 +394,7 @@ export function buildDirectionPrompt(input: DirectionInput): AiPrompt {
   }
   const photos = Boolean(input.webPhotos) && !input.keepPages;
   if (photos) parts.push(WEB_PHOTO_RULES);
+  if (photos && input.photosRequested) parts.push(WEB_PHOTOS_REQUESTED);
   parts.push(directionFormat(placeable, placeable && Boolean(input.seesImages), photos));
   return { system: DIRECTION_SYSTEM, prompt: parts.join('\n\n') };
 }
@@ -448,6 +454,15 @@ export const REFINE_ACTIONS: Array<{ id: Exclude<RefineAction, 'custom'>; label:
   { id: 'notes', label: 'Rewrite notes', instruction: 'Keep the page exactly as it is (copy the SVG unchanged) and rewrite only the speaker notes: natural, specific, with the transition to the next page.' },
 ];
 
+/**
+ * The instruction behind "Redesign" on selected slides: every fact stays, the
+ * composition and visual treatment are new (inside the deck's design system).
+ */
+export const redesignInstruction = (direction: string): string => {
+  const wish = direction.trim();
+  return `Redesign this page from scratch: keep every fact, number and the message, but compose it again with a clearly different layout, focal point and visual treatment, inside the deck's design system.${wish ? ` Direction from the user: ${wish}` : ' Make it more striking than it is now.'}`;
+};
+
 export interface RefineInput {
   title: string;
   language: string;
@@ -461,6 +476,28 @@ export interface RefineInput {
   attachments: DesignAttachment[];
   /** Deck pictures attached to the message (engines that see), in order. */
   attachedPictures?: string[];
+  /** Elements the user has selected on the page; the instruction is about them. */
+  selection?: SelectedElement[];
+}
+
+/** An element the user selected on the canvas (`data-el` id, kind, frame in slide px). */
+export interface SelectedElement {
+  id: string;
+  kind: string;
+  box: { x: number; y: number; w: number; h: number };
+  /** Its text or name, when it has one. */
+  label?: string;
+}
+
+const KIND_NAMES: Record<string, string> = { text: 'text box', shape: 'shape', pic: 'picture', table: 'table', group: 'group', chart: 'chart', art: 'drawn artwork' };
+
+/** Tells the AI which elements "this" and "here" mean, and what an added picture does to them. */
+function selectionBlock(selection: SelectedElement[] | undefined): string {
+  if (!selection?.length) return '';
+  const lines = selection.map((entry) => `- data-el="${entry.id}" (${KIND_NAMES[entry.kind] ?? entry.kind}) at x ${Math.round(entry.box.x)}, y ${Math.round(entry.box.y)}, ${Math.round(entry.box.w)} × ${Math.round(entry.box.h)} px${entry.label ? ` — "${entry.label.replace(/\s+/g, ' ').slice(0, 80)}"` : ''}`);
+  return `SELECTED ON THE PAGE — the user clicked ${selection.length === 1 ? 'this element' : 'these elements'}; "this", "it" and "here" in the instruction mean ${selection.length === 1 ? 'it' : 'them'}:
+${lines.join('\n')}
+Change only what the instruction asks and leave the rest of the page as it is. When the instruction adds, swaps or fills in a picture, the picture goes exactly where the selected element is: draw its <image> in that element's frame (same x, y, width, height, preserveAspectRatio="xMidYMid slice"; keep a round or rounded crop through a clipPath when the element was round) and remove the element it replaces, unless it holds the page's text.`;
 }
 
 export function buildRefinePrompt(input: RefineInput): AiPrompt {
@@ -473,6 +510,8 @@ export function buildRefinePrompt(input: RefineInput): AiPrompt {
   const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
   parts.push(`CURRENT PAGE ${number}:\n${svgForAi(input.svg)}\n<notes>${input.notes}</notes>`);
+  const selected = selectionBlock(input.selection);
+  if (selected) parts.push(selected);
   parts.push(`REDRAW PAGE ${number}. Instruction from the user: ${input.instruction.trim()}\nKeep the design system and every fact unless the instruction changes them. Keep pictures that are on the page unless told otherwise.`);
   parts.push(SLIDE_FORMAT([number]));
   return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
@@ -501,6 +540,97 @@ export function buildNewSlidePrompt(input: NewSlideInput): AiPrompt {
   parts.push(`ADD a new page ${number} to the deck: ${input.description.trim()}\nWrite its real content (choose a fitting role and title) and draw it in the deck's design.`);
   parts.push(SLIDE_FORMAT([number]));
   return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
+}
+
+// Photos from the web ----------------------------------------------------------------
+
+const PICTURE_WORD = /\b(?:photos?|photograph(?:s|y)?|pictures?|images?|pics?|imagery)\b|صور|تصوير|فوتوغراف/iu;
+const WEB_WORD = /\b(?:internet|web|online|google|stock|unsplash|pexels|openverse|real|actual|search|download|related|relevant)\b|انترنت|إنترنت|الانترنت|الإنترنت|النت|ويب|الويب|اونلاين|أونلاين|جوجل|قوقل|حقيقي|حقيقية|متعلق|ذات صلة/iu;
+
+/**
+ * Whether an instruction asks for a real picture from the internet (English
+ * and Arabic): a picture word together with a web word ("a picture from the
+ * internet", "find a related photo"), or an explicit "photo from…".
+ */
+export function wantsWebPhoto(instruction: string): boolean {
+  const value = instruction.trim();
+  if (!value || !PICTURE_WORD.test(value)) return false;
+  return WEB_WORD.test(value) || /\bphotograph/i.test(value);
+}
+
+export interface PhotoQueryInput {
+  title: string;
+  language: string;
+  page: { role: string; title: string; brief: string };
+  /** The text drawn on the page. */
+  pageText: string;
+  instruction: string;
+  selection?: SelectedElement[];
+}
+
+const PHOTO_SEARCH_SYSTEM = 'You find real photographs for presentation slides. You write short search queries for a stock-photo search engine (Openverse, Unsplash, Pexels). Queries are 2–5 concrete English words naming what can really be photographed: people, places, objects, scenes. Never abstract ideas, never words in another language, never names of religious scripture or quoted text.';
+
+/** Asks for English search words for the photo an instruction wants on one page. */
+export function buildPhotoQueryPrompt(input: PhotoQueryInput): AiPrompt {
+  const parts = [
+    `DECK: "${input.title}" · slides in ${input.language || 'the language of the titles'}`,
+    `PAGE: [${input.page.role}] ${input.page.title}${input.page.brief ? `\nBrief: ${input.page.brief.replace(/\n+/g, ' ').slice(0, 800)}` : ''}${input.pageText ? `\nText on the page: ${input.pageText.replace(/\s+/g, ' ').slice(0, 600)}` : ''}`,
+    `THE USER ASKED: ${input.instruction.trim()}${input.selection?.length ? '\n(They have an element selected on the page; the photo will take its place.)' : ''}`,
+    `Give up to three different search queries for the single photograph that best answers the request on this page, best first, from specific to broader (the later ones are tried when the first finds nothing). Reply with one JSON object only (no Markdown fences, no commentary):
+{ "queries": ["…", "…", "…"] }`,
+  ];
+  return { system: PHOTO_SEARCH_SYSTEM, prompt: parts.join('\n\n') };
+}
+
+/** The search queries in a reply, or an empty list. */
+export function parsePhotoQueries(reply: string): string[] {
+  const raw = extractJson(reply) as Record<string, unknown> | string[] | null;
+  const list = Array.isArray(raw) ? raw : raw && typeof raw === 'object' && Array.isArray(raw.queries) ? raw.queries : [];
+  return [...new Set(list.map((entry) => text(entry, 80)).filter(Boolean))].slice(0, 3);
+}
+
+export interface PhotoPlanInput {
+  title: string;
+  pages: Array<StoryLine & { hasPictures?: boolean }>;
+  /** The most photos to ask for. */
+  max: number;
+}
+
+/** Asks which pages of a finished deck get a real photo from the web, and what to search for. */
+export function buildPhotoPlanPrompt(input: PhotoPlanInput): AiPrompt {
+  const parts = [
+    `DECK: "${input.title}"`,
+    `PAGES:\n${input.pages.map((page, index) => `${index + 1}. [${page.role}] ${page.title}${page.hasPictures || page.pictures?.length ? ' (already shows a picture)' : ''}\n   ${page.brief.replace(/\n+/g, ' ').slice(0, 400)}`).join('\n')}`,
+    `The app fetches real, openly licensed photographs (never AI images) for the pages you choose, and each chosen page is then redrawn around its photo.
+- Choose at most ${input.max} pages, starting with the cover, where a real photograph of the subject (people, places, objects, scenes) makes the page stronger. Skip pages that already show a picture, and agenda, data and quote pages. One photo per page.
+- Search words are in English even when the slides are in another language, and name the concrete thing to photograph, never an abstract idea ("growth", "respect").
+- Give each page two queries: the most specific first, a broader one as the fallback.
+- Plan the page so a photo of unknown framing works (full-bleed with a scrim, or a generous frame).
+Reply with one JSON object only (no Markdown fences, no commentary):
+{ "pages": [ { "n": 1, "queries": ["most specific search words", "broader fallback words"], "brief": "the page's brief, rewritten only to say how the photo is used (full-bleed with a scrim, a framed picture beside the claim, …)" } ] }`,
+  ];
+  return { system: PHOTO_SEARCH_SYSTEM, prompt: parts.join('\n\n') };
+}
+
+export interface PhotoPlanPage {
+  queries: string[];
+  brief: string;
+}
+
+/** Zero-based page index → what to search for. Empty when the reply holds no usable plan. */
+export function parsePhotoPlan(reply: string, pageCount: number, max: number): Map<number, PhotoPlanPage> {
+  const plan = new Map<number, PhotoPlanPage>();
+  const raw = extractJson(reply) as Record<string, unknown> | null;
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.pages)) return plan;
+  for (const entry of raw.pages) {
+    const page = (entry && typeof entry === 'object' ? entry : {}) as Record<string, unknown>;
+    const index = Math.round(Number(page.n ?? page.page)) - 1;
+    if (!Number.isInteger(index) || index < 0 || index >= pageCount || plan.has(index) || plan.size >= max) continue;
+    const rawQueries = Array.isArray(page.queries) ? page.queries : [page.photo ?? page.query];
+    const queries = [...new Set(rawQueries.map((value) => text(value, 80)).filter(Boolean))].slice(0, 3);
+    if (queries.length > 0) plan.set(index, { queries, brief: text(page.brief, 3000) });
+  }
+  return plan;
 }
 
 // Planning pictures onto an existing deck ---------------------------------------------

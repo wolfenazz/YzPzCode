@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-tts-ensure-env"
+description = "Enables the tts_ensure_env command without any pre-configured scope."
+commands.allow = ["tts_ensure_env"]
+
+[[permission]]
+identifier = "deny-tts-ensure-env"
+description = "Denies the tts_ensure_env command without any pre-configured scope."
+commands.deny = ["tts_ensure_env"]

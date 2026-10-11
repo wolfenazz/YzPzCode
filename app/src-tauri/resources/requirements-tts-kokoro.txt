@@ -1,0 +1,18 @@
+# YzPzCode TTS — Kokoro-82M (ultra-fast English) model deps.
+# Install into the managed per-user venv ONLY when the user selects Kokoro:
+#     <venv-python> -m pip install -r requirements-tts-kokoro.txt
+#
+# System prerequisites (checked by Rust env.rs, NOT installed here):
+#     Python >= 3.10. Kokoro ALSO needs the espeak-ng system library for
+#     English G2P fallback (Rust env check must flag it as missing):
+#         Windows:  winget install espeak-ng   (or: choco install espeak-ng)
+#         macOS:    brew install espeak-ng
+#         Linux:    sudo apt install espeak-ng
+# Weights: hexgrad/Kokoro-82M (Apache-2.0, 82M params, fastest on CPU),
+#     auto-downloaded on first use into <appData>/tts-models.
+#     https://huggingface.co/hexgrad/Kokoro-82M
+# ENGLISH ONLY — the bridge/Rust auto-switches Arabic text to SILMA/Lahgtna.
+
+kokoro==0.9.4
+soundfile>=0.12
+torch>=2.2  # CPU wheel is enough (CUDA not required)

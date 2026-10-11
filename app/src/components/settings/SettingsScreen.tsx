@@ -14,6 +14,7 @@ import {
   PaintBrushBroad,
   Play,
   PlugsConnected,
+  SpeakerHigh,
   SquaresFour,
   TerminalWindow,
 } from '@phosphor-icons/react';
@@ -26,6 +27,7 @@ import { SettingsData } from './sections/SettingsData';
 import { SettingsEditor } from './sections/SettingsEditor';
 import { SettingsEnvironment } from './sections/SettingsEnvironment';
 import { SettingsIde } from './sections/SettingsIde';
+import { SettingsNarration } from './sections/SettingsNarration';
 import { SettingsQuickPrompts } from './sections/SettingsQuickPrompts';
 import { SettingsShortcuts } from './sections/SettingsShortcuts';
 import { SettingsTerminal } from './sections/SettingsTerminal';
@@ -45,6 +47,7 @@ type SettingsSection =
   | 'runs'
   | 'writing'
   | 'presentation'
+  | 'narration'
   | 'ide'
   | 'quickPrompts'
   | 'environment'
@@ -133,6 +136,13 @@ const GROUPS: SettingsNavGroup[] = [
         description: 'Deck themes, presenter engines, slide batches and saving.',
         icon: PresentationChart,
         render: () => <SettingsPresentation />,
+      },
+      {
+        id: 'narration',
+        label: 'Narration',
+        description: 'Offline text-to-speech voices, downloads and audio cache.',
+        icon: SpeakerHigh,
+        render: () => <SettingsNarration />,
       },
       {
         id: 'runs',
