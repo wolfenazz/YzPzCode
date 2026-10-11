@@ -13,6 +13,42 @@ pub async fn path_exists(path: String) -> Result<bool, String> {
     Ok(std::path::Path::new(&path).is_dir())
 }
 
+/// Folder inside the user's Documents that holds every writing and presentation file.
+const STUDIO_FOLDER_NAME: &str = "YzPzCode";
+
+fn studio_root_in(base: &std::path::Path) -> std::path::PathBuf {
+    base.join(STUDIO_FOLDER_NAME)
+}
+
+/// The folder the Writing and Presentation studios save into (`Reports/` and
+/// `Presentations/` live inside it). It sits in the user's Documents, outside
+/// the app's install and data directories, so uninstalling or reinstalling the
+/// app leaves it in place. Created on first use.
+#[tauri::command]
+pub async fn get_studio_root(app: tauri::AppHandle) -> Result<String, String> {
+    use tauri::Manager;
+    let resolver = app.path();
+    let base = resolver
+        .document_dir()
+        .or_else(|_| resolver.home_dir())
+        .map_err(|error| format!("Could not find your Documents folder: {error}"))?;
+    let root = studio_root_in(&base);
+    std::fs::create_dir_all(&root)
+        .map_err(|error| format!("Could not create {}: {error}", root.display()))?;
+    Ok(root.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod studio_root_tests {
+    use super::*;
+
+    #[test]
+    fn studio_root_is_a_named_folder_under_the_given_base() {
+        let base = std::path::Path::new("documents");
+        assert_eq!(studio_root_in(base), base.join("YzPzCode"));
+    }
+}
+
 #[tauri::command]
 pub async fn list_directory_entries(path: String) -> Result<Vec<FileEntry>, String> {
     run_blocking_operation(move || filesystem::explorer::list_directory_entries(&path)).await

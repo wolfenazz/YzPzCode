@@ -57,13 +57,13 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ batch, canvas, resolve
     <div className="pd-panel pd-batch">
       <div className="pd-batch__head">
         <div>
-          <strong>{batch.label}</strong>
+          <strong>{batch.kind === 'redesign' ? 'Redesigning' : 'Editing'} {total} slide{total === 1 ? '' : 's'}</strong>
           <span>{batch.running ? `${finished} of ${total} done` : `${ready.length} of ${total} ready${failed.length > 0 ? ` · ${failed.length} failed` : ''}`}</span>
         </div>
         {batch.running && <button type="button" className="pr-btn pr-btn--sm" onClick={onStop}><Stop size={12} weight="fill" /> Stop</button>}
       </div>
       <div className="pd-batch__bar" aria-hidden="true"><span style={{ width: `${(finished / Math.max(1, total)) * 100}%` }} /></div>
-      <p className="pd-batch__ask" title={batch.shown}>{batch.kind === 'redesign' ? 'Redesign' : 'Change'}: {batch.shown}</p>
+      <p className="pd-batch__ask" title={batch.shown}>{batch.kind === 'redesign' ? 'Redesign' : batch.label === 'Your change' ? 'Change' : batch.label}{batch.shown && batch.shown !== batch.label ? `: ${batch.shown}` : ''}</p>
 
       {ready.length > 1 && (
         <div className="pd-batch__all">
@@ -76,13 +76,13 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ batch, canvas, resolve
         {batch.items.map((item) => {
           const expanded = open === item.slideId && item.proposal;
           return (
-            <li key={item.slideId} className="pd-batch__row" data-status={item.status} data-keep={item.keep || undefined}>
+            <li key={item.slideId} className="pd-batch__row" data-status={item.status} data-keep={(item.keep && item.status === 'ready') || undefined}>
               <div className="pd-batch__title">
                 <button
                   type="button"
                   className="pd-batch__check"
                   role="checkbox"
-                  aria-checked={item.keep}
+                  aria-checked={item.keep && item.status === 'ready'}
                   aria-label={`Keep the change to slide ${item.index + 1}`}
                   disabled={item.status !== 'ready'}
                   onClick={() => onToggle(item.slideId)}
@@ -101,12 +101,18 @@ export const BatchReview: React.FC<BatchReviewProps> = ({ batch, canvas, resolve
                 <p className="pd-batch__error">{item.error}</p>
               ) : (
                 <button type="button" className="pd-batch__pair" disabled={!item.proposal} onClick={() => setOpen(expanded ? null : item.slideId)} title={item.proposal ? (expanded ? 'Smaller' : 'Look closer') : undefined}>
-                  <span className="pd-batch__shot" data-label="Before">
-                    <SvgSlide svg={item.baseSvg} width={expanded ? 262 : PREVIEW} canvas={canvas} resolveHref={resolveHref} />
+                  <span className="pd-batch__col">
+                    <span className="pd-batch__shot">
+                      <SvgSlide svg={item.baseSvg} width={expanded ? 262 : PREVIEW} canvas={canvas} resolveHref={resolveHref} />
+                    </span>
+                    <em>Before</em>
                   </span>
                   {!expanded && <ArrowRight size={12} className="pd-batch__arrow" />}
-                  <span className="pd-batch__shot" data-label="After" data-busy={!item.proposal || undefined}>
-                    <SvgSlide svg={item.proposal?.svg ?? ''} width={expanded ? 262 : PREVIEW} canvas={canvas} resolveHref={resolveHref} placeholder={{ title: item.title, busy: true }} />
+                  <span className="pd-batch__col">
+                    <span className="pd-batch__shot" data-busy={!item.proposal || undefined}>
+                      <SvgSlide svg={item.proposal?.svg ?? ''} width={expanded ? 262 : PREVIEW} canvas={canvas} resolveHref={resolveHref} placeholder={{ title: item.title, busy: true }} />
+                    </span>
+                    <em>After</em>
                   </span>
                 </button>
               )}

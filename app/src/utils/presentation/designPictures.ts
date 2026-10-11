@@ -102,7 +102,12 @@ export function folderPictures<T extends { name: string; path: string }>(entries
 /** A file name for a picture inside `assets/`, unique within `used` (lower-case names, updated). */
 export function assetName(path: string, used: Set<string>): string {
   const original = path.split(/[\\/]/).pop() ?? '';
-  const base = original.replace(/\.+(?=\.[^.]+$)/, '').replace(/[^\w.-]+/g, '-').replace(/^[-.]+/, '') || 'picture.png';
+  // Names inside `assets/` are plain ASCII (the SVG sanitiser allows no other href); a name with only
+  // Arabic or other letters becomes "picture" and keeps its extension.
+  const cleaned = original.replace(/\.+(?=\.[^.]+$)/, '');
+  const extension = cleaned.match(/(\.[A-Za-z0-9]{1,5})$/)?.[1] ?? '';
+  const stem = (extension ? cleaned.slice(0, -extension.length) : cleaned).replace(/[^\w.-]+/g, '-').replace(/^[-.]+/, '') || 'picture';
+  const base = `${stem}${extension || (original ? '' : '.png')}`;
   let name = base;
   for (let counter = 2; used.has(name.toLowerCase()); counter += 1) name = base.replace(/(\.[^.]+)?$/, `-${counter}$1`);
   used.add(name.toLowerCase());

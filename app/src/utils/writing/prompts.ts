@@ -4,7 +4,9 @@
 
 import { CITATION_STYLES, isNumericStyle } from './citations';
 import { buildStyleRules } from './humanizer';
+import { isFrontBackTitle, isReferencesTitle } from './labels';
 import { getReportType, newSectionId, type ReportTypeDef } from './reportTypes';
+import { isRtlLanguage } from './rtl';
 import type { OutlineSection, Reference, ReportBrief } from './types';
 
 export interface AiPrompt {
@@ -40,6 +42,29 @@ function markdownContract(photos: boolean): string {
   return [MARKDOWN_CONTRACT, '- Keep picture lines such as ![Caption](assets/…) exactly as they are.', photos ? PHOTO_RULE : ''].filter(Boolean).join('\n');
 }
 
+/**
+ * How to write a right-to-left language well. Models handle Arabic better when told what a careful
+ * native writer does: real Modern Standard Arabic, Arabic punctuation, consistent digits, Latin terms
+ * kept readable, and nothing reversed or transliterated.
+ */
+export function rtlWritingRules(language: string): string {
+  if (!isRtlLanguage(language)) return '';
+  const arabic = /arab|\u0627\u0644\u0639\u0631\u0628/i.test(language) || /[\u0600-\u06FF]/.test(language);
+  return [
+    `LANGUAGE — the report is written in ${language}, a right-to-left language. Write it as a careful native professional author would:`,
+    arabic
+      ? '- Modern Standard Arabic (الفصحى) in a natural, fluent register; not word-for-word translation from English, never Arabic written in Latin letters. Use a dialect only if the brief asks for one.'
+      : `- Natural, fluent ${language}, as a native professional author writes it; not word-for-word translation from English, never written in Latin letters.`,
+    '- Punctuation of the language: the Arabic comma ، semicolon ؛ and question mark ؟, and « » for quotations (Latin punctuation only inside Latin text).',
+    '- Digits: Western digits (0-9) throughout, unless the brief asks for Arabic-Indic digits (٠-٩); never mix the two. Percentages as 45%.',
+    '- Terms, names and abbreviations: use the established Arabic term, and give the Latin form in parentheses at first use when readers need it (e.g. الذكاء الاصطناعي (AI)). Keep codes, URLs, formulas, units and citation keys such as [@key] as they are.',
+    '- Write every sentence in its normal logical order. Never reverse or reorder words or letters, never add direction marks; the app displays right-to-left text.',
+    '- No tatweel (ـ) and no diacritics (tashkeel) except where they remove a real ambiguity.',
+    '- Markdown marks stay the same (##, **, -, |, [^1]). Keep the markers "Table:" before a table caption and "[Figure: …]" or "[Photo: …]" for placeholders exactly in that form; the text after them is in the report language.',
+    '- Headings are noun phrases in the report language; do not number them yourself.',
+  ].join('\n');
+}
+
 function describeDetails(brief: ReportBrief, type: ReportTypeDef): string {
   const { details } = brief;
   const lines: string[] = [];
@@ -50,6 +75,8 @@ function describeDetails(brief: ReportBrief, type: ReportTypeDef): string {
   if (details.authors) lines.push(`Author(s): ${details.authors}`);
   if (details.organization) lines.push(`Organisation: ${details.organization}`);
   if (details.language && !/^en/i.test(details.language)) lines.push(`Write the entire report in: ${details.language}`);
+  const rules = rtlWritingRules(details.language);
+  if (rules) lines.push(rules);
   for (const field of type.fields) {
     const value = details.fields[field.key]?.trim();
     if (value) lines.push(`${field.label}: ${value}`);
@@ -146,7 +173,7 @@ export interface SectionPromptInput {
 export function buildSectionPrompt({ brief, outline, index, written, sources, references, photos }: SectionPromptInput): AiPrompt {
   const type = getReportType(brief.typeId);
   const section = outline[index];
-  const isReferences = /^(references|bibliography|works cited|reference list)$/i.test(section.title.trim());
+  const isReferences = isReferencesTitle(section.title);
   const previous = written.length > 0
     ? [
       'Sections already written (condensed) — do not repeat their content:',
@@ -181,7 +208,7 @@ export function buildSectionPrompt({ brief, outline, index, written, sources, re
     `Type-specific expectations: ${type.guidance}`,
     '',
     'Writing style:',
-    buildStyleRules(brief.humanizer, brief.voice),
+    buildStyleRules(brief.humanizer, brief.voice, brief.details.language),
     '',
     citationRules(brief, references),
     '',
@@ -250,7 +277,8 @@ export function buildRewritePrompt({ brief, action, passage, sectionTitle, instr
     extra,
     '',
     'Writing style:',
-    buildStyleRules(humanizer, brief.voice),
+    buildStyleRules(humanizer, brief.voice, brief.details.language),
+    rtlWritingRules(brief.details.language),
     '',
     references.length > 0 ? 'Keep citation markers such as [@key] exactly as they are.' : '',
     action === 'grammar' ? 'Keep picture lines such as ![Caption](assets/…) exactly as they are.' : markdownContract(Boolean(photos)),
@@ -270,7 +298,7 @@ const clampWords = (value: unknown, fallback: number): number => {
   return Number.isFinite(number) && number > 0 ? Math.min(20_000, Math.max(50, number)) : fallback;
 };
 
-const FRONT_BACK_MATTER = /^(abstract|executive summary|summary|acknowledg(e)?ments?|references|bibliography|works cited|appendix|appendices|glossary|highlights|key messages)$/i;
+const FRONT_BACK_MATTER = { test: (title: string): boolean => isFrontBackTitle(title) };
 
 function fromJson(value: unknown, totalWords: number): OutlineSection[] | null {
   const list = Array.isArray(value) ? value : (value as { sections?: unknown })?.sections;

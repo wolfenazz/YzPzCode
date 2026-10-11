@@ -13,6 +13,7 @@ import { prepareSvgForDisplay, svgAssetRefs } from '../../utils/presentation/svg
 import type { PptxPicture } from '../../utils/presentation/svgPptx';
 import type { DeckSize, SlideTransition } from '../../utils/presentation/types';
 import { joinPath } from '../../utils/writing/document';
+import { isRtlLanguage, languageTag } from '../../utils/writing/rtl';
 
 export const IMAGE_EXTENSIONS = PICTURE_EXTENSIONS;
 
@@ -90,10 +91,15 @@ export function standaloneSvg(svg: string, pictures: Map<string, string>, prefix
 }
 
 /** One slide painted to PNG bytes at `pixelWidth`. */
-export async function slideSvgToPng(svg: string, size: DeckSize, pictures: Map<string, string>, pixelWidth = 1920): Promise<Uint8Array> {
+/**
+ * One slide as a PNG. `fontCss` (`bundledFontFaceCss`) embeds the faces packaged with the app: an SVG
+ * drawn as an image cannot reach the page's own fonts.
+ */
+export async function slideSvgToPng(svg: string, size: DeckSize, pictures: Map<string, string>, pixelWidth = 1920, fontCss = ''): Promise<Uint8Array> {
   const canvasSize = designCanvas(size);
-  const markup = standaloneSvg(svg, pictures, 'png')
+  let markup = standaloneSvg(svg, pictures, 'png')
     .replace('width="100%" height="100%"', `width="${canvasSize.width}" height="${canvasSize.height}"`);
+  if (fontCss) markup = markup.replace(/<svg\b[^>]*>/, (open) => `${open}<defs><style>${fontCss}</style></defs>`);
   const image = await decode(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`);
   const scale = pixelWidth / canvasSize.width;
   const canvas = document.createElement('canvas');
@@ -108,17 +114,18 @@ export async function slideSvgToPng(svg: string, size: DeckSize, pictures: Map<s
 const escapeHtml = (value: string): string => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /** Printable HTML (one page per visible slide) for the PDF printer. */
-export function designedPrintHtml(title: string, size: DeckSize, slides: DesignedSlide[], pictures: Map<string, string>): string {
+export function designedPrintHtml(title: string, size: DeckSize, slides: DesignedSlide[], pictures: Map<string, string>, options: { language?: string; fontCss?: string } = {}): string {
   const canvas = designCanvas(size);
   const widthIn = canvas.width / 96;
   const heightIn = canvas.height / 96;
   const pages = slides.filter((slide) => !slide.hidden && slide.svg)
     .map((slide, index) => `<section class="slide">${standaloneSvg(slide.svg, pictures, `p${index}`)}</section>`).join('\n');
   return `<!doctype html>
-<html lang="en">
+<html lang="${languageTag(options.language)}" dir="${isRtlLanguage(options.language) ? 'rtl' : 'ltr'}">
 <head>
 <meta charset="utf-8">
 <title>${escapeHtml(title)}</title>
+<style>${options.fontCss ?? ''}</style>
 <style>
 @page { size: ${widthIn}in ${heightIn}in; margin: 0; }
 * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -135,17 +142,18 @@ ${pages}
 }
 
 /** A self-contained HTML slideshow: arrow keys, click, F for fullscreen. */
-export function designedHtmlDeck(title: string, size: DeckSize, slides: DesignedSlide[], pictures: Map<string, string>, transition: SlideTransition): string {
+export function designedHtmlDeck(title: string, size: DeckSize, slides: DesignedSlide[], pictures: Map<string, string>, transition: SlideTransition, options: { language?: string; fontCss?: string } = {}): string {
   const canvas = designCanvas(size);
   const frames = slides.filter((slide) => !slide.hidden && slide.svg)
     .map((slide, index) => `<div class="frame${index === 0 ? ' on' : ''}">${standaloneSvg(slide.svg, pictures, `h${index}`)}</div>`).join('\n');
   const fade = transition === 'none' ? '0s' : '.35s';
   return `<!doctype html>
-<html lang="en">
+<html lang="${languageTag(options.language)}" dir="${isRtlLanguage(options.language) ? 'rtl' : 'ltr'}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)}</title>
+<style>${options.fontCss ?? ''}</style>
 <style>
 html, body { margin: 0; height: 100%; background: #0b0b0d; overflow: hidden; }
 .stage { position: fixed; inset: 0; display: grid; place-items: center; }
@@ -316,7 +324,7 @@ export async function scanFolderPictures(folder: string, limit = MAX_DECK_PICTUR
 export async function saveDroppedFile(file: File, folder: string): Promise<string> {
   const fromName = file.name.match(/\.([A-Za-z0-9]{1,5})$/)?.[1]?.toLowerCase();
   const extension = fromName ?? (file.type.split('/')[1] ?? 'png').replace('jpeg', 'jpg').replace('svg+xml', 'svg');
-  const base = (file.name || 'pasted').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '-').slice(0, 40) || 'file';
+  const base = (file.name || 'pasted').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'file';
   const path = joinPath(folder, `${base}-${Date.now().toString(36)}.${extension}`);
   await writeFileBytes(path, new Uint8Array(await file.arrayBuffer()));
   return path;

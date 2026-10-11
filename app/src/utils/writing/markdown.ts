@@ -36,11 +36,12 @@ const INLINE_RULES: InlineRule[] = [
   },
   {
     // Citation: [@key] or [@key1; @key2, p. 4]
-    pattern: /\[(@[\w:.-]+(?:\s*[;,]\s*@[\w:.-]+)*)([^\]]*)\]/y,
+    // Keys may be in any script: an Arabic author gives an Arabic key.
+    pattern: /\[(@[\p{L}\p{N}_:.-]+(?:\s*[;,،؛]\s*@[\p{L}\p{N}_:.-]+)*)([^\]]*)\]/uy,
     build: (match) => [{
       type: 'citation',
       attrs: {
-        keys: match[1].split(/[;,]/).map((key) => key.trim().replace(/^@/, '')).filter(Boolean),
+        keys: match[1].split(/[;,،؛]/).map((key) => key.trim().replace(/^@/, '')).filter(Boolean),
         locator: match[2].replace(/^[\s,;]+/, '').trim(),
       },
     }],
@@ -150,10 +151,11 @@ const ORDERED = /^(\s*)(\d{1,4})[.)]\s+(.*)$/;
 const RULE = /^\s*(?:-{3,}|\*{3,}|_{3,})\s*$/;
 const TABLE_DIVIDER = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 const FOOTNOTE_DEF = /^\[\^([^\]]+)\]:\s*(.*)$/;
-const FIGURE = /^\s*\[(?:Figure|Fig\.)\s*:?\s*([^\]]+)\]\s*$/i;
-const PHOTO = /^\s*\[Photo\s*:\s*([^\]|]+?)\s*(?:\|\s*([^\]]+?))?\s*\]\s*$/i;
+// The markers a model writes beside prose: the English words, and the Arabic and Hebrew ones a model may localise them to.
+const FIGURE = /^\s*\[(?:Figure|Fig\.|الشكل|شكل|איור)\s*:?\s*([^\]]+)\]\s*$/i;
+const PHOTO = /^\s*\[(?:Photo|صورة|תמונה)\s*:\s*([^\]|]+?)\s*(?:\|\s*([^\]]+?))?\s*\]\s*$/i;
 const IMAGE = /^\s*!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)\s*$/;
-const TABLE_CAPTION = /^\s*(?:\*\*|_)?Table(?:\s+\d+(?:\.\d+)*)?\s*[:.—-]\s*(.+?)(?:\*\*|_)?\s*$/i;
+const TABLE_CAPTION = /^\s*(?:\*\*|_)?(?:Table|الجدول|جدول|טבלה)(?:\s+[\d٠-٩]+(?:\.[\d٠-٩]+)*)?\s*[:.—-]\s*(.+?)(?:\*\*|_)?\s*$/i;
 const BIBLIOGRAPHY = /^\s*\[\[BIBLIOGRAPHY\]\]\s*$/i;
 const PAGE_BREAK = /^\s*(?:\\pagebreak|\\newpage|<!--\s*pagebreak\s*-->|\[\[page ?break\]\])\s*$/i;
 
@@ -430,7 +432,7 @@ export const nodeText = (node: DocNode): string => {
 };
 
 const normalizeTitle = (value: string): string =>
-  value.toLowerCase().replace(/^[\d.\s]+/, '').replace(/^chapter\s+\w+\s*[:.-]?\s*/, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  value.toLowerCase().replace(/^[\d.\s٠-٩]+/, '').replace(/^(?:chapter|الفصل|فصل|פרק)\s+[\p{L}\p{N}]+\s*[:.-]?\s*/u, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
 /**
  * The editor blocks for one written section: its level-1 heading (carrying

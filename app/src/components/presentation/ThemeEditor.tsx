@@ -6,7 +6,10 @@ import { Check, DownloadSimple, Palette, UploadSimple, Warning, X } from '@phosp
 import type { FileContent } from '../../types';
 import { emptySlide } from '../../utils/presentation/sanitize';
 import { newThemeId, parseThemeFile, serializeTheme } from '../../utils/presentation/templates';
+import { bundledFamily, registerAllBundledFonts, registerBundledFont } from '../../utils/bundledFonts';
 import { contrastRatio, DECK_THEMES, SAFE_FONTS, sanitizeTheme } from '../../utils/presentation/themes';
+import { catalogFont } from '../../utils/writing/fontCatalog';
+import { FontOptions } from '../studio/FontOptions';
 import type { DeckSize, DeckTheme, ThemePalette } from '../../utils/presentation/types';
 import { slugify } from '../../utils/writing/document';
 import { SlideRenderer } from './SlideRenderer';
@@ -48,12 +51,12 @@ export function themeChecks(theme: DeckTheme): Array<{ label: string; ratio: num
 }
 
 function FontField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }): React.JSX.Element {
-  const known = (SAFE_FONTS as readonly string[]).includes(value);
+  const known = (SAFE_FONTS as readonly string[]).includes(value) || catalogFont(value) !== null;
   return (
     <label className="pr-field">
       <span className="pr-field__label">{label}</span>
-      <select className="pr-select" value={known ? value : '__other'} onChange={(event) => onChange(event.target.value === '__other' ? (known ? '' : value) : event.target.value)}>
-        {SAFE_FONTS.map((font) => <option key={font} value={font} style={{ fontFamily: font }}>{font}</option>)}
+      <select className="pr-select" value={known ? value : '__other'} onChange={(event) => { if (bundledFamily(event.target.value)) void registerBundledFont(event.target.value); onChange(event.target.value === '__other' ? (known ? '' : value) : event.target.value); }} onFocus={() => void registerAllBundledFonts()}>
+        <FontOptions />
         <option value="__other">Other font…</option>
       </select>
       {!known && <input className="pr-input" value={value} placeholder="Font name, e.g. Montserrat" onChange={(event) => onChange(event.target.value)} />}

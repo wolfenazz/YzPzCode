@@ -43,7 +43,7 @@ export const SvgSlide: React.FC<SvgSlideProps> = memo(function SvgSlide({ svg, w
     if (!root || revealed === null) return;
     const nodes = Array.from(root.querySelectorAll('[data-step]'));
     const apply = (): void => {
-      for (const node of nodes) node.setAttribute('data-state', Number(node.getAttribute('data-step')) <= revealed ? 'in' : 'out');
+      for (const node of nodes) node.setAttribute('data-state', Number(node.getAttribute('data-step')) <= revealed ? 'post' : 'pre');
     };
     if (builtFor.current !== markup) {
       builtFor.current = markup;

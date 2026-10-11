@@ -7,6 +7,7 @@
 // the SVG put it. What DrawingML cannot express (masks, patterns, blend modes)
 // is left out and reported. Uses the global DOMParser; no other dependencies.
 
+import { complexScriptFace, hasRtl, isRtlLanguage, languageOfScript, languageTag } from '../writing/rtl';
 import { normalizeHex } from './designColors';
 import { elementXml } from './modelPptx';
 import type { SlideElement } from './slideModel';
@@ -131,6 +132,8 @@ function parsePaint(value: string | null | undefined, current: string): Paint | 
 }
 
 interface Ctx {
+  /** Text direction: in right-to-left text `text-anchor` start is the right edge. */
+  direction: 'ltr' | 'rtl';
   m: Matrix;
   opacity: number;
   fill: string;
@@ -154,7 +157,7 @@ interface Ctx {
 }
 
 const INITIAL: Ctx = {
-  m: IDENTITY, opacity: 1, fill: '#000000', fillOpacity: 1, stroke: 'none', strokeOpacity: 1, strokeWidth: 1, dash: 'none',
+  direction: 'ltr', m: IDENTITY, opacity: 1, fill: '#000000', fillOpacity: 1, stroke: 'none', strokeOpacity: 1, strokeWidth: 1, dash: 'none',
   cap: 'butt', join: 'miter', fontFamily: 'Segoe UI', fontSize: 16, fontWeight: 'normal', fontStyle: 'normal', anchor: 'start',
   letterSpacing: 0, decoration: 'none', color: '#000000', filter: null,
 };
@@ -207,6 +210,8 @@ function inherit(el: Element, ctx: Ctx): Ctx {
   set('fontWeight', prop(el, 'font-weight'));
   set('fontStyle', prop(el, 'font-style'));
   set('anchor', prop(el, 'text-anchor'));
+  const direction = prop(el, 'direction');
+  if (direction === 'rtl' || direction === 'ltr') next.direction = direction;
   const spacing = prop(el, 'letter-spacing');
   if (spacing !== null) set('letterSpacing', spacing === 'normal' ? 0 : num(spacing));
   set('decoration', prop(el, 'text-decoration'));
@@ -813,7 +818,7 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
   }
 
   // Text ------------------------------------------------------------------------------------
-  function collectLines(textEl: Element, base: Ctx): { lines: Line[]; anchor: string } {
+  function collectLines(textEl: Element, base: Ctx): { lines: Line[]; anchor: string; rtl: boolean } {
     const xs = numList(textEl.getAttribute('x'));
     const ys = numList(textEl.getAttribute('y'));
     const lines: Line[] = [{ x: xs[0] ?? 0, baseline: (ys[0] ?? 0) + (numList(textEl.getAttribute('dy'))[0] ?? 0), runs: [] }];
@@ -859,15 +864,23 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
       }
       line.runs = merged.filter((run) => run.text.length > 0);
     }
-    return { lines: lines.filter((line, index) => line.runs.length > 0 || (index > 0 && index < lines.length - 1)), anchor: base.anchor };
+    return { lines: lines.filter((line, index) => line.runs.length > 0 || (index > 0 && index < lines.length - 1)), anchor: base.anchor, rtl: base.direction === 'rtl' };
+  }
+
+  /** The `lang` of a run: the deck's language, or the one its right-to-left letters are written in. */
+  function langOf(text: string): string {
+    if (!hasRtl(text) || isRtlLanguage(lang)) return lang;
+    return languageTag(languageOfScript(text), lang);
   }
 
   function runXml(run: Run, scale: number): string {
     const size = Math.max(100, Math.round(run.size * scale * 75));
-    const attributes = [`lang="${xml(lang)}"`, `sz="${size}"`, run.bold ? 'b="1"' : 'b="0"', run.italic ? 'i="1"' : ''];
+    const rtlRun = hasRtl(run.text);
+    const attributes = [`lang="${xml(langOf(run.text))}"`, `sz="${size}"`, run.bold ? 'b="1"' : 'b="0"', run.italic ? 'i="1"' : ''];
     if (/underline/.test(run.decoration)) attributes.push('u="sng"');
     if (/line-through/.test(run.decoration)) attributes.push('strike="sngStrike"');
-    if (run.letterSpacing) attributes.push(`spc="${Math.round(run.letterSpacing * scale * 75)}"`);
+    // Letter spacing would pull joined Arabic letters apart.
+    if (run.letterSpacing && !rtlRun) attributes.push(`spc="${Math.round(run.letterSpacing * scale * 75)}"`);
     attributes.push('dirty="0"');
     const alpha = run.opacity * run.fillOpacity;
     let fill = '';
@@ -878,12 +891,16 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
       fill = stops.length ? `<a:gradFill><a:gsLst>${stops.map((stop) => `<a:gs pos="${pct(stop.o)}">${color(stop.hex, stop.a)}</a:gs>`).join('')}</a:gsLst><a:lin ang="0" scaled="1"/></a:gradFill>` : '';
     } else if (run.paint?.kind === 'none') fill = '<a:noFill/>';
     const font = xml(run.font);
-    return `<a:r><a:rPr ${attributes.filter(Boolean).join(' ')}>${fill}<a:latin typeface="${font}"/><a:ea typeface="${font}"/><a:cs typeface="${font}"/></a:rPr><a:t>${xml(run.text)}</a:t></a:r>`;
+    // PowerPoint draws right-to-left letters in the complex-script face, so it must be one that has them.
+    const complex = xml(rtlRun ? complexScriptFace(run.font) : run.font);
+    return `<a:r><a:rPr ${attributes.filter(Boolean).join(' ')}>${fill}<a:latin typeface="${font}"/><a:ea typeface="${font}"/><a:cs typeface="${complex}"/></a:rPr><a:t>${xml(run.text)}</a:t></a:r>`;
   }
 
   function textFrames(el: Element, ctx: Ctx): Out[] {
-    const { lines, anchor } = collectLines(el, ctx);
+    const { lines, anchor: declared, rtl } = collectLines(el, ctx);
     if (lines.length === 0) return [];
+    // SVG anchors follow the text direction: under rtl, start is the right edge and end the left one.
+    const anchor = rtl && declared !== 'middle' ? (declared === 'end' ? 'start' : 'end') : declared;
     const sim = similarity(ctx.m) ?? { scale: Math.sqrt(Math.abs(ctx.m[0] * ctx.m[3] - ctx.m[1] * ctx.m[2])) || 1, sx: 1, sy: 1, rotation: 0 };
     // Lines that share a left edge (or a centre / right edge) form one frame.
     const groups: Line[][] = [];
@@ -910,7 +927,7 @@ export function convertSvgSlide(svg: string, options: ConvertOptions): Converted
       const [cx, cy] = apply(ctx.m, left + width / 2, top + height / 2);
       const frame: Box = { x: cx - (width * sim.scale) / 2, y: cy - (height * sim.scale) / 2, w: width * sim.scale, h: height * sim.scale };
       const lnSpc = spacing !== null ? `<a:lnSpc><a:spcPts val="${Math.round(spacing * 0.75 * sim.scale) * 100}"/></a:lnSpc>` : '';
-      const paragraphs = group.map((line) => `<a:p><a:pPr algn="${algn}">${lnSpc}<a:spcBef><a:spcPts val="0"/></a:spcBef><a:spcAft><a:spcPts val="0"/></a:spcAft></a:pPr>${line.runs.map((run) => runXml(run, sim.scale)).join('')}<a:endParaRPr lang="${xml(lang)}" sz="${Math.round((line.runs[0]?.size ?? ctx.fontSize) * sim.scale * 75)}" dirty="0"/></a:p>`).join('');
+      const paragraphs = group.map((line) => `<a:p><a:pPr algn="${algn}"${rtl ? ' rtl="1"' : ''}>${lnSpc}<a:spcBef><a:spcPts val="0"/></a:spcBef><a:spcAft><a:spcPts val="0"/></a:spcAft></a:pPr>${line.runs.map((run) => runXml(run, sim.scale)).join('')}<a:endParaRPr lang="${xml(langOf(line.runs[0]?.text ?? ''))}" sz="${Math.round((line.runs[0]?.size ?? ctx.fontSize) * sim.scale * 75)}" dirty="0"/></a:p>`).join('');
       const id = nextId++;
       return {
         xml: `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${shapeName(el, 'Text')}"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr>${xfrm(frame, sim.rotation)}<a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/>${effectXml(ctx, sim.scale)}</p:spPr><p:txBody><a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="t"><a:noAutofit/></a:bodyPr><a:lstStyle/>${paragraphs}</p:txBody></p:sp>`,

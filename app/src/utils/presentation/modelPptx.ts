@@ -4,7 +4,9 @@
 // every element that carries its model, so an imported deck goes back out as
 // the PowerPoint objects it came from. Dependency-free.
 
+import { complexScriptFace, hasRtl, isRtlLanguage, languageOfScript, languageTag } from '../writing/rtl';
 import type { Geometry } from './slideGeometry';
+import { paraAlign, paraRtl } from './slideModel';
 import type { LineStyle, Paint, Shadow, SlideElement, TableCell, TxBody, TxPara, TxRun } from './slideModel';
 
 export interface ModelExportContext {
@@ -109,17 +111,29 @@ function xfrmXml(el: SlideElement, ctx: ModelExportContext, group = false): stri
 const sizeHundredths = (px: number, ctx: ModelExportContext): number => Math.max(100, Math.round((px * ctx.emuPerPx * 100) / 12700));
 const spacingPts = (px: number, ctx: ModelExportContext): number => Math.round((px * ctx.emuPerPx * 100) / 12700);
 
+/** The `lang` of a run: the deck's language, or the one its right-to-left letters are written in. */
+function runLang(text: string, ctx: ModelExportContext): string {
+  if (!hasRtl(text)) return ctx.lang;
+  if (isRtlLanguage(ctx.lang)) return ctx.lang;
+  return languageTag(languageOfScript(text), ctx.lang);
+}
+
 function runProps(run: TxRun, ctx: ModelExportContext, tagName: 'a:rPr' | 'a:endParaRPr' = 'a:rPr'): string {
-  const attributes = [`lang="${xml(ctx.lang)}"`, `sz="${sizeHundredths(run.sz, ctx)}"`, `b="${run.b ? 1 : 0}"`, `i="${run.i ? 1 : 0}"`];
+  const rtlRun = hasRtl(run.t);
+  const attributes = [`lang="${xml(runLang(run.t, ctx))}"`, `sz="${sizeHundredths(run.sz, ctx)}"`, `b="${run.b ? 1 : 0}"`, `i="${run.i ? 1 : 0}"`];
   if (run.u) attributes.push('u="sng"');
   if (run.s) attributes.push('strike="sngStrike"');
   if (run.bl) attributes.push(`baseline="${Math.round(run.bl * 100000)}"`);
-  if (run.sp) attributes.push(`spc="${spacingPts(run.sp, ctx)}"`);
+  // Letter spacing would pull joined Arabic letters apart.
+  if (run.sp && !rtlRun) attributes.push(`spc="${spacingPts(run.sp, ctx)}"`);
   if (run.cap) attributes.push(`cap="${run.cap}"`);
   attributes.push('dirty="0"');
   const fill = run.c ? `<a:solidFill>${colorXml(run.c, run.a)}</a:solidFill>` : '<a:noFill/>';
-  const font = xml(run.f || 'Calibri');
-  return `<${tagName} ${attributes.join(' ')}>${fill}<a:latin typeface="${font}"/><a:ea typeface="${font}"/><a:cs typeface="${font}"/></${tagName}>`;
+  const face = run.f || 'Calibri';
+  const font = xml(face);
+  // PowerPoint draws right-to-left letters in the complex-script face, so it must be one that has them.
+  const complex = xml(rtlRun ? complexScriptFace(face) : face);
+  return `<${tagName} ${attributes.join(' ')}>${fill}<a:latin typeface="${font}"/><a:ea typeface="${font}"/><a:cs typeface="${complex}"/></${tagName}>`;
 }
 
 function paragraphXml(para: TxPara, ctx: ModelExportContext): string {
@@ -127,7 +141,9 @@ function paragraphXml(para: TxPara, ctx: ModelExportContext): string {
   if (para.lv) attributes.push(`lvl="${para.lv}"`);
   if (para.ml !== undefined) attributes.push(`marL="${Math.round(para.ml * ctx.emuPerPx)}"`);
   if (para.ind !== undefined) attributes.push(`indent="${Math.round(para.ind * ctx.emuPerPx)}"`);
-  attributes.push(`algn="${para.al === 'c' ? 'ctr' : para.al === 'r' ? 'r' : para.al === 'j' ? 'just' : 'l'}"`);
+  const align = paraAlign(para);
+  attributes.push(`algn="${align === 'c' ? 'ctr' : align === 'r' ? 'r' : align === 'j' ? 'just' : 'l'}"`);
+  if (paraRtl(para)) attributes.push('rtl="1"');
   let children = '';
   if (para.ls !== undefined) children += para.ls < 0 ? `<a:lnSpc><a:spcPts val="${spacingPts(-para.ls, ctx)}"/></a:lnSpc>` : `<a:lnSpc><a:spcPct val="${Math.round(para.ls * 100000)}"/></a:lnSpc>`;
   children += `<a:spcBef><a:spcPts val="${spacingPts(para.sb ?? 0, ctx)}"/></a:spcBef><a:spcAft><a:spcPts val="${spacingPts(para.sa ?? 0, ctx)}"/></a:spcAft>`;

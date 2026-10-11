@@ -150,7 +150,7 @@ interface PromptBoxProps {
 /** Ask the AI for a change: Enter sends, Shift+Enter breaks the line. */
 export const PromptBox: React.FC<PromptBoxProps> = ({ value, onChange, onSubmit, placeholder, disabled, blocked, running, onStop, rows = 3 }) => (
   <div className="sx-prompt">
-    <textarea
+    <textarea dir="auto"
       className="sx-prompt__input"
       rows={rows}
       value={value}

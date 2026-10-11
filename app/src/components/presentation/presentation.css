@@ -3338,10 +3338,11 @@ textarea.pr-input {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
-  padding-right: 6px;
+  padding-inline-end: 6px;
   line-height: 1.5;
   white-space: pre-wrap;
   cursor: text;
+  text-align: start;
 }
 
 .pr-show__notes em {

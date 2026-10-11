@@ -6,6 +6,7 @@ import { BookBookmark, Export, Minus, PaintBrush, Plus, SidebarSimple, Sparkle }
 import { useWritingSessionStore, selectSession } from '../../stores/writingSessionStore';
 import { useWritingStore } from '../../stores/writingStore';
 import { createBrief, createDoc, fileName, parentPath, reportPath } from '../../utils/writing/document';
+import { startsFrontBack } from '../../utils/writing/labels';
 import { importDocx } from '../../utils/writing/docxImport';
 import { blocksToMarkdown, countWords } from '../../utils/writing/markdown';
 import type { RewriteAction } from '../../utils/writing/prompts';
@@ -129,7 +130,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
         if (node.type.name === 'heading' && node.attrs.level === 1) {
           const id = newSectionId();
           const title = node.textContent.trim() || 'Section';
-          const unnumbered = /^(abstract|acknowledg|references|bibliography|appendix|executive summary)/i.test(title);
+          const unnumbered = startsFrontBack(title);
           outline.push({ id, title, notes: '', targetWords: 0, subsections: [], unnumbered });
           tr.setNodeMarkup(offset, undefined, { ...node.attrs, sectionId: id, unnumbered });
         }
@@ -471,6 +472,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
                   content={documents.pendingContent?.content ?? EMPTY_DOC}
                   style={session.brief.style}
                   title={title}
+                  language={session.brief.details.language}
                   hasCover={session.brief.style.cover !== 'none'}
                   zoom={zoom}
                   editable

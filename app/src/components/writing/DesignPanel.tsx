@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { applyTheme, DOCUMENT_FONTS, fontStack, PAGE_SIZES, STYLE_THEMES } from '../../utils/writing/stylePresets';
+import { registerAllBundledFonts } from '../../utils/bundledFonts';
+import { applyTheme, fontStack, PAGE_SIZES, STYLE_THEMES } from '../../utils/writing/stylePresets';
+import { FontOptions } from '../studio/FontOptions';
 import { RESTYLE_SUGGESTIONS, type RestyleResult } from '../../utils/writing/styleAi';
 import type { CoverStyle, HeadingNumbering, PageNumberPosition, PageSizeId, ReportStyle } from '../../utils/writing/types';
 import { ActionList, ColorInput, Field, Hint, PromptBox, Section, Select, Toggle } from '../studio/Inspector';
@@ -106,13 +108,13 @@ export const DesignPanel: React.FC<DesignPanelProps> = ({ style, busy, onChange,
 
       <Section title="Text" collapsible>
         <Field label="Headings">
-          <Select value={style.headingFont} onChange={(event) => set('headingFont', event.target.value)}>
-            {DOCUMENT_FONTS.map((font) => <option key={font.family} value={font.family}>{font.family}</option>)}
+          <Select value={style.headingFont} onChange={(event) => set('headingFont', event.target.value)} onFocus={() => void registerAllBundledFonts()}>
+            <FontOptions current={[style.headingFont, style.bodyFont]} />
           </Select>
         </Field>
         <Field label="Body">
-          <Select value={style.bodyFont} onChange={(event) => set('bodyFont', event.target.value)}>
-            {DOCUMENT_FONTS.map((font) => <option key={font.family} value={font.family}>{font.family}</option>)}
+          <Select value={style.bodyFont} onChange={(event) => set('bodyFont', event.target.value)} onFocus={() => void registerAllBundledFonts()}>
+            <FontOptions current={[style.bodyFont, style.headingFont]} />
           </Select>
         </Field>
         <Field label="Body size">

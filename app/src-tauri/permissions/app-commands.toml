@@ -90,6 +90,7 @@ permissions = [
   "allow-get-os-version",
   "allow-get-prerequisite-install-command",
   "allow-get-project-run-targets",
+  "allow-get-studio-root",
   "allow-get-tool-install-command",
   "allow-get-writing-ai-engines",
   "allow-get-writing-engine-models",

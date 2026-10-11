@@ -2,6 +2,7 @@
 // PDF (native, via the backend), Word (.docx) or a standalone web page.
 
 import { invoke } from '@tauri-apps/api/core';
+import { bundledFamiliesIn, bundledFontFaceCss } from '../bundledFonts';
 import { joinPath } from './document';
 import type { DocxImage } from './docxExport';
 import { buildPrintHtml } from './printHtml';
@@ -77,11 +78,15 @@ async function loadImages(source: ExportSource, forDocx: boolean): Promise<Recor
 /** The print document, ready for paged.js (with the paged.js scripts) or as a plain page. */
 export async function printDocument(source: ExportSource, withPaged: boolean): Promise<string> {
   const images = await loadImages(source, false);
-  const headExtra = withPaged
+  // Faces packaged with the app are embedded: the print view cannot reach the app's own fonts.
+  const families = bundledFamiliesIn(`${source.brief.style.bodyFont}|${source.brief.style.headingFont}|${JSON.stringify(source.content)}`);
+  const fontCss = families.length > 0 ? await bundledFontFaceCss(families) : '';
+  const fonts = fontCss ? `<style id="yzpz-fonts">${fontCss}</style>\n` : '';
+  const headExtra = fonts + (withPaged
     ? `<script>window.PagedConfig={auto:true,after:function(flow){parent.postMessage({type:'yzpz-paged-done',total:flow&&flow.total},'*')}};</script>
 <script src="/vendor/pagedjs/paged.polyfill.min.js"></script>
 <style id="yzpz-preview-chrome">@media screen{html{background:#d9d9df}.pagedjs_page{background:#fff;margin:0 auto 18px;box-shadow:0 8px 30px -10px rgba(0,0,0,.35)}.pagedjs_pages{padding:18px 0}}</style>`
-    : '';
+    : '');
   return buildPrintHtml({
     brief: source.brief,
     bibliography: source.bibliography,

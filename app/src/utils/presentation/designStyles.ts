@@ -4,6 +4,7 @@
 // A style is a starting point the AI may blend or replace; it never fixes
 // colours, which are invented per deck. Dependency-free.
 
+import { catalogFont, catalogStack, FONT_CATALOG, genericFor, type FontSource } from '../writing/fontCatalog';
 import type { DesignMode } from './designTypes';
 
 export interface VisualStyle {
@@ -192,56 +193,30 @@ export const DESIGN_MODES: Array<{ id: DesignMode; label: string; skeleton: stri
 ];
 
 /**
- * Faces that ship with Windows itself, with the character each one brings.
- * The app previews slides in WebView2 and PowerPoint draws the export, so a
- * face both can find keeps them identical. Office-only faces (Aptos, Rockwell,
- * Gill Sans MT…) are often private to Office and would preview as a fallback.
+ * Every face a deck may use, from the shared catalog (`writing/fontCatalog.ts`):
+ * Windows and Office faces that PowerPoint and the app both carry, plus faces
+ * bundled with the app (Arabic and Latin) that the app, PDF, PNG and HTML draw
+ * and a .pptx names (installed on the machine that opens it).
  */
-export const DESIGN_FONTS: Array<{ name: string; character: string; fallback: 'sans-serif' | 'serif' | 'monospace' | 'cursive' }> = [
-  { name: 'Segoe UI', character: 'neutral humanist sans', fallback: 'sans-serif' },
-  { name: 'Segoe UI Semibold', character: 'confident sans headline', fallback: 'sans-serif' },
-  { name: 'Segoe UI Light', character: 'airy thin sans display', fallback: 'sans-serif' },
-  { name: 'Segoe UI Black', character: 'heavy poster sans', fallback: 'sans-serif' },
-  { name: 'Calibri', character: 'soft rounded sans', fallback: 'sans-serif' },
-  { name: 'Bahnschrift', character: 'DIN-like technical sans', fallback: 'sans-serif' },
-  { name: 'Franklin Gothic Medium', character: 'American news-gothic headline', fallback: 'sans-serif' },
-  { name: 'Corbel', character: 'clean humanist sans', fallback: 'sans-serif' },
-  { name: 'Candara', character: 'warm, slightly flared sans', fallback: 'sans-serif' },
-  { name: 'Trebuchet MS', character: 'friendly humanist sans', fallback: 'sans-serif' },
-  { name: 'Tahoma', character: 'compact sans', fallback: 'sans-serif' },
-  { name: 'Verdana', character: 'wide legible sans', fallback: 'sans-serif' },
-  { name: 'Arial', character: 'plain grotesque', fallback: 'sans-serif' },
-  { name: 'Arial Black', character: 'blocky heavy display', fallback: 'sans-serif' },
-  { name: 'Impact', character: 'condensed poster display', fallback: 'sans-serif' },
-  { name: 'Georgia', character: 'sturdy classic serif', fallback: 'serif' },
-  { name: 'Cambria', character: 'modern text serif', fallback: 'serif' },
-  { name: 'Constantia', character: 'elegant calligraphic serif', fallback: 'serif' },
-  { name: 'Palatino Linotype', character: 'humanist book serif', fallback: 'serif' },
-  { name: 'Times New Roman', character: 'newspaper serif', fallback: 'serif' },
-  { name: 'Consolas', character: 'monospace for code and figures', fallback: 'monospace' },
-  { name: 'Courier New', character: 'typewriter monospace', fallback: 'monospace' },
-  { name: 'Lucida Sans Unicode', character: 'clean humanist sans with wide coverage', fallback: 'sans-serif' },
-  { name: 'Gabriola', character: 'ornate calligraphic display', fallback: 'cursive' },
-  { name: 'Ink Free', character: 'handwritten marker', fallback: 'cursive' },
-  { name: 'Segoe Print', character: 'friendly hand lettering', fallback: 'cursive' },
-  { name: 'Segoe Script', character: 'flowing script', fallback: 'cursive' },
-];
+export const DESIGN_FONTS: Array<{ name: string; character: string; fallback: 'sans-serif' | 'serif' | 'monospace' | 'cursive'; arabic: boolean; source: FontSource }> = FONT_CATALOG.map((entry) => ({
+  name: entry.name,
+  character: entry.character,
+  fallback: genericFor(entry.kind),
+  arabic: entry.arabic,
+  source: entry.source,
+}));
 
 export const DEFAULT_HEADING_FONT = 'Segoe UI Semibold';
 export const DEFAULT_BODY_FONT = 'Segoe UI';
 
 /** A known delivery-safe face by name (case-insensitive), or null. */
 export function knownFont(name: unknown): string | null {
-  const wanted = String(name ?? '').split(',')[0].trim().replace(/^['"]|['"]$/g, '').toLowerCase();
-  return DESIGN_FONTS.find((font) => font.name.toLowerCase() === wanted)?.name ?? null;
+  return catalogFont(String(name ?? ''))?.name ?? null;
 }
 
-/** A CSS/SVG font stack for a face: the face, Segoe UI, then the generic family. */
+/** A CSS/SVG font stack for a face: the face, Segoe UI and Tahoma (both draw Arabic), then the generic family. */
 export function fontStack(name: string): string {
-  const font = DESIGN_FONTS.find((entry) => entry.name === name);
-  const generic = font?.fallback ?? 'sans-serif';
-  const second = generic === 'serif' ? 'Georgia' : generic === 'monospace' ? 'Consolas' : 'Segoe UI';
-  return [name, second].filter((value, index, list) => list.indexOf(value) === index).map((value) => `'${value}'`).concat(generic).join(', ');
+  return catalogStack(name);
 }
 
 export function getStyle(id: string | null | undefined): VisualStyle | null {

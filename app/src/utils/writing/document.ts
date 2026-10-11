@@ -136,7 +136,8 @@ export function slugify(value: string): string {
     .normalize('NFKD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9؀-ۿ]+/g, '-')
+    .replace(/[\u0640\u064B-\u065F]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
   return slug || 'report';

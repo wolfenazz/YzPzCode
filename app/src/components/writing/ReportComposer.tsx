@@ -6,12 +6,14 @@ import { writeFileBytes } from '../../utils/presentation/assets';
 import { parseReferenceList } from '../../utils/writing/citations';
 import { fileName, joinPath, REPORTS_FOLDER } from '../../utils/writing/document';
 import { composerCopy, getReportType, pagesToWords, wordsToPages } from '../../utils/writing/reportTypes';
+import { isRtlLanguage, languageFor } from '../../utils/writing/rtl';
+import { rtlStyle } from '../../utils/writing/stylePresets';
 import { SOURCE_EXTENSIONS } from '../../utils/writing/sources';
 import type { EngineChoice, Reference, ReportBrief, ReportDetails } from '../../utils/writing/types';
 import { EngineFields, formatElapsed, WebPhotosToggle } from './ui';
 import { ReportIcon } from './wizard/reportIcons';
 
-const LANGUAGES = ['English', 'Arabic', 'French', 'Spanish', 'German', 'Portuguese', 'Turkish', 'Urdu', 'Indonesian', 'Chinese (Simplified)', 'Japanese'];
+const LANGUAGES = ['English', 'Arabic', 'Persian', 'Urdu', 'Hebrew', 'French', 'Spanish', 'German', 'Italian', 'Portuguese', 'Turkish', 'Dutch', 'Russian', 'Hindi', 'Indonesian', 'Chinese (Simplified)', 'Japanese'];
 const MAX_FILES = 16;
 
 interface ReportComposerProps {
@@ -70,6 +72,15 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
     if (!element) return;
     element.style.height = 'auto';
     element.style.height = `${Math.min(360, Math.max(140, element.scrollHeight))}px`;
+  }, [details.brief]);
+
+  // Typing the description in a right-to-left script switches the language to it, until the user picks one.
+  const languagePicked = useRef(false);
+  useEffect(() => {
+    if (languagePicked.current) return;
+    const next = languageFor(details.brief, details.language);
+    if (next !== details.language && isRtlLanguage(next)) setBrief((current) => ({ ...current, details: { ...current.details, language: next } }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [details.brief]);
 
   const setDetails = (patch: Partial<ReportDetails>): void => setBrief((current) => ({ ...current, details: { ...current.details, ...patch } }));
@@ -140,7 +151,13 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
   const submit = (): void => {
     if (!ready) return;
     const pending = referenceDraft.trim() ? parseReferenceList(referenceDraft, bibliography) : [];
-    onWrite(brief, [...bibliography, ...pending]);
+    // A description in Arabic is answered in Arabic even when the language was left on English; a
+    // right-to-left report gets faces that draw its letters.
+    const language = languageFor(`${details.title} ${details.brief} ${details.sourceNotes}`, details.language);
+    const final = isRtlLanguage(language)
+      ? { ...brief, details: { ...brief.details, language }, style: rtlStyle(brief.style) }
+      : language === details.language ? brief : { ...brief, details: { ...brief.details, language } };
+    onWrite(final, [...bibliography, ...pending]);
   };
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -185,6 +202,7 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
         <div className="wr-composer" data-busy={busy || undefined}>
           <textarea
             ref={textarea}
+            dir="auto"
             className="wr-composer__input"
             value={details.brief}
             disabled={busy}
@@ -242,7 +260,7 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
               </label>
               <label className="wr-row-field">
                 <span>Language</span>
-                <select className="wr-control" value={details.language} onChange={(event) => setDetails({ language: event.target.value })}>
+                <select className="wr-control" value={details.language} onChange={(event) => { languagePicked.current = true; setDetails({ language: event.target.value }); }}>
                   {[...new Set([details.language, ...LANGUAGES])].map((language) => <option key={language} value={language}>{language}</option>)}
                 </select>
               </label>
@@ -298,29 +316,29 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
           <div className="wr-grid">
             <label className="wr-field wr-field--wide">
               <span className="wr-label">Title</span>
-              <input className="wr-control" value={details.title} disabled={busy} onChange={(event) => setDetails({ title: event.target.value })} placeholder="Leave empty and the writer will title it" />
+              <input dir="auto" className="wr-control" value={details.title} disabled={busy} onChange={(event) => setDetails({ title: event.target.value })} placeholder="Leave empty and the writer will title it" />
             </label>
             {!hasTeam && (
               <label className="wr-field">
                 <span className="wr-label">Author(s)</span>
-                <input className="wr-control" value={details.authors} disabled={busy} onChange={(event) => setDetails({ authors: event.target.value })} />
+                <input dir="auto" className="wr-control" value={details.authors} disabled={busy} onChange={(event) => setDetails({ authors: event.target.value })} />
               </label>
             )}
             {!hasInstitution && (
               <label className="wr-field">
                 <span className="wr-label">Organisation</span>
-                <input className="wr-control" value={details.organization} disabled={busy} onChange={(event) => setDetails({ organization: event.target.value })} />
+                <input dir="auto" className="wr-control" value={details.organization} disabled={busy} onChange={(event) => setDetails({ organization: event.target.value })} />
               </label>
             )}
             {lineFields.map((field) => (
               <label key={field.key} className="wr-field">
                 <span className="wr-label">{field.label}</span>
-                <input className="wr-control" value={details.fields[field.key] ?? ''} disabled={busy} placeholder={field.placeholder} onChange={(event) => setField(field.key, event.target.value)} />
+                <input dir="auto" className="wr-control" value={details.fields[field.key] ?? ''} disabled={busy} placeholder={field.placeholder} onChange={(event) => setField(field.key, event.target.value)} />
               </label>
             ))}
             <label className="wr-field">
               <span className="wr-label">Audience</span>
-              <input className="wr-control" value={details.audience} disabled={busy} onChange={(event) => setDetails({ audience: event.target.value })} placeholder="Who will read it" />
+              <input dir="auto" className="wr-control" value={details.audience} disabled={busy} onChange={(event) => setDetails({ audience: event.target.value })} placeholder="Who will read it" />
             </label>
           </div>
 
@@ -329,7 +347,7 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
               {materialFields.map((field) => (openMaterial.has(field.key) || (details.fields[field.key] ?? '').trim() ? (
                 <label key={field.key} className="wr-field wr-field--wide">
                   <span className="wr-label">{field.label}</span>
-                  <textarea className="wr-textarea" rows={field.key === 'team' || field.key === 'attendees' ? 3 : 5} value={details.fields[field.key] ?? ''} disabled={busy} placeholder={field.placeholder} onChange={(event) => setField(field.key, event.target.value)} />
+                  <textarea dir="auto" className="wr-textarea" rows={field.key === 'team' || field.key === 'attendees' ? 3 : 5} value={details.fields[field.key] ?? ''} disabled={busy} placeholder={field.placeholder} onChange={(event) => setField(field.key, event.target.value)} />
                 </label>
               ) : (
                 <button key={field.key} type="button" className="wr-btn wr-btn--ghost wr-btn--sm" disabled={busy} onClick={() => setOpenMaterial((current) => new Set(current).add(field.key))}>

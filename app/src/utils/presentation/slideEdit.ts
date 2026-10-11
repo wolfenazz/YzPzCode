@@ -570,7 +570,7 @@ export function textBoxModel(box: Box, text: string, style: { font: string; size
     fill: { t: 'none' },
     line: null,
     tx: {
-      p: text.split('\n').map((line) => ({ r: [{ t: line, sz: style.size, f: style.font, c: style.color, ...(style.bold ? { b: true } : {}) }], al: style.align ?? 'l', esz: style.size, ef: style.font })),
+      p: text.split('\n').map((line) => ({ r: [{ t: line, sz: style.size, f: style.font, c: style.color, ...(style.bold ? { b: true } : {}) }], ...(style.align ? { al: style.align } : {}), esz: style.size, ef: style.font })),
       ins: [9.6, 4.8, 9.6, 4.8],
       anc: 't',
       wrap: true,

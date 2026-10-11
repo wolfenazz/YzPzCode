@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion';
 import { ArrowLeft, ArrowRight, CaretDown, Check, Code, Feather, PresentationChart, PuzzlePiece, TerminalWindow, WarningCircle } from '@phosphor-icons/react';
 import { DirectorySelector } from './DirectorySelector';
+import { StudioLocation } from './StudioLocation';
 import { LayoutSelector } from './LayoutSelector';
 import { AgentFleetConfig } from './AgentFleetConfig';
 import { WorkspaceExtensionsConfig } from './WorkspaceExtensionsConfig';
@@ -21,6 +22,8 @@ import { MOD_KEY, SETUP_EASE, useSetupMotion } from './useSetupMotion';
 import SpotlightCard from '../reactbits/SpotlightCard';
 import CountUp from '../reactbits/CountUp';
 import { useAppStore } from '../../stores/appStore';
+import { useStudioRoot } from '../../hooks/useStudioRoot';
+import { studioDefaultName } from '../../utils/workspaceSetup';
 import { useExtensionStore } from '../../stores/extensionStore';
 import { IDE_DISPLAY_NAMES } from './ideConstants';
 import type { LayoutConfig, AgentFleet, ExtensionInstallProgress, WorkspaceKind } from '../../types';
@@ -131,17 +134,20 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   const writerEngine = useWritingStore((state) => state.defaultEngine.engine);
   const writerProfile = useWritingStore((state) => state.profiles.find((profile) => profile.id === state.defaultProfileId)?.name);
   const presenterEngine = usePresentationStore((state) => state.defaultEngine.engine);
+  // A studio saves into one folder the app picks in Documents; there is nothing to choose.
+  const studioRoot = useStudioRoot();
+  const projectPath = studio ? studioRoot.path : props.selectedPath;
 
   const sessions = props.selectedLayout.sessions;
   const selectedExtensionsReady = studio || props.selectedExtensionIds.every((id) => backendReady && catalog.some((extension) => extension.id === id && extension.installedVersion));
   const canOpen = props.isValid && selectedExtensionsReady && (studio || installing.length === 0) && !props.isLoading;
-  const projectReady = Boolean(props.selectedPath && ((!studio && props.isExternalMode) || props.workspaceName.trim()));
+  const projectReady = studio || Boolean(props.selectedPath && (props.isExternalMode || props.workspaceName.trim()));
   const showProject = !props.guided || step === 'project';
   const showSetup = !props.guided || step === 'setup';
   const continuing = Boolean(props.guided && step === 'project');
   const allocated = Object.values(props.agentFleet.allocation).reduce((sum, count) => sum + count, 0);
-  const folderName = props.selectedPath.replace(/\\/g, '/').split('/').filter(Boolean).at(-1);
-  const launchTitle = props.workspaceName.trim() || folderName || 'New workspace';
+  const folderName = projectPath.replace(/\\/g, '/').split('/').filter(Boolean).at(-1);
+  const launchTitle = props.workspaceName.trim() || (studio ? studioDefaultName(props.workspaceKind) : folderName || 'New workspace');
   const selectedTemplate = props.templates.find((template) => template.id === props.selectedTemplateId);
   const extensionNames = props.selectedExtensionIds.map((id) => catalog.find((extension) => extension.id === id)?.name ?? id);
   const launchIdes = selectedIdes.filter((ide) => ideStatuses[ide]?.installed !== false);
@@ -151,7 +157,8 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   const fleetReady = props.isAllocationValid && selectedExtensionsReady;
   const externalAvailable = sessions > 0 && props.selectedExtensionIds.length === 0;
 
-  const blocker = !props.selectedPath ? 'Choose a project folder to continue.'
+  const blocker = studio && studioRoot.error ? studioRoot.error
+    : !studio && !props.selectedPath ? 'Choose a project folder to continue.'
     : !projectReady ? 'Give your workspace a name.'
       : continuing ? null
         : !props.isAllocationValid ? (props.validationErrors.allocation || 'Adjust the terminal assignments.')
@@ -168,14 +175,14 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   };
 
   // Keyboard: Ctrl/⌘+Enter launches (or continues), Ctrl/⌘+O picks a folder.
-  const shortcuts = useRef({ primaryAction, selectDirectory: props.onSelectDirectory });
-  shortcuts.current = { primaryAction, selectDirectory: props.onSelectDirectory };
+  const shortcuts = useRef({ primaryAction, selectDirectory: props.onSelectDirectory as (() => void) | null });
+  shortcuts.current = { primaryAction, selectDirectory: studio ? null : props.onSelectDirectory };
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
       if (document.querySelector('[role="dialog"]')) return;
       if (event.key === 'Enter') { event.preventDefault(); shortcuts.current.primaryAction(); }
-      else if (event.key.toLowerCase() === 'o') { event.preventDefault(); shortcuts.current.selectDirectory(); }
+      else if (event.key.toLowerCase() === 'o' && shortcuts.current.selectDirectory) { event.preventDefault(); shortcuts.current.selectDirectory(); }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -221,9 +228,9 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
             <h1 className="ws-title">{writing ? 'Set up your writing studio' : presenting ? 'Set up your presentation studio' : 'Set up your workspace'}</h1>
             <p className="ws-subtitle">
               {writing
-                ? 'Pick a folder for your reports and the AI that writes them. Every report gets its own brief, house style and outline.'
+                ? 'Choose the AI that writes your reports. Every report gets its own brief, house style and outline, and is saved in your Documents folder.'
                 : presenting
-                  ? 'Pick a folder for your decks and the AI that designs them. Describe a deck and the AI invents its look, then draws every slide with speaker notes.'
+                  ? 'Choose the AI that designs your decks. Describe a deck and the AI invents its look, then draws every slide with speaker notes. Decks are saved in your Documents folder.'
                   : 'Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.'}
             </p>
             <div className="ws-mode">
@@ -254,7 +261,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
           </div>
           {props.guided ? (
             <nav className="ws-steps" aria-label="Setup steps">
-              {([{ id: 'project', label: 'Project' }, { id: 'setup', label: writing ? 'Writing setup' : presenting ? 'Presentation setup' : 'Layout & agents' }] as const).map((item, index) => (
+              {([{ id: 'project', label: studio ? 'Studio' : 'Project' }, { id: 'setup', label: writing ? 'Writing setup' : presenting ? 'Presentation setup' : 'Layout & agents' }] as const).map((item, index) => (
                 <button key={item.id} type="button" className="ws-steps__item" aria-current={step === item.id ? 'step' : undefined}
                   disabled={props.isLoading || (item.id === 'setup' && !projectReady)} onClick={() => setStep(item.id)}>
                   {step === item.id && <motion.span layoutId="ws-step-pill" className="ws-steps__pill" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
@@ -265,7 +272,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
             </nav>
           ) : (
             <div className="ws-hints" aria-hidden="true">
-              <span><span className="ws-kbd">{MOD_KEY}</span><span className="ws-kbd">O</span> Choose folder</span>
+              {!studio && <span><span className="ws-kbd">{MOD_KEY}</span><span className="ws-kbd">O</span> Choose folder</span>}
               <span><span className="ws-kbd">{MOD_KEY}</span><span className="ws-kbd">↵</span> Open</span>
             </div>
           )}
@@ -280,20 +287,22 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 exit={motionEnabled ? { opacity: 0, x: step === 'setup' ? -16 : 16 } : undefined}
                 transition={{ duration: 0.26, ease: SETUP_EASE }}>
                 {showProject && (
-                  <Section number={1} state={states.project} title={studio ? 'Folder' : 'Project'} description={writing ? 'Reports are saved in a Reports folder inside it, with their images and exports.' : presenting ? 'Decks are saved in a Presentations folder inside it, with their images and exports.' : 'The folder your terminals, agents, and editor open in.'}>
-                    <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory}
-                      errorMessage={props.selectedPath ? props.validationErrors.directory : undefined} />
+                  <Section number={1} state={states.project} title={studio ? 'Saved in' : 'Project'} description={writing ? 'Reports are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : presenting ? 'Decks are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : 'The folder your terminals, agents, and editor open in.'}>
+                    {studio
+                      ? <StudioLocation path={studioRoot.path} error={studioRoot.error} />
+                      : <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory}
+                        errorMessage={props.selectedPath ? props.validationErrors.directory : undefined} />}
                     <AnimatePresence initial={false}>
-                      {props.selectedPath && (
+                      {(studio || props.selectedPath) && (
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.3, ease: SETUP_EASE }} className="overflow-hidden">
                           <div className="pt-5">
                             <label htmlFor="workspace-name" className="ws-label">Workspace name</label>
                             <input id="workspace-name" className="ws-input" type="text" value={props.workspaceName} onChange={(event) => props.onWorkspaceNameChange(event.target.value)}
-                              aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'workspace-name-error' : 'workspace-name-hint'} placeholder={folderName || 'My project'} />
+                              aria-invalid={Boolean(nameError)} aria-describedby={nameError ? 'workspace-name-error' : 'workspace-name-hint'} placeholder={studio ? studioDefaultName(props.workspaceKind) : folderName || 'My project'} />
                             {nameError
                               ? <p id="workspace-name-error" role="alert" className="ws-error"><WarningCircle size={14} />{nameError}</p>
-                              : <p id="workspace-name-hint" className="ws-help">Shown on the workspace tab. Defaults to the folder name.</p>}
+                              : <p id="workspace-name-hint" className="ws-help">{studio ? 'Shown on the workspace tab. Optional.' : 'Shown on the workspace tab. Defaults to the folder name.'}</p>}
                           </div>
                         </motion.div>
                       )}
@@ -425,7 +434,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
               </div>}
               <div className="ws-panel__section">
                 <dl className="ws-summary">
-                  <div className="ws-summary__row"><dt>Folder</dt><dd className="font-mono text-xs" title={props.selectedPath || undefined}>{folderName ?? '—'}</dd></div>
+                  <div className="ws-summary__row"><dt>Folder</dt><dd className="font-mono text-xs" title={projectPath || undefined}>{folderName ?? '—'}</dd></div>
                   <div className="ws-summary__row"><dt>Opens as</dt><dd>{writing ? 'Writing studio' : presenting ? 'Presentation studio' : sessions === 0 ? 'Editor' : props.isExternalMode ? 'Separate windows' : 'Terminal grid'}</dd></div>
                   {writing && <div className="ws-summary__row"><dt>Writer</dt><dd>{cliMeta(writerEngine)?.label ?? writerEngine}</dd></div>}
                   {writing && <div className="ws-summary__row"><dt>Profile</dt><dd>{writerProfile ?? 'Chosen per report'}</dd></div>}

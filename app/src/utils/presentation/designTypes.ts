@@ -1,3 +1,4 @@
+import type { ElementAnimation } from './slideAnimation';
 // Types for AI-designed decks: the AI invents a design system from the
 // user's description, then draws every slide as SVG (the ppt-master method,
 // github.com/hugohe3/ppt-master, MIT). Dependency-free.
@@ -68,6 +69,11 @@ export interface DesignedSlide {
   hidden?: boolean;
   /** Deck pictures (`assets/…`) this page shows; the AI places them when it draws the page. */
   pictures?: string[];
+  /**
+   * The element animations authored for this slide (Animate tab, or read from a
+   * PowerPoint file). Unset: the slide animates automatically; an empty list: not at all.
+   */
+  animations?: ElementAnimation[];
 }
 
 /** A file the user gave with the description. */

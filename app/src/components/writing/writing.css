@@ -2114,7 +2114,7 @@ select.wr-control option {
   font-family: var(--wr-heading-font);
   color: var(--wr-heading-color);
   line-height: 1.25;
-  text-align: left;
+  text-align: start;
   break-after: avoid;
 }
 
@@ -2157,7 +2157,7 @@ select.wr-control option {
 }
 
 .wr-editor.is-numbering-chapter .wr-paper h1:not([data-unnumbered])::before {
-  content: "Chapter " counter(wr-h1);
+  content: var(--wr-label-chapter, "Chapter ") counter(wr-h1);
   display: block;
   margin-bottom: 0.35em;
   font-size: 0.55em;
@@ -2196,7 +2196,7 @@ select.wr-control option {
 .wr-editor .wr-paper ul,
 .wr-editor .wr-paper ol {
   margin: 0 0 var(--wr-paragraph-spacing);
-  padding-left: 1.6em;
+  padding-inline-start: 1.6em;
 }
 
 .wr-editor .wr-paper ul { list-style: disc; }
@@ -2210,13 +2210,14 @@ select.wr-control option {
 
 .wr-editor .wr-paper li > p {
   margin: 0;
-  text-align: left;
+  text-align: start;
 }
 
 .wr-editor .wr-paper blockquote {
   margin: 0.8em 0;
-  padding: 0.2em 0 0.2em 1.1em;
-  border-left: 3px solid color-mix(in oklab, var(--wr-doc-accent) 70%, white);
+  padding-block: 0.2em;
+  padding-inline: 1.1em 0;
+  border-inline-start: 3px solid color-mix(in oklab, var(--wr-doc-accent) 70%, white);
   color: #3d3d46;
   font-style: italic;
 }
@@ -2309,7 +2310,7 @@ select.wr-control option {
 
 .wr-editor .rm-with-pagination table th {
   font-weight: 700;
-  text-align: left;
+  text-align: start;
   background: color-mix(in oklab, var(--wr-doc-accent) 7%, white);
   color: var(--wr-heading-color);
 }
@@ -2321,14 +2322,14 @@ select.wr-control option {
 .wr-editor .wr-paper td p,
 .wr-editor .wr-paper th p {
   margin: 0;
-  text-align: left;
+  text-align: start;
 }
 
 /* Captions: Table n / Figure n, auto-numbered. */
 .wr-editor .wr-paper .wr-caption {
   margin: 1em 0 0.35em;
   font-size: 0.88em;
-  text-align: left;
+  text-align: start;
   text-indent: 0;
   color: #34343c;
 }
@@ -2338,7 +2339,7 @@ select.wr-control option {
 }
 
 .wr-editor .wr-paper .wr-caption[data-caption="table"]::before {
-  content: "Table " counter(wr-table) ". ";
+  content: var(--wr-label-table, "Table ") counter(wr-table) ". ";
   font-weight: 700;
   color: var(--wr-heading-color);
 }
@@ -2349,7 +2350,7 @@ select.wr-control option {
 }
 
 .wr-editor .wr-paper .wr-caption[data-caption="figure"]::before {
-  content: "Figure " counter(wr-figure) ". ";
+  content: var(--wr-label-figure, "Figure ") counter(wr-figure) ". ";
   font-weight: 700;
 }
 
@@ -2575,7 +2576,7 @@ select.wr-control option {
   gap: 0.5em;
   width: 100%;
   padding: 0.22em 0;
-  text-align: left;
+  text-align: start;
   color: var(--wr-paper-ink);
   font: inherit;
 }
@@ -2590,11 +2591,11 @@ select.wr-control option {
 }
 
 .wr-toc__row.is-level-2 {
-  padding-left: 1.4em;
+  padding-inline-start: 1.4em;
 }
 
 .wr-toc__row.is-level-3 {
-  padding-left: 2.8em;
+  padding-inline-start: 2.8em;
   font-size: 0.95em;
 }
 
@@ -2612,7 +2613,7 @@ select.wr-control option {
 
 .wr-toc__page {
   min-width: 1.6em;
-  text-align: right;
+  text-align: end;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2766,14 +2767,14 @@ select.wr-control option {
 /* Cover variants */
 .wr-editor .wr-cover.is-corporate,
 .wr-editor .wr-cover.is-modern {
-  text-align: left;
+  text-align: start;
 }
 
 .wr-editor .wr-cover.is-corporate .wr-cover__band,
 .wr-editor .wr-cover.is-modern .wr-cover__band {
   display: block;
   position: absolute;
-  left: -40px;
+  inset-inline-start: -40px;
   top: -40px;
   bottom: -40px;
   width: 14px;
@@ -2806,7 +2807,7 @@ select.wr-control option {
 .wr-editor .wr-cover.is-minimal {
   justify-content: center;
   gap: 18%;
-  text-align: left;
+  text-align: start;
 }
 
 .wr-editor .wr-cover.is-minimal .wr-cover__middle,
@@ -2841,13 +2842,13 @@ select.wr-control option {
 /* Bibliography */
 .wr-editor .wr-bibliography__entry {
   margin: 0 0 0.55em !important;
-  padding-left: 2em;
+  padding-inline-start: 2em;
   text-indent: -2em !important;
-  text-align: left !important;
+  text-align: start !important;
 }
 
 .wr-editor .wr-bibliography__entry.is-numeric {
-  padding-left: 2.4em;
+  padding-inline-start: 2.4em;
   text-indent: -2.4em !important;
 }
 
@@ -3680,4 +3681,39 @@ select.wr-control option {
 .wr-switch-row__hint {
   display: block;
   font-size: 11px;
+}
+
+/* The font menu is wrapped so hovering it can register the bundled faces. */
+.wr-tb__fontwrap { display: inline-flex; }
+
+/* Right-to-left text (Arabic, Hebrew, Persian, Urdu). Blocks carry their resolved `dir` (textDirection.ts), so
+   alignment, bullets, bars and columns follow it; what only suits Latin type is switched off. */
+.wr-editor .wr-paper :is(h1, h2, h3, h4, p, li, blockquote, td, th, .wr-caption):dir(rtl) {
+  letter-spacing: 0;
+  text-transform: none;
+  word-spacing: 0;
+  hyphens: manual;
+}
+
+.wr-editor .wr-paper :is(h4, blockquote):dir(rtl) {
+  font-style: normal;
+}
+
+.wr-editor .wr-paper h1:dir(rtl)::before,
+.wr-editor .wr-paper h2:dir(rtl)::before,
+.wr-editor .wr-paper h3:dir(rtl)::before {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Arabic reads larger and needs more leading than Latin at the same size. */
+.wr-editor.is-rtl .wr-paper {
+  line-height: max(var(--wr-line-height), 1.5);
+  font-variant-ligatures: normal;
+}
+
+/* Arabic and Hebrew covers: no tracking or slant, titles stay joined. */
+.wr-editor .wr-cover.is-rtl :is(.wr-cover__title, .wr-cover__kind, .wr-cover__label) {
+  letter-spacing: 0;
+  text-transform: none;
 }

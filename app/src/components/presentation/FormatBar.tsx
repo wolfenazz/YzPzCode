@@ -5,7 +5,10 @@ import {
   TextAlignJustify, TextAlignLeft, TextAlignRight, TextB, TextItalic, TextStrikethrough, TextT, TextUnderline, Trash, Triangle,
 } from '@phosphor-icons/react';
 import type { Arrange } from '../../utils/presentation/slideEdit';
-import type { SlideElement, TxBody, TxRun } from '../../utils/presentation/slideModel';
+import { paraAlign, paraRtl, type SlideElement, type TxBody, type TxRun } from '../../utils/presentation/slideModel';
+import { bundledFamily, registerAllBundledFonts, registerBundledFont } from '../../utils/bundledFonts';
+import { clearMeasureCache } from './deckFonts';
+import { FontOptions } from '../studio/FontOptions';
 import { applySelectionFont, applySelectionSize, selectionInside } from './textEditing';
 
 export type ShapeKind = 'rect' | 'roundRect' | 'ellipse' | 'triangle' | 'diamond' | 'rightArrow' | 'chevron' | 'star5' | 'line' | 'arrow' | 'wedgeRoundRectCallout';
@@ -28,6 +31,14 @@ const SHAPES: Array<{ kind: ShapeKind; label: string; icon: React.ReactNode }> =
 const FONT_SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 96];
 const LINE_SPACING = [1, 1.15, 1.5, 2, 2.5, 3];
 const STANDARD = ['#000000', '#404040', '#7F7F7F', '#BFBFBF', '#FFFFFF', '#C00000', '#FF0000', '#FFC000', '#FFFF00', '#92D050', '#00B050', '#00B0F0', '#0070C0', '#002060', '#7030A0'];
+
+/** Paragraph direction glyph: a pilcrow with an arrow under it pointing the way the text runs. */
+const DirectionIcon: React.FC<{ rtl: boolean }> = ({ rtl }) => (
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M9.5 2.5v7M12 2.5v7M9.5 2.5H8a2.5 2.5 0 0 0 0 5h1.5" />
+    <path d={rtl ? 'M14 13H6M8.2 10.8 6 13l2.2 2.2' : 'M2 13h8M7.8 10.8 10 13l-2.2 2.2'} />
+  </svg>
+);
 
 /** First run of the first text body in an element (for showing the current format). */
 export function firstRun(model: SlideElement | null): { run: TxRun | null; body: TxBody | null } {
@@ -163,9 +174,14 @@ export const FormatBar: React.FC<FormatBarProps> = ({
   };
 
   const setFont = (family: string): void => {
-    if (live && editorRef.current) { applySelectionFont(editorRef.current, family); return; }
-    onRuns((entry) => ({ ...entry, f: family }));
-    onBodies((entry) => ({ ...entry, p: entry.p.map((p) => ({ ...p, ef: family })) }));
+    const apply = (): void => {
+      if (live && editorRef.current) { applySelectionFont(editorRef.current, family); return; }
+      onRuns((entry) => ({ ...entry, f: family }));
+      onBodies((entry) => ({ ...entry, p: entry.p.map((p) => ({ ...p, ef: family })) }));
+    };
+    // A face packaged with the app must be loaded before text is measured with it.
+    if (bundledFamily(family)) void registerBundledFont(family).then(() => { clearMeasureCache(); apply(); });
+    else apply();
   };
 
   const setColor = (color: string | null): void => {
@@ -178,6 +194,47 @@ export const FormatBar: React.FC<FormatBarProps> = ({
   const setAlign = (al: 'l' | 'c' | 'r' | 'j'): void => {
     if (live) { exec(al === 'l' ? 'justifyLeft' : al === 'c' ? 'justifyCenter' : al === 'r' ? 'justifyRight' : 'justifyFull'); return; }
     onBodies((entry) => ({ ...entry, p: entry.p.map((p) => ({ ...p, al })) }));
+  };
+
+  /** The direction of the paragraph under the caret while typing, else of the selected text. */
+  const caretBlock = (): HTMLElement | null => {
+    if (!live) return null;
+    const node = window.getSelection()?.anchorNode ?? null;
+    const element = node && node.nodeType === 3 ? node.parentElement : (node as HTMLElement | null);
+    return (element?.closest('[data-p]') as HTMLElement | null) ?? null;
+  };
+  const rtlNow = ((): boolean => {
+    const block = caretBlock();
+    if (block) return getComputedStyle(block).direction === 'rtl';
+    return para ? paraRtl(para) : false;
+  })();
+  const alignNow = para ? paraAlign(para) : 'l';
+
+  /** Sets the reading direction; like PowerPoint, an explicit left or right alignment swaps sides with it. */
+  const setDirection = (rtl: boolean): void => {
+    if (live && editorRef.current) {
+      const selection = window.getSelection();
+      const blocks = new Set<HTMLElement>();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        for (const block of Array.from(editorRef.current.querySelectorAll<HTMLElement>('[data-p]'))) {
+          if (range.intersectsNode(block)) blocks.add(block);
+        }
+      }
+      const single = caretBlock();
+      if (blocks.size === 0 && single) blocks.add(single);
+      for (const block of blocks) {
+        block.setAttribute('dir', rtl ? 'rtl' : 'ltr');
+        const side = block.style.textAlign;
+        if (side === 'left' || side === 'right') block.style.textAlign = side === 'left' ? 'right' : 'left';
+      }
+      setTick((tick) => tick + 1);
+      return;
+    }
+    onBodies((entry) => ({
+      ...entry,
+      p: entry.p.map((p) => ({ ...p, rtl, al: p.al === 'l' ? 'r' : p.al === 'r' ? 'l' : p.al })),
+    }));
   };
 
   const setList = (kind: 'bullet' | 'number'): void => {
@@ -222,9 +279,9 @@ export const FormatBar: React.FC<FormatBarProps> = ({
       {hasText && (
         <div className="pf-group" aria-label="Text">
           <span className="pf-sep" />
-          <select className="pf-font" value={run?.f ?? ''} title="Font" onChange={(event) => setFont(event.target.value)} onMouseDown={(event) => event.stopPropagation()}>
+          <select className="pf-font" value={run?.f ?? ''} title="Font" onChange={(event) => setFont(event.target.value)} onFocus={() => void registerAllBundledFonts()} onMouseDown={(event) => { event.stopPropagation(); void registerAllBundledFonts(); }}>
             {!run && <option value="">Font</option>}
-            {fontList.map((family) => <option key={family} value={family} style={{ fontFamily: `'${family}'` }}>{family}</option>)}
+            <FontOptions current={fontList} />
           </select>
           <div className="pf-size" title="Font size">
             <button type="button" className="pf-btn pf-btn--icon" aria-label="Smaller" onMouseDown={(event) => event.preventDefault()} onClick={() => stepSize(-1)}><Minus size={11} /></button>
@@ -241,10 +298,12 @@ export const FormatBar: React.FC<FormatBarProps> = ({
             {(close) => <ColorGrid palette={palette} value={textColor} onPick={(color) => { setColor(color); close(); }} />}
           </Popover>
           <span className="pf-sep" />
-          <button type="button" className="pf-btn pf-btn--icon" title="Align left" data-active={(para?.al ?? 'l') === 'l' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('l')}><TextAlignLeft size={15} /></button>
-          <button type="button" className="pf-btn pf-btn--icon" title="Centre" data-active={para?.al === 'c' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('c')}><TextAlignCenter size={15} /></button>
-          <button type="button" className="pf-btn pf-btn--icon" title="Align right" data-active={para?.al === 'r' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('r')}><TextAlignRight size={15} /></button>
-          <button type="button" className="pf-btn pf-btn--icon" title="Justify" data-active={para?.al === 'j' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('j')}><TextAlignJustify size={15} /></button>
+          <button type="button" className="pf-btn pf-btn--icon" title="Align left" data-active={alignNow === 'l' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('l')}><TextAlignLeft size={15} /></button>
+          <button type="button" className="pf-btn pf-btn--icon" title="Centre" data-active={alignNow === 'c' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('c')}><TextAlignCenter size={15} /></button>
+          <button type="button" className="pf-btn pf-btn--icon" title="Align right" data-active={alignNow === 'r' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('r')}><TextAlignRight size={15} /></button>
+          <button type="button" className="pf-btn pf-btn--icon" title="Justify" data-active={alignNow === 'j' || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setAlign('j')}><TextAlignJustify size={15} /></button>
+          <button type="button" className="pf-btn pf-btn--icon" title="Left-to-right text" data-active={!rtlNow || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setDirection(false)}><DirectionIcon rtl={false} /></button>
+          <button type="button" className="pf-btn pf-btn--icon" title="Right-to-left text (Arabic, Hebrew)" data-active={rtlNow || undefined} onMouseDown={(event) => event.preventDefault()} onClick={() => setDirection(true)}><DirectionIcon rtl /></button>
           {!editing && (
             <>
               <button type="button" className="pf-btn pf-btn--icon" title="Bullets" data-active={Boolean(para?.bu && !para.bu.num) || undefined} onClick={() => setList('bullet')}><ListBullets size={15} /></button>

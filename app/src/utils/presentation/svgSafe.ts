@@ -5,6 +5,8 @@
 // and nothing executable is kept. Uses the global DOMParser / XMLSerializer
 // (the tests install @xmldom/xmldom).
 
+import { normalizeRtlText } from './rtlSvg';
+
 const ELEMENTS = new Set([
   'svg', 'g', 'defs', 'title', 'desc', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'path',
   'text', 'tspan', 'image', 'use', 'symbol', 'lineargradient', 'radialgradient', 'stop', 'clippath', 'pattern',
@@ -27,7 +29,7 @@ const ATTRIBUTES = new Set([
   'markerheight', 'refx', 'refy', 'orient', 'markerunits', 'marker-start', 'marker-mid', 'marker-end',
   'patternunits', 'patterncontentunits', 'patterntransform', 'xml:space', 'lang', 'xml:lang', 'style', 'vector-effect',
   'shape-rendering', 'text-rendering', 'visibility', 'display', 'paint-order', 'color', 'xmlns', 'xmlns:xlink',
-  'version', 'textlength', 'lengthadjust',
+  'version', 'textlength', 'lengthadjust', 'direction', 'unicode-bidi',
 ]);
 
 const STYLE_PROPERTIES = new Set([
@@ -35,7 +37,7 @@ const STYLE_PROPERTIES = new Set([
   'stroke-linecap', 'stroke-linejoin', 'stroke-miterlimit', 'opacity', 'font-family', 'font-size', 'font-weight',
   'font-style', 'text-anchor', 'dominant-baseline', 'letter-spacing', 'word-spacing', 'text-decoration', 'stop-color',
   'stop-opacity', 'flood-color', 'flood-opacity', 'vector-effect', 'shape-rendering', 'visibility', 'display',
-  'paint-order', 'color', 'mix-blend-mode', 'isolation',
+  'paint-order', 'color', 'mix-blend-mode', 'isolation', 'direction', 'unicode-bidi',
 ]);
 
 /** HTML named entities models put in SVG, which XML rejects. */
@@ -192,6 +194,8 @@ export function sanitizeSvg(raw: string, canvas: { width: number; height: number
   }
   walk(document);
   cleanElement(root);
+  // Arabic and Hebrew text gets its direction (and loses letter-spacing and slant).
+  normalizeRtlText(root);
   const box = parseViewBox(root.getAttribute('viewBox'));
   const width = box?.width ?? (Number(root.getAttribute('width')) || canvas.width);
   const height = box?.height ?? (Number(root.getAttribute('height')) || canvas.height);

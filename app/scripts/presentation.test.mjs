@@ -586,7 +586,7 @@ test('slide blocks are read while streaming and at the end', () => {
   const partial = `${one}\n<slide n="3" role="data" title="Next">\n<svg viewBox="0 0 1280 720"><rect/></svg>\n<notes>Half`;
   const streaming = designPrompts.extractSlideBlocks(partial);
   assert.equal(streaming.length, 1);
-  assert.deepEqual({ ...streaming[0], svg: undefined }, { n: 2, role: 'content', title: 'Costs & savings', svg: undefined, notes: 'Say this.' });
+  assert.deepEqual({ ...streaming[0], svg: undefined }, { n: 2, role: 'content', title: 'Costs & savings', svg: undefined, notes: 'Say this.', animation: null });
   const final = designPrompts.extractSlideBlocks(partial, true);
   assert.equal(final.length, 2);
   assert.equal(final[1].role, 'data');
@@ -749,7 +749,7 @@ test('a slide gets an animation plan: backdrop and title open it, each block is 
 
   const tagged = slideAnimation.tagAnimation(SAMPLE_SLIDE, plan);
   assert.equal((tagged.match(/data-step="/g) ?? []).length, 7);
-  assert.match(tagged, /data-step="2" data-fx="zoom" data-state="out"/);
+  assert.match(tagged, /data-step="2" data-cls="entr" data-fx="zoom" data-state="pre"/);
   assert.equal(slideAnimation.tagAnimation('<svg xmlns="http://www.w3.org/2000/svg"/>', slideAnimation.EMPTY_PLAN), '<svg xmlns="http://www.w3.org/2000/svg"/>');
 
   // Many blocks share steps; right-to-left text wipes from the right.
@@ -800,6 +800,99 @@ test('animations are on for designed decks and off for imported PowerPoint files
   assert.equal(deckModule.animationsOn({ design: { origin: { kind: 'pptx' } } }), false);
   assert.equal(deckModule.animationsOn({ animations: true, design: { origin: { kind: 'pptx' } } }), true);
   assert.equal(deckModule.animationsOn({ animations: false, design: { slides: [] } }), false);
+});
+
+test('authored animations: clicks start steps, after-previous waits, missing elements are skipped', () => {
+  const first = slideAnimation.ensureTarget(SAMPLE_SLIDE, 'raw:3');
+  assert.equal(first.target, 'a1');
+  assert.match(first.svg, /<g[^>]*data-ani="a1"/);
+  assert.equal(slideAnimation.ensureTarget(first.svg, 'raw:3').target, 'a1', 'a stamped element keeps its stamp');
+  const second = slideAnimation.ensureTarget(first.svg, 'raw:4');
+  assert.equal(second.target, 'a2');
+  assert.equal(slideAnimation.ensureTarget(second.svg, 'raw:0'), null, 'definitions are not elements');
+
+  const make = (target, cls, effect, trigger, extra = {}) => ({ ...slideAnimation.makeAnimation(target, cls, effect, trigger), ...extra });
+  const list = [
+    make('a1', 'entr', 'fly', 'click', { dir: 'left', duration: 800 }),
+    make('a2', 'entr', 'fade', 'after', { delay: 200 }),
+    make('a1', 'emph', 'grow', 'with'),
+    make('a2', 'exit', 'wipe', 'click', { dir: 'right' }),
+    make('a9', 'entr', 'fade', 'click'),
+  ];
+  const plan = slideAnimation.planFromList(second.svg, list);
+  assert.equal(plan.custom, true);
+  assert.deepEqual(plan.items.map((item) => item.step), [1, 1, 1, 2]);
+  assert.deepEqual(plan.items.map((item) => item.at), [0, 1000, 800, 0], 'after previous starts when the group before it has finished');
+  assert.equal(plan.steps, 2);
+  assert.deepEqual(plan.items.map((item) => item.index), [3, 4, 3, 4]);
+
+  // A list none of whose elements are left (the slide was redrawn) falls back to the automatic plan; [] means none.
+  assert.equal(slideAnimation.slidePlan(SAMPLE_SLIDE, [make('gone', 'entr', 'fade', 'click')]).custom, undefined);
+  assert.deepEqual(slideAnimation.slidePlan(SAMPLE_SLIDE, []).items, []);
+  assert.equal(slideAnimation.slidePlan(second.svg, list).steps, 2);
+
+  // Wrappers: one per animation, the first innermost; states start "pre".
+  const tagged = slideAnimation.tagAnimation(second.svg, plan);
+  assert.equal((tagged.match(/data-step="/g) ?? []).length, 4);
+  assert.match(tagged, /data-cls="entr" data-fx="fly" data-dir="left" data-state="pre" style="--fx-at:0s;--fx-dur:0\.8s;--fx-x:-1280px;--fx-y:0px"/);
+  assert.match(tagged, /data-cls="exit" data-fx="wipe" data-dir="right"/);
+
+  // The timing: presets, groups and builds as PowerPoint writes them.
+  const xml = slideAnimation.timingXml(plan, new Map([[3, [10]], [4, [11]]]), new Map([[10, { text: true, background: false }], [11, { text: true, background: true }]]));
+  assert.equal(new DOMParser().parseFromString(xml.replace('<p:timing>', '<p:timing xmlns:p="p">'), 'text/xml').getElementsByTagName('parsererror').length, 0);
+  assert.match(xml, /presetID="2" presetClass="entr" presetSubtype="8" fill="hold" grpId="0" nodeType="clickEffect"/);
+  assert.match(xml, /presetID="6" presetClass="emph"/);
+  assert.match(xml, /presetID="22" presetClass="exit" presetSubtype="2"/);
+  assert.match(xml, /nodeType="afterEffect"/);
+  assert.match(xml, /<p:cond delay="800"\/>/, 'the after-previous group starts when the first has ended');
+  assert.match(xml, /<p:animScale>[\s\S]*<p:by x="150000" y="150000"\/>/);
+  assert.match(xml, /<p:strVal val="hidden"\/>/, 'an exit hides the shape for good');
+  assert.match(xml, /<p:bldLst><p:bldP spid="10" grpId="0"\/><p:bldP spid="11" grpId="0" animBg="1"\/><\/p:bldLst>/);
+  const ids = [...xml.matchAll(/<p:cTn id="(\d+)"/g)].map((match) => match[1]);
+  assert.equal(new Set(ids).size, ids.length);
+
+  // What PowerPoint wrote is read back as the same animations.
+  const parsed = new DOMParser().parseFromString(xml.replace('<p:timing>', '<p:timing xmlns:p="p">'), 'text/xml').documentElement;
+  const back = slideAnimation.animationsFromTiming(parsed, (spid) => ({ 10: 'a1', 11: 'a2' })[spid] ?? null);
+  const shape = (animation) => [animation.target, animation.cls, animation.effect, animation.dir ?? null, animation.trigger, animation.duration, animation.delay];
+  assert.deepEqual(back.animations.map(shape), plan.items.map((item) => [item.index === 3 ? 'a1' : 'a2', item.cls, item.effect, item.dir ?? null, item.trigger, item.duration, item.delay]));
+  assert.equal(back.approximated, 0);
+});
+
+test('a paragraph build animates each paragraph of a text element', () => {
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720"><rect data-bg="1" width="1280" height="720" fill="#fff"/>'
+    + '<g data-el="e1" data-kind="shape"><rect width="300" height="200" fill="#eee"/><text data-para="0" x="10" y="30">One</text><text data-bu="1" data-para="1" x="10" y="60">•</text><text data-para="1" x="30" y="60">Two</text></g></svg>';
+  const elements = slideAnimation.animatableElements(svg);
+  assert.equal(elements.length, 1);
+  assert.deepEqual(elements[0].paragraphs, [0, 1]);
+  assert.equal(elements[0].selectionId, 'e1');
+  const animation = { ...slideAnimation.makeAnimation('e1', 'entr', 'fade', 'click'), paragraphs: true };
+  const plan = slideAnimation.planFromList(svg, [animation]);
+  assert.deepEqual(plan.items.map((item) => [item.para, item.step]), [[0, 1], [1, 2]]);
+  const tagged = slideAnimation.tagAnimation(svg, plan);
+  assert.equal((tagged.match(/data-step="/g) ?? []).length, 2);
+  assert.match(tagged, /<g data-step="2"[^>]*><text data-bu="1" data-para="1"[^>]*>•<\/text><text data-para="1"/, 'the bullet and its text come in together');
+  const xml = slideAnimation.timingXml(plan, new Map([[1, [20]]]), new Map([[20, { text: true, background: true }]]));
+  assert.match(xml, /<p:spTgt spid="20"><p:txEl><p:pRg st="1" end="1"\/><\/p:txEl><\/p:spTgt>/);
+  assert.match(xml, /<p:bldP spid="20" grpId="0" build="p"\/>/, 'a paragraph build leaves the shape itself in place');
+  const back = slideAnimation.animationsFromTiming(new DOMParser().parseFromString(xml.replace('<p:timing>', '<p:timing xmlns:p="p">'), 'text/xml').documentElement, () => 'e1');
+  assert.equal(back.animations.length, 1);
+  assert.equal(back.animations[0].paragraphs, true);
+});
+
+test('stored animation lists are repaired', () => {
+  const list = slideAnimation.sanitizeAnimations([
+    { id: 'x', target: 'e1', cls: 'entr', effect: 'fly', dir: 'left', trigger: 'after', duration: 99999999, delay: -5 },
+    { target: 'e2', cls: 'emph', effect: 'fly' },
+    { target: 'e3', effect: 'sparkle' },
+    { target: '', effect: 'fade' },
+    { target: 'e4', cls: 'exit', effect: 'appear', duration: 900 },
+  ]);
+  assert.equal(list.length, 2);
+  assert.deepEqual([list[0].dir, list[0].trigger, list[0].duration, list[0].delay], ['left', 'after', slideAnimation.MAX_DURATION, 0]);
+  assert.equal(list[1].duration, 0, 'Appear and Disappear have no duration');
+  assert.equal(slideAnimation.sanitizeAnimations('nope'), undefined);
+  assert.equal(deckModule.animationsOn({ design: { origin: { kind: 'pptx' }, slides: [{ animations: [{}] }] } }), true, 'an imported deck animates once a slide has animations');
 });
 
 test('dominant colours of a picture', () => {
@@ -1140,4 +1233,290 @@ test('redesigning selected slides keeps the content and passes the user\'s direc
   const wish = designPrompts.redesignInstruction('  darker, like a magazine ');
   assert.match(wish, /Direction from the user: darker, like a magazine/);
   assert.doesNotMatch(wish, /more striking than it is now/);
+});
+
+test('animation written by the AI is resolved onto the slide and stamped', () => {
+  // The reply: ids, numbers from the ELEMENTS list, a part of a unit, loose words and an unknown name.
+  const reply = `<animation>
+  [
+    {"el":"header","fx":"float","dir":"up","on":"after"},
+    {"el":"card","fx":"fly in","dir":"from left","on":"click","ms":700},
+    {"el":3,"fx":"pulse","on":"with previous"},
+    {"el":"5","fx":"zoom","on":"click"},
+    {"el":"nowhere","fx":"fade"},
+    {"el":"6","fx":"sparkle"},
+    {"el":"7","fx":"disappear","on":"then"}
+  ]
+</animation>`;
+  const entries = slideAnimation.parseAnimationBlock(reply);
+  assert.equal(entries.length, 7);
+  assert.equal(slideAnimation.parseAnimationBlock('no block here'), null);
+  assert.equal(slideAnimation.parseAnimationBlock('<animation>not json</animation>'), null);
+  assert.deepEqual(slideAnimation.parseAnimationBlock('<animation>[]</animation>'), []);
+
+  const resolved = slideAnimation.animationsFromAi(SAMPLE_SLIDE, entries);
+  assert.ok(resolved);
+  // header and card are named by id; 3 is the card again (an emphasis), 5 the picture, 7 the footnote; the unknown and the unknown effect are dropped.
+  assert.equal(resolved.list.length, 5);
+  const [header, card, pulse, picture, footnote] = resolved.list;
+  assert.deepEqual([header.cls, header.effect, header.dir, header.trigger], ['entr', 'float', 'up', 'after']);
+  assert.deepEqual([card.effect, card.dir, card.trigger, card.duration], ['fly', 'left', 'click', 700]);
+  assert.deepEqual([pulse.cls, pulse.effect, pulse.trigger], ['emph', 'pulse', 'with']);
+  assert.equal(pulse.target, card.target, 'number 3 is the card');
+  assert.deepEqual([picture.effect, picture.trigger], ['zoom', 'click']);
+  assert.deepEqual([footnote.cls, footnote.effect, footnote.trigger], ['exit', 'appear', 'after']);
+
+  // Drawn artwork was stamped so the list can find it again.
+  assert.match(resolved.svg, /data-ani="a1"/);
+  const plan = slideAnimation.slidePlan(resolved.svg, resolved.list);
+  assert.equal(plan.custom, true);
+  assert.equal(plan.items.length, 5);
+  assert.equal(plan.steps, 2, 'two clicks: the card, then the picture');
+  assert.equal(plan.items[0].step, 0, 'the title plays by itself when the slide opens');
+
+  // Nothing placeable is null (the caller keeps the automatic plan); [] is an explicit "none".
+  assert.equal(slideAnimation.animationsFromAi(SAMPLE_SLIDE, [{ el: 'ghost', fx: 'fade' }]), null);
+  assert.deepEqual(slideAnimation.animationsFromAi(SAMPLE_SLIDE, []).list, []);
+
+  // A part of a unit brings the unit in; more than MAX_CLICKS clicks are folded into "after".
+  const many = Array.from({ length: 7 }, (_, index) => ({ el: index + 1, fx: 'fade', on: 'click' }));
+  const folded = slideAnimation.animationsFromAi(SAMPLE_SLIDE, many);
+  assert.equal(folded.list.length, 7);
+  assert.equal(folded.list.filter((animation) => animation.trigger === 'click').length, slideAnimation.MAX_CLICKS);
+  assert.equal(folded.list[6].trigger, 'after');
+  // A second entrance of the same element is dropped (it would only hide it again).
+  assert.equal(slideAnimation.animationsFromAi(SAMPLE_SLIDE, [{ el: 'card', fx: 'fade' }, { el: 'card', fx: 'zoom' }]).list.length, 1);
+
+  // What the AI is shown: numbered elements with their ids, and the current list in words.
+  const shown = slideAnimation.elementsForAi(SAMPLE_SLIDE);
+  assert.match(shown, /^2\. .*id "header"/m);
+  assert.match(shown, /^3\. .*id "card"/m);
+  const words = slideAnimation.animationsForAi(resolved.svg, resolved.list);
+  assert.match(words, /entrance: Float in up, after the one before/);
+  assert.match(words, /emphasis: Pulse, with the one before/);
+});
+
+test('slide replies carry their animation, and the prompts ask for it only when animating', () => {
+  const reply = `<slide n="2" role="content" title="Costs"><svg viewBox="0 0 1280 720"><rect width="1280" height="720" fill="#fff"/><g id="a"><text x="10" y="40">A</text></g></svg>
+<animation>[{"el":"a","fx":"fade","on":"after"}]</animation>
+<notes>Speaker notes: One two three.</notes></slide>
+<slide n="3" role="content" title="Plain"><svg viewBox="0 0 1280 720"><rect width="1280" height="720" fill="#fff"/></svg><notes>No motion.</notes></slide>
+<slide n="4" role="content" title="Late"><svg viewBox="0 0 1280 720"><rect width="1280" height="720" fill="#fff"/></svg><notes>Notes first.</notes><animation>[{"el":"x","fx":"zoom"}]</animation></slide>`;
+  const blocks = designPrompts.extractSlideBlocks(reply);
+  assert.equal(blocks.length, 3);
+  assert.deepEqual(blocks[0].animation, [{ el: 'a', fx: 'fade', on: 'after' }]);
+  assert.equal(blocks[0].notes, 'One two three.');
+  assert.equal(blocks[1].animation, null);
+  assert.equal(blocks[2].notes, 'Notes first.');
+  assert.deepEqual(blocks[2].animation, [{ el: 'x', fx: 'zoom' }]);
+
+  const pages = [{ role: 'cover', title: 'One', brief: 'Open', density: 'anchor' }];
+  const base = { title: 'Deck', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, draw: [0], attachments: [] };
+  const withMotion = designPrompts.buildSlidesPrompt({ ...base, animate: true });
+  assert.match(withMotion.system, /ANIMATION — how the page plays/);
+  assert.match(withMotion.prompt, /<animation>\[/);
+  const without = designPrompts.buildSlidesPrompt(base);
+  assert.doesNotMatch(without.system, /ANIMATION — how the page plays/);
+  assert.doesNotMatch(without.prompt, /<animation>/);
+
+  const refine = designPrompts.buildRefinePrompt({ ...base, index: 0, svg: SAMPLE_SLIDE, notes: '', instruction: 'Make it bolder', animate: true, animation: '1. element 2 — entrance: Fade, on click' });
+  assert.match(refine.prompt, /CURRENT ANIMATION of page 1/);
+  assert.match(refine.prompt, /<animation>\[/);
+
+  // The animation-only pass shows the numbered elements and asks for one block.
+  const only = designPrompts.buildAnimatePrompt({ title: 'Deck', language: 'English', canvas: CANVAS, number: 2, total: 5, role: 'content', pageTitle: 'Costs', svg: SAMPLE_SLIDE, notes: '', current: '', instruction: 'cards fly in' });
+  assert.match(only.prompt, /ELEMENTS you can animate/);
+  assert.match(only.prompt, /^2\. .*id "header"/m);
+  assert.match(only.prompt, /Instruction from the user: cards fly in/);
+  assert.match(only.system, /does not change it|you do not change it/);
+});
+
+// Right to left --------------------------------------------------------------------
+
+const loadWriting = (name) => import(pathToFileURL(new URL(`writing/${name}.mjs`, outRoot).pathname.replace(/^\/([A-Za-z]:)/, '$1')).href);
+const rtlModule = await loadWriting('rtl');
+const rtlSvg = await load('rtlSvg');
+const fontCatalogModule = await loadWriting('fontCatalog');
+
+const AR_TITLE = 'نظام الري الذكي';
+const AR_LINE = 'يوفر الماء بنسبة 40% في المزارع';
+const rtlSlide = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" font-family="'Segoe UI', sans-serif"><rect x="0" y="0" width="1280" height="720" fill="#FFFFFF"/>${inner}</svg>`;
+
+test('Arabic text in a slide gets its direction, anchors that follow it, and loses spacing and slant', () => {
+  const canvas = { width: 1280, height: 720 };
+  // Drawn the way a model draws Latin: a right edge written as `end`, tracking and an italic face.
+  const drawn = rtlSlide(`<text x="1216" y="120" font-size="44" text-anchor="end" letter-spacing="3" font-style="italic">${AR_TITLE}</text>
+<text x="64" y="200" font-size="24">${AR_LINE}</text>
+<text x="64" y="300" font-size="24" letter-spacing="2">Plain English heading</text>
+<text x="640" y="400" font-size="24" text-anchor="middle">${AR_LINE}</text>`);
+  const clean = svgSafe.sanitizeSvg(drawn, canvas).svg;
+  const doc = new DOMParser().parseFromString(clean, 'image/svg+xml');
+  const texts = Array.from(doc.getElementsByTagName('text'));
+  const [title, line, english, centred] = texts;
+  assert.equal(title.getAttribute('direction'), 'rtl');
+  assert.equal(title.getAttribute('text-anchor'), 'start', 'the right edge written as "end" stays the right edge under rtl');
+  assert.equal(title.getAttribute('letter-spacing'), '0');
+  assert.equal(title.getAttribute('font-style'), 'normal');
+  assert.equal(title.getAttribute('data-bidi'), 'auto');
+  assert.equal(line.getAttribute('direction'), 'rtl');
+  assert.equal(line.getAttribute('text-anchor'), 'end', 'a left edge written as "start" stays the left edge');
+  assert.equal(english.hasAttribute('direction'), false, 'Latin text is left alone');
+  assert.equal(english.getAttribute('letter-spacing'), '2');
+  assert.equal(centred.getAttribute('text-anchor'), 'middle');
+  // A direction the model wrote itself is respected, and sanitising twice changes nothing more.
+  const own = svgSafe.sanitizeSvg(rtlSlide(`<text x="1216" y="120" direction="rtl" text-anchor="start">${AR_TITLE}</text>`), canvas).svg;
+  assert.match(own, /direction="rtl" text-anchor="start"/);
+  assert.doesNotMatch(own, /data-bidi/);
+  assert.equal(svgSafe.sanitizeSvg(clean, canvas).svg, clean);
+  // Typing English over an Arabic text takes the direction back out; typing Arabic over English adds it.
+  const edited = svgText.setSvgText(clean, 0, ['Now in English']);
+  assert.doesNotMatch(edited.match(/<text[^>]*>/)[0], /direction="rtl"/);
+  const toArabic = svgText.setSvgText(clean, 2, [AR_TITLE]);
+  assert.match(toArabic.split('<text')[3], /direction="rtl"/);
+});
+
+test('modelled paragraphs lay out and draw from the right edge when they read right to left', () => {
+  const run = (t, extra = {}) => ({ t, sz: 24, f: 'Segoe UI', c: '#111111', ...extra });
+  const arabic = { p: [{ r: [run(AR_LINE)] }], ins: [10, 0, 10, 0], anc: 't', wrap: true };
+  assert.equal(slideModel.paraRtl(arabic.p[0]), true, 'follows its first strong letter');
+  assert.equal(slideModel.paraRtl({ r: [run('Hello')] }), false);
+  assert.equal(slideModel.paraRtl({ r: [run(AR_LINE)], rtl: false }), false, 'an explicit setting wins');
+  assert.equal(slideModel.paraAlign(arabic.p[0]), 'r', 'the start edge of an rtl paragraph is the right one');
+  assert.equal(slideModel.paraAlign({ r: [run('Hi')], al: 'c' }), 'c');
+
+  const laid = slideModel.layoutText(arabic, 600, 200, measure);
+  assert.equal(laid.paragraphs[0].rtl, true);
+  const svg = slideModel.textSvg(arabic, laid, 600);
+  const tag = svg.match(/<text[^>]*>/)[0];
+  assert.match(tag, /direction="rtl"/);
+  // Right aligned under rtl: the line starts at the right inset (600 - 10) and anchors with `start`.
+  assert.match(svg, /<tspan x="590"/);
+  assert.doesNotMatch(tag, /text-anchor/);
+
+  // A left-aligned rtl paragraph sits at the left inset and anchors with `end`.
+  const left = { ...arabic, p: [{ ...arabic.p[0], al: 'l' }] };
+  const leftSvg = slideModel.textSvg(left, slideModel.layoutText(left, 600, 200, measure), 600);
+  assert.match(leftSvg, /<tspan x="10"/);
+  assert.match(leftSvg, /text-anchor="end"/);
+
+  // Left to right is unchanged: no direction, the left inset.
+  const latin = { p: [{ r: [run('Hello world')] }], ins: [10, 0, 10, 0], anc: 't', wrap: true };
+  const latinSvg = slideModel.textSvg(latin, slideModel.layoutText(latin, 600, 200, measure), 600);
+  assert.doesNotMatch(latinSvg, /direction=/);
+  assert.match(latinSvg, /<tspan x="10"/);
+
+  // The margin and the bullet are measured from the right edge; letter spacing is ignored for Arabic.
+  const bullets = { p: [{ r: [run(AR_LINE, { sp: 4 })], bu: { ch: '•' }, ml: 40, ind: -30 }], ins: [0, 0, 0, 0], anc: 't', wrap: true };
+  const bulletSvg = slideModel.textSvg(bullets, slideModel.layoutText(bullets, 600, 200, measure), 600);
+  const bullet = bulletSvg.match(/<text data-bu="1"[^>]*>/)[0];
+  assert.match(bullet, /direction="rtl"/);
+  assert.match(bullet, / x="590"/, 'the bullet sits 10 px (margin 40, hanging 30) in from the right edge');
+  assert.doesNotMatch(bulletSvg, /letter-spacing/);
+  // A left-to-right paragraph that holds Arabic says so, so the sanitiser does not turn it around.
+  const forced = { p: [{ r: [run(AR_LINE)], rtl: false }], ins: [0, 0, 0, 0], anc: 't', wrap: true };
+  assert.match(slideModel.textSvg(forced, slideModel.layoutText(forced, 600, 200, measure), 600), /direction="ltr"/);
+});
+
+test('Arabic text in a slide exports to PowerPoint as right-to-left paragraphs with their own language and font', () => {
+  const svg = rtlSlide(`<text x="1216" y="120" font-family="Calibri" font-size="44" font-weight="bold" direction="rtl" text-anchor="start">${AR_TITLE}</text>
+<text x="64" y="300" font-family="Calibri" font-size="24" letter-spacing="2">Plain English</text>`);
+  const out = svgPptx.convertSvgSlide(svg, { slideWidthEmu: 12192000, slideHeightEmu: 6858000, picture: () => null, lang: 'ar-SA' });
+  assert.match(out.shapes, /<a:pPr algn="r" rtl="1">/, 'the right edge, right to left');
+  assert.match(out.shapes, /<a:rPr lang="ar-SA"[^>]*b="1"/);
+  assert.match(out.shapes, /<a:latin typeface="Calibri"\/><a:ea typeface="Calibri"\/><a:cs typeface="Segoe UI"\/>/, 'Calibri has no Arabic: the complex-script face does');
+  assert.match(out.shapes, /<a:pPr algn="l">/, 'English stays left to right');
+  assert.match(out.shapes, /spc="/, 'English keeps its spacing');
+  assert.equal((out.shapes.match(/rtl="1"/g) ?? []).length, 1);
+  // An English deck: Arabic runs still get their own language.
+  const mixed = svgPptx.convertSvgSlide(rtlSlide(`<text x="64" y="100" font-size="24" direction="rtl" text-anchor="start">${AR_TITLE}</text>`), { slideWidthEmu: 12192000, slideHeightEmu: 6858000, picture: () => null, lang: 'en-US' });
+  assert.match(mixed.shapes, /<a:rPr lang="ar-SA"/);
+});
+
+test('modelled text exports its direction, alignment, language and complex-script font', () => {
+  const run = (t, extra = {}) => ({ t, sz: 24, f: 'Calibri', c: '#111111', ...extra });
+  const shape = { k: 'shape', id: 'e1', box: { x: 0, y: 0, w: 600, h: 100 }, geom: { prst: 'rect' }, fill: { t: 'none' }, line: null, tx: { p: [{ r: [run(AR_TITLE, { sp: 3 })] }, { r: [run('Hello')] }, { r: [run(AR_LINE)], rtl: false, al: 'l' }], ins: [0, 0, 0, 0], anc: 't', wrap: true } };
+  let id = 1;
+  const xml = modelPptx.elementXml(shape, { emuPerPx: 9525, x: (px) => px * 9525, y: (px) => px * 9525, nextId: () => id++, picture: () => null, lang: 'en-US' });
+  const paragraphs = xml.match(/<a:pPr [^>]*>/g);
+  assert.match(paragraphs[0], /algn="r"/);
+  assert.match(paragraphs[0], /rtl="1"/);
+  assert.doesNotMatch(paragraphs[1], /rtl=/);
+  assert.match(paragraphs[1], /algn="l"/);
+  assert.doesNotMatch(paragraphs[2], /rtl="1"/, 'an explicit left-to-right paragraph holding Arabic stays so');
+  assert.match(xml, /<a:rPr lang="ar-SA"[^>]*>(?:(?!<\/a:rPr>)[\s\S])*<a:cs typeface="Segoe UI"\/>/);
+  assert.doesNotMatch(xml.split('<a:t>')[1].split('</a:t>')[0], /spc/);
+  assert.doesNotMatch(xml.slice(0, xml.indexOf(AR_TITLE)), /spc="/, 'no letter spacing on Arabic');
+});
+
+test('PowerPoint paragraphs keep their direction on import, and Arabic letters get a face that has them', async () => {
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+  const slide = pptx.addSlide();
+  slide.addText(AR_TITLE, { x: 1, y: 1, w: 8, h: 1, fontSize: 28, fontFace: 'Calibri', rtlMode: true, align: 'right' });
+  slide.addText(AR_LINE, { x: 1, y: 3, w: 8, h: 1, fontSize: 20, fontFace: 'Calibri' });
+  const deck = await pptxRender.importPptx(new Uint8Array(await pptx.write({ outputType: 'uint8array' })), { fileTitle: 'arabic', measure });
+  const models = slideEdit.slideModels(deck.slides[0].svg).filter((model) => model.k === 'shape' && model.tx);
+  const [title, plain] = models;
+  assert.equal(title.tx.p[0].rtl, true);
+  assert.equal(title.tx.p[0].al, 'r');
+  assert.equal(plain.tx.p[0].rtl, false, 'PowerPoint draws it left to right, so does the import');
+  assert.notEqual(title.tx.p[0].r[0].f, 'Calibri', 'a face with Arabic letters');
+  // Drawn: right to left and anchored at the right.
+  assert.match(deck.slides[0].svg, /direction="rtl"/);
+  assert.match(deck.slides[0].svg, /direction="ltr"/);
+  const stored = svgSafe.sanitizeSvg(deck.slides[0].svg, deck.canvas).svg;
+  assert.equal((stored.match(/direction="ltr"/g) ?? []).length, (deck.slides[0].svg.match(/direction="ltr"/g) ?? []).length, 'sanitising keeps a left-to-right paragraph left to right');
+});
+
+test('prompts for an Arabic deck lay the pages out from the right, and offer only faces that draw Arabic', () => {
+  const direction = designPrompts.buildDirectionPrompt({ prompt: 'عرض عن نظام الري الذكي للمزارع', attachments: [], sources: '', slideCount: 6, language: 'auto', canvas: CANVAS, seesImages: false });
+  assert.match(direction.prompt, /RIGHT-TO-LEFT DECK/);
+  assert.match(direction.prompt, /direction="rtl"/);
+  assert.match(direction.prompt, /text-anchor="start" puts the text's RIGHT edge at x/);
+  assert.match(direction.system, /Sakkal Majalla/);
+  assert.match(direction.system, /Cairo/);
+  assert.doesNotMatch(direction.system, /Bahnschrift|Impact|Georgia \(/, 'only faces with Arabic are offered');
+  assert.match(direction.system, /BUNDLED WITH THE APP/);
+  const english = designPrompts.buildDirectionPrompt({ prompt: 'A pitch for a solar co-op', attachments: [], sources: '', slideCount: 6, language: 'English', canvas: CANVAS, seesImages: false });
+  assert.doesNotMatch(english.prompt, /RIGHT-TO-LEFT DECK/);
+  assert.match(english.system, /Bahnschrift/);
+  assert.match(english.system, /WINDOWS AND OFFICE FACES/);
+
+  const pages = [{ role: 'cover', title: AR_TITLE, brief: 'ب', density: 'anchor' }];
+  const slides = designPrompts.buildSlidesPrompt({ title: AR_TITLE, language: 'Arabic', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages, draw: [0], attachments: [] });
+  assert.match(slides.prompt, /RIGHT-TO-LEFT DECK/);
+  assert.match(slides.prompt, /x="1216" direction="rtl" text-anchor="start"/);
+  const same = designPrompts.buildSlidesPrompt({ title: 'Deck', language: 'English', system: designPrompts.FALLBACK_SYSTEM, canvas: CANVAS, pages: [{ role: 'cover', title: 'One', brief: 'b', density: 'anchor' }], draw: [0], attachments: [] });
+  assert.doesNotMatch(same.prompt, /RIGHT-TO-LEFT DECK/);
+
+  // A reply for an Arabic deck that picked Latin-only faces gets faces that have the letters.
+  const reply = JSON.stringify({ title: AR_TITLE, language: 'Arabic', design: { fonts: { heading: 'Georgia', body: 'Calibri' }, palette: {} }, pages: [{ role: 'cover', title: AR_TITLE, brief: 'ب' }] });
+  const parsed = designPrompts.parseDirection(reply);
+  assert.equal(parsed.system.fonts.heading, 'Times New Roman');
+  assert.equal(parsed.system.fonts.body, 'Segoe UI');
+  const kept = designPrompts.parseDirection(JSON.stringify({ title: AR_TITLE, language: 'Arabic', design: { fonts: { heading: 'Cairo', body: 'Tajawal' } }, pages: [{ role: 'cover', title: AR_TITLE, brief: 'ب' }] }));
+  assert.equal(kept.system.fonts.heading, 'Cairo');
+  assert.equal(kept.system.fonts.body, 'Tajawal');
+  const latin = designPrompts.parseDirection(JSON.stringify({ title: 'T', language: 'English', design: { fonts: { heading: 'Georgia', body: 'Calibri' } }, pages: [{ role: 'cover', title: 'T', brief: 'b' }] }));
+  assert.equal(latin.system.fonts.heading, 'Georgia');
+});
+
+test('the deck font catalog is the shared one, with faces flagged for Arabic and for installing', () => {
+  assert.ok(designStyles.DESIGN_FONTS.length >= 120);
+  assert.equal(designStyles.knownFont('cairo'), 'Cairo');
+  assert.equal(designStyles.knownFont('Comic Sans'), null);
+  assert.match(designStyles.fontStack('Cairo'), /^'Cairo', 'Segoe UI', 'Tahoma', sans-serif$/);
+  assert.match(designStyles.fontStack('Georgia'), /'Georgia', 'Times New Roman'/);
+  assert.deepEqual(fontCatalogModule.needsInstalling(['Tajawal', 'Arial']), ['Tajawal']);
+  const sanitised = designPrompts.sanitizeDesignSystem({ fonts: { heading: 'Amiri', body: 'Dubai' } });
+  assert.equal(sanitised.fonts.heading, 'Amiri');
+  assert.equal(sanitised.fonts.body, 'Dubai');
+});
+
+test('the export language tag understands names, native names and tags', () => {
+  assert.equal(rtlModule.languageTag('Arabic'), 'ar-SA');
+  assert.equal(rtlModule.languageTag('Arabic (Modern Standard)'), 'ar-SA');
+  assert.equal(rtlModule.languageTag('ar'), 'ar-SA');
+  assert.equal(rtlModule.languageTag('he-IL'), 'he-IL');
+  assert.equal(rtlSvg.normalizeRtlText !== undefined, true);
 });

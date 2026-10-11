@@ -7,6 +7,7 @@
 // native text box. Text is wrapped here with a width measurer (the canvas in
 // the app, an estimate in tests). Dependency-free.
 
+import { hasRtl, paragraphDirection } from '../writing/rtl';
 import { geometryPaths, LINE_PRESETS, presetTextRect, type Geometry } from './slideGeometry';
 
 // Model ----------------------------------------------------------------------------------------
@@ -68,8 +69,11 @@ export interface TxBullet {
 
 export interface TxPara {
   r: TxRun[];
+  /** Right-to-left paragraph (PowerPoint's `rtl`). Unset: follows the text's first strong letter. */
+  rtl?: boolean;
+  /** Physical alignment (left, centre, right, justified). Unset: the start edge, so right for right-to-left. */
   al?: 'l' | 'c' | 'r' | 'j';
-  /** Left margin and first-line indent in px (indent < 0 hangs). */
+  /** Margin and first-line indent in px from the start edge (the right edge of a right-to-left paragraph; indent < 0 hangs). */
   ml?: number;
   ind?: number;
   bu?: TxBullet;
@@ -256,6 +260,8 @@ interface LaidLine { frags: Frag[]; width: number; size: number; font: string; s
 
 export interface LaidParagraph {
   index: number;
+  /** Reads right to left: line offsets and the bullet are measured from the right edge. */
+  rtl: boolean;
   lines: Array<LaidLine & { x0: number; avail: number; baseline: number; pitch: number }>;
   bullet: { text: string; x: number; size: number; color: string; font: string } | null;
   top: number;
@@ -293,6 +299,22 @@ function tokens(text: string): string[] {
 }
 
 export const displayText = (run: TxRun): string => (run.cap === 'all' || run.cap === 'small' ? run.t.toUpperCase() : run.t);
+
+/** The words of a paragraph, runs joined. */
+export const paraText = (para: TxPara): string => para.r.map((run) => (run.t === '\n' ? '\n' : run.t)).join('');
+
+/** Whether a paragraph reads right to left: its own setting, else the direction of its text. */
+export function paraRtl(para: TxPara): boolean {
+  if (para.rtl !== undefined) return para.rtl;
+  const text = paraText(para);
+  return hasRtl(text) && paragraphDirection(text) === 'rtl';
+}
+
+/** A paragraph's physical alignment. */
+export const paraAlign = (para: TxPara): 'l' | 'c' | 'r' | 'j' => para.al ?? (paraRtl(para) ? 'r' : 'l');
+
+/** Letter spacing pulls joined Arabic letters apart, so it only applies to text with none. */
+const spacingOf = (run: TxRun): number => (run.sp && !hasRtl(run.t) ? run.sp : 0);
 const runSize = (run: TxRun, fs: number): number => {
   const size = run.sz * fs * (run.cap === 'small' ? 0.8 : 1) * (run.bl ? 0.67 : 1);
   return Math.max(1, size);
@@ -300,7 +322,7 @@ const runSize = (run: TxRun, fs: number): number => {
 
 function measureRun(measure: Measure, run: TxRun, text: string, fs: number): number {
   const size = runSize(run, fs);
-  return measure(text, run.f, size, Boolean(run.b), Boolean(run.i)) + (run.sp ?? 0) * fs * [...text].length;
+  return measure(text, run.f, size, Boolean(run.b), Boolean(run.i)) + spacingOf(run) * fs * [...text].length;
 }
 
 /** Lays out the paragraphs of a body in a box of `w` × `h` px. */
@@ -458,7 +480,7 @@ function layoutOnce(body: TxBody, w: number, h: number, measure: Measure, fs: nu
       return { ...entry, x0, avail: Math.max(1, innerW - x0), baseline, pitch };
     });
     cursor = y + (para.sa ?? 0);
-    paragraphs.push({ index, lines: laid, bullet, top });
+    paragraphs.push({ index, rtl: paraRtl(para), lines: laid, bullet, top });
   });
 
   const lastPara = body.p[body.p.length - 1];
@@ -484,7 +506,7 @@ function runStyle(run: TxRun, fs: number): RunStyle {
     bold: Boolean(run.b),
     italic: Boolean(run.i),
     deco: [run.u || run.link ? 'underline' : '', run.s ? 'line-through' : ''].filter(Boolean).join(' '),
-    spacing: (run.sp ?? 0) * fs,
+    spacing: spacingOf(run) * fs,
     shift: run.bl ? run.bl * run.sz * fs : 0,
   };
 }
@@ -506,22 +528,34 @@ function styleAttrs(style: RunStyle, base: RunStyle | null): string {
 
 /** SVG `<text>` elements for a laid-out body, in the body's local coordinates. */
 export function textSvg(body: TxBody, layout: TextLayout, w: number): string {
-  const [il] = body.ins;
+  const [il, , ir] = body.ins;
+  const innerW = Math.max(1, w - il - ir);
   const out: string[] = [];
   for (const para of layout.paragraphs) {
     const source = body.p[para.index];
     const runs = source.r;
-    const align = source.al ?? 'l';
+    const rtl = para.rtl;
+    const align = paraAlign(source);
     const first = runs.find((run) => run.t && run.t !== '\n') ?? runs[0];
+    // A paragraph states its direction when it is right to left, or when it holds right-to-left letters and is not:
+    // the slide sanitiser would otherwise decide for it.
+    const direction = rtl || (first && hasRtl(paraText(source))) ? ` direction="${rtl ? 'rtl' : 'ltr'}"` : '';
     if (para.bullet && para.lines[0]) {
       const bullet = para.bullet;
-      out.push(`<text data-bu="1" x="${n2(il + bullet.x)}" y="${n2(para.lines[0].baseline)}" font-family="${escapeXml(fontStack(bullet.font))}" font-size="${n2(bullet.size)}" fill="${bullet.color}">${escapeXml(bullet.text)}</text>`);
+      // Under rtl the start edge is the right one, and `text-anchor="start"` follows it.
+      const bulletX = rtl ? il + innerW - bullet.x : il + bullet.x;
+      out.push(`<text data-bu="1" data-para="${para.index}"${direction} x="${n2(bulletX)}" y="${n2(para.lines[0].baseline)}" font-family="${escapeXml(fontStack(bullet.font))}" font-size="${n2(bullet.size)}" fill="${bullet.color}">${escapeXml(bullet.text)}</text>`);
     }
     if (!first || para.lines.every((line) => line.frags.length === 0)) continue;
     const base = runStyle(first, layout.fs);
-    const anchor = align === 'c' ? 'middle' : align === 'r' ? 'end' : 'start';
+    // Physical side the text hugs; SVG anchors follow the text direction, so rtl swaps start and end.
+    const physical = align === 'c' ? 'middle' : align === 'r' ? 'end' : 'start';
+    const anchor = rtl && physical !== 'middle' ? (physical === 'end' ? 'start' : 'end') : physical;
     const lines = para.lines.filter((line) => line.frags.length > 0).map((line) => {
-      const x = il + (align === 'c' ? line.x0 + line.avail / 2 : align === 'r' ? line.x0 + line.avail : line.x0);
+      // The line's free span: from the start edge inwards by x0.
+      const left = rtl ? il : il + line.x0;
+      const right = rtl ? il + line.avail : il + line.x0 + line.avail;
+      const x = align === 'c' ? (left + right) / 2 : align === 'r' ? right : align === 'j' ? (rtl ? right : left) : left;
       const justify = align === 'j' && !line.last && line.spaces > 0 ? (line.avail - line.width) / line.spaces : 0;
       const spans = line.frags.map((frag) => {
         const attrs = styleAttrs(runStyle(runs[frag.run], layout.fs), base);
@@ -529,9 +563,10 @@ export function textSvg(body: TxBody, layout: TextLayout, w: number): string {
       }).join('');
       return `<tspan x="${n2(x)}" y="${n2(line.baseline)}"${justify > 0 && justify < line.avail * 0.5 ? ` word-spacing="${n2(justify)}"` : ''}>${spans}</tspan>`;
     });
-    out.push(`<text xml:space="preserve" ${styleAttrs(base, null)}${anchor !== 'start' ? ` text-anchor="${anchor}"` : ''}>${lines.join('')}</text>`);
+    // In an rtl paragraph "start" is the right edge, so the default anchor is stated only when it differs from the direction's own.
+    const anchorAttr = anchor !== 'start' ? ` text-anchor="${anchor}"` : '';
+    out.push(`<text xml:space="preserve" data-para="${para.index}"${direction} ${styleAttrs(base, null)}${anchorAttr}>${lines.join('')}</text>`);
   }
-  void w;
   return out.join('');
 }
 

@@ -11,7 +11,8 @@ import { downloadStockImage, stockCredit, type StockImage } from '../../utils/pr
 import { templateFromDeck } from '../../utils/presentation/templates';
 import { notesBudget, slideSeconds } from '../../utils/presentation/timing';
 import { isAbsolutePath, readFileBytes, writeFileBytes } from '../../utils/presentation/assets';
-import { ASSETS_FOLDER, createBrief, createDeck, duplicateSlide } from '../../utils/presentation/deck';
+import { animationsOn, ASSETS_FOLDER, createBrief, createDeck, duplicateSlide } from '../../utils/presentation/deck';
+import { slidePlan } from '../../utils/presentation/slideAnimation';
 import { getLayout, PX_PER_IN, SLIDE_HEIGHT, slideWidth } from '../../utils/presentation/layouts';
 import { openPptx } from '../../utils/presentation/pptxPackage';
 import type { DeckPass, SlideAction } from '../../utils/presentation/prompts';
@@ -38,7 +39,7 @@ import { DesignedExportDialog } from './DesignedExportDialog';
 import { ExportDialog } from './ExportDialog';
 import { Filmstrip, type SlideCommand } from './Filmstrip';
 import { ImportDialog } from './ImportDialog';
-import { cleanFontDisplay, ensureFonts, measureSlideText, pptxFontFamilies } from './deckFonts';
+import { clearMeasureCache, cleanFontDisplay, ensureFonts, measureSlideText, pptxFontFamilies } from './deckFonts';
 import { PreserveEditor } from './PreserveEditor';
 import { PresenterMode } from './PresenterMode';
 import { StockImagePicker } from './StockImagePicker';
@@ -178,6 +179,12 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const designer = useDesignGenerator(workspaceId);
   const preserve = Boolean(deck?.source);
   const designed = Boolean(deck?.design);
+  // A classic deck's theme may use a face packaged with the app: load it before its slides are drawn.
+  const themeHeading = deck?.theme?.headingFont;
+  const themeBody = deck?.theme?.bodyFont;
+  useEffect(() => {
+    if (themeHeading || themeBody) void ensureFonts([themeHeading ?? '', themeBody ?? '']).then(() => clearMeasureCache());
+  }, [themeHeading, themeBody]);
   const defaultEngine = usePresentationStore((state) => state.defaultEngine);
   const defaultSize = usePresentationStore((state) => state.defaultSize);
   const context = useMemo<PlanContext | null>(() => (deck ? { theme: deck.theme, size: deck.size, showNumbers: deck.showNumbers } : null), [deck?.theme, deck?.size, deck?.showNumbers]);
@@ -271,6 +278,8 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
         size: input.size,
         design: { prompt: input.prompt, attachments, slideCount: input.slideCount, language: direction.language, system: direction.system, slides },
       });
+      // Slides are drawn with their own animation unless the description was composed without it.
+      if (!input.animate) deck.animations = false;
       const path = documents.pathFor(deck.meta.title);
       const folder = parentPath(path);
       // Pictures move into the deck; dropped or pasted ones leave the inbox.
@@ -333,6 +342,8 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
       svg: slide.svg,
       notes: slide.notes,
       ...(slide.hidden ? { hidden: true } : {}),
+      // A PowerPoint slide animates as it was authored: an empty list is "none", never the automatic plan.
+      animations: slide.animations,
     }));
     const prefs = usePresentationStore.getState();
     const deck = createDeck({
@@ -945,7 +956,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
                     )}
                   </div>
                   {notesOpen && (
-                    <textarea
+                    <textarea dir="auto"
                       className="pr-notes__input"
                       value={selectedSlide.notes}
                       placeholder="What to say on this slide: the detail, the evidence, the transition to the next one."
@@ -1111,7 +1122,11 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
           aspect={designCanvas(deck.size)}
           transition={deck.transition}
           startId={presenting.startId}
-          renderSlide={(slide, width) => <SvgSlide svg={slide.svg} width={width} canvas={designCanvas(deck.size)} resolveHref={resolveImage} />}
+          renderSlide={(slide, width, revealed) => {
+            const plan = animationsOn(deck) ? slidePlan(slide.svg, slide.animations) : null;
+            return <SvgSlide svg={slide.svg} width={width} canvas={designCanvas(deck.size)} resolveHref={resolveImage} build={plan && plan.items.length > 0 ? { plan, revealed } : undefined} />;
+          }}
+          stepsOf={(slide) => (animationsOn(deck) ? slidePlan(slide.svg, slide.animations).steps : 0)}
           seconds={designedSeconds}
           onToast={(message: string) => setToast({ title: 'Narration', description: message })}
           onExit={(lastId) => {
@@ -1175,11 +1190,11 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
             <p className="pr-hint">Keeps the theme, the slide size and every slide's layout and text as a starting point. Pictures are left out; their placeholders stay.</p>
             <label className="pr-field">
               <span className="pr-field__label">Name</span>
-              <input className="pr-input" autoFocus value={templateDraft.name} onChange={(event) => setTemplateDraft({ ...templateDraft, name: event.target.value })} onKeyDown={(event) => event.stopPropagation()} />
+              <input dir="auto" className="pr-input" autoFocus value={templateDraft.name} onChange={(event) => setTemplateDraft({ ...templateDraft, name: event.target.value })} onKeyDown={(event) => event.stopPropagation()} />
             </label>
             <label className="pr-field">
               <span className="pr-field__label">Description <span className="pr-field__opt">optional</span></span>
-              <input className="pr-input" value={templateDraft.description} onChange={(event) => setTemplateDraft({ ...templateDraft, description: event.target.value })} onKeyDown={(event) => event.stopPropagation()} />
+              <input dir="auto" className="pr-input" value={templateDraft.description} onChange={(event) => setTemplateDraft({ ...templateDraft, description: event.target.value })} onKeyDown={(event) => event.stopPropagation()} />
             </label>
             <div className="pr-import__foot">
               <span className="pr-hint">{deck.slides.length} slides · {deck.theme.name} · {deck.size}</span>

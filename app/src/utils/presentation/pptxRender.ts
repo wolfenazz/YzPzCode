@@ -21,6 +21,8 @@ import {
   type Rel,
 } from './pptxPackage';
 import { evaluateGuides, guideVars, type CustomPath, type Geometry } from './slideGeometry';
+import { animationsFromTiming, type ElementAnimation } from './slideAnimation';
+import { complexScriptFace, faceHasArabic, hasRtl } from '../writing/rtl';
 import {
   escapeXml,
   estimateMeasure,
@@ -52,6 +54,8 @@ export interface ImportedSlide {
   hidden: boolean;
   /** All the words on the slide (for the AI brief and search). */
   text: string;
+  /** The slide's PowerPoint animations (none when it has none: an imported slide never animates on its own). */
+  animations: ElementAnimation[];
 }
 
 export interface ImportedTheme {
@@ -266,7 +270,10 @@ async function readTheme(pkg: PptxPackage, part: string | null): Promise<ThemeDa
     return {
       latin: attr(kid(node, 'latin'), 'typeface') || 'Calibri',
       ea: attr(kid(node, 'ea'), 'typeface') || '',
-      cs: attr(kid(node, 'cs'), 'typeface') || '',
+      // The theme's complex-script face: its own `cs`, else the one it lists for Arabic.
+      cs: attr(kid(node, 'cs'), 'typeface')
+        || attr((node ? kids(node, 'font') : []).find((entry) => attr(entry, 'script') === 'Arab') ?? null, 'typeface')
+        || '',
     };
   };
   const fmt = doc ? descendants(doc, 'a:fmtScheme')[0] ?? null : null;
@@ -366,6 +373,8 @@ interface Ctx extends ColorContext {
   tableStyles: Map<string, Element>;
   /** Paint of the slide background, for `useBgFill`. */
   background: Paint;
+  /** PowerPoint's shape id → the element made for it (top level of the slide only), for its animations. */
+  spids?: Map<number, string>;
 }
 
 interface Mapping { ax: number; ay: number; bx: number; by: number }
@@ -715,6 +724,9 @@ async function readText(txBody: Element, sources: TextSources, ctx: Ctx, default
         return null;
       };
       let font = (script !== 'latin' ? fontFrom(ordered, script) : null) ?? fontFrom(ordered, 'latin') ?? ctx.theme.minor.latin;
+      // Arabic and Hebrew letters PowerPoint draws in the complex-script face: when the chain names none and the
+      // Latin face has no such letters (Calibri, Cambria), the theme's complex-script face or a face that has them.
+      if (script === 'cs' && !faceHasArabic(font)) font = complexScriptFace(ctx.theme.minor.cs || font);
       if (sources.runDefaults?.font && !(rPr && kid(rPr, 'latin'))) font = sources.runDefaults.font;
       const b = boolAttr(rPr, 'b') ?? (lastAttr(props, 'b') !== null ? lastAttr(props, 'b') === '1' || lastAttr(props, 'b') === 'true' : sources.runDefaults?.b ?? false);
       const i = boolAttr(rPr, 'i') ?? (lastAttr(props, 'i') !== null ? lastAttr(props, 'i') === '1' || lastAttr(props, 'i') === 'true' : sources.runDefaults?.i ?? false);
@@ -753,6 +765,10 @@ async function readText(txBody: Element, sources: TextSources, ctx: Ctx, default
     const firstSize = runs.find((run) => run.t !== '\n')?.sz ?? endRun.sz;
 
     const para: TxPara = { r: runs };
+    // Direction is the paragraph's own setting: PowerPoint draws Arabic in a paragraph without `rtl` left to right.
+    const rtlAttr = lastAttr(pChain, 'rtl');
+    if (rtlAttr !== null) para.rtl = rtlAttr === '1' || rtlAttr === 'true';
+    else if (runs.some((run) => hasRtl(run.t))) para.rtl = false;
     const algn = lastAttr(pChain, 'algn');
     if (algn === 'ctr') para.al = 'c';
     else if (algn === 'r') para.al = 'r';
@@ -1427,12 +1443,19 @@ async function readGraphicFrame(frame: Element, ctx: Ctx, sc: ShapeContext, onLa
 
 async function readTree(tree: Element, ctx: Ctx, sc: ShapeContext, onLayout: boolean): Promise<Array<SlideElement | ArtElement>> {
   const out: Array<SlideElement | ArtElement> = [];
+  /** Remembers which element a shape of the slide became (animations point at shapes). */
+  const note = (node: Element, made: ArtElement | SlideElement | null | undefined): void => {
+    if (!ctx.spids || sc.template || !made) return;
+    const nv = kids(node).find((child) => /^nv/.test(localName(child)));
+    const spid = Number(attr(kid(nv, 'cNvPr'), 'id'));
+    if (Number.isFinite(spid)) ctx.spids.set(spid, made.id);
+  };
   const visit = async (node: Element): Promise<void> => {
     switch (localName(node)) {
-      case 'sp': case 'cxnSp': { const el = await readShape(node, ctx, sc, onLayout); if (el) out.push(el); break; }
-      case 'pic': { const el = await readPicture(node, ctx, sc, onLayout); if (el) out.push(el); break; }
-      case 'grpSp': { const el = await readGroup(node, ctx, sc, onLayout); if (el) out.push(el); break; }
-      case 'graphicFrame': out.push(...await readGraphicFrame(node, ctx, sc, onLayout)); break;
+      case 'sp': case 'cxnSp': { const el = await readShape(node, ctx, sc, onLayout); if (el) out.push(el); note(node, el); break; }
+      case 'pic': { const el = await readPicture(node, ctx, sc, onLayout); if (el) out.push(el); note(node, el); break; }
+      case 'grpSp': { const el = await readGroup(node, ctx, sc, onLayout); if (el) out.push(el); note(node, el); break; }
+      case 'graphicFrame': { const made = await readGraphicFrame(node, ctx, sc, onLayout); out.push(...made); note(node, made[0]); break; }
       case 'AlternateContent': {
         // Prefer the fallback: the choice needs features (equations, 3D models, newer media) older readers lack.
         const choice = kid(node, 'Choice');
@@ -1615,7 +1638,7 @@ export async function importPptx(bytes: Uint8Array | ArrayBuffer, options: Impor
     const clrMap = readClrMap(override ? kid(override, 'overrideClrMapping') : null, layout?.clrMap ?? master.clrMap);
     const ctx: Ctx = {
       pkg, k, measure, master, layout, rels, defaultTextStyle, slideNumber: index + 1, assets, assetBytes, warnings,
-      ids: { next: 1 }, tableStyles, theme: master.theme, clrMap, background: { t: 'solid', c: '#FFFFFF' },
+      ids: { next: 1 }, tableStyles, theme: master.theme, clrMap, background: { t: 'solid', c: '#FFFFFF' }, spids: new Map(),
     };
     // Background: the slide's, else the layout's, else the master's.
     const background = await readBackground(doc, ctx)
@@ -1640,12 +1663,16 @@ export async function importPptx(bytes: Uint8Array | ArrayBuffer, options: Impor
     const tree = spTreeOf(doc);
     const elements = tree ? await readTree(tree, ctx, { map: topMap, template: false }, false) : [];
     const svg = slideSvg(canvas, background, template, elements, measure);
+    const timing = descendants(doc, 'p:timing')[0];
+    const animated = timing ? animationsFromTiming(timing, (spid) => ctx.spids?.get(spid) ?? null) : { animations: [], approximated: 0 };
+    if (animated.approximated > 0) warnings.add('Some animation effects have no equivalent here and were replaced by the nearest one.');
     slides.push({
       svg,
       title: slideTitle(doc) || `Slide ${index + 1}`,
       notes: await readNotes(pkg.zip, entry.notesPart),
       hidden: entry.hidden,
       text: collectText(elements),
+      animations: animated.animations,
     });
     options.onProgress?.(position + 1, indices.length);
   }

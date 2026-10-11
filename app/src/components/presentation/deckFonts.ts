@@ -8,6 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type JSZip from 'jszip';
 import { localDataDir } from '@tauri-apps/api/path';
 import type { FileEntry } from '../../types';
+import { bundledFamily, registerBundledFont } from '../../utils/bundledFonts';
 import { readFileBytes } from '../../utils/presentation/assets';
 import { fontStack } from '../../utils/presentation/slideModel';
 import { joinPath } from '../../utils/writing/document';
@@ -94,7 +95,7 @@ async function loadCloudFamily(family: string): Promise<boolean> {
   return loaded > 0;
 }
 
-/** Makes each family usable when it is not installed. Resolves once every family has been tried. */
+/** Makes each family usable when it is not installed (bundled faces, Office cloud fonts). Resolves once every family has been tried. */
 export async function ensureFonts(families: Iterable<string>): Promise<void> {
   const tasks: Array<Promise<boolean>> = [];
   for (const raw of families) {
@@ -102,7 +103,10 @@ export async function ensureFonts(families: Iterable<string>): Promise<void> {
     if (!family || family.startsWith('+') || /^(serif|sans-serif|monospace|cursive|fantasy|system-ui)$/i.test(family)) continue;
     let task = settled.get(family.toLowerCase());
     if (!task) {
-      task = fontAvailable(family) ? Promise.resolve(true) : loadCloudFamily(family).catch(() => false);
+      // Faces packaged with the app first; then installed fonts; then Office's cloud fonts.
+      task = bundledFamily(family)
+        ? registerBundledFont(family).then((done) => { if (done) clearMeasureCache(); return done; }).catch(() => false)
+        : fontAvailable(family) ? Promise.resolve(true) : loadCloudFamily(family).catch(() => false);
       settled.set(family.toLowerCase(), task);
     }
     tasks.push(task);

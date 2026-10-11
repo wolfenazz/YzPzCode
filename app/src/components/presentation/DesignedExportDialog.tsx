@@ -4,11 +4,15 @@ import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { ArrowRight, FolderOpen, X } from '@phosphor-icons/react';
+import { bundledFontFaceCss } from '../../utils/bundledFonts';
 import { writeFileBytes } from '../../utils/presentation/assets';
 import { animationsOn } from '../../utils/presentation/deck';
 import { designCanvas } from '../../utils/presentation/designStyles';
 import type { YzDeck } from '../../utils/presentation/types';
+import { needsInstalling } from '../../utils/writing/fontCatalog';
 import { joinPath, slugify } from '../../utils/writing/document';
+import { languageTag } from '../../utils/writing/rtl';
+import { svgFontFamilies } from './deckFonts';
 import { designedHtmlDeck, designedPrintHtml, loadSlidePictures, measureText, pptxPictures, slideSvgToPng } from './designAssets';
 import { SvgSlide } from './SvgSlide';
 
@@ -31,11 +35,6 @@ interface DesignedExportDialogProps {
 }
 
 const EASE = [0.32, 0.72, 0, 1] as const;
-
-const langTag = (language: string): string => {
-  const known: Record<string, string> = { english: 'en-US', arabic: 'ar-SA', french: 'fr-FR', german: 'de-DE', spanish: 'es-ES', italian: 'it-IT', portuguese: 'pt-PT', dutch: 'nl-NL', chinese: 'zh-CN', japanese: 'ja-JP', korean: 'ko-KR', russian: 'ru-RU', turkish: 'tr-TR', hindi: 'hi-IN' };
-  return known[language.trim().toLowerCase()] ?? 'en-US';
-};
 
 export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck, deckDir, resolveHref, onClose, onExported }) => {
   const design = deck.design!;
@@ -71,9 +70,10 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
       setBusy(true);
       try {
         const pictures = await loadSlidePictures(visible, deckDir);
+        const fontCss = await bundledFontFaceCss(svgFontFamilies(visible.map((slide) => slide.svg)));
         for (const [index, slide] of visible.entries()) {
           setProgress(`Slide ${index + 1} of ${visible.length}`);
-          await writeFileBytes(joinPath(folder, `${base}-${String(index + 1).padStart(2, '0')}.png`), await slideSvgToPng(slide.svg, deck.size, pictures));
+          await writeFileBytes(joinPath(folder, `${base}-${String(index + 1).padStart(2, '0')}.png`), await slideSvgToPng(slide.svg, deck.size, pictures, 1920, fontCss));
         }
         setDone(folder);
         onExported(folder);
@@ -96,13 +96,18 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
       // Hidden slides stay in the PowerPoint file (hidden there too); the other formats leave them out.
       const slides = format === 'pptx' || format === 'pptx-pictures' ? drawn : visible;
       const pictures = await loadSlidePictures(slides, deckDir);
+      // Faces packaged with the app are embedded where the export cannot reach them (PNG, PDF, HTML); a
+      // .pptx names them, so the machine that opens it needs them installed.
+      const families = svgFontFamilies(slides.map((slide) => slide.svg));
+      const fontCss = await bundledFontFaceCss([...families, design.system.fonts.heading, design.system.fonts.body]);
+      const missing = needsInstalling([...families, design.system.fonts.heading, design.system.fonts.body]);
       if (format === 'pptx' || format === 'pptx-pictures') {
         const { buildDesignedPptx } = await import('../../utils/presentation/svgDeckExport');
         let pngs: Uint8Array[] = [];
         if (format === 'pptx-pictures') {
           for (const [index, slide] of slides.entries()) {
             setProgress(`Painting slide ${index + 1} of ${slides.length}`);
-            pngs.push(await slideSvgToPng(slide.svg, deck.size, pictures, 2400));
+            pngs.push(await slideSvgToPng(slide.svg, deck.size, pictures, 2400, fontCss));
           }
         }
         setProgress('Building the PowerPoint file');
@@ -112,20 +117,23 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
           size: deck.size,
           system: design.system,
           mode: format === 'pptx' ? 'editable' : 'pictures',
-          slides: slides.map((slide, index) => ({ svg: slide.svg, notes: slide.notes, hidden: slide.hidden, png: pngs[index] })),
+          slides: slides.map((slide, index) => ({ svg: slide.svg, notes: slide.notes, hidden: slide.hidden, png: pngs[index], animations: slide.animations })),
           picture: (href) => usable.get(href) ?? null,
           measure: measureText,
-          lang: langTag(design.language),
+          lang: languageTag(design.language),
           animations: animationsOn(deck),
           transition: deck.transition,
         });
         pngs = [];
         await writeFileBytes(path, bytes);
-        setNotices(warnings.slice(0, 6));
+        const fontNote = format === 'pptx' && missing.length > 0
+          ? [`PowerPoint needs ${missing.join(', ')} installed to show ${missing.length === 1 ? 'it' : 'them'} as designed (free fonts; the PDF and images already carry ${missing.length === 1 ? 'it' : 'them'}). Without ${missing.length === 1 ? 'it' : 'them'} PowerPoint substitutes another font.`]
+          : [];
+        setNotices([...fontNote, ...warnings].slice(0, 6));
       } else if (format === 'html') {
-        await invoke('write_file_content', { path, content: designedHtmlDeck(deck.meta.title, deck.size, slides, pictures, deck.transition) });
+        await invoke('write_file_content', { path, content: designedHtmlDeck(deck.meta.title, deck.size, slides, pictures, deck.transition, { language: design.language, fontCss }) });
       } else {
-        const written = await invoke<boolean>('export_writing_pdf', { html: designedPrintHtml(deck.meta.title, deck.size, slides, pictures), outputPath: path });
+        const written = await invoke<boolean>('export_writing_pdf', { html: designedPrintHtml(deck.meta.title, deck.size, slides, pictures, { language: design.language, fontCss }), outputPath: path });
         if (!written) {
           setDone('Use “Save as PDF” in the print dialog.');
           return;

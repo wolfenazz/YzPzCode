@@ -4,6 +4,7 @@ import { usePresentationSessionStore } from '../../stores/presentationSessionSto
 import { usePresentationStore } from '../../stores/presentationStore';
 import type { AiCallRecord } from '../../stores/writingSessionStore';
 import {
+  buildAnimatePrompt,
   buildDirectionPrompt,
   buildNewSlidePrompt,
   buildPhotoPlanPrompt,
@@ -24,9 +25,10 @@ import {
   type SelectedElement,
   type SlideBlock,
 } from '../../utils/presentation/designPrompts';
-import { ASSETS_FOLDER } from '../../utils/presentation/deck';
+import { animationsOn, ASSETS_FOLDER } from '../../utils/presentation/deck';
 import { designCanvas } from '../../utils/presentation/designStyles';
 import type { DesignAttachment, DesignedSlide, DesignSlideRole, DirectionResult } from '../../utils/presentation/designTypes';
+import { animationsForAi, animationsFromAi, parseAnimationBlock, type ElementAnimation } from '../../utils/presentation/slideAnimation';
 import { sanitizeSvg, svgAssetRefs } from '../../utils/presentation/svgSafe';
 import type { DeckSize, YzDeck } from '../../utils/presentation/types';
 import { startAiRun, type AiRun, type AiRunResult } from '../../utils/writing/aiClient';
@@ -82,6 +84,8 @@ export interface SlideProposal {
   role: DesignSlideRole | null;
   /** Web photos (`assets/…`) the page now shows; they join the slide's pictures when it is kept. */
   pictures?: string[];
+  /** The slide's animations once this is kept (undefined = automatic), written by the AI with the drawing. */
+  animations?: ElementAnimation[];
 }
 
 /** What a redraw is told besides the instruction. */
@@ -96,6 +100,19 @@ type PhotoResult = { ok: true; attachment: DesignAttachment } | { ok: false; err
 
 /** The words drawn on a slide, in drawing order. */
 const textOfSvg = (svg: string): string => [...svg.matchAll(/<text\b[^>]*>([\s\S]*?)<\/text>/gi)].map((match) => match[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean).join(' · ');
+
+/**
+ * The animation that goes with a drawn block: the AI's own `<animation>` list
+ * resolved against the page (the SVG comes back stamped where artwork needed
+ * an address), or `fallback` when it wrote none or nothing could be placed.
+ */
+function motionOf(svg: string, block: SlideBlock | undefined, fallback: ElementAnimation[] | undefined): { svg: string; animations: ElementAnimation[] | undefined } {
+  const resolved = block?.animation ? animationsFromAi(svg, block.animation) : null;
+  return resolved ? { svg: resolved.svg, animations: resolved.list } : { svg, animations: fallback };
+}
+
+/** Whether the AI is asked to animate a slide that has `list`: not when the deck is off or the slide was set to none. */
+const wantsMotion = (deck: YzDeck, list: ElementAnimation[] | undefined): boolean => animationsOn(deck) && (list === undefined || list.length > 0);
 
 const errorText = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
@@ -233,11 +250,14 @@ export function useDesignGenerator(workspaceId: string) {
       console.warn('Slide SVG rejected:', error);
       return false;
     }
+    // A page that is drawn again is animated again: the old list pointed at the old drawing.
+    const motion = animationsOn(deck) ? motionOf(svg, block, undefined) : null;
     store().edit(workspaceId, (current) => {
       if (!current.design) return current;
       const slides = current.design.slides.map((slide) => (slide.id === slideId ? {
         ...slide,
-        svg,
+        svg: motion?.svg ?? svg,
+        ...(motion ? { animations: motion.animations } : {}),
         notes: block.notes || slide.notes,
         title: slide.title && slide.title !== '(untitled)' ? slide.title : block.title || titleFromSvg(svg) || slide.title,
       } : slide));
@@ -281,6 +301,7 @@ export function useDesignGenerator(workspaceId: string) {
       attachments: design.attachments,
       attachedPictures: attached.paths,
       reference,
+      animate: animationsOn(deck),
     });
     const filled = new Set<string>();
     const place = (blocks: SlideBlock[]): void => {
@@ -448,6 +469,7 @@ export function useDesignGenerator(workspaceId: string) {
     }
 
     const attached = await attachPictures(deck.brief.engine, [...(slide.pictures ?? []), ...brought, ...svgAssetRefs(svg)]);
+    const animate = wantsMotion(deck, slide.animations);
     const { system, prompt } = buildRefinePrompt({
       title: deck.meta.title,
       language: design.language,
@@ -461,9 +483,11 @@ export function useDesignGenerator(workspaceId: string) {
       attachments,
       attachedPictures: attached.paths,
       selection: options.selection,
+      animate,
+      animation: animate && slide.animations?.length ? animationsForAi(svg, slide.animations) : undefined,
     });
     const result = await runAi(deck.brief.engine, label, system, prompt, { images: attached.images });
-    const proposal = result.ok ? toProposal(extractSlideBlocks(result.text, true)[0], deck.size) : null;
+    const proposal = result.ok ? toProposal(extractSlideBlocks(result.text, true)[0], deck.size, slide.animations, !animate) : null;
     // The slide itself is unchanged either way; the review card reports a failure.
     if (proposal) return { ok: true, proposal: brought.length > 0 ? { ...proposal, pictures: brought } : proposal };
     return { ok: false, cancelled: result.cancelled, error: result.ok ? 'The AI did not return a usable slide. Try again.' : result.cancelled ? 'Stopped.' : result.error ?? 'The AI run failed.' };
@@ -525,9 +549,10 @@ export function useDesignGenerator(workspaceId: string) {
       description,
       attachments: design.attachments,
       reference: reference ? { number: design.slides.indexOf(reference) + 1, svg: reference.svg } : null,
+      animate: animationsOn(deck),
     });
     const result = await runAi(deck.brief.engine, 'Designing a new slide', system, prompt);
-    const proposal = result.ok ? toProposal(extractSlideBlocks(result.text, true)[0], deck.size) : null;
+    const proposal = result.ok ? toProposal(extractSlideBlocks(result.text, true)[0], deck.size, undefined, !animationsOn(deck)) : null;
     endRun(null);
     if (proposal) return { ok: true, proposal };
     return { ok: false, cancelled: result.cancelled, error: result.ok ? 'The AI did not return a usable slide. Try again.' : result.cancelled ? 'Stopped.' : result.error ?? 'The AI run failed.' };
@@ -653,14 +678,97 @@ export function useDesignGenerator(workspaceId: string) {
     return { placed: photos.length, missed: entries.length - photos.length };
   }, [drawSlides, fetchPhotos, runAi, startRun, store, workspaceId]);
 
-  return { direct, drawSlides, refine, refineMany, newSlide, redesign, placePictures, addWebPhotos, searchPhotos, cancel, seesImages };
+  /**
+   * Designs the animation of drawn pages without touching their drawing: one
+   * call per page (a few at once), then every result is written in one edit
+   * (one Undo). A page edited by hand while the AI worked is left as it is.
+   * Switches the deck's animation on when it was off.
+   */
+  const animate = useCallback(async (ids: string[], instruction: string): Promise<AnimateOutcome> => {
+    const deck = deckOf(workspaceId);
+    const design = deck?.design;
+    if (!deck || !design) return { applied: 0, skipped: 0, failed: 0, cancelled: false, error: 'No presentation is open.' };
+    const order = design.slides.filter((slide) => ids.includes(slide.id) && slide.svg).map((slide) => slide.id);
+    if (order.length === 0) return { applied: 0, skipped: 0, failed: 0, cancelled: false, error: 'These slides are not drawn yet.' };
+    startRun('action', Object.fromEntries(order.map((id) => [id, 'queued' as const])));
+    const results = new Map<string, { base: string; svg: string; list: ElementAnimation[] }>();
+    let failed = 0;
+    let error: string | null = null;
+    const queue = [...order];
+    const worker = async (): Promise<void> => {
+      while (queue.length > 0 && !cancelled.current) {
+        const id = queue.shift()!;
+        const live = deckOf(workspaceId)?.design;
+        const position = live ? live.slides.findIndex((slide) => slide.id === id) : -1;
+        if (!deck || !live || position < 0) continue;
+        const slide = live.slides[position];
+        store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [id]: 'writing' } }));
+        const { system, prompt } = buildAnimatePrompt({
+          title: deck.meta.title,
+          language: live.language,
+          canvas: designCanvas(deck.size),
+          number: position + 1,
+          total: live.slides.length,
+          role: slide.role,
+          pageTitle: slide.title,
+          svg: slide.svg,
+          notes: slide.notes,
+          current: slide.animations?.length ? animationsForAi(slide.svg, slide.animations) : '',
+          instruction,
+        });
+        const result = await runAi(deck.brief.engine, `Animating slide ${position + 1}`, system, prompt);
+        const entries = result.ok ? parseAnimationBlock(result.text) : null;
+        const resolved = entries ? animationsFromAi(slide.svg, entries) : null;
+        if (resolved) {
+          results.set(id, { base: slide.svg, svg: resolved.svg, list: resolved.list });
+        } else {
+          failed += 1;
+          if (!result.cancelled) error ??= result.ok ? 'The AI did not return a usable animation.' : result.error ?? 'The AI run failed.';
+        }
+        store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [id]: resolved ? 'done' : 'failed' } }));
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(REFINE_PARALLEL, order.length) }, worker));
+    endRun(null);
+
+    const now = deckOf(workspaceId)?.design?.slides ?? [];
+    const apply = [...results].filter(([id, found]) => now.find((slide) => slide.id === id)?.svg === found.base);
+    if (apply.length > 0) {
+      const byId = new Map(apply);
+      store().edit(workspaceId, (current) => {
+        if (!current.design) return current;
+        const slides = current.design.slides.map((slide) => {
+          const found = byId.get(slide.id);
+          return found ? { ...slide, svg: found.svg, animations: found.list } : slide;
+        });
+        return { ...current, ...(animationsOn(current) ? {} : { animations: true }), design: { ...current.design, slides } };
+      });
+    }
+    return { applied: apply.length, skipped: results.size - apply.length, failed, cancelled: cancelled.current, error };
+  }, [endRun, runAi, startRun, store, workspaceId]);
+
+  return { direct, drawSlides, refine, refineMany, newSlide, redesign, placePictures, addWebPhotos, animate, searchPhotos, cancel, seesImages };
 }
 
-function toProposal(block: SlideBlock | undefined, size: DeckSize): SlideProposal | null {
+/** What `animate` did: pages written, pages left alone because they changed meanwhile, pages the AI could not animate. */
+export interface AnimateOutcome {
+  applied: number;
+  skipped: number;
+  failed: number;
+  cancelled: boolean;
+  error: string | null;
+}
+
+/**
+ * A drawn block as a proposal. `asked` pages carry the AI's animation (or
+ * `current` when it wrote none); `keep` pages keep `current` untouched.
+ */
+function toProposal(block: SlideBlock | undefined, size: DeckSize, current: ElementAnimation[] | undefined, keep = false): SlideProposal | null {
   if (!block) return null;
   try {
-    const svg = sanitizeSvg(block.svg, designCanvas(size)).svg;
-    return { svg, notes: block.notes, title: block.title || titleFromSvg(svg), role: block.role };
+    const clean = sanitizeSvg(block.svg, designCanvas(size)).svg;
+    const motion = keep ? { svg: clean, animations: current } : motionOf(clean, block, current);
+    return { svg: motion.svg, notes: block.notes, title: block.title || titleFromSvg(clean), role: block.role, ...(motion.animations ? { animations: motion.animations } : {}) };
   } catch {
     return null;
   }

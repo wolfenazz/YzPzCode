@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useWritingSessionStore } from '../../../stores/writingSessionStore';
 import { formatInText, formatReference, orderReferences } from '../../../utils/writing/citations';
 import { fileName, joinPath } from '../../../utils/writing/document';
+import { docIsRtl, docLabels } from '../../../utils/writing/labels';
 import { getReportType } from '../../../utils/writing/reportTypes';
 import { localFileUrl } from '../../../utils/mediaFiles';
 import type { Reference, ReportBrief } from '../../../utils/writing/types';
@@ -114,6 +115,7 @@ export const CitationView: React.FC<NodeViewProps> = ({ node, editor, selected }
 
 export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, deleteNode, editor, selected }) => {
   const docDir = editor.storage.writingContext?.docDir ?? '';
+  const labels = docLabels(useSessionBrief(editor).brief?.details.language);
   const src = node.attrs.src as string | null;
   const resolved = src
     ? /^(https?:|data:|blob:)/.test(src) ? src : localFileUrl(/^([A-Za-z]:[\\/]|\/)/.test(src) ? src : joinPath(docDir, src))
@@ -140,7 +142,7 @@ export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, de
         ) : (
           <button type="button" className="wr-figure__placeholder" onClick={() => void chooseImage()}>
             <ImageSquare size={28} weight="thin" />
-            <span className="wr-figure__placeholder-title">{node.attrs.query ? 'Photo' : 'Figure placeholder'}</span>
+            <span className="wr-figure__placeholder-title">{node.attrs.query ? labels.photo : labels.figurePlaceholder}</span>
             <span className="wr-figure__placeholder-hint">{node.attrs.query ? `From the web: “${String(node.attrs.query)}”. Click to use your own picture.` : String(node.attrs.caption || 'Click to insert an image')}</span>
           </button>
         )}
@@ -161,7 +163,8 @@ export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, de
       <input
         className="wr-figure__caption"
         value={String(node.attrs.caption ?? '')}
-        placeholder="Figure caption"
+        placeholder={labels.figureCaption}
+        dir="auto"
         onChange={(event) => updateAttributes({ caption: event.target.value, alt: event.target.value })}
       />
       {node.attrs.credit && <div className="wr-figure__credit">{String(node.attrs.credit)}</div>}
@@ -182,6 +185,8 @@ interface TocRow {
 export const TableOfContentsView: React.FC<NodeViewProps> = ({ editor }) => {
   const { brief } = useSessionBrief(editor);
   const numbering = brief?.style.headingNumbering ?? 'decimal';
+  const labels = docLabels(brief?.details.language);
+  const rtl = docIsRtl(brief?.details.language);
   const [rows, setRows] = useState<TocRow[]>([]);
 
   useEffect(() => {
@@ -208,7 +213,7 @@ export const TableOfContentsView: React.FC<NodeViewProps> = ({ editor }) => {
           next.push({
             level,
             text: child.textContent.trim(),
-            number: numbering === 'chapter' && level === 1 && number ? `Chapter ${number}` : number,
+            number: numbering === 'chapter' && level === 1 && number ? `${labels.chapter} ${number}` : number,
             pos: offset,
             page: dom instanceof Element ? pageOfElement(root, dom) : 0,
           });
@@ -224,11 +229,11 @@ export const TableOfContentsView: React.FC<NodeViewProps> = ({ editor }) => {
       editor.off('update', compute);
       editor.off('transaction', compute);
     };
-  }, [editor, numbering]);
+  }, [editor, numbering, labels.chapter]);
 
   return (
-    <NodeViewWrapper className="wr-toc" contentEditable={false}>
-      <div className="wr-toc__title">Table of Contents</div>
+    <NodeViewWrapper className="wr-toc" contentEditable={false} dir={rtl ? 'rtl' : 'ltr'}>
+      <div className="wr-toc__title">{labels.contents}</div>
       {rows.length === 0 ? (
         <div className="wr-toc__empty">Headings will appear here as the report is written.</div>
       ) : (
@@ -260,9 +265,9 @@ type CoverField = 'title' | 'subtitle' | 'authors' | 'organization' | 'date';
 
 const CoverInput: React.FC<{ value: string; placeholder: string; className: string; onChange: (value: string) => void; multiline?: boolean }> = ({ value, placeholder, className, onChange, multiline }) => (
   multiline ? (
-    <textarea className={`wr-cover__input ${className}`} value={value} placeholder={placeholder} rows={Math.max(1, value.split('\n').length)} onChange={(event) => onChange(event.target.value)} />
+    <textarea className={`wr-cover__input ${className}`} value={value} placeholder={placeholder} dir="auto" rows={Math.max(1, value.split('\n').length)} onChange={(event) => onChange(event.target.value)} />
   ) : (
-    <input className={`wr-cover__input ${className}`} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+    <input className={`wr-cover__input ${className}`} value={value} placeholder={placeholder} dir="auto" onChange={(event) => onChange(event.target.value)} />
   )
 );
 
@@ -271,6 +276,7 @@ export const CoverPageView: React.FC<NodeViewProps> = ({ editor }) => {
   if (!brief) return <NodeViewWrapper className="wr-cover" />;
   const type = getReportType(brief.typeId);
   const { details, style } = brief;
+  const labels = docLabels(details.language);
   const update = (patch: Partial<Record<CoverField, string>>, fields?: Record<string, string>): void => {
     useWritingSessionStore.getState().update(workspaceId, (session) => session.brief ? {
       brief: {
@@ -287,7 +293,7 @@ export const CoverPageView: React.FC<NodeViewProps> = ({ editor }) => {
     .map((key) => ({ key, label: type.fields.find((entry) => entry.key === key)?.label.replace(/\s*\(.*\)$/, '') ?? key }));
 
   return (
-    <NodeViewWrapper className={`wr-cover is-${style.cover}`} contentEditable={false}>
+    <NodeViewWrapper className={`wr-cover is-${style.cover}${docIsRtl(details.language) ? ' is-rtl' : ''}`} contentEditable={false} dir={docIsRtl(details.language) ? 'rtl' : 'ltr'}>
       <div className="wr-cover__band" aria-hidden="true" />
       <div className="wr-cover__top">
         {institutionLines.map((key) => (
@@ -304,7 +310,7 @@ export const CoverPageView: React.FC<NodeViewProps> = ({ editor }) => {
         <div className="wr-cover__rule" aria-hidden="true" />
       </div>
       <div className="wr-cover__bottom">
-        <div className="wr-cover__label">Prepared by</div>
+        <div className="wr-cover__label">{labels.preparedBy}</div>
         <CoverInput className="wr-cover__authors" value={type.fields.some((entry) => entry.key === 'team') && field('team') ? field('team') : details.authors} placeholder="Author(s)" multiline onChange={(value) => (type.fields.some((entry) => entry.key === 'team') ? update({}, { team: value }) : update({ authors: value }))} />
         {metaRows.map((row) => (
           <div key={row.key} className="wr-cover__meta">
@@ -336,7 +342,7 @@ export const BibliographyView: React.FC<NodeViewProps> = ({ editor }) => {
   const cited = bibliography.filter((ref) => order.includes(ref.id));
   const list = orderReferences(cited.length > 0 ? cited : bibliography, style, order);
   return (
-    <NodeViewWrapper className="wr-bibliography" contentEditable={false}>
+    <NodeViewWrapper className="wr-bibliography" contentEditable={false} dir={docIsRtl(brief?.details.language) ? 'rtl' : 'ltr'}>
       {list.length === 0 ? (
         <p className="wr-bibliography__empty">No references yet. Add them from the References tab.</p>
       ) : (

@@ -2,6 +2,7 @@
 // finds the patterns that make prose read as machine-written.
 // Dependency-free (tested by `npm run test:writing`).
 
+import { foldLetters, hasRtl, isRtlLanguage, isWordLike } from './rtl';
 import type { HumanizerSettings, VoiceSettings } from './types';
 
 /** Words and stock phrases that are strong tells of model prose. */
@@ -74,6 +75,51 @@ export const DEFAULT_BANNED_PHRASES: string[] = [
   'elevate',
   'resonate',
   'empower',
+];
+
+/** The same tells in Arabic: stock phrases that read as machine-written. */
+export const ARABIC_BANNED_PHRASES: string[] = [
+  'في عالم اليوم',
+  'في عصرنا الحالي',
+  'في ظل التطورات المتسارعة',
+  'في ظل التطور المتسارع',
+  'لا يخفى على أحد',
+  'لا شك أن',
+  'من الجدير بالذكر',
+  'تجدر الإشارة إلى',
+  'يلعب دورا محوريا',
+  'يلعب دورًا محوريًا',
+  'يلعب دورا حيويا',
+  'يلعب دورًا حيويًا',
+  'دورا بارزا',
+  'نقلة نوعية',
+  'ثورة حقيقية',
+  'آفاقا واسعة',
+  'آفاقًا واسعة',
+  'خلاصة القول',
+  'في الختام يمكن القول',
+  'وبناء على ما سبق',
+  'وبناءً على ما سبق',
+  'يعد من أهم',
+  'يُعد من أهم',
+  'بصمة واضحة',
+  'حجر الزاوية',
+  'عصر الرقمنة',
+];
+
+/** Arabic sentence openers that pile up in model prose. */
+export const ARABIC_STOCK_TRANSITIONS: string[] = [
+  'علاوة على ذلك',
+  'بالإضافة إلى ذلك',
+  'فضلا عن ذلك',
+  'فضلاً عن ذلك',
+  'ومن ثم',
+  'وبالتالي',
+  'في الواقع',
+  'بشكل عام',
+  'من ناحية أخرى',
+  'ختاما',
+  'ختامًا',
 ];
 
 /** Sentence openers that pile up in model prose. */
@@ -158,12 +204,19 @@ const PERSON_RULES: Record<VoiceSettings['person'], string> = {
   third: 'Write in the third person; avoid "I" and "we".',
 };
 
-/** The writing-style rules block added to every drafting and rewriting prompt. */
-export function buildStyleRules(humanizer: HumanizerSettings, voice: VoiceSettings): string {
+/**
+ * The writing-style rules block added to every drafting and rewriting prompt.
+ * `language` is the report's language: the English-only rules (spelling,
+ * contractions, English stock phrases) apply only to English; a right-to-left
+ * language gets its own.
+ */
+export function buildStyleRules(humanizer: HumanizerSettings, voice: VoiceSettings, language = 'English'): string {
+  const rtl = isRtlLanguage(language);
+  const english = !language.trim() || /^en/i.test(language.trim());
   const rules: string[] = [
     `Tone: ${voice.tone}. Reading level: ${voice.readingLevel}. ${PERSON_RULES[voice.person]}`,
-    `Spelling: ${voice.spelling === 'uk' ? 'British English (organise, colour, analyse)' : 'American English (organize, color, analyze)'}.`,
   ];
+  if (english) rules.push(`Spelling: ${voice.spelling === 'uk' ? 'British English (organise, colour, analyse)' : 'American English (organize, color, analyze)'}.`);
   if (!humanizer.enabled) return rules.map((rule) => `- ${rule}`).join('\n');
 
   rules.push(
@@ -185,20 +238,27 @@ export function buildStyleRules(humanizer: HumanizerSettings, voice: VoiceSettin
       'qualify claims in proportion to the evidence',
       'qualify claims carefully, as cautious scholarship does, without stacking hedges',
     )}.`,
-    humanizer.contractions
-      ? 'Use contractions where they sound natural.'
-      : 'Avoid contractions.',
+    english ? (humanizer.contractions ? 'Use contractions where they sound natural.' : 'Avoid contractions.') : '',
     'Prefer concrete specifics — names, numbers, dates, examples, mechanisms — over abstract generalities.',
-    'Open paragraphs in different ways. Do not start sentences with stock transitions such as Moreover, Furthermore, Additionally, In addition, Notably or Ultimately; connect ideas through the content instead.',
-    'Avoid formulaic patterns: lists of three adjectives, "not only… but also", "It is not X, it is Y", rhetorical questions as openers, and summary sentences that repeat the paragraph.',
+    rtl
+      ? `Open paragraphs in different ways. Do not start sentences with stock connectors such as ${ARABIC_STOCK_TRANSITIONS.slice(0, 6).join('، ')}; connect ideas through the content instead.`
+      : 'Open paragraphs in different ways. Do not start sentences with stock transitions such as Moreover, Furthermore, Additionally, In addition, Notably or Ultimately; connect ideas through the content instead.',
+    rtl
+      ? 'Avoid formulaic patterns: strings of three synonyms or adjectives, "ليس فقط ... بل أيضا" used by habit, rhetorical questions as openers, and closing sentences that repeat the paragraph.'
+      : 'Avoid formulaic patterns: lists of three adjectives, "not only… but also", "It is not X, it is Y", rhetorical questions as openers, and summary sentences that repeat the paragraph.',
     'Use em dashes sparingly — at most one per page.',
     'Do not end sections with a moralising or sweeping wrap-up line.',
   );
   if (humanizer.intensity >= 67) {
     rules.push('Write each sentence fresh, the way a seasoned expert in this field would phrase it; avoid any template-like phrasing.');
   }
-  if (humanizer.bannedPhrases.length > 0) {
-    rules.push(`Never use these words or phrases: ${humanizer.bannedPhrases.map((phrase) => `"${phrase}"`).join(', ')}.`);
+  // The default list is English; a report in another language is given its own tells instead.
+  const isDefaultList = humanizer.bannedPhrases.length === DEFAULT_BANNED_PHRASES.length && humanizer.bannedPhrases.every((phrase, index) => phrase === DEFAULT_BANNED_PHRASES[index]);
+  const banned = rtl
+    ? [...(isDefaultList ? [] : humanizer.bannedPhrases), ...ARABIC_BANNED_PHRASES]
+    : english || !isDefaultList ? humanizer.bannedPhrases : [];
+  if (banned.length > 0) {
+    rules.push(`Never use these words or phrases: ${banned.map((phrase) => `"${phrase}"`).join(', ')}.`);
   }
   if (humanizer.customInstructions.trim()) {
     rules.push(humanizer.customInstructions.trim());
@@ -236,7 +296,7 @@ interface SentenceSpan {
 
 function splitSentences(text: string): SentenceSpan[] {
   const spans: SentenceSpan[] = [];
-  const pattern = /[^.!?\n]+(?:[.!?]+["”’)]*|\n|$)/g;
+  const pattern = /[^.!?\n؟۔]+(?:[.!?؟۔]+["”’)»]*|\n|$)/g;
   let match: RegExpExecArray | null;
   while ((match = pattern.exec(text)) !== null) {
     if (match[0].length === 0) {
@@ -244,7 +304,7 @@ function splitSentences(text: string): SentenceSpan[] {
       continue;
     }
     const raw = match[0];
-    const words = raw.trim().split(/\s+/).filter((word) => /[A-Za-z0-9]/.test(word)).length;
+    const words = raw.trim().split(/\s+/).filter(isWordLike).length;
     if (words > 0) spans.push({ start: match.index, end: match.index + raw.length, words });
   }
   return spans;
@@ -264,9 +324,11 @@ function coefficientOfVariation(values: number[]): number {
  */
 export function lintText(text: string, bannedPhrases: string[] = DEFAULT_BANNED_PHRASES): LintResult {
   const issues: LintIssue[] = [];
-  const lower = text.toLowerCase();
+  const arabic = hasRtl(text);
+  // Arabic letters are compared folded one for one (alef, yeh, teh marbuta), so offsets stay valid.
+  const lower = foldLetters(text.toLowerCase());
 
-  const phrases = [...new Set(bannedPhrases.map((phrase) => phrase.trim().toLowerCase()).filter(Boolean))]
+  const phrases = [...new Set([...bannedPhrases, ...(arabic ? ARABIC_BANNED_PHRASES : [])].map((phrase) => foldLetters(phrase.trim().toLowerCase())).filter(Boolean))]
     .sort((a, b) => b.length - a.length);
   const covered: Array<[number, number]> = [];
   for (const phrase of phrases) {
@@ -284,13 +346,14 @@ export function lintText(text: string, bannedPhrases: string[] = DEFAULT_BANNED_
   }
 
   const sentences = splitSentences(text);
-  const words = text.split(/\s+/).filter((word) => /[A-Za-z0-9]/.test(word)).length;
+  const words = text.split(/\s+/).filter(isWordLike).length;
+  const transitions = arabic ? [...STOCK_TRANSITIONS, ...ARABIC_STOCK_TRANSITIONS.map(foldLetters)] : STOCK_TRANSITIONS;
 
   for (const sentence of sentences) {
     const body = text.slice(sentence.start, sentence.end);
     const leading = body.length - body.trimStart().length;
-    const opener = body.trimStart().toLowerCase();
-    const transition = STOCK_TRANSITIONS.find((word) => opener.startsWith(`${word},`) || opener.startsWith(`${word} `));
+    const opener = foldLetters(body.trimStart().toLowerCase());
+    const transition = transitions.find((word) => opener.startsWith(`${word},`) || opener.startsWith(`${word}،`) || opener.startsWith(`${word} `));
     if (transition) {
       const start = sentence.start + leading;
       issues.push({ kind: 'transition', message: `Stock opener “${text.slice(start, start + transition.length)}”`, start, end: start + transition.length });

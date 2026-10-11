@@ -1,17 +1,14 @@
-import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowClockwise, ArrowCounterClockwise, ArrowDown, ArrowUp, ArrowUUpLeft, CaretDown, CaretUp, Check, ClipboardText, Copy, CopySimple, Export, Eye, EyeSlash,
-  FileArrowUp, FolderSimple, ImageSquare, NotePencil, PaintBrush, PaperPlaneRight, Play, Plus, Scissors, SlidersHorizontal, Sparkle, SpeakerHigh, SquaresFour, Stack, Stop, Trash, X,
+  FileArrowUp, FolderSimple, ImageSquare, MagicWand, NotePencil, PaintBrush, Play, Plus, Scissors, SlidersHorizontal, Sparkle, SpeakerHigh, SquaresFour, Stack, Stop, Trash, X,
 } from '@phosphor-icons/react';
 import type { PresentationSession } from '../../stores/presentationSessionStore';
 import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
-import { newDesignedSlideId, placeablePictures, REFINE_ACTIONS } from '../../utils/presentation/designPrompts';
+import { newDesignedSlideId, placeablePictures, redesignInstruction, type SelectedElement } from '../../utils/presentation/designPrompts';
 import { assetName, MAX_DECK_PICTURES } from '../../utils/presentation/designPictures';
 import { designCanvas, stylesIn } from '../../utils/presentation/designStyles';
 import type { DesignAttachment, DesignedSlide, DesignPalette } from '../../utils/presentation/designTypes';
@@ -19,17 +16,25 @@ import { base64ToBytes, isAbsolutePath, writeFileBytes } from '../../utils/prese
 import { formatDuration } from '../../utils/presentation/timing';
 import { setSvgImage } from '../../utils/presentation/svgText';
 import { svgSize } from '../../utils/presentation/svgSafe';
-import { DECK_THEMES, SAFE_FONTS } from '../../utils/presentation/themes';
+import { pickSlide, selectAll, selectedInOrder, type SlidePick } from '../../utils/presentation/slideSelection';
+import { slidePlan, stepDuration, type ElementAnimation } from '../../utils/presentation/slideAnimation';
+import { animationsOn } from '../../utils/presentation/deck';
+import { DECK_THEMES } from '../../utils/presentation/themes';
 import {
   applyThemeMap, arrangeElement, backgroundColor, blankSlide, contrast, copyElements, deleteElements, duplicateElements, insertElement, listElements,
   moveElements, paletteColorMap, pasteElements, resizeElement, setBackground, textBoxModel, updateModels, type Arrange, type ElementInfo,
 } from '../../utils/presentation/slideEdit';
 import { mapBodies, mapRuns, type Box, type PictureElement, type ShapeElement, type SlideElement, type TxBody, type TxRun } from '../../utils/presentation/slideModel';
-import type { SlideRunStatus, SlideTransition, YzDeck } from '../../utils/presentation/types';
+import type { SlideTransition, YzDeck } from '../../utils/presentation/types';
 import { fileName, joinPath } from '../../utils/writing/document';
 import { localFileUrl } from '../../utils/mediaFiles';
 import { IMAGE_EXTENSIONS, pictureInfo, scanFolderPictures } from './designAssets';
 import { cleanFontDisplay, ensureFonts, measureSlideText, svgFontFamilies } from './deckFonts';
+import { FontOptions } from '../studio/FontOptions';
+import { BatchReview, type Batch, type BatchItem } from './BatchReview';
+import { DesignedAiPanel, type AiKind, type AiScope } from './DesignedAiPanel';
+import { DesignedFilmstrip } from './DesignedFilmstrip';
+import { AnimationBadges, AnimationPanel } from './AnimationPanel';
 import { EnginePicker } from './EnginePicker';
 import { FormatBar, type AlignHow, type ShapeKind } from './FormatBar';
 import { SlideStage, type EditTarget, type StageApi } from './SlideStage';
@@ -70,53 +75,12 @@ interface Review {
   error: string | null;
 }
 
-const THUMB = 168;
 const NUDGE = 1;
 const NUDGE_BIG = 10;
 const PASTE_OFFSET = 16;
 
 /** Elements copied with Ctrl+C, shared by every slide (and deck) in this window. */
 let elementClipboard: string[] = [];
-
-const EXTRA_FONTS = ['Segoe UI Semibold', 'Segoe UI Black', 'Segoe UI Light', 'Calibri Light', 'Cambria', 'Candara', 'Corbel', 'Constantia', 'Century Gothic', 'Franklin Gothic Medium', 'Gill Sans MT', 'Tahoma', 'Times New Roman', 'Verdana', 'Consolas', 'Impact', 'Bahnschrift'];
-
-const Thumb = memo(function Thumb({ slide, index, canvas, selected, status, resolveHref, onSelect, onContext }: {
-  slide: DesignedSlide;
-  index: number;
-  canvas: { width: number; height: number };
-  selected: boolean;
-  status: SlideRunStatus | undefined;
-  resolveHref: (href: string) => string;
-  onSelect: (id: string, event: React.MouseEvent) => void;
-  onContext: (id: string, event: React.MouseEvent) => void;
-}): React.JSX.Element {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
-  const busy = status === 'queued' || status === 'writing';
-  return (
-    <div
-      ref={setNodeRef}
-      className="pr-thumb"
-      data-selected={selected || undefined}
-      data-hidden={slide.hidden || undefined}
-      data-status={status}
-      data-dragging={isDragging || undefined}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
-      onMouseDown={(event) => { if (event.button === 0) onSelect(slide.id, event); }}
-      onContextMenu={(event) => onContext(slide.id, event)}
-      title={slide.title}
-      {...attributes}
-      {...listeners}
-      aria-label={`Slide ${index + 1}: ${slide.title}`}
-    >
-      <span className="pr-thumb__num">{index + 1}</span>
-      <div className="pr-thumb__frame">
-        <SvgSlide svg={slide.svg} width={THUMB} canvas={canvas} resolveHref={resolveHref} placeholder={{ title: slide.title, busy, failed: status === 'failed' }} />
-        {busy && slide.svg && <span className="pr-thumb__veil" />}
-        {slide.hidden && <span className="pr-thumb__badge" title="Hidden in the slideshow"><EyeSlash size={11} /></span>}
-      </div>
-    </div>
-  );
-});
 
 /** Fits a box of the canvas aspect inside an element, with a margin. */
 function useFit(aspect: number, margin = 40): [React.RefObject<HTMLDivElement | null>, number] {
@@ -196,11 +160,20 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const selectedId = session.selectedIds[session.selectedIds.length - 1] ?? design.slides[0]?.id ?? null;
   const selectedIndex = design.slides.findIndex((slide) => slide.id === selectedId);
   const slide = selectedIndex >= 0 ? design.slides[selectedIndex] : null;
+  const order = useMemo(() => design.slides.map((entry) => entry.id), [design.slides]);
+  const pickedIds = useMemo(() => selectedInOrder(order, session.selectedIds), [order, session.selectedIds]);
+  const pickedCount = pickedIds.length;
+  const several = pickedCount > 1;
   const generating = run?.phase === 'slides' || run?.phase === 'outline';
   const imported = design.origin?.kind === 'pptx';
   const measure = measureSlideText;
 
-  const [tab, setTab] = useState<'format' | 'slide' | 'design'>('format');
+  const [tab, setTab] = useState<'format' | 'slide' | 'animate' | 'design'>('format');
+  const [animationActive, setAnimationActive] = useState<string | null>(null);
+  const [previewStep, setPreviewStep] = useState<number | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  /** The AI is designing animation (not a drawing run, so not part of `generating`). */
+  const [animating, setAnimating] = useState(false);
   const [instruction, setInstruction] = useState('');
   const [review, setReview] = useState<Review | null>(null);
   const [showBefore, setShowBefore] = useState(false);
@@ -217,7 +190,13 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const ttsEnabled = useTtsStore((state) => state.enabled);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [stageMenu, setStageMenu] = useState<{ x: number; y: number } | null>(null);
-  const [adding, setAdding] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [scope, setScope] = useState<AiScope>('current');
+  const [batch, setBatch] = useState<Batch | null>(null);
+  const batchToken = useRef(0);
+  const batchRunning = Boolean(batch?.running);
+  // A different deck starts with no pending batch.
+  useEffect(() => () => { batchToken.current += 1; setBatch(null); }, [deckDir]);
   const [restyle, setRestyle] = useState('');
   const [now, setNow] = useState(Date.now());
   const [selection, setSelection] = useState<string[]>([]);
@@ -226,7 +205,6 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const editorRef = useRef<HTMLDivElement | null>(null);
   const stageApi = useRef<StageApi | null>(null);
   const [stageRef, stageWidth] = useFit(canvas.width / canvas.height);
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
     if (!generating && review?.status !== 'running') return;
@@ -260,13 +238,32 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
 
   const select = useCallback((ids: string[]) => store().update(workspaceId, { selectedIds: ids }), [store, workspaceId]);
 
-  const onSelectThumb = useCallback((id: string, event: React.MouseEvent) => {
-    const current = store().sessions[workspaceId];
-    if ((event.ctrlKey || event.metaKey) && current) {
-      const ids = current.selectedIds;
-      select(ids.includes(id) ? ids.filter((entry) => entry !== id) : [...ids, id]);
-    } else select([id]);
+  const pick = useCallback((id: string, how: SlidePick) => {
+    const slides = store().sessions[workspaceId]?.deck?.design?.slides ?? [];
+    select(pickSlide(slides.map((entry) => entry.id), store().sessions[workspaceId]?.selectedIds ?? [], id, how));
   }, [select, store, workspaceId]);
+
+  const onSelectThumb = useCallback((id: string, event: React.MouseEvent) => {
+    pick(id, event.shiftKey ? 'range' : event.ctrlKey || event.metaKey || picking ? 'toggle' : 'only');
+  }, [pick, picking]);
+
+  const pickAll = useCallback(() => select(selectAll(order, selectedId)), [order, select, selectedId]);
+  const clearPicks = useCallback(() => select(selectedId ? [selectedId] : []), [select, selectedId]);
+
+  // Choosing several slides points the AI tab at them; going back to one points it back.
+  const lastPicked = useRef(pickedCount);
+  useEffect(() => {
+    const before = lastPicked.current;
+    lastPicked.current = pickedCount;
+    if (before < 2 && pickedCount >= 2) setScope((value) => (value === 'current' ? 'picked' : value));
+    else if (before >= 2 && pickedCount < 2) setScope((value) => (value === 'picked' ? 'current' : value));
+  }, [pickedCount]);
+
+  const scopeSlides = useMemo(() => {
+    if (scope === 'all') return design.slides.filter((entry) => entry.svg);
+    if (scope === 'picked') return several ? design.slides.filter((entry) => pickedIds.includes(entry.id) && entry.svg) : [];
+    return slide ? [slide] : [];
+  }, [design.slides, pickedIds, scope, several, slide]);
 
   // Slide commands ---------------------------------------------------------------------
 
@@ -297,10 +294,30 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     }
   }, [editSlides, generator, patchSlide, select, store, workspaceId]);
 
-  const onDragEnd = (event: DragEndEvent): void => {
-    if (!event.over || event.active.id === event.over.id) return;
-    const from = String(event.active.id);
-    const to = String(event.over.id);
+  /** Delete, duplicate or hide several slides in one step (one Undo). */
+  const commandMany = useCallback((cmd: 'duplicate' | 'delete' | 'hide', ids: string[]) => {
+    const slides = store().sessions[workspaceId]?.deck?.design?.slides ?? [];
+    const chosen = slides.filter((entry) => ids.includes(entry.id));
+    if (chosen.length === 0) return;
+    if (cmd === 'delete') {
+      if (chosen.length >= slides.length) return;
+      const last = slides.findIndex((entry) => entry.id === chosen[chosen.length - 1].id);
+      const first = slides.findIndex((entry) => entry.id === chosen[0].id);
+      const after = slides.slice(last + 1).find((entry) => !ids.includes(entry.id)) ?? [...slides.slice(0, first)].reverse().find((entry) => !ids.includes(entry.id));
+      editSlides((list) => list.filter((entry) => !ids.includes(entry.id)));
+      select(after ? [after.id] : []);
+    } else if (cmd === 'duplicate') {
+      const copies = new Map(chosen.map((entry) => [entry.id, { ...entry, id: newDesignedSlideId() }] as const));
+      editSlides((list) => list.flatMap((entry) => (copies.has(entry.id) ? [entry, copies.get(entry.id)!] : [entry])));
+      select([...copies.values()].map((entry) => entry.id));
+    } else {
+      const hide = chosen.some((entry) => !entry.hidden);
+      editSlides((list) => list.map((entry) => (ids.includes(entry.id) ? { ...entry, hidden: hide } : entry)));
+    }
+  }, [editSlides, select, store, workspaceId]);
+
+  const moveSlide = (from: string, to: string): void => {
+    if (from === to) return;
     editSlides((list) => {
       const next = [...list];
       const a = next.findIndex((entry) => entry.id === from);
@@ -320,16 +337,15 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       : { ...current, status: 'failed', error: result.cancelled ? 'Stopped.' : result.error }));
   };
 
-  const askAi = async (text: string, label: string): Promise<void> => {
+  const askAi = async (text: string, label: string, selected: SelectedElement[] = []): Promise<void> => {
     if (!slide || !text.trim()) return;
     setShowBefore(false);
     setReview({ kind: 'replace', slideId: slide.id, at: selectedIndex, label, instruction: text, status: 'running', proposal: null, error: null });
-    settle(await generator.refine(slide.id, text, label));
+    settle(await generator.refine(slide.id, text, label, selected.length > 0 ? { selection: selected } : {}));
   };
 
   const addSlide = async (description: string): Promise<void> => {
     const at = selectedIndex + 1;
-    setAdding(null);
     setReview({ kind: 'insert', slideId: '', at, label: 'New slide', instruction: description, status: 'running', proposal: null, error: null });
     settle(await generator.newSlide(at, description));
   };
@@ -352,16 +368,151 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
         density: 'dense',
         svg: proposal.svg,
         notes: proposal.notes,
+        ...(proposal.animations ? { animations: proposal.animations } : {}),
       };
       editSlides((list) => [...list.slice(0, review.at), created, ...list.slice(review.at)]);
       select([created.id]);
     } else {
-      const patch: Partial<DesignedSlide> = { svg: proposal.svg };
+      const patch: Partial<DesignedSlide> = { svg: proposal.svg, animations: proposal.animations };
       if (proposal.notes) patch.notes = proposal.notes;
       if (proposal.title) patch.title = proposal.title;
       patchSlide(review.slideId, patch);
     }
     setReview(null);
+    setInstruction('');
+  };
+
+  // Several slides at once -------------------------------------------------------------------------
+
+  const patchBatch = useCallback((token: number, change: (current: Batch) => Batch): void => {
+    if (token !== batchToken.current) return;
+    setBatch((current) => (current ? change(current) : current));
+  }, []);
+
+  /** Runs the instruction on `ids`, filling in each item as its slide comes back. Nothing is changed in the deck. */
+  const runBatch = useCallback(async (ids: string[], instruction: string, label: string): Promise<void> => {
+    const token = (batchToken.current += 1);
+    await generator.refineMany(ids, instruction, label, (slideId, update) => {
+      patchBatch(token, (current) => ({
+        ...current,
+        items: current.items.map((item): BatchItem => {
+          if (item.slideId !== slideId) return item;
+          if (update.status === 'running') return { ...item, status: 'running', error: null };
+          const { result } = update;
+          return result.ok
+            ? { ...item, status: 'ready', proposal: result.proposal, error: null, keep: true }
+            : { ...item, status: 'failed', proposal: null, error: result.cancelled ? 'Stopped.' : result.error, keep: false };
+        }),
+      }));
+    });
+    patchBatch(token, (current) => ({
+      ...current,
+      running: false,
+      items: current.items.map((item): BatchItem => (item.status === 'queued' || item.status === 'running' ? { ...item, status: 'failed', error: 'Stopped.', keep: false } : item)),
+    }));
+  }, [generator, patchBatch]);
+
+  const startBatch = (ids: string[], instruction: string, label: string, kind: Batch['kind'], shown: string): void => {
+    const slides = store().sessions[workspaceId]?.deck?.design?.slides ?? [];
+    const items: BatchItem[] = slides
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => ids.includes(entry.id) && entry.svg)
+      .map(({ entry, index }) => ({ slideId: entry.id, index, title: entry.title, baseSvg: entry.svg, status: 'queued', proposal: null, error: null, keep: true }));
+    if (items.length === 0) return;
+    setReview(null);
+    setShowBefore(false);
+    setBatch({ kind, label, instruction, shown, items, running: true });
+    setTab('slide');
+    void runBatch(items.map((item) => item.slideId), instruction, label);
+  };
+
+  const retryBatch = (): void => {
+    if (!batch) return;
+    const failed = batch.items.filter((item) => item.status === 'failed').map((item) => item.slideId);
+    if (failed.length === 0) return;
+    setBatch({ ...batch, running: true, items: batch.items.map((item) => (failed.includes(item.slideId) ? { ...item, status: 'queued', error: null, proposal: null } : item)) });
+    void runBatch(failed, batch.instruction, batch.label);
+  };
+
+  const discardBatch = (): void => {
+    if (batch?.running) generator.cancel();
+    batchToken.current += 1;
+    setBatch(null);
+  };
+
+  const keepBatch = (): void => {
+    if (!batch) return;
+    const kept = batch.items.filter((item) => item.status === 'ready' && item.keep && item.proposal);
+    if (kept.length === 0) return;
+    const live = store().sessions[workspaceId]?.deck?.design?.slides ?? [];
+    // A slide edited by hand while the AI worked is left as it is.
+    const apply = kept.filter((item) => live.find((entry) => entry.id === item.slideId)?.svg === item.baseSvg);
+    const byId = new Map(apply.map((item) => [item.slideId, item.proposal!] as const));
+    if (byId.size > 0) {
+      editSlides((list) => list.map((entry) => {
+        const proposal = byId.get(entry.id);
+        if (!proposal) return entry;
+        return {
+          ...entry,
+          svg: proposal.svg,
+          animations: proposal.animations,
+          notes: proposal.notes || entry.notes,
+          title: proposal.title || entry.title,
+          ...(proposal.pictures?.length ? { pictures: [...new Set([...(entry.pictures ?? []), ...proposal.pictures])].slice(-4) } : {}),
+        };
+      }));
+    }
+    const skipped = kept.length - apply.length;
+    onToast(
+      `${apply.length} slide${apply.length === 1 ? '' : 's'} updated`,
+      skipped > 0 ? `${skipped} changed while the AI worked and kept your edit. Undo to go back.` : 'Undo takes every change back at once.',
+    );
+    batchToken.current += 1;
+    setBatch(null);
+    setInstruction('');
+  };
+
+  /** One instruction from the AI tab: a single slide is reviewed on the stage, several are reviewed together. */
+  /** Designs the element animation of `ids` (drawings stay as they are); one Undo takes it back. */
+  const animateSlides = async (ids: string[], direction: string): Promise<void> => {
+    if (ids.length === 0 || animating) return;
+    const wasOff = !animationsOn(deck);
+    setAnimating(true);
+    const outcome = await generator.animate(ids, direction);
+    setAnimating(false);
+    if (outcome.applied > 0) {
+      const single = ids.length === 1;
+      const notes = [
+        outcome.skipped > 0 ? `${outcome.skipped} changed while the AI worked and were left as they are.` : '',
+        outcome.failed > 0 ? `${outcome.failed} could not be animated.` : '',
+        wasOff ? 'Animation is now on for the deck.' : '',
+        'Undo takes it back.',
+      ].filter(Boolean).join(' ');
+      onToast(single ? 'Slide animated' : `${outcome.applied} slides animated`, notes);
+      if (single) {
+        // Show what was designed: the Animate tab, played once.
+        setTab('animate');
+        setAnimationActive(null);
+        window.setTimeout(() => setPreviewStep(-1), 350);
+      }
+    } else if (!outcome.cancelled) {
+      onToast('Could not animate', outcome.error ?? 'Try again.');
+    }
+  };
+
+  const sendInstruction = (text: string, label: string, kind: AiKind): void => {
+    if (kind === 'animate') {
+      void animateSlides(scopeSlides.map((entry) => entry.id), text);
+      setInstruction('');
+      return;
+    }
+    const told = kind === 'redesign' ? redesignInstruction(text) : text;
+    if (!told.trim()) return;
+    if (scope === 'current') {
+      void askAi(told, kind === 'redesign' ? 'Redesign' : label, stageTargets);
+    } else {
+      startBatch(scopeSlides.map((entry) => entry.id), told, label, kind, kind === 'redesign' ? text || 'a clearly different look' : label === 'Your change' ? text : label);
+    }
     setInstruction('');
   };
 
@@ -389,6 +540,14 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const selectedInfos = selection.map((id) => infos.find((info) => info.id === id)).filter((info): info is ElementInfo => Boolean(info));
   const selectedModels = selectedInfos.map((info) => info.model).filter((model): model is SlideElement => Boolean(model));
   const modelIds = selectedInfos.filter((info) => info.model).map((info) => info.id);
+  const [targetsOff, setTargetsOff] = useState(false);
+  useEffect(() => setTargetsOff(false), [selection.join('|')]);
+  /** The elements picked on the slide, as the AI is told about them. */
+  const stageTargets: SelectedElement[] = targetsOff ? [] : selectedInfos.map((info) => {
+    const model = info.model;
+    const text = model && 'tx' in model && model.tx ? model.tx.p.map((para) => para.r.map((r) => r.t).join('')).join(' ').trim() : '';
+    return { id: info.id, kind: info.kind, box: info.box, ...(text || model?.name ? { label: text || model?.name } : {}) };
+  });
 
   const changeModels = useCallback((change: (model: SlideElement) => SlideElement, coalesce?: string): void => {
     if (modelIds.length === 0) return;
@@ -613,7 +772,8 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   };
 
   const [fontDraft, setFontDraft] = useState<{ heading: string; body: string } | null>(null);
-  const fontChoices = useMemo(() => [...new Set([design.system.fonts.heading, design.system.fonts.body, ...slideFonts, ...SAFE_FONTS, ...EXTRA_FONTS])].filter(Boolean), [design.system.fonts.body, design.system.fonts.heading, slideFonts]);
+  // The deck's own faces; the whole catalog follows them in the pickers (`FontOptions`).
+  const fontChoices = useMemo(() => [...new Set([design.system.fonts.heading, design.system.fonts.body, ...slideFonts])].filter(Boolean), [design.system.fonts.body, design.system.fonts.heading, slideFonts]);
   const palette = useMemo(() => [...new Set([...Object.values(design.system.palette), ...design.system.chartColors].map((color) => color.toUpperCase()))].slice(0, 12), [design.system.chartColors, design.system.palette]);
 
   // Deck pictures ------------------------------------------------------------------------------
@@ -730,15 +890,40 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       }
 
       const slides = design.slides;
-      if (mod && key === 'd' && selectedId) { event.preventDefault(); command('duplicate', selectedId); }
-      else if (event.key === 'Delete' && selectedId) { event.preventDefault(); command('delete', selectedId); }
+      if (mod && key === 'd' && selectedId) { event.preventDefault(); if (several) commandMany('duplicate', pickedIds); else command('duplicate', selectedId); }
+      else if (event.key === 'Delete' && selectedId) { event.preventDefault(); if (several) commandMany('delete', pickedIds); else command('delete', selectedId); }
       else if (['ArrowDown', 'ArrowRight', 'PageDown'].includes(event.key) && slides[selectedIndex + 1]) { event.preventDefault(); select([slides[selectedIndex + 1].id]); }
       else if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(event.key) && selectedIndex > 0) { event.preventDefault(); select([slides[selectedIndex - 1].id]); }
-      else if (event.key === 'Escape') { setMenu(null); setStageMenu(null); }
+      else if (event.key === 'Escape') {
+        setMenu(null);
+        setStageMenu(null);
+        if (several) clearPicks();
+        else if (picking) setPicking(false);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  // Animation ----------------------------------------------------------------------------------------
+
+  const plan = useMemo(() => slidePlan(slide?.svg ?? '', slide?.animations), [slide?.svg, slide?.animations]);
+  const deckAnimates = animationsOn(deck);
+
+  const changeAnimations = useCallback((list: ElementAnimation[] | undefined, svg?: string): void => {
+    if (!slide) return;
+    patchSlide(slide.id, { animations: list, ...(svg ? { svg } : {}) });
+  }, [patchSlide, slide]);
+
+  // Preview plays the steps one after another on the stage: before anything, step 0, then each click.
+  useEffect(() => {
+    if (previewStep === null) return;
+    const last = plan.steps;
+    const wait = previewStep < 0 ? 350 : stepDuration(plan, previewStep) + (previewStep >= last ? 900 : 700);
+    const timer = window.setTimeout(() => setPreviewStep(previewStep >= last ? null : previewStep + 1), wait);
+    return () => window.clearTimeout(timer);
+  }, [plan, previewStep]);
+  useEffect(() => { setPreviewStep(null); }, [selectedId, tab]);
 
   // Render ---------------------------------------------------------------------------------------
 
@@ -752,7 +937,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const styleLabel = stylesIn(design.system.style).map((entry) => entry.label).join(' + ') || design.system.style;
   const menuSlide = menu ? design.slides.find((entry) => entry.id === menu.id) : null;
   const slideBusy = Boolean(slide && (status[slide.id] === 'writing' || status[slide.id] === 'queued'));
-  const stageEditable = Boolean(slide?.svg) && !reviewing && !inserting && !slideBusy && !generating;
+  const stageEditable = Boolean(slide?.svg) && !reviewing && !inserting && !slideBusy && !generating && previewStep === null;
   const single = selectedInfos.length === 1 ? selectedInfos[0] : null;
   const singleModel = single?.model ?? null;
   const scale = stageWidth / canvas.width;
@@ -764,7 +949,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     <div className="pr-shell pd-editor">
       <div className="pr-toolbar">
         <div className="pr-toolbar__group">
-          <input className="pr-toolbar__title" value={deck.meta.title} aria-label="Presentation title" onChange={(event) => { const title = event.target.value; edit((current) => ({ ...current, meta: { ...current.meta, title } }), 'title'); }} onKeyDown={(event) => event.stopPropagation()} />
+          <input dir="auto" className="pr-toolbar__title" value={deck.meta.title} aria-label="Presentation title" onChange={(event) => { const title = event.target.value; edit((current) => ({ ...current, meta: { ...current.meta, title } }), 'title'); }} onKeyDown={(event) => event.stopPropagation()} />
           <button type="button" className="pd-design-chip" onClick={() => setTab('design')} title={imported ? 'Theme colours and fonts' : design.system.concept}>
             <span className="pd-swatches" aria-hidden="true">
               {[design.system.palette.background, design.system.palette.primary, design.system.palette.secondary, design.system.palette.accent].map((color, index) => <span key={index} style={{ background: color }} />)}
@@ -816,56 +1001,26 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       )}
 
       <div className="pr-body">
-        <aside className="pr-filmstrip" aria-label="Slides">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            <SortableContext items={design.slides.map((entry) => entry.id)} strategy={verticalListSortingStrategy}>
-              <div className="pr-filmstrip__list">
-                {design.slides.map((entry, index) => (
-                  <Thumb
-                    key={entry.id}
-                    slide={entry}
-                    index={index}
-                    canvas={canvas}
-                    selected={session.selectedIds.includes(entry.id) || (entry.id === selectedId)}
-                    status={status[entry.id]}
-                    resolveHref={resolveHref}
-                    onSelect={onSelectThumb}
-                    onContext={(id, event) => { event.preventDefault(); setMenu({ id, x: event.clientX, y: event.clientY }); }}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-          {adding !== null ? (
-            <div className="pd-add">
-              <textarea
-                className="pr-input pd-add__input"
-                autoFocus
-                value={adding}
-                placeholder="What should the new slide show?"
-                onChange={(event) => setAdding(event.target.value)}
-                onKeyDown={(event) => {
-                  event.stopPropagation();
-                  if (event.key === 'Enter' && !event.shiftKey && adding.trim()) { event.preventDefault(); void addSlide(adding.trim()); }
-                  if (event.key === 'Escape') setAdding(null);
-                }}
-              />
-              <div className="pd-add__actions">
-                <button type="button" className="pr-btn pr-btn--sm" onClick={() => setAdding(null)}>Cancel</button>
-                <button type="button" className="pr-btn pr-btn--sm pr-btn--primary" disabled={!adding.trim() || generating} onClick={() => void addSlide(adding.trim())}><Sparkle size={12} weight="fill" /> Design it</button>
-              </div>
-            </div>
-          ) : (
-            <div className="ps-addslide">
-              <button type="button" className="pr-filmstrip__add" disabled={generating} onClick={addBlankSlide} title="A new slide with this slide's background">
-                <Plus size={14} /> New slide
-              </button>
-              <button type="button" className="pr-icon-btn ps-addslide__ai" disabled={generating} aria-label="Describe a new slide to the AI" title="Describe a new slide and let the AI design it" onClick={() => setAdding('')}>
-                <Sparkle size={14} weight="fill" />
-              </button>
-            </div>
-          )}
-        </aside>
+        <DesignedFilmstrip
+          slides={design.slides}
+          canvas={canvas}
+          pickedIds={pickedIds.length > 0 ? pickedIds : selectedId ? [selectedId] : []}
+          currentId={selectedId}
+          status={status}
+          resolveHref={resolveHref}
+          picking={picking}
+          busy={generating || batchRunning}
+          onPickingChange={(value) => { setPicking(value); }}
+          onSelect={onSelectThumb}
+          onCheck={(id) => pick(id, 'check')}
+          onContext={(id, event) => { event.preventDefault(); setMenu({ id, x: event.clientX, y: event.clientY }); }}
+          onMove={moveSlide}
+          onSelectAll={pickAll}
+          onClear={clearPicks}
+          onEditWithAi={() => { setScope('picked'); setTab('slide'); }}
+          onNewBlank={addBlankSlide}
+          onNewWithAi={(description) => void addSlide(description)}
+        />
 
         <div className="pr-center">
           <div
@@ -878,7 +1033,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
               setStageMenu({ x: event.clientX, y: event.clientY });
             }}
           >
-            <div className="pd-stage__frame" data-review={reviewing || (inserting && review?.status === 'ready') || undefined}>
+            <div className="pd-stage__frame" ref={frameRef} data-review={reviewing || (inserting && review?.status === 'ready') || undefined}>
               {stageEditable && slide ? (
                 <SlideStage
                   svg={slide.svg}
@@ -904,7 +1059,11 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                   canvas={canvas}
                   resolveHref={resolveHref}
                   placeholder={{ title: inserting ? 'New slide' : slide?.title ?? '', busy: slideBusy || review?.status === 'running', failed: slide ? status[slide.id] === 'failed' : false }}
+                  build={previewStep !== null && plan.items.length > 0 ? { plan, revealed: previewStep } : undefined}
                 />
+              )}
+              {tab === 'animate' && stageEditable && plan.items.length > 0 && (
+                <AnimationBadges frame={frameRef} svg={slide?.svg ?? ''} plan={plan} width={stageWidth} />
               )}
               {review && (review.kind === 'insert' || review.slideId === slide?.id) && (
                 <div className="pd-review" data-status={review.status}>
@@ -1007,7 +1166,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                 )}
               </div>
               {notesOpen && (
-                <textarea
+                <textarea dir="auto"
                   className="pr-notes__input"
                   value={slide.notes}
                   placeholder="What to say on this slide."
@@ -1022,7 +1181,8 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
         <aside className="pr-side">
           <div className="pr-side__tabs" role="tablist">
             <button type="button" role="tab" aria-selected={tab === 'format'} className="pr-side__tab" onClick={() => setTab('format')}><SlidersHorizontal size={12} /> Format</button>
-            <button type="button" role="tab" aria-selected={tab === 'slide'} className="pr-side__tab" onClick={() => setTab('slide')}><Sparkle size={12} weight="fill" /> AI</button>
+            <button type="button" role="tab" aria-selected={tab === 'slide'} className="pr-side__tab" onClick={() => setTab('slide')}><Sparkle size={12} weight="fill" /> AI{several && <span className="pr-side__count">{pickedCount}</span>}{batch?.running && <span className="pr-side__live" aria-label="Working" />}</button>
+            <button type="button" role="tab" aria-selected={tab === 'animate'} className="pr-side__tab" onClick={() => setTab('animate')}><MagicWand size={12} /> Animate</button>
             <button type="button" role="tab" aria-selected={tab === 'design'} className="pr-side__tab" onClick={() => setTab('design')}><PaintBrush size={12} /> Design</button>
           </div>
           <div className="pr-side__scroll">
@@ -1124,7 +1284,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                             {[...infos].reverse().map((info) => (
                               <button key={info.id} type="button" className="ps-layer" onClick={() => setSelection([info.id])}>
                                 <Stack size={12} />
-                                <span>{info.model?.k === 'shape' && info.model.tx ? info.model.tx.p.map((para) => para.r.map((r) => r.t).join('')).join(' ').slice(0, 60) || KIND_LABEL[info.kind] : info.model?.name || KIND_LABEL[info.kind] || 'Element'}</span>
+                                <span dir="auto">{info.model?.k === 'shape' && info.model.tx ? info.model.tx.p.map((para) => para.r.map((r) => r.t).join('')).join(' ').slice(0, 60) || KIND_LABEL[info.kind] : info.model?.name || KIND_LABEL[info.kind] || 'Element'}</span>
                               </button>
                             ))}
                           </div>
@@ -1138,61 +1298,104 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
             )}
 
             {tab === 'slide' && (
-              slide ? (
-                <div className="pd-panel">
-                  <div className="pd-ask">
-                    <textarea
-                      className="pd-ask__input"
-                      value={instruction}
-                      disabled={generating || review?.status === 'running'}
-                      placeholder="Tell the AI what to change on this slide…"
-                      onChange={(event) => setInstruction(event.target.value)}
-                      onKeyDown={(event) => {
-                        event.stopPropagation();
-                        if (event.key === 'Enter' && !event.shiftKey && instruction.trim()) { event.preventDefault(); void askAi(instruction.trim(), 'Your change'); }
-                      }}
-                    />
-                    <button type="button" className="pr-icon-btn pd-ask__send" aria-label="Send" disabled={!instruction.trim() || generating || review?.status === 'running' || !slide.svg} onClick={() => void askAi(instruction.trim(), 'Your change')}><PaperPlaneRight size={15} weight="fill" /></button>
-                  </div>
-                  <div className="pd-chips">
-                    {REFINE_ACTIONS.map((action) => (
-                      <button key={action.id} type="button" className="pd-chip" disabled={generating || review?.status === 'running' || !slide.svg} title={action.instruction} onClick={() => void askAi(action.instruction, action.label)}>{action.label}</button>
-                    ))}
-                  </div>
-                  {imported && <p className="pr-hint">Every AI change is a proposal: Keep it, or Discard to leave the slide exactly as it came from PowerPoint.</p>}
+              batch ? (
+                <BatchReview
+                  batch={batch}
+                  canvas={canvas}
+                  resolveHref={resolveHref}
+                  onToggle={(slideId) => setBatch((current) => current && ({ ...current, items: current.items.map((item) => (item.slideId === slideId ? { ...item, keep: !item.keep } : item)) }))}
+                  onAll={(keep) => setBatch((current) => current && ({ ...current, items: current.items.map((item) => (item.status === 'ready' ? { ...item, keep } : item)) }))}
+                  onKeep={keepBatch}
+                  onDiscard={discardBatch}
+                  onRetry={retryBatch}
+                  onStop={() => generator.cancel()}
+                />
+              ) : slide ? (
+                <DesignedAiPanel
+                  scope={scope}
+                  onScope={setScope}
+                  slides={scopeSlides}
+                  total={design.slides.length}
+                  currentNumber={selectedIndex + 1}
+                  pickedCount={pickedCount}
+                  canvas={canvas}
+                  resolveHref={resolveHref}
+                  targets={stageTargets.map((target) => ({ id: target.id, label: `${KIND_LABEL[target.kind] ?? 'Element'}${target.label ? ` · ${target.label.replace(/\s+/g, ' ').slice(0, 24)}` : ''}` }))}
+                  onClearTargets={() => setTargetsOff(true)}
+                  value={instruction}
+                  onValue={setInstruction}
+                  busy={generating || animating || review?.status === 'running'}
+                  blank={scope === 'current' && !slide.svg}
+                  engine={`${deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}${deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}`}
+                  imported={imported}
+                  onSend={sendInstruction}
+                  onStop={() => { generator.cancel(); setReview(null); }}
+                  onPickSlides={() => setPicking(true)}
+                >
+                  {scope === 'current' && (
+                    <>
+                      <section className="pd-section">
+                        <div className="pd-section__head">
+                          <span className="pr-label">What this slide says</span>
+                          <button type="button" className="pr-btn pr-btn--sm" disabled={generating || !slide.brief.trim()} onClick={() => command('redraw', slide.id)} title="Let the AI draw the slide again from this brief (Undo brings the current one back)"><ArrowClockwise size={12} /> Draw again</button>
+                        </div>
+                        <textarea dir="auto"
+                          className="pr-input pd-brief"
+                          value={slide.brief}
+                          placeholder="The content and idea of this slide. Edit it, then Draw again."
+                          onKeyDown={(event) => event.stopPropagation()}
+                          onChange={(event) => patchSlide(slide.id, { brief: event.target.value }, `brief:${slide.id}`)}
+                        />
+                      </section>
 
-                  <section className="pd-section">
-                    <div className="pd-section__head">
-                      <span className="pr-label">What this slide says</span>
-                      <button type="button" className="pr-btn pr-btn--sm" disabled={generating || !slide.brief.trim()} onClick={() => command('redraw', slide.id)} title="Let the AI draw the slide again from this brief (Undo brings the current one back)"><ArrowClockwise size={12} /> Draw again</button>
-                    </div>
-                    <textarea
-                      className="pr-input pd-brief"
-                      value={slide.brief}
-                      placeholder="The content and idea of this slide. Edit it, then Draw again."
-                      onKeyDown={(event) => event.stopPropagation()}
-                      onChange={(event) => patchSlide(slide.id, { brief: event.target.value }, `brief:${slide.id}`)}
-                    />
-                  </section>
-
-                  {placeable.length > 0 && (
-                    <section className="pd-section">
-                      <span className="pr-label">Pictures for this slide</span>
-                      <p className="pr-hint">Pick the deck pictures this slide should show, then choose Draw again.</p>
-                      <div className="pd-pictures">
-                        {placeable.map((entry) => {
-                          const chosen = slide.pictures?.includes(entry.path) ?? false;
-                          return (
-                            <button key={entry.path} type="button" className="pd-picture" data-selected={chosen || undefined} aria-pressed={chosen} title={entry.caption ?? entry.name} onClick={() => toggleSlidePicture(entry.path)}>
-                              <img src={resolveHref(entry.path)} alt="" loading="lazy" />
-                              {chosen && <span className="pd-picture__check" aria-hidden="true"><Check size={10} weight="bold" /></span>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </section>
+                      {placeable.length > 0 && (
+                        <section className="pd-section">
+                          <span className="pr-label">Pictures for this slide</span>
+                          <p className="pr-hint">Pick the deck pictures this slide should show, then choose Draw again.</p>
+                          <div className="pd-pictures">
+                            {placeable.map((entry) => {
+                              const chosen = slide.pictures?.includes(entry.path) ?? false;
+                              return (
+                                <button key={entry.path} type="button" className="pd-picture" data-selected={chosen || undefined} aria-pressed={chosen} title={entry.caption ?? entry.name} onClick={() => toggleSlidePicture(entry.path)}>
+                                  <img src={resolveHref(entry.path)} alt="" loading="lazy" />
+                                  {chosen && <span className="pd-picture__check" aria-hidden="true"><Check size={10} weight="bold" /></span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </section>
+                      )}
+                    </>
                   )}
-                </div>
+                  <section className="pd-section">
+                    <span className="pr-label">AI engine for this deck</span>
+                    <EnginePicker value={deck.brief.engine} onChange={(engine) => edit((current) => ({ ...current, brief: { ...current.brief, engine } }))} compact />
+                  </section>
+                </DesignedAiPanel>
+              ) : <p className="pr-hint pd-panel">Select a slide.</p>
+            )}
+
+            {tab === 'animate' && (
+              slide ? (
+                <AnimationPanel
+                  svg={slide.svg}
+                  list={slide.animations}
+                  enabled={deckAnimates}
+                  onEnabled={(on) => edit((current) => ({ ...current, animations: on }))}
+                  selection={selection}
+                  active={animationActive}
+                  onActive={setAnimationActive}
+                  onChange={changeAnimations}
+                  onSelectElement={(id) => setSelection([id])}
+                  previewing={previewStep !== null}
+                  onPreview={() => setPreviewStep((value) => (value === null ? -1 : null))}
+                  ready={Boolean(slide.svg) && !generating}
+                  busy={generating || animating}
+                  engine={`${deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}${deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}`}
+                  slideCount={design.slides.filter((entry) => entry.svg).length}
+                  onAi={(which, direction) => void animateSlides(which === 'all' ? design.slides.filter((entry) => entry.svg).map((entry) => entry.id) : [slide.id], direction)}
+                  onStop={() => generator.cancel()}
+                />
               ) : <p className="pr-hint pd-panel">Select a slide.</p>
             )}
 
@@ -1227,13 +1430,13 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                     <label>
                       <span>Headings</span>
                       <select className="pr-select" value={(fontDraft ?? design.system.fonts).heading} onChange={(event) => setFontDraft({ ...(fontDraft ?? design.system.fonts), heading: event.target.value })}>
-                        {fontChoices.map((family) => <option key={family} value={family}>{cleanFontDisplay(family) || family}</option>)}
+                        <FontOptions current={fontChoices} />
                       </select>
                     </label>
                     <label>
                       <span>Body</span>
                       <select className="pr-select" value={(fontDraft ?? design.system.fonts).body} onChange={(event) => setFontDraft({ ...(fontDraft ?? design.system.fonts), body: event.target.value })}>
-                        {fontChoices.map((family) => <option key={family} value={family}>{cleanFontDisplay(family) || family}</option>)}
+                        <FontOptions current={fontChoices} />
                       </select>
                     </label>
                   </div>
@@ -1258,7 +1461,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                 <section className="pd-section">
                   <span className="pr-label">Redesign with AI</span>
                   <p className="pr-hint">Same slides and content, a new look drawn by the AI. Every slide is redrawn; Undo brings the current look back.</p>
-                  <textarea
+                  <textarea dir="auto"
                     className="pr-input pd-brief"
                     value={restyle}
                     placeholder="e.g. darker and more cinematic · warmer, like a magazine · use our brand green #0F7B5F"
@@ -1268,7 +1471,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                   <button
                     type="button"
                     className="pr-btn pr-btn--primary pd-section__go"
-                    disabled={generating || review?.status === 'running'}
+                    disabled={generating || batchRunning || review?.status === 'running'}
                     onClick={() => {
                       void generator.redesign(restyle.trim() || 'A clearly different, more striking look.').then((ok) => {
                         if (ok) onToast('New design', 'Every slide has been redrawn. Undo to go back.');
@@ -1317,7 +1520,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                   )}
                   {addingPictures && <p className="pr-hint">Adding pictures…</p>}
                   {placeable.length > 0 && (
-                    <button type="button" className="pr-btn pr-btn--primary pd-section__go" disabled={generating || addingPictures || review?.status === 'running'} onClick={placePictures}>
+                    <button type="button" className="pr-btn pr-btn--primary pd-section__go" disabled={generating || batchRunning || addingPictures || review?.status === 'running'} onClick={placePictures}>
                       <ImageSquare size={13} /> Put pictures on the slides
                     </button>
                   )}
@@ -1332,11 +1535,6 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                       </button>
                     ))}
                   </div>
-                </section>
-
-                <section className="pd-section">
-                  <span className="pr-label">AI for this deck</span>
-                  <EnginePicker value={deck.brief.engine} onChange={(engine) => edit((current) => ({ ...current, brief: { ...current.brief, engine } }))} compact />
                 </section>
 
                 {imported ? (
@@ -1365,7 +1563,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
             {session.error ?? run?.error ?? (session.saving ? 'Saving…' : session.dirty ? 'Unsaved changes' : 'Saved')}
           </span>
           <span className="pr-status__sep" />
-          <span className="pr-status__item">Slide {selectedIndex + 1} of {design.slides.length}</span>
+          <span className="pr-status__item">Slide {selectedIndex + 1} of {design.slides.length}{several ? ` · ${pickedCount} selected` : ''}</span>
           {selectionLabel && (
             <>
               <span className="pr-status__sep" />
@@ -1402,15 +1600,30 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       {menu && menuSlide && createPortal(
         <>
           <div className="pr-menu-scrim" onMouseDown={() => setMenu(null)} onContextMenu={(event) => { event.preventDefault(); setMenu(null); }} />
-          <div className="pr-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 210), top: Math.min(menu.y, window.innerHeight - 260) }}>
-            <button type="button" role="menuitem" onClick={() => { select([menu.id]); setMenu(null); window.setTimeout(addBlankSlide, 0); }}><Plus size={13} /> New slide after</button>
-            <button type="button" role="menuitem" onClick={() => { command('duplicate', menu.id); setMenu(null); }}><Copy size={13} /> Duplicate <kbd>Ctrl D</kbd></button>
-            <button type="button" role="menuitem" onClick={() => { command('hide', menu.id); setMenu(null); }}>{menuSlide.hidden ? <Eye size={13} /> : <EyeSlash size={13} />} {menuSlide.hidden ? 'Show in slideshow' : 'Hide in slideshow'}</button>
-            <button type="button" role="menuitem" onClick={() => { command('up', menu.id); setMenu(null); }}><ArrowUp size={13} /> Move up</button>
-            <button type="button" role="menuitem" onClick={() => { command('down', menu.id); setMenu(null); }}><ArrowDown size={13} /> Move down</button>
-            <button type="button" role="menuitem" disabled={generating || !menuSlide.brief.trim()} onClick={() => { command('redraw', menu.id); setMenu(null); }}><ArrowUUpLeft size={13} /> Redraw with AI</button>
-            <hr />
-            <button type="button" role="menuitem" className="is-danger" disabled={design.slides.length <= 1} onClick={() => { command('delete', menu.id); setMenu(null); }}><Trash size={13} /> Delete <kbd>Del</kbd></button>
+          <div className="pr-menu" role="menu" style={{ left: Math.min(menu.x, window.innerWidth - 210), top: Math.min(menu.y, window.innerHeight - 320) }}>
+            {several && pickedIds.includes(menu.id) ? (
+              <>
+                <button type="button" role="menuitem" onClick={() => { setMenu(null); setScope('picked'); setTab('slide'); }}><Sparkle size={13} weight="fill" /> Edit {pickedCount} slides with AI</button>
+                <hr />
+                <button type="button" role="menuitem" onClick={() => { commandMany('duplicate', pickedIds); setMenu(null); }}><Copy size={13} /> Duplicate {pickedCount} slides <kbd>Ctrl D</kbd></button>
+                <button type="button" role="menuitem" onClick={() => { commandMany('hide', pickedIds); setMenu(null); }}><EyeSlash size={13} /> Hide or show {pickedCount} slides</button>
+                <hr />
+                <button type="button" role="menuitem" onClick={() => { clearPicks(); setMenu(null); }}><X size={13} /> Clear selection <kbd>Esc</kbd></button>
+                <button type="button" role="menuitem" className="is-danger" disabled={pickedCount >= design.slides.length} onClick={() => { commandMany('delete', pickedIds); setMenu(null); }}><Trash size={13} /> Delete {pickedCount} slides <kbd>Del</kbd></button>
+              </>
+            ) : (
+              <>
+                <button type="button" role="menuitem" onClick={() => { select([menu.id]); setMenu(null); window.setTimeout(addBlankSlide, 0); }}><Plus size={13} /> New slide after</button>
+                <button type="button" role="menuitem" onClick={() => { command('duplicate', menu.id); setMenu(null); }}><Copy size={13} /> Duplicate <kbd>Ctrl D</kbd></button>
+                <button type="button" role="menuitem" onClick={() => { command('hide', menu.id); setMenu(null); }}>{menuSlide.hidden ? <Eye size={13} /> : <EyeSlash size={13} />} {menuSlide.hidden ? 'Show in slideshow' : 'Hide in slideshow'}</button>
+                <button type="button" role="menuitem" onClick={() => { command('up', menu.id); setMenu(null); }}><ArrowUp size={13} /> Move up</button>
+                <button type="button" role="menuitem" onClick={() => { command('down', menu.id); setMenu(null); }}><ArrowDown size={13} /> Move down</button>
+                <button type="button" role="menuitem" disabled={generating || batchRunning || !menuSlide.brief.trim()} onClick={() => { command('redraw', menu.id); setMenu(null); }}><ArrowUUpLeft size={13} /> Redraw with AI</button>
+                <hr />
+                <button type="button" role="menuitem" onClick={() => { pick(menu.id, 'toggle'); setPicking(true); setMenu(null); }}><Check size={13} /> Select several…</button>
+                <button type="button" role="menuitem" className="is-danger" disabled={design.slides.length <= 1} onClick={() => { command('delete', menu.id); setMenu(null); }}><Trash size={13} /> Delete <kbd>Del</kbd></button>
+              </>
+            )}
           </div>
         </>,
         document.body,

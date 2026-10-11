@@ -45,6 +45,8 @@ export interface ComposerInput {
   slideCount: number | null;
   size: DeckSize;
   language: string;
+  /** The AI designs each slide's element animation. */
+  animate: boolean;
 }
 
 interface DesignComposerProps {
@@ -137,6 +139,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   const [slideCount, setSlideCount] = useState<number | null>(null);
   const [size, setSize] = useState<DeckSize>(defaultSize);
   const [language, setLanguage] = useState('');
+  const [animate, setAnimate] = useState(true);
   const [showOptions, setShowOptions] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -266,7 +269,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
     if (!ready) return;
     const fromFolders = folders.flatMap((folder) => folder.pictures.map((path): ComposerFile => ({ path, name: fileName(path), kind: 'image', use: folder.use })));
     const all = [...files, ...fromFolders.filter((file) => !files.some((entry) => entry.path.toLowerCase() === file.path.toLowerCase()))];
-    onCreate({ prompt: prompt.trim(), files: all, slideCount, size, language: language.trim() });
+    onCreate({ prompt: prompt.trim(), files: all, slideCount, size, language: language.trim(), animate });
   };
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
@@ -282,7 +285,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   const elapsed = run ? Math.max(0, ((run.endedAt ?? now) - run.startedAt) / 1000) : 0;
   const failed = !busy && run?.phase === 'failed' && run.error;
   const hasDocuments = files.some((file) => file.kind === 'document');
-  const summary = [slideCount ? `${slideCount} slides` : 'Auto length', size, language.trim()].filter(Boolean).join(' · ');
+  const summary = [slideCount ? `${slideCount} slides` : 'Auto length', size, language.trim(), animate ? '' : 'No animation'].filter(Boolean).join(' · ');
 
   return (
     <div
@@ -312,7 +315,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
 
         <label className="pd-home__ask" htmlFor="pd-composer-input">What is it for, and who will see it?</label>
         <div className="pd-composer" data-busy={designing || undefined}>
-          <textarea
+          <textarea dir="auto"
             id="pd-composer-input"
             ref={textarea}
             className="pd-composer__input"
@@ -381,9 +384,16 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                   {(['16:9', '4:3'] as const).map((value) => <button key={value} type="button" role="radio" aria-checked={size === value} onClick={() => setSize(value)}>{value}</button>)}
                 </div>
               </div>
+              <div className="pd-options__row">
+                <span>Animation</span>
+                <div className="pd-segmented" role="radiogroup" aria-label="Animation of the slides">
+                  <button type="button" role="radio" aria-checked={animate} onClick={() => setAnimate(true)} title="The AI designs how each slide's elements come in">AI designs it</button>
+                  <button type="button" role="radio" aria-checked={!animate} onClick={() => setAnimate(false)}>None</button>
+                </div>
+              </div>
               <label className="pd-options__row">
                 <span>Language</span>
-                <input className="pd-control" value={language} placeholder="Same as the description" onChange={(event) => setLanguage(event.target.value)} />
+                <input dir="auto" className="pd-control" value={language} placeholder="Same as the description" onChange={(event) => setLanguage(event.target.value)} />
               </label>
               <div className="pd-options__engine">
                 <EnginePicker value={engine} onChange={onEngine} />

@@ -220,7 +220,8 @@ export function parseDeck(text: string): YzDeck {
 }
 
 /** Whether a designed deck's elements animate: on unless switched off, and off for imported PowerPoint files unless switched on. */
-export const animationsOn = (deck: Pick<YzDeck, 'animations' | 'design'>): boolean => deck.animations ?? !deck.design?.origin;
+export const animationsOn = (deck: Pick<YzDeck, 'animations' | 'design'>): boolean =>
+  deck.animations ?? (!deck.design?.origin || (deck.design.slides ?? []).some((slide) => (slide.animations?.length ?? 0) > 0));
 
 /** The slide's title text, for the filmstrip and the AI. */
 export function slideTitle(slide: Slide): string {

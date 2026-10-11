@@ -61,7 +61,7 @@ export function buildRestylePrompt(style: ReportStyle, instruction: string, cont
     JSON.stringify(describeStyle(style)),
     '',
     'What each field accepts:',
-    `- bodyFont, headingFont: one of ${DOCUMENT_FONTS.map((font) => font.family).join(', ')}`,
+    `- bodyFont, headingFont: one of ${DOCUMENT_FONTS.filter((font) => (font.kind === 'sans' || font.kind === 'serif') && (font.source !== 'bundled' || font.arabic)).map((font) => font.family).join(', ')} (for Arabic text use a face that draws Arabic: Segoe UI, Tahoma, Arial, Times New Roman, Sakkal Majalla, Traditional Arabic, Dubai, Cairo, Amiri…)`,
     '- bodySize: 9 to 14 (points); headingSize: 12 to 32 (points, the level-1 heading)',
     '- lineHeight: 1 to 2.2; paragraphSpacing: 0 to 18 (points after each paragraph)',
     '- alignment: "left" or "justify"; firstLineIndent: true or false',

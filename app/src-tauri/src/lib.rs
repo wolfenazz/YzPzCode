@@ -372,6 +372,7 @@ pub fn run() {
                 commands::launch_external_terminals,
                 commands::launch_external_command,
                 commands::path_exists,
+                commands::get_studio_root,
                 commands::take_pending_open_files,
                 commands::list_directory_entries,
                 commands::list_all_files,

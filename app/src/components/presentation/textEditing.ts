@@ -5,8 +5,8 @@
 // from; run styles are read from the rendered DOM, so bold, italic,
 // underline, colour, size and font applied to a selection carry over.
 
-import { numberLabel, type TxBody, type TxPara, type TxRun } from '../../utils/presentation/slideModel';
-import { fontStack } from '../../utils/presentation/slideModel';
+import { hasRtl } from '../../utils/writing/rtl';
+import { fontStack, numberLabel, type TxBody, type TxPara, type TxRun } from '../../utils/presentation/slideModel';
 
 const escapeHtml = (value: string): string => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
@@ -22,7 +22,8 @@ function runCss(run: TxRun, scale: number, fs: number): string {
   const deco = [run.u ? 'underline' : '', run.s ? 'line-through' : ''].filter(Boolean).join(' ');
   if (deco) parts.push(`text-decoration:${deco}`);
   if (run.cap === 'all') parts.push('text-transform:uppercase');
-  if (run.sp) parts.push(`letter-spacing:${(run.sp * scale).toFixed(2)}px`);
+  // Letter spacing would pull joined Arabic letters apart.
+  if (run.sp && !hasRtl(run.t)) parts.push(`letter-spacing:${(run.sp * scale).toFixed(2)}px`);
   return parts.join(';');
 }
 
@@ -34,9 +35,11 @@ export function bodyToHtml(body: TxBody, scale: number): string {
     const first = para.r.find((run) => run.t && run.t !== '\n');
     const size = (first?.sz ?? para.esz ?? 18) * fs;
     const lineHeight = para.ls !== undefined && para.ls < 0 ? `${(-para.ls * scale).toFixed(2)}px` : String(1.2 * (para.ls ?? 1));
+    // `dir`: an unset paragraph follows its first strong letter as it is typed; `start` alignment follows that direction.
+    const dir = para.rtl === undefined ? 'auto' : para.rtl ? 'rtl' : 'ltr';
     const css = [
-      `text-align:${para.al === 'c' ? 'center' : para.al === 'r' ? 'right' : para.al === 'j' ? 'justify' : 'left'}`,
-      `padding-left:${((para.ml ?? 0) * scale).toFixed(2)}px`,
+      `text-align:${para.al === 'c' ? 'center' : para.al === 'r' ? 'right' : para.al === 'j' ? 'justify' : para.al === 'l' ? 'left' : 'start'}`,
+      `padding-inline-start:${((para.ml ?? 0) * scale).toFixed(2)}px`,
       `text-indent:${((para.ind ?? 0) * scale).toFixed(2)}px`,
       `line-height:${lineHeight}`,
       `margin:${(index > 0 ? (para.sb ?? 0) * scale : 0).toFixed(2)}px 0 ${((para.sa ?? 0) * scale).toFixed(2)}px`,
@@ -56,7 +59,7 @@ export function bodyToHtml(body: TxBody, scale: number): string {
     const runs = para.r.map((run) => (run.t === '\n' ? '<br>' : `<span style="${escapeHtml(runCss(run, scale, fs))}">${escapeHtml(run.t)}</span>`)).join('');
     const empty = !para.r.some((run) => run.t && run.t !== '\n');
     const emptyStyle = empty ? `<span style="${escapeHtml(runCss({ t: '', sz: para.esz ?? 18, f: para.ef ?? first?.f ?? 'Calibri', c: para.ec ?? '#000000' }, scale, fs))}"><br></span>` : '';
-    return `<div data-p="${index}" style="${css.join(';')}"${bullet}>${empty ? emptyStyle : runs}</div>`;
+    return `<div data-p="${index}" dir="${dir}" style="${css.join(';')}"${bullet}>${empty ? emptyStyle : runs}</div>`;
   }).join('');
 }
 
@@ -158,7 +161,16 @@ export function htmlToBody(root: HTMLElement, original: TxBody, scale: number): 
     for (const node of block.nodes) walk(node);
     const align = block.el?.style.textAlign;
     const para: TxPara = { ...template, r: runs };
-    if (align) para.al = align === 'center' ? 'c' : align === 'right' ? 'r' : align === 'justify' ? 'j' : 'l';
+    // `start` (the editor's default) leaves the alignment to the direction; a side or centre is the user's choice.
+    if (align === 'center') para.al = 'c';
+    else if (align === 'right') para.al = 'r';
+    else if (align === 'justify') para.al = 'j';
+    else if (align === 'left') para.al = 'l';
+    // A direction the user set (the buttons) is kept; `auto` follows the letters.
+    const dir = block.el?.getAttribute('dir');
+    if (dir === 'rtl') para.rtl = true;
+    else if (dir === 'ltr') para.rtl = false;
+    else if (dir === 'auto' && template.rtl === undefined) delete para.rtl;
     if (block.el && block.el.hasAttribute('data-nobullet')) delete para.bu;
     if (runs.length === 0) {
       const holder = block.el?.querySelector('span') ?? block.el ?? root;

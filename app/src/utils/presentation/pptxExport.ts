@@ -3,6 +3,7 @@
 // off: the design check already fitted the text), native editable charts and
 // tables, embedded images, icons as PNG and speaker notes.
 
+import { hasRtl, paragraphDirection } from '../writing/rtl';
 import type PptxGenJS from 'pptxgenjs';
 import {
   gradientPng,
@@ -45,10 +46,14 @@ function textRuns(el: Extract<El, { kind: 'text' }>): PptxGenJS.TextProps[] {
   el.paras.forEach((para: RenderPara, paraIndex) => {
     const size = para.size ?? el.style.size;
     const last = paraIndex === el.paras.length - 1;
+    // A paragraph of Arabic or Hebrew is written right to left, and its "left" is the right edge.
+    const written = para.runs.map((run) => run.text).join('');
+    const rtl = hasRtl(written) && paragraphDirection(written) === 'rtl';
     const paragraph: PptxGenJS.TextPropsOptions = {
       lineSpacing: Math.round(size * el.style.lineHeight * 10) / 10,
       paraSpaceAfter: last ? 0 : el.style.spaceAfter,
-      align: el.style.align,
+      align: rtl && el.style.align === 'left' ? 'right' : el.style.align,
+      ...(rtl ? { rtlMode: true, lang: 'ar-SA' } : {}),
     };
     if (el.list) {
       const level = para.level ?? 0;
@@ -60,7 +65,7 @@ function textRuns(el: Extract<El, { kind: 'text' }>): PptxGenJS.TextProps[] {
     const runs = para.runs.length > 0 ? para.runs : [{ text: '' }];
     runs.forEach((run, runIndex) => {
       const color = run.color ?? para.color;
-      const text = el.style.uppercase ? run.text.toUpperCase() : run.text;
+      const text = el.style.uppercase && !rtl ? run.text.toUpperCase() : run.text;
       out.push({
         text,
         options: {

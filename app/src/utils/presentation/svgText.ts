@@ -5,6 +5,8 @@
 // the slide prompt asks the AI to write multi-line text. Uses the global
 // DOMParser / XMLSerializer.
 
+import { normalizeRtlTextElement } from './rtlSvg';
+
 export interface SvgTextItem {
   index: number;
   lines: string[];
@@ -151,6 +153,8 @@ export function setSvgText(svg: string, index: number, lines: string[]): string 
     tspan.appendChild(document.createTextNode(wanted[line]));
     element.appendChild(tspan);
   }
+  // Typing Arabic into a Latin text (or back) changes the direction it reads in.
+  normalizeRtlTextElement(element);
   return serialize(document);
 }
 

@@ -6,7 +6,9 @@
 //      contract (ppt-master's Executor), a few pages per call.
 // Dependency-free (tested by `npm run test:presentation`).
 
+import { FONT_CATALOG, FONT_GROUPS, groupOf } from '../writing/fontCatalog';
 import { extractJson } from '../writing/prompts';
+import { complexScriptFace, faceHasArabic, hasRtl, isRtlLanguage, rtlShare } from '../writing/rtl';
 import { contrastRatio, ensureContrast, luminance, mix, normalizeHex } from './designColors';
 import { matchPicture, matchPictures } from './designPictures';
 import { DEFAULT_BODY_FONT, DEFAULT_HEADING_FONT, DESIGN_FONTS, DESIGN_MODES, fontStack, knownFont, stylesIn, VISUAL_STYLES } from './designStyles';
@@ -15,6 +17,7 @@ import { sanitizeSvg } from './svgSafe';
 import type {
   DesignAttachment, DesignDensity, DesignedSlide, DesignMode, DesignSlideRole, DesignSystem, DirectionResult, StoryPage,
 } from './designTypes';
+import { elementsForAi, parseAnimationBlock, sanitizeAnimations } from './slideAnimation';
 
 export interface AiPrompt {
   system: string;
@@ -113,6 +116,23 @@ export function sanitizeDesignSystem(value: unknown, options: { stored?: boolean
   };
 }
 
+/**
+ * A design system for the deck's language. For a right-to-left language the heading and body faces must
+ * draw its letters; a Latin-only face (Calibri, Georgia…) is replaced by the Arabic-capable face of the
+ * same character, and the type scale gets the extra size Arabic needs.
+ */
+export function forLanguage(system: DesignSystem, language: string): DesignSystem {
+  if (!isRtlLanguage(language)) return system;
+  const face = (name: string): string => (catalogArabic(name) ? name : complexScriptFace(name));
+  return {
+    ...system,
+    fonts: { heading: face(system.fonts.heading), body: face(system.fonts.body) },
+    type: { ...system.type, body: Math.max(system.type.body, 24), caption: Math.max(system.type.caption, 16) },
+  };
+}
+
+const catalogArabic = (name: string): boolean => FONT_CATALOG.some((entry) => entry.name === name && entry.arabic) || faceHasArabic(name);
+
 /** A relative `assets/…` path a stored page may list (the same rule the SVG sanitiser applies to hrefs). */
 const isAssetPath = (value: unknown): value is string => typeof value === 'string' && /^[\w][\w./ -]*$/.test(value) && !value.split('/').includes('..');
 
@@ -161,7 +181,7 @@ export function parseDirection(reply: string, known: string[] = []): DirectionRe
   return {
     title: text(raw.title, 200, pages[0].title),
     language: text(raw.language, 40, 'English'),
-    system: sanitizeDesignSystem(raw.design ?? raw.system),
+    system: forLanguage(sanitizeDesignSystem(raw.design ?? raw.system), text(raw.language, 40, 'English')),
     pages,
     pictureNotes: sanitizePictureNotes(raw.pictureNotes, known),
   };
@@ -173,8 +193,55 @@ function styleCatalog(): string {
   return VISUAL_STYLES.map((style) => `- ${style.id} (${style.group}): ${style.character} Shapes: ${style.shape} Colour: ${style.color}`).join('\n');
 }
 
-function fontCatalog(): string {
-  return DESIGN_FONTS.map((font) => `${font.name} (${font.character})`).join('; ');
+/**
+ * The faces the AI may choose from, grouped by kind. Windows and Office faces come first (PowerPoint has
+ * them); the faces bundled with the app are listed apart, because a .pptx needs them installed. A
+ * right-to-left deck is offered only faces that draw Arabic.
+ */
+function fontCatalog(rtl = false): string {
+  const wanted = DESIGN_FONTS.filter((font) => !rtl || font.arabic);
+  const lines: string[] = [];
+  const describe = (list: typeof wanted): string => list.map((font) => `${font.name} (${font.character})`).join('; ');
+  for (const source of ['system', 'bundled'] as const) {
+    const inSource = wanted.filter((font) => (source === 'bundled' ? font.source === 'bundled' : font.source !== 'bundled'));
+    if (inSource.length === 0) continue;
+    lines.push(source === 'bundled'
+      ? 'FACES BUNDLED WITH THE APP (drawn in the app, PDF, PNG and HTML exports; a .pptx names them and the machine that opens it needs them installed — prefer the Windows and Office faces above unless the look really needs one of these):'
+      : 'WINDOWS AND OFFICE FACES (PowerPoint has them):');
+    for (const group of FONT_GROUPS) {
+      const entries = inSource.filter((font) => {
+        const entry = FONT_CATALOG.find((candidate) => candidate.name === font.name);
+        return entry ? groupOf(entry) === group.id : false;
+      });
+      if (entries.length > 0) lines.push(`  ${group.label}: ${describe(entries)}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Whether a deck reads right to left: its language says so, or most of its page titles are written in a
+ * right-to-left script (the language field is free text and may be empty).
+ */
+export function deckIsRtl(language: string, titles: string[] = []): boolean {
+  return isRtlLanguage(language) || (titles.length > 0 && rtlShare(titles.join(' ')) >= 0.4);
+}
+
+/** The rules for drawing pages in Arabic, Hebrew, Persian or Urdu; empty for a left-to-right deck. */
+export function rtlRules(canvas: { width: number; height: number }, rtl: boolean): string {
+  if (!rtl) return '';
+  const margin = 64;
+  return `RIGHT-TO-LEFT DECK — Arabic, Hebrew, Persian and Urdu pages are not a mirrored Latin page; they read from the right edge. Follow these rules exactly:
+- Layout runs right to left. The reading start is the RIGHT edge: the title block, the first column, the first step and the logo anchor to the right margin (x = ${canvas.width - margin}); timelines, process strips and card rows flow from right to left; a picture beside text goes on the left of the text; arrows and chevrons for "next" point left; page numbers and footers mirror. Symmetric layouts stay symmetric.
+- Every <text> that holds Arabic or Hebrew carries direction="rtl". In SVG, with direction="rtl" the anchor follows the text: text-anchor="start" puts the text's RIGHT edge at x (the line runs to the left of x), text-anchor="end" puts its LEFT edge at x, "middle" centres it. A right-aligned title at the margin is therefore <text x="${canvas.width - margin}" direction="rtl" text-anchor="start">. Lines of one paragraph keep the same x on every <tspan x="…" dy="…">. Text that is entirely Latin (a brand, a code) is direction="ltr" with the usual anchors.
+- Write each string in its natural logical order, exactly as it is typed. Never reverse words or letters and never insert direction marks: the renderer shapes and orders Arabic.
+- Fonts: use only the faces listed for this deck; they all draw Arabic. A Latin-only face would show Arabic in a fallback.
+- Type: never letter-spacing, never italic or oblique, never all-caps tracking on Arabic. Emphasise with weight, size and colour. Arabic needs about 10% more size than Latin to look equal: body 24–28 px, captions 16–18; line step 1.6–1.8× for body, 1.3–1.4× for titles (marks above and below the line must not touch the next line).
+- Width: an Arabic character averages about 0.5 × font-size, a space 0.25 ×; estimate with that and keep the same 64 px margins. Break lines yourself at word boundaries.
+- Numbers: Western digits (0-9) unless the page already uses Arabic-Indic digits; one system on the whole deck. A number with a unit or percent sign stays together ("45%").
+- Punctuation: Arabic comma ، semicolon ؛ question mark ؟; « » for quotes. Parentheses and quotes close on the logical end of their text.
+- Charts and tables: the category axis and the first column start at the right; the value axis sits on the right; bars and progress bars grow from the right; legends sit at the right.
+- Bullets and numbers sit to the right of their text; indents are from the right.`;
 }
 
 /**
@@ -216,7 +283,7 @@ export function svgContract(canvas: { width: number; height: number }): string {
 - Root: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" font-family="(body font stack)">. Everything visible is drawn inside this one SVG.
 - First child: a full-canvas background <rect x="0" y="0" width="${w}" height="${h}" fill="…"/> (solid or gradient).
 - Allowed: g, defs, rect, circle, ellipse, line, polyline, polygon, path, text, tspan, image, linearGradient, radialGradient, stop, clipPath (on <image> only), filter (only the two recipes below), marker (arrowheads), symbol + use.
-- Forbidden: <style>, class, CSS selectors, <foreignObject>, <script>, on* attributes, <mask>, <pattern>, textPath, animation, @font-face, external URLs, emoji, HTML entities such as &nbsp; or &mdash; (write the Unicode character itself). Escape & < > in text as &amp; &lt; &gt;.
+- Forbidden: <style>, class, CSS selectors, <foreignObject>, <script>, on* attributes, <mask>, <pattern>, textPath, SMIL or CSS animation inside the SVG, @font-face, external URLs, emoji, HTML entities such as &nbsp; or &mdash; (write the Unicode character itself). Escape & < > in text as &amp; &lt; &gt;.
 - Colours are uppercase #RRGGBB. Transparency only through fill-opacity / stroke-opacity / opacity (never rgba()).
 - Numbers are plain viewBox px (x="120"): no %, em or units.
 - TEXT: every visible word is real <text> (never paths or pictures of words). One <text> per paragraph. There is no automatic wrapping: break lines yourself. Multi-line: first line as direct text, each next line as <tspan x="(same x)" dy="(line step)">…</tspan>. Inline emphasis is an unpositioned <tspan font-weight="bold" fill="#…">word</tspan>. y is the baseline; use text-anchor="start|middle|end"; do not use dominant-baseline. Estimate widths before placing: a Latin character is about 0.55 × font-size wide (0.6 bold, 0.65 for caps), CJK 1.0 × font-size. Keep every line inside its zone and at least 48 px from the canvas edge. Text never overlaps other text.
@@ -292,17 +359,38 @@ function picturesForDrawing(attachments: DesignAttachment[], attached: string[] 
   return `${list}\n${rules}${seen}`;
 }
 
-const SLIDE_FORMAT = (numbers: number[]): string => `Reply with exactly ${numbers.length === 1 ? 'one block' : `${numbers.length} blocks, in order`} and nothing else (no Markdown fences, no commentary):
+const SLIDE_FORMAT = (numbers: number[], animate = false): string => `Reply with exactly ${numbers.length === 1 ? 'one block' : `${numbers.length} blocks, in order`} and nothing else (no Markdown fences, no commentary):
 <slide n="${numbers[0]}" role="(cover|agenda|section|content|data|quote|closing)" title="(the page title, plain text)">
-<svg …>…</svg>
+<svg …>…</svg>${animate ? '\n<animation>[(the page\'s animation entries, see ANIMATION)]</animation>' : ''}
 <notes>Speaker notes: 2–5 natural sentences the presenter says, adding the detail and the transition to the next page. Not a copy of the slide text.</notes>
 </slide>${numbers.length > 1 ? `\n…then the same for page${numbers.length > 2 ? 's' : ''} ${numbers.slice(1).join(', ')}.` : ''}`;
 
 const EXECUTOR_ROLE = 'You are the slide designer of a presentation studio. You hand-write each page as one complete SVG that a visual designer would be proud of: deliberate composition, strong hierarchy, generous whitespace, one memorable visual idea per page. (Method: ppt-master by Hugo He.)';
 
-function executorSystem(canvas: { width: number; height: number }): string {
-  return `${EXECUTOR_ROLE}\n\n${svgContract(canvas)}\n\n${DESIGN_CRAFT}`;
+function executorSystem(canvas: { width: number; height: number }, animate = false): string {
+  return `${EXECUTOR_ROLE}\n\n${svgContract(canvas)}\n\n${DESIGN_CRAFT}${animate ? `\n\n${ANIMATION_CRAFT}` : ''}`;
 }
+
+/**
+ * How the AI directs a page's motion: shared by the drawing prompts (an
+ * `<animation>` block beside the SVG) and the animation-only pass. The reply
+ * is read by `parseAnimationBlock` / `animationsFromAi` (slideAnimation.ts).
+ */
+export const ANIMATION_CRAFT = `ANIMATION — how the page plays in the slideshow and in PowerPoint's animation pane. Direct the page's motion like a presenter's designer: it follows the story, it is not a template.
+FORMAT: a JSON array in playing order, one entry per effect, e.g. {"el":"cards","fx":"fly","dir":"left","on":"click"}
+- el: the id of a top-level element of the page (a <g id="…"> unit, or a picture or shape with an id) — give an id to every unit you animate; or its number in the ELEMENTS list when one is given. Never the background. Anything not listed stays still and is visible from the start.
+- fx: entrance by default: appear, fade, fly, float, zoom, wipe. Emphasis (plays on an element that is already there): grow, spin, pulse with "class":"emph". Exit: add "class":"exit" (appear, fade, fly, float, zoom, wipe).
+- dir: for fly and wipe the side it starts from (left, right, up, down); for float the way it moves (up, down).
+- on: "click" = the presenter's next click · "with" = at the same moment as the entry before it · "after" = when the entry before it has finished.
+- optional: "ms" duration (default 500), "delay" in ms, "by":"paragraph" to build a text box that has several paragraphs one paragraph at a time.
+CRAFT:
+- Reading order. The title, or the page's claim, arrives by itself as the page opens (its entry is "on":"after"), then the page builds one idea per click: 1–5 clicks, never more than 6. The items of one group (a row of cards, a list, the bars of a chart) share a click: the first "click", the others "after" (staggered) or "with".
+- Match the effect to the element: titles and text float up or fade; pictures fade or zoom; rules, underlines and bars wipe from the side the text starts; cards and panels fly or float in from the side they sit on; a key number zooms in and may pulse once; chart bars and points build in order.
+- Be consistent across the deck: the same one or two effects for the same kind of element, 400–700 ms, nothing spins unless the page is playful.
+- Quiet pages (a quote, one big number, a cover, a closing) need one or two entries.
+- Footers, page numbers and a logo that repeats on every page are not animated.
+- Exits are rare: only when one block is replaced by another in the same place (the old one exits "with" the new one's entrance).
+- Right-to-left text: things arrive from the right.`;
 
 // Pass 1: art direction ------------------------------------------------------------
 
@@ -330,13 +418,13 @@ const WEB_PHOTO_RULES = `PHOTOS FROM THE WEB — the app can fetch real, openly 
 - At most one per page and on no more than half of the pages. Ask for what can really be photographed, never abstract ideas ("growth", "innovation").
 - Plan those pages so a photo of unknown framing works (full-bleed with a scrim, or a generous frame), and say so in the brief.`;
 
-const DIRECTION_SYSTEM = `You are the art director and content strategist of a presentation studio. For every deck you invent a UNIQUE visual identity from the brief — never a stock template, never generic corporate blue with white cards — and you plan a storyline a designer can draw page by page. (Method: ppt-master by Hugo He.)
+const directionSystem = (rtl: boolean): string => `You are the art director and content strategist of a presentation studio. For every deck you invent a UNIQUE visual identity from the brief — never a stock template, never generic corporate blue with white cards — and you plan a storyline a designer can draw page by page. (Method: ppt-master by Hugo He.)
 
 How to decide:
 1. Communication mode — one of: ${DESIGN_MODES.map((mode) => `${mode.id} (${mode.skeleton})`).join(' | ')}.
 2. Visual style — start from the catalog style that best fits the audience, purpose and delivery (blend two if that serves better and say so in "style"); a topic keyword alone never selects a style.
 3. Palette — derive it from the subject itself (its materials, places, products, era, mood) and from the user's pictures or brand colours when given. Seven roles as #RRGGBB: background, surface, text, muted, primary, secondary, accent. Text on background at least 7:1, muted at least 4.5:1, accent rare. Plus 4–6 chartColors from the same family.
-4. Fonts — a heading/body pairing that expresses the style, chosen only from this list (they exist on Windows and in PowerPoint): ${fontCatalog()}.
+4. Fonts — a heading/body pairing that expresses the style, chosen only from these lists: ${fontCatalog(rtl)}
 5. Type scale in px for the canvas: display 64–160 (cover and hero moments), title 36–56, body 20–28 (never below 18), caption 14–18.
 6. Shape language, one motif with a continuity job (it recurs, varied by page), and how pictures are treated.
 7. Storyline — page 1 is a cover with a concrete hook (the strongest claim, number, metaphor or conflict), never a generic title card. The last page is a real conclusion, takeaway or call to action, never just "Thank you" or "Questions?". Each page: role, title (a takeaway sentence for pyramid and narrative, a topic label for briefing), brief, density (anchor = cover/section/closing, dense = information-heavy, breathing = a low-density pause). The brief holds everything the page must say — the actual facts, numbers, names and list items, complete enough to draw it without the sources — and one sentence of composition idea. Follow a dense page with a breathing one where the content allows.
@@ -396,7 +484,12 @@ export function buildDirectionPrompt(input: DirectionInput): AiPrompt {
   if (photos) parts.push(WEB_PHOTO_RULES);
   if (photos && input.photosRequested) parts.push(WEB_PHOTOS_REQUESTED);
   parts.push(directionFormat(placeable, placeable && Boolean(input.seesImages), photos));
-  return { system: DIRECTION_SYSTEM, prompt: parts.join('\n\n') };
+  const rtl = deckIsRtl(input.language, input.keepPages?.map((page) => page.title)) || rtlShare(input.prompt) >= 0.3;
+  if (rtl) {
+    parts.push(`The slides are in a right-to-left language. Set "language" to its English name (for example "Arabic"). Write titles, briefs and every text in that language. Plan every page to read from the right edge: composition, order of columns and steps, where a picture sits beside text. The fonts you choose must draw its letters (the list above holds only such faces).`);
+    parts.push(rtlRules(input.canvas, true));
+  }
+  return { system: directionSystem(rtl), prompt: parts.join('\n\n') };
 }
 
 // Pass 2: slides ---------------------------------------------------------------------
@@ -414,6 +507,8 @@ export interface SlidesPromptInput {
   attachedPictures?: string[];
   /** A finished page whose look the new ones must match (usually the cover). */
   reference?: { number: number; svg: string } | null;
+  /** Each page also comes with its animation (an `<animation>` block). */
+  animate?: boolean;
 }
 
 const MAX_REFERENCE_CHARS = 14_000;
@@ -431,13 +526,15 @@ export function buildSlidesPrompt(input: SlidesPromptInput): AiPrompt {
     systemBlock(input.system),
     `STORYLINE (draw only the pages marked ▶; the others are context for continuity):\n${storylineBlock(input.pages, new Set(input.draw))}`,
   ];
+  const rtl = rtlRules(input.canvas, deckIsRtl(input.language, input.pages.map((page) => page.title)));
+  if (rtl) parts.push(rtl);
   const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
   const reference = referenceBlock(input.reference);
   if (reference) parts.push(reference);
   parts.push(`Draw page${numbers.length === 1 ? '' : 's'} ${numbers.join(', ')} now.`);
-  parts.push(SLIDE_FORMAT(numbers));
-  return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
+  parts.push(SLIDE_FORMAT(numbers, input.animate));
+  return { system: executorSystem(input.canvas, input.animate), prompt: parts.join('\n\n') };
 }
 
 // Refining one page ------------------------------------------------------------------
@@ -478,6 +575,10 @@ export interface RefineInput {
   attachedPictures?: string[];
   /** Elements the user has selected on the page; the instruction is about them. */
   selection?: SelectedElement[];
+  /** The redrawn page also comes with its animation. */
+  animate?: boolean;
+  /** The page's current animations, in words (`animationsForAi`), to keep or revise. */
+  animation?: string;
 }
 
 /** An element the user selected on the canvas (`data-el` id, kind, frame in slide px). */
@@ -507,14 +608,17 @@ export function buildRefinePrompt(input: RefineInput): AiPrompt {
     systemBlock(input.system),
     `STORYLINE:\n${storylineBlock(input.pages, new Set([input.index]))}`,
   ];
+  const rtlRefine = rtlRules(input.canvas, deckIsRtl(input.language, input.pages.map((page) => page.title)) || hasRtl(input.svg));
+  if (rtlRefine) parts.push(rtlRefine);
   const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
   parts.push(`CURRENT PAGE ${number}:\n${svgForAi(input.svg)}\n<notes>${input.notes}</notes>`);
   const selected = selectionBlock(input.selection);
   if (selected) parts.push(selected);
-  parts.push(`REDRAW PAGE ${number}. Instruction from the user: ${input.instruction.trim()}\nKeep the design system and every fact unless the instruction changes them. Keep pictures that are on the page unless told otherwise.`);
-  parts.push(SLIDE_FORMAT([number]));
-  return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
+  if (input.animate && input.animation) parts.push(`CURRENT ANIMATION of page ${number} (elements by number and id in the page above):\n${input.animation}`);
+  parts.push(`REDRAW PAGE ${number}. Instruction from the user: ${input.instruction.trim()}\nKeep the design system and every fact unless the instruction changes them. Keep pictures that are on the page unless told otherwise.${input.animate ? ' Keep the page\'s animation for the elements you keep, unless the instruction changes it; give anything new a fitting effect, and write the <animation> block for the page as you now draw it.' : ''}`);
+  parts.push(SLIDE_FORMAT([number], input.animate));
+  return { system: executorSystem(input.canvas, input.animate), prompt: parts.join('\n\n') };
 }
 
 export interface NewSlideInput extends Omit<RefineInput, 'index' | 'svg' | 'notes' | 'instruction'> {
@@ -533,13 +637,53 @@ export function buildNewSlidePrompt(input: NewSlideInput): AiPrompt {
     systemBlock(input.system),
     `STORYLINE:\n${storylineBlock(pages, new Set([input.at]))}`,
   ];
+  const rtlNew = rtlRules(input.canvas, deckIsRtl(input.language, input.pages.map((page) => page.title)) || hasRtl(input.description));
+  if (rtlNew) parts.push(rtlNew);
   const pictures = picturesForDrawing(input.attachments, input.attachedPictures);
   if (pictures) parts.push(pictures);
   const reference = referenceBlock(input.reference);
   if (reference) parts.push(reference);
   parts.push(`ADD a new page ${number} to the deck: ${input.description.trim()}\nWrite its real content (choose a fitting role and title) and draw it in the deck's design.`);
-  parts.push(SLIDE_FORMAT([number]));
-  return { system: executorSystem(input.canvas), prompt: parts.join('\n\n') };
+  parts.push(SLIDE_FORMAT([number], input.animate));
+  return { system: executorSystem(input.canvas, input.animate), prompt: parts.join('\n\n') };
+}
+
+// Animating a page that is already drawn -------------------------------------------------------
+
+export interface AnimatePromptInput {
+  title: string;
+  language: string;
+  canvas: { width: number; height: number };
+  /** 1-based position and the deck's length. */
+  number: number;
+  total: number;
+  role: string;
+  pageTitle: string;
+  svg: string;
+  notes: string;
+  /** The page's current animations, in words (empty when it has none yet). */
+  current: string;
+  /** What the user asked for; empty means "design it". */
+  instruction: string;
+}
+
+const ANIMATE_ROLE = 'You are the motion designer of a presentation studio. A page is already drawn; you do not change it. You decide how its elements come in, in what order and with which clicks, so the presenter can tell the story one idea at a time. The animation exports to PowerPoint as its own animation pane entries.';
+
+/** Animation only: the page is untouched, the reply is one `<animation>` block. */
+export function buildAnimatePrompt(input: AnimatePromptInput): AiPrompt {
+  const parts = [
+    `DECK: "${input.title}" · slides in ${input.language || 'the language of the titles'} · canvas ${canvasLine(input.canvas)}`,
+    `PAGE ${input.number} of ${input.total} · ${input.role} · "${input.pageTitle}"`,
+    `ELEMENTS you can animate (top level, in drawing order — use the number or the id):\n${elementsForAi(input.svg)}`,
+    `PAGE:\n${svgForAi(input.svg)}${input.notes ? `\n<notes>${input.notes}</notes>` : ''}`,
+    input.current ? `CURRENT ANIMATION:\n${input.current}` : 'CURRENT ANIMATION: none of its own yet.',
+  ];
+  const wish = input.instruction.trim();
+  parts.push(wish
+    ? `Instruction from the user: ${wish}\nWrite the page's complete animation as it should be after that (keep what the instruction does not touch). An empty array [] means no animation at all.`
+    : 'Design this page\'s animation.');
+  parts.push('Reply with exactly one block and nothing else (no Markdown fences, no commentary):\n<animation>[…]</animation>');
+  return { system: `${ANIMATE_ROLE}\n\n${ANIMATION_CRAFT}`, prompt: parts.join('\n\n') };
 }
 
 // Photos from the web ----------------------------------------------------------------
@@ -691,6 +835,8 @@ export interface SlideBlock {
   title: string;
   svg: string;
   notes: string;
+  /** The entries of its `<animation>` block; null when it had none. */
+  animation: Array<Record<string, unknown>> | null;
 }
 
 const attributesOf = (tag: string): Record<string, string> => Object.fromEntries([...tag.matchAll(/([\w-]+)\s*=\s*"([^"]*)"/g)].map((match) => [match[1].toLowerCase(), match[2]]));
@@ -704,7 +850,8 @@ function blockFrom(open: string, body: string): SlideBlock | null {
   const svgEnd = body.toLowerCase().lastIndexOf('</svg>');
   if (svgStart < 0 || svgEnd < svgStart) return null;
   const attributes = attributesOf(open);
-  const notes = body.slice(svgEnd + 6).match(/<notes>([\s\S]*?)(?:<\/notes>|$)/i)?.[1] ?? '';
+  const after = body.slice(svgEnd + 6);
+  const notes = after.match(/<notes>([\s\S]*?)(?:<\/notes>|$)/i)?.[1] ?? '';
   const n = Number.parseInt(attributes.n ?? '', 10);
   return {
     n: Number.isFinite(n) ? n : null,
@@ -712,6 +859,7 @@ function blockFrom(open: string, body: string): SlideBlock | null {
     title: decodeEntities(attributes.title ?? '').trim().slice(0, 200),
     svg: body.slice(svgStart, svgEnd + 6),
     notes: decodeEntities(notes).replace(/^\s*speaker notes:\s*/i, '').trim().slice(0, 6000),
+    animation: parseAnimationBlock(after.replace(/<notes>[\s\S]*?(?:<\/notes>|$)/i, '')),
   };
 }
 
@@ -738,7 +886,7 @@ export function extractSlideBlocks(reply: string, final = false): SlideBlock[] {
     const block = blockFrom(open[1], open[2]);
     if (block) blocks.push(block);
   } else if (blocks.length === 0) {
-    for (const svg of reply.match(/<svg[\s>][\s\S]*?<\/svg>/gi) ?? []) blocks.push({ n: null, role: null, title: '', svg, notes: '' });
+    for (const svg of reply.match(/<svg[\s>][\s\S]*?<\/svg>/gi) ?? []) blocks.push({ n: null, role: null, title: '', svg, notes: '', animation: null });
   }
   return blocks;
 }
@@ -805,6 +953,7 @@ export function sanitizeDesignedSlide(value: unknown, canvas: { width: number; h
     svg: storedSvg(raw.svg, canvas),
     notes: text(raw.notes, 6000),
     ...(raw.hidden ? { hidden: true } : {}),
+    ...(Array.isArray(raw.animations) ? { animations: sanitizeAnimations(raw.animations) ?? [] } : {}),
   };
 }
 

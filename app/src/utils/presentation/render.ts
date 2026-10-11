@@ -381,7 +381,8 @@ export function textBoxCss(el: Extract<El, { kind: 'text' }>): Css {
     fontWeight: style.bold ? 700 : 400,
     fontStyle: style.italic ? 'italic' : 'normal',
     lineHeight: style.lineHeight,
-    textAlign: style.align,
+    // "Left" is the start edge, so Arabic and Hebrew paragraphs sit at the right of their box.
+    textAlign: style.align === 'left' ? 'start' : style.align,
     overflowWrap: 'break-word',
     ...(style.letterSpacing ? { letterSpacing: `${style.letterSpacing}pt` } : {}),
     ...(style.uppercase ? { textTransform: 'uppercase' } : {}),
@@ -392,8 +393,9 @@ export function textBoxCss(el: Extract<El, { kind: 'text' }>): Css {
 export const bulletIndent = (style: TextStyle, level: number): number => roundPt(style.size * 1.1 + level * style.size * 1.2);
 
 export function paraCss(el: Extract<El, { kind: 'text' }>, para: RenderPara, last: boolean): Css {
-  const css: Css = { margin: 0, marginBottom: last ? 0 : `${el.style.spaceAfter}pt`, position: 'relative' };
-  if (el.list) css.paddingLeft = `${bulletIndent(el.style, para.level ?? 0)}pt`;
+  // Each paragraph reads in the direction of its first letter.
+  const css: Css = { margin: 0, marginBottom: last ? 0 : `${el.style.spaceAfter}pt`, position: 'relative', unicodeBidi: 'plaintext' };
+  if (el.list) css.paddingInlineStart = `${bulletIndent(el.style, para.level ?? 0)}pt`;
   if (para.size) css.fontSize = `${para.size}pt`;
   if (para.color) css.color = para.color;
   if (para.bold !== undefined) css.fontWeight = para.bold ? 700 : 400;
@@ -404,7 +406,7 @@ export function paraCss(el: Extract<El, { kind: 'text' }>, para: RenderPara, las
 export function markerCss(el: Extract<El, { kind: 'text' }>, para: RenderPara): Css {
   return {
     position: 'absolute',
-    left: `${bulletIndent(el.style, para.level ?? 0) - el.style.size * 1.1}pt`,
+    insetInlineStart: `${bulletIndent(el.style, para.level ?? 0) - el.style.size * 1.1}pt`,
     top: 0,
     fontStyle: 'normal',
     fontWeight: el.list === 'number' ? 700 : 400,

@@ -17,7 +17,7 @@ const result = await build({
     setup(builder) {
       builder.onResolve({ filter: /(?:utils\/workspaceSetup|data\/additionalAgents)$/ }, ({ path }) => ({ path: path.replace('../', ''), namespace: 'source' }));
       builder.onLoad({ filter: /.*/, namespace: 'source' }, ({ path }) => ({ contents: sources.get(path), loader: 'ts' }));
-      builder.onResolve({ filter: /^react$|@tauri-apps\/plugin-dialog|stores\/(?:appStore|extensionStore)/ }, ({ path }) => ({ path, namespace: 'fixture' }));
+      builder.onResolve({ filter: /^react$|@tauri-apps\/plugin-dialog|stores\/(?:appStore|extensionStore|writingStore)|utils\/studioRoot$/ }, ({ path }) => ({ path, namespace: 'fixture' }));
       builder.onLoad({ filter: /.*/, namespace: 'fixture' }, ({ path }) => ({
         contents: path === 'react'
           ? `export const useState = initial => {
@@ -28,7 +28,11 @@ const result = await build({
             };
             export const useCallback = callback => callback;
             export const useMemo = callback => callback();`
-          : path.includes('extensionStore')
+          : path.includes('studioRoot')
+            ? 'export const getStudioRoot = async () => { const { studioRoot } = globalThis.workspaceSetupFixture; if (studioRoot instanceof Error) throw studioRoot; return studioRoot; };'
+            : path.includes('writingStore')
+              ? 'export const useWritingStore = { getState: () => globalThis.workspaceSetupFixture.writing };'
+              : path.includes('extensionStore')
             ? 'export const useExtensionStore = { getState: () => globalThis.workspaceSetupFixture.extensions };'
             : path.includes('appStore')
               ? 'export const useAppStore = Object.assign(() => globalThis.workspaceSetupFixture.app, { getState: () => globalThis.workspaceSetupFixture.app });'
@@ -44,7 +48,8 @@ function setup(context) {
   const storage = new Map();
   const events = [];
   const fixture = {
-    slots: [], cursor: 0, folder: 'C:\\Projects\\my-app',
+    slots: [], cursor: 0, folder: 'C:\\Projects\\my-app', studioRoot: 'C:\\Users\\me\\Documents\\YzPzCode',
+    writing: { lastWorkspaceKind: 'coding', setLastWorkspaceKind: kind => { fixture.writing.lastWorkspaceKind = kind; } },
     app: {
       defaultTerminalCount: 1,
       addRecentDirectory: path => events.push(['recent', path]),
@@ -257,4 +262,53 @@ test('retired agent views migrate to extensions while preserving other workspace
   for (const key of ['themeMode', 'workspaceList', 'browserStateByWorkspace', 'restoredFilePathsByWorkspace']) {
     assert.deepEqual(next[key], original[key], `${key} must be preserved`);
   }
+});
+
+test('writing and presentation studios need no folder or name and save into the shared studio folder', async (context) => {
+  for (const [kind, name, view] of [['writing', 'Writing studio', 'writing'], ['presentation', 'Presentation studio', 'presentation']]) {
+    const { render, events, fixture } = setup(context);
+    let api = render();
+    api.setWorkspaceKind(kind);
+    api = render();
+    assert.equal(api.workspaceKind, kind);
+    assert.equal(api.selectedPath, '');
+    assert.equal(api.isValid, true);
+    assert.deepEqual(api.validationErrors, {});
+    const workspace = await api.createWorkspace();
+    assert.equal(workspace.path, fixture.studioRoot);
+    assert.equal(workspace.name, name);
+    assert.equal(workspace.kind, kind);
+    assert.equal(workspace.layout.sessions, 0);
+    // The shared folder is not a project, so it never shows up among the recent folders.
+    assert.deepEqual(events.filter(([type]) => type === 'recent'), []);
+    assert.deepEqual(events.at(-1), ['view', view]);
+  }
+});
+
+test('a studio keeps its own name and does not reuse a coding project path or name', async (context) => {
+  const { render, fixture } = setup(context);
+  let api = render();
+  api.selectRecentDirectory('/home/projects/next-project');
+  api = render();
+  assert.equal(api.workspaceName, 'next-project');
+  api.setWorkspaceKind('writing');
+  api = render();
+  assert.equal(api.workspaceName, '');
+  api.setWorkspaceName('Thesis');
+  api = render();
+  const workspace = await api.createWorkspace();
+  assert.equal(workspace.name, 'Thesis');
+  assert.equal(workspace.path, fixture.studioRoot);
+  api.setWorkspaceKind('coding');
+  assert.equal(render().workspaceName, 'next-project');
+});
+
+test('a studio whose folder cannot be created reports the error and opens nothing', async (context) => {
+  const { render, fixture, events } = setup(context);
+  fixture.studioRoot = new Error('Could not create the folder');
+  let api = render();
+  api.setWorkspaceKind('presentation');
+  api = render();
+  await assert.rejects(api.createWorkspace(), /Could not create the folder/);
+  assert.deepEqual(events, []);
 });

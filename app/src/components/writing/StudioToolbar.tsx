@@ -32,6 +32,8 @@ import {
   TextSuperscript,
   TextUnderline,
 } from '@phosphor-icons/react';
+import { registerAllBundledFonts } from '../../utils/bundledFonts';
+import { FONT_GROUPS, groupOf } from '../../utils/writing/fontCatalog';
 import { DOCUMENT_FONTS, fontStack } from '../../utils/writing/stylePresets';
 import type { Reference, ReportStyle } from '../../utils/writing/types';
 import { useTtsPlayback } from '../../hooks/useTtsPlayback';
@@ -102,6 +104,16 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
         canUndo: current.can().undo(),
         canRedo: current.can().redo(),
         hasSelection: !current.state.selection.empty,
+        // The direction the block under the caret reads in (the editor writes it to the DOM as `dir`).
+        rtl: (() => {
+          try {
+            const node = current.view.domAtPos(current.state.selection.from).node;
+            const element = node.nodeType === 3 ? node.parentElement : node as HTMLElement;
+            return element?.closest('[dir]')?.getAttribute('dir') === 'rtl';
+          } catch {
+            return false;
+          }
+        })(),
       };
     },
   });
@@ -171,17 +183,35 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
       </Dropdown>
       <Sep />
 
-      <Dropdown label={<span className="wr-tb__value" style={{ width: 110 }}>{family || style.bodyFont}</span>} title="Font" disabled={disabled} width={220}>
-        {(close) => (
-          <>
-            <MenuItem label={`Document font (${style.bodyFont})`} checked={!family} onSelect={() => { chain().unsetFontFamily().run(); close(); }} />
-            <MenuSep />
-            {DOCUMENT_FONTS.map((font) => (
-              <MenuItem key={font.family} label={font.family} style={{ fontFamily: fontStack(font.family) }} checked={family === font.family} onSelect={() => { chain().setFontFamily(fontStack(font.family)).run(); close(); }} />
-            ))}
-          </>
-        )}
-      </Dropdown>
+      <span className="wr-tb__fontwrap" onPointerEnter={() => void registerAllBundledFonts()} onFocus={() => void registerAllBundledFonts()}>
+        <Dropdown label={<span className="wr-tb__value" style={{ width: 110 }}>{family || style.bodyFont}</span>} title="Font" disabled={disabled} width={240}>
+          {(close) => (
+            <>
+              <MenuItem label={`Document font (${style.bodyFont})`} checked={!family} onSelect={() => { chain().unsetFontFamily().run(); close(); }} />
+              {FONT_GROUPS.map((group) => {
+                const fonts = DOCUMENT_FONTS.filter((font) => groupOf({ name: font.family, kind: font.kind, character: font.character, source: font.source, arabic: font.arabic }) === group.id);
+                if (fonts.length === 0) return null;
+                return (
+                  <React.Fragment key={group.id}>
+                    <MenuSep />
+                    <MenuLabel>{group.label}</MenuLabel>
+                    {fonts.map((font) => (
+                      <MenuItem
+                        key={font.family}
+                        label={font.family}
+                        hint={font.source === 'bundled' ? 'app' : undefined}
+                        style={{ fontFamily: fontStack(font.family) }}
+                        checked={family === font.family}
+                        onSelect={() => { chain().setFontFamily(fontStack(font.family)).run(); close(); }}
+                      />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </>
+          )}
+        </Dropdown>
+      </span>
       <Dropdown label={<span className="wr-tb__value" style={{ width: 30 }}>{state?.fontSize ? state.fontSize.replace('pt', '') : style.bodySize}</span>} title="Font size" disabled={disabled} width={120}>
         {(close) => (
           <>
@@ -225,13 +255,18 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
       </Dropdown>
       <Sep />
 
-      <Dropdown label={<AlignIcon {...ICON} />} title="Alignment" disabled={disabled} width={170}>
+      <Dropdown label={<AlignIcon {...ICON} />} title="Alignment" disabled={disabled} width={190}>
         {(close) => (
           <>
             <MenuItem icon={<TextAlignLeft size={14} />} label="Left" checked={align === 'left'} onSelect={() => { chain().setTextAlign('left').run(); close(); }} />
             <MenuItem icon={<TextAlignCenter size={14} />} label="Centre" checked={align === 'center'} onSelect={() => { chain().setTextAlign('center').run(); close(); }} />
             <MenuItem icon={<TextAlignRight size={14} />} label="Right" checked={align === 'right'} onSelect={() => { chain().setTextAlign('right').run(); close(); }} />
             <MenuItem icon={<TextAlignJustify size={14} />} label="Justify" checked={align === 'justify'} onSelect={() => { chain().setTextAlign('justify').run(); close(); }} />
+            <MenuSep />
+            <MenuLabel>Direction</MenuLabel>
+            <MenuItem label="Left to right" checked={!state?.rtl} onSelect={() => { chain().setTextDirection('ltr').run(); close(); }} />
+            <MenuItem label="Right to left" hint="Arabic, Hebrew" checked={Boolean(state?.rtl)} onSelect={() => { chain().setTextDirection('rtl').run(); close(); }} />
+            <MenuItem label="Automatic" hint="First letter decides" onSelect={() => { chain().setTextDirection(null).run(); close(); }} />
           </>
         )}
       </Dropdown>

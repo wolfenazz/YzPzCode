@@ -44,6 +44,7 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({ backLabel, onBack, t
       <span className="sx-bar__rule" aria-hidden="true" />
       <div className="sx-bar__doc">
         <input
+          dir="auto"
           className="sx-bar__title"
           value={title}
           placeholder={titlePlaceholder ?? 'Untitled'}

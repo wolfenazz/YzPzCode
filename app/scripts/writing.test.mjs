@@ -440,3 +440,192 @@ test('photos found by the AI web search: one list per request, real files only',
   assert.equal(single[0][0].fullUrl, 'https://images.unsplash.com/p?w=1600');
   assert.deepEqual(pictures.parsePhotoSearch('No luck, sorry.', 2), [[], []]);
 });
+
+// Right to left -------------------------------------------------------------
+
+const rtl = await load('rtl');
+const labels = await load('labels');
+const fontCatalog = await load('fontCatalog');
+
+const AR_HELLO = 'مرحبا بالعالم';
+const AR_TITLE = 'نظام الري الذكي';
+
+test('right-to-left helpers: direction, language, tags, words and folding', () => {
+  assert.equal(rtl.hasRtl(AR_HELLO), true);
+  assert.equal(rtl.hasRtl('hello'), false);
+  assert.equal(rtl.paragraphDirection(`${AR_HELLO}.`), 'rtl');
+  assert.equal(rtl.paragraphDirection('Hello world'), 'ltr');
+  // A Latin opener in an Arabic paragraph does not make it left to right; numbers alone follow the fallback.
+  assert.equal(rtl.paragraphDirection(`iPhone 15 ${AR_HELLO} ${AR_TITLE} ${AR_HELLO}`), 'rtl');
+  assert.equal(rtl.paragraphDirection('2024'), 'ltr');
+  assert.equal(rtl.paragraphDirection('2024', 'rtl'), 'rtl');
+
+  assert.equal(rtl.isRtlLanguage('Arabic'), true);
+  assert.equal(rtl.isRtlLanguage('Arabic (Egyptian)'), true);
+  assert.equal(rtl.isRtlLanguage('ar-EG'), true);
+  assert.equal(rtl.isRtlLanguage('العربية'), true);
+  assert.equal(rtl.isRtlLanguage('Hebrew'), true);
+  assert.equal(rtl.isRtlLanguage('Persian (Farsi)'), true);
+  assert.equal(rtl.isRtlLanguage('English'), false);
+  assert.equal(rtl.isRtlLanguage('French'), false);
+
+  assert.equal(rtl.languageTag('Arabic'), 'ar-SA');
+  assert.equal(rtl.languageTag('العربية'), 'ar-SA');
+  assert.equal(rtl.languageTag('Persian'), 'fa-IR');
+  assert.equal(rtl.languageTag('Urdu'), 'ur-PK');
+  assert.equal(rtl.languageTag('French'), 'fr-FR');
+  assert.equal(rtl.languageTag('Klingon'), 'en-US');
+
+  // Latin \w finds no Arabic word; the shared counter does.
+  assert.equal(rtl.countWordsIn(`${AR_HELLO}, hello 12`), 4);
+  assert.equal(rtl.languageFor(`${AR_HELLO} ${AR_TITLE}`, 'English'), 'Arabic');
+  assert.equal(rtl.languageFor(`${AR_HELLO}`, 'French'), 'French');
+  assert.equal(rtl.languageFor('hello', 'English'), 'English');
+
+  assert.equal(rtl.foldArabic('أَحْمَد'), 'احمد');
+  assert.equal(rtl.westernDigits('٢٠٢٤'), '2024');
+  assert.equal(rtl.complexScriptFace('Calibri'), 'Segoe UI');
+  assert.equal(rtl.complexScriptFace('Georgia'), 'Times New Roman');
+  assert.equal(rtl.complexScriptFace('Tahoma'), 'Tahoma');
+});
+
+test('the font catalog has many faces, Arabic ones among them, and says which need installing', () => {
+  const all = fontCatalog.FONT_CATALOG;
+  assert.ok(all.length >= 120, `${all.length} faces`);
+  assert.equal(new Set(all.map((entry) => entry.name)).size, all.length, 'names are unique');
+  const arabic = all.filter((entry) => entry.arabic);
+  assert.ok(arabic.length >= 35);
+  for (const name of ['Cairo', 'Tajawal', 'Amiri', 'Sakkal Majalla', 'Traditional Arabic', 'Segoe UI', 'Tahoma', 'Dubai', 'Noto Kufi Arabic']) {
+    assert.ok(arabic.some((entry) => entry.name === name), name);
+  }
+  assert.equal(fontCatalog.catalogFont('cairo, sans-serif')?.source, 'bundled');
+  assert.deepEqual(fontCatalog.needsInstalling(['Segoe UI', 'Cairo', 'Calibri', 'Lato']).sort(), ['Cairo', 'Lato']);
+  assert.match(fontCatalog.catalogStack('Cairo'), /^'Cairo', 'Segoe UI'/);
+  // The writing studio offers the same faces.
+  assert.ok(stylePresets.DOCUMENT_FONTS.length >= all.length);
+  // A face with no Arabic letters is backed by one that has them; an Arabic face needs no backup.
+  assert.match(stylePresets.fontStack('Georgia'), /Times New Roman/);
+  assert.match(stylePresets.fontStack('Calibri'), /Segoe UI/);
+  assert.equal(stylePresets.fontStack('Cairo'), 'Cairo, sans-serif');
+});
+
+test('an Arabic report prints right to left with its own labels, mirrored page boxes and per-block direction', () => {
+  const report = sampleReport();
+  report.brief.details.language = 'Arabic';
+  report.brief.details.title = AR_TITLE;
+  report.brief.style = { ...report.brief.style, headingNumbering: 'chapter', includeListOfTables: true, pageNumbers: 'bottom-right', footerText: 'Footer' };
+  report.content.content.push(
+    { type: 'paragraph', content: [{ type: 'text', text: `${AR_HELLO}.` }] },
+    { type: 'paragraph', content: [{ type: 'text', text: 'An English note.' }] },
+    { type: 'caption', attrs: { kind: 'table' }, content: [{ type: 'text', text: AR_TITLE }] },
+  );
+  const html = printHtml.buildPrintHtml(report);
+  const arabic = labels.docLabels('Arabic');
+  assert.match(html, /<html lang="ar-SA" dir="rtl">/);
+  assert.match(html, /<p>مرحبا بالعالم\.<\/p>/, 'an Arabic paragraph inherits the document direction');
+  assert.match(html, /<p dir="ltr">An English note\.<\/p>/, 'an English one says so');
+  assert.match(html, new RegExp(`content: "${arabic.chapter} " counter\\(h1\\)`));
+  assert.match(html, new RegExp(`\\.caption-table::before \\{ content: "${arabic.table} "`));
+  assert.match(html, new RegExp(arabic.contents));
+  assert.match(html, new RegExp(arabic.preparedBy));
+  // The page boxes mirror: the page number moves to the left, the footer text to the right.
+  assert.match(html, /@bottom-left \{ content: counter\(page\)/);
+  assert.match(html, /@bottom-right \{ content: "Footer"/);
+  assert.match(html, /text-align: start/);
+  assert.match(html, /\[dir="rtl"\] \{ letter-spacing: 0/);
+  assert.doesNotMatch(html, /padding-left: 1\.6em|border-left: 3px/);
+});
+
+test('an Arabic report exports to Word with bidirectional paragraphs, complex-script fonts and sizes, and Arabic labels', async () => {
+  const report = sampleReport();
+  report.brief.details.language = 'Arabic';
+  report.brief.details.title = AR_TITLE;
+  report.content.content.push(
+    { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: AR_TITLE }] },
+    { type: 'paragraph', content: [{ type: 'text', text: `${AR_HELLO}.` }, { type: 'text', text: ' 2024', marks: [{ type: 'bold' }] }] },
+    { type: 'paragraph', content: [{ type: 'text', text: 'Plain English paragraph.' }] },
+    { type: 'caption', attrs: { kind: 'table' }, content: [{ type: 'text', text: AR_TITLE }] },
+  );
+  const zip = await JSZip.loadAsync(Buffer.from(await docxExport.docxBase64(report), 'base64'));
+  const documentXml = await zip.file('word/document.xml').async('string');
+  const styles = await zip.file('word/styles.xml').async('string');
+  assert.match(documentXml, /<w:bidi\/>|<w:bidi w:val="1"\/>|<w:bidi w:val="true"\/>/, 'a right-to-left paragraph');
+  assert.match(documentXml, /<w:rtl\/>|<w:rtl w:val="1"\/>|<w:rtl w:val="true"\/>/, 'right-to-left runs');
+  assert.match(documentXml, /w:cs="Times New Roman"|w:cs="Segoe UI"/, 'a complex-script face for Arabic runs');
+  assert.match(documentXml, /<w:szCs w:val="\d+"\/>/, 'complex-script sizes');
+  assert.match(styles, /<w:lang [^>]*w:bidi="ar-SA"/);
+  assert.match(documentXml, new RegExp(labels.docLabels('Arabic').table));
+  // The English paragraph is explicitly left to right (w:bidi off).
+  assert.match(documentXml, /<w:bidi w:val="(0|false)"\/>/);
+});
+
+test('lint and style rules understand Arabic', () => {
+  const stock = 'من الجدير بالذكر أن النظام يعمل بكفاءة. علاوة على ذلك، يوفر الماء. في الواقع، الأمر بسيط.';
+  const result = humanizer.lintText(stock);
+  assert.ok(result.words >= 10, `counted ${result.words} words`);
+  assert.ok(result.sentences >= 3, `found ${result.sentences} sentences`);
+  assert.ok(result.issues.some((issue) => issue.kind === 'phrase'));
+  assert.ok(result.issues.some((issue) => issue.kind === 'transition'));
+  const marked = result.issues.find((issue) => issue.kind === 'phrase');
+  assert.equal(stock.slice(marked.start, marked.end).includes('الجدير'), true, 'offsets point at the Arabic phrase');
+  // A question mark of the language ends a sentence.
+  assert.equal(humanizer.lintText('هل يعمل النظام؟ نعم يعمل جيدا.').sentences, 2);
+
+  const voice = { tone: 'professional', readingLevel: 'college', person: 'auto', spelling: 'us' };
+  const english = humanizer.buildStyleRules(humanizer.defaultHumanizer(), voice, 'English');
+  const arabicRules = humanizer.buildStyleRules(humanizer.defaultHumanizer(), voice, 'Arabic');
+  assert.match(english, /American English/);
+  assert.match(english, /Moreover/);
+  assert.doesNotMatch(arabicRules, /American English|contractions|Moreover|delve/);
+  assert.match(arabicRules, /علاوة على ذلك/);
+});
+
+test('prompts for an Arabic report carry the writing rules and know Arabic section titles', () => {
+  const brief = documentModule.createBrief('research-paper');
+  brief.details.language = 'Arabic';
+  brief.details.title = AR_TITLE;
+  const outline = [
+    { id: 's1', title: 'المقدمة', notes: '', targetWords: 300, subsections: [] },
+    { id: 's2', title: 'المراجع', notes: '', targetWords: 100, subsections: [], unnumbered: true },
+  ];
+  const section = prompts.buildSectionPrompt({ brief, outline, index: 0, written: [], sources: '', references: [] });
+  assert.match(section.prompt, /Write the entire report in: Arabic/);
+  assert.match(section.prompt, /Modern Standard Arabic/);
+  assert.match(section.prompt, /Western digits/);
+  assert.doesNotMatch(section.prompt, /American English/);
+  const refs = prompts.buildSectionPrompt({ brief, outline, index: 1, written: [], sources: '', references: [{ id: 'r', key: 'k', authors: 'A', year: '2020', title: 'T', source: '', url: '' }] });
+  assert.match(refs.prompt, /\[\[BIBLIOGRAPHY\]\]/, 'the Arabic references section gets the bibliography block');
+  const english = documentModule.createBrief('research-paper');
+  const englishPrompt = prompts.buildSectionPrompt({ brief: english, outline: [{ id: 'a', title: 'Intro', notes: '', targetWords: 100, subsections: [] }], index: 0, written: [], sources: '', references: [] });
+  assert.doesNotMatch(englishPrompt.prompt, /LANGUAGE — the report is written in/);
+  assert.equal(labels.isFrontBackTitle('الملخص التنفيذي'), true);
+  assert.equal(labels.isFrontBackTitle('المقدمة'), false);
+  assert.equal(labels.startsFrontBack('ملحق أ'), true);
+  const parsed = prompts.parseOutline(JSON.stringify({ sections: [{ title: 'ملخص' }, { title: 'المقدمة' }, { title: 'المراجع' }] }), 1000);
+  assert.deepEqual(parsed.map((entry) => entry.unnumbered), [true, false, true]);
+});
+
+test('Arabic captions, placeholders, citation keys, names and file names', () => {
+  const blocks = markdown.parseBlocks('جدول: النتائج حسب الربع\n| الربع | النمو |\n| --- | --- |\n| الأول | 12% |\n\n[شكل: مخطط الحساسات]\n\n[صورة: irrigation field | حقل مروي]');
+  assert.deepEqual(blocks.map((block) => block.type).slice(0, 3), ['caption', 'table', 'figure']);
+  assert.equal(blocks[2].attrs.caption, 'مخطط الحساسات');
+  assert.equal(blocks.find((block) => block.attrs?.query)?.attrs.caption, 'حقل مروي');
+
+  const nodes = markdown.parseInline('كما ذكر [@محمد2020; @سالم2021, ص. 4] هنا.');
+  const citation = nodes.find((node) => node.type === 'citation');
+  assert.deepEqual(citation.attrs.keys, ['محمد2020', 'سالم2021']);
+  assert.equal(citation.attrs.locator, 'ص. 4');
+
+  const taken = new Set();
+  const ref = { authors: 'أحمد بن سالم', year: '٢٠٢٠', title: 'الري الذكي' };
+  assert.equal(citations.makeCitationKey(ref, taken), 'سالم2020');
+  assert.deepEqual(citations.splitAuthors('أحمد سالم و خالد عمر؛ ليلى حسن'), ['أحمد سالم', 'خالد عمر', 'ليلى حسن']);
+  const full = { id: 'a', key: 'k', authors: 'أحمد سالم و خالد عمر', year: '2020', title: 'الري الذكي', source: 'مجلة الزراعة', url: '' };
+  assert.equal(citations.formatInText([full], 'apa'), '(سالم وعمر، 2020)');
+  assert.match(citations.formatReference(full, 'apa'), /^سالم، أحمد و/);
+  const list = citations.parseReferenceList('أحمد سالم (٢٠٢٠). الري الذكي. مجلة الزراعة.');
+  assert.equal(list[0].year, '2020');
+
+  assert.equal(documentModule.slugify('نظام الري الذكي: دراسة حالة'), 'نظام-الري-الذكي-دراسة-حالة');
+  assert.equal(documentModule.slugify('Smart Irrigation'), 'smart-irrigation');
+});

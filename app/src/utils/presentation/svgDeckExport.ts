@@ -8,7 +8,7 @@ import JSZip from 'jszip';
 import PptxGenJS from 'pptxgenjs';
 import { designCanvas } from './designStyles';
 import type { DesignSystem } from './designTypes';
-import { animationPlan, timingXml, transitionXml } from './slideAnimation';
+import { slidePlan, timingXml, transitionXml, type ElementAnimation, type TimingShape } from './slideAnimation';
 import { convertSvgSlide, type PptxPicture, type TextMeasurer } from './svgPptx';
 import type { DeckSize, SlideTransition } from './types';
 
@@ -19,6 +19,8 @@ export interface DesignedPptxSlide {
   hidden?: boolean;
   /** Picture mode: the slide rendered to PNG. */
   png?: Uint8Array;
+  /** The animations authored for the slide (none: the automatic plan). */
+  animations?: ElementAnimation[];
 }
 
 export interface DesignedPptxInput {
@@ -71,6 +73,30 @@ function patchTheme(theme: string, system: DesignSystem): string {
     out = out.replace(new RegExp(`<a:${role}>[\\s\\S]*?</a:${role}>`), `<a:${role}><a:srgbClr val="${hex.slice(1)}"/></a:${role}>`);
   }
   return out.replace(/<a:clrScheme name="[^"]*">/, `<a:clrScheme name="${system.name.replace(/[<>&"]/g, '')}">`);
+}
+
+/**
+ * Which written shapes have a text body, and a fill or outline of their own:
+ * only those are listed as builds, and a paragraph build leaves the others'
+ * background alone. Pictures, groups and connectors are never listed.
+ */
+function timingShapes(shapesXml: string): Map<number, TimingShape> {
+  const out = new Map<number, TimingShape>();
+  try {
+    const doc = new DOMParser().parseFromString(`<root xmlns:p="p" xmlns:a="a" xmlns:r="r">${shapesXml}</root>`, 'text/xml');
+    for (const sp of Array.from(doc.getElementsByTagName('p:sp'))) {
+      const id = Number(Array.from(sp.getElementsByTagName('p:cNvPr'))[0]?.getAttribute('id'));
+      if (!Number.isFinite(id) || sp.getElementsByTagName('p:txBody').length === 0) continue;
+      const props = Array.from(sp.childNodes).find((node) => (node as Element).nodeName === 'p:spPr') as Element | undefined;
+      const kids = props ? (Array.from(props.childNodes) as Element[]) : [];
+      const fill = kids.some((node) => /^a:(solidFill|gradFill|blipFill|pattFill)$/.test(node.nodeName));
+      const line = kids.some((node) => node.nodeName === 'a:ln' && Array.from(node.childNodes).some((child) => /^a:(solidFill|gradFill|pattFill)$/.test(child.nodeName)));
+      out.set(id, { text: true, background: fill || line });
+    }
+  } catch {
+    return out;
+  }
+  return out;
 }
 
 export async function buildDesignedPptx(input: DesignedPptxInput): Promise<DesignedPptxResult> {
@@ -134,7 +160,9 @@ export async function buildDesignedPptx(input: DesignedPptxInput): Promise<Desig
         next = next.replace(/<p:bg>[\s\S]*?<\/p:bg>/, '').replace(/(<p:cSld\b[^>]*>)/, `$1${converted.background}`);
       }
       // Slide change, then the element animations (the schema order is clrMapOvr, transition, timing).
-      const timing = input.animations ? timingXml(animationPlan(slide.svg), new Map(converted.targets.map((target) => [target.index, target.ids]))) : '';
+      const timing = input.animations
+        ? timingXml(slidePlan(slide.svg, slide.animations), new Map(converted.targets.map((target) => [target.index, target.ids])), timingShapes(converted.shapes))
+        : '';
       const extras = `${transitionXml(input.transition)}${timing}`;
       if (extras) {
         next = /<\/p:clrMapOvr>/.test(next) ? next.replace('</p:clrMapOvr>', `</p:clrMapOvr>${extras}`) : next.replace(/<\/p:sld>\s*$/, `${extras}</p:sld>`);

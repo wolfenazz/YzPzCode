@@ -488,7 +488,10 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
   // Drawn text never wraps: its editor grows from the text's anchor, one line per line, spaced like the slide.
   const rawEditorStyle = ((): React.CSSProperties => {
     if (!rawStyle || editing?.kind !== 'raw') return {};
-    const anchor = rawStyle.textAnchor === 'middle' ? 'middle' : rawStyle.textAnchor === 'end' ? 'end' : 'start';
+    // In right-to-left text `start` is the right edge, so the physical side is the other one.
+    const rtl = rawStyle.direction === 'rtl';
+    const declared = rawStyle.textAnchor === 'middle' ? 'middle' : rawStyle.textAnchor === 'end' ? 'end' : 'start';
+    const anchor = rtl && declared !== 'middle' ? (declared === 'start' ? 'end' : 'start') : declared;
     const box = editing.box;
     const step = Number.parseFloat(rawText?.querySelector('tspan[dy]')?.getAttribute('dy') ?? '');
     const size = Number.parseFloat(rawStyle.fontSize);
@@ -500,6 +503,7 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
       transform: anchor === 'middle' ? 'translateX(-50%)' : anchor === 'end' ? 'translateX(-100%)' : undefined,
       textAlign: anchor === 'middle' ? 'center' : anchor === 'end' ? 'right' : 'left',
       whiteSpace: 'pre',
+      direction: rtl ? 'rtl' : 'ltr',
       fontFamily: rawStyle.fontFamily,
       fontSize: size * scale,
       fontWeight: rawStyle.fontWeight as React.CSSProperties['fontWeight'],

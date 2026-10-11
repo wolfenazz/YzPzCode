@@ -5,7 +5,8 @@ import { useAppStore } from '../stores/appStore';
 import { useExtensionStore } from '../stores/extensionStore';
 import { useWritingStore } from '../stores/writingStore';
 import { ADDITIONAL_AGENT_ZEROS } from '../data/additionalAgents';
-import { fitFleetToLayout, workspaceNameFromPath } from '../utils/workspaceSetup';
+import { fitFleetToLayout, studioDefaultName, workspaceNameFromPath } from '../utils/workspaceSetup';
+import { getStudioRoot } from '../utils/studioRoot';
 
 const ALL_TEMPLATES_KEY = 'yzpzcode-all-templates';
 
@@ -135,7 +136,10 @@ function saveAllTemplates(templates: WorkspaceTemplate[]) {
 export const useWorkspace = () => {
   const { openWorkspace, addRecentDirectory, defaultTerminalCount } = useAppStore();
   const [selectedPath, setSelectedPath] = useState<string>('');
-  const [workspaceName, setWorkspaceName] = useState<string>('');
+  const [codingName, setCodingName] = useState<string>('');
+  // A studio keeps its own name: it has no project folder to infer one from, and a
+  // name typed for a coding project should not carry over when the mode changes.
+  const [studioName, setStudioName] = useState<string>('');
   const [selectedLayout, updateSelectedLayout] = useState<LayoutConfig>({
     type: 'grid',
     sessions: defaultTerminalCount ?? 1,
@@ -150,8 +154,11 @@ export const useWorkspace = () => {
     setWorkspaceKindState(kind);
     useWritingStore.getState().setLastWorkspaceKind(kind);
   }, []);
-  // Writing and presentation studios: no terminals, extensions or IDEs.
+  // Writing and presentation studios: no terminals, extensions, IDEs or project folder
+  // (they save into the app's own folder in Documents, see `getStudioRoot`).
   const studio = workspaceKind !== 'coding';
+  const workspaceName = studio ? studioName : codingName;
+  const setWorkspaceName = studio ? setStudioName : setCodingName;
 
   const setSelectedLayout = useCallback((layout: LayoutConfig) => {
     const next = { ...layout, openExternally: layout.sessions > 0 && selectedExtensionIds.length === 0 && layout.openExternally };
@@ -170,7 +177,7 @@ export const useWorkspace = () => {
 
   const selectRecentDirectory = useCallback((path: string) => {
     setSelectedPath(path);
-    setWorkspaceName((name) => !name.trim() || name === workspaceNameFromPath(selectedPath) ? workspaceNameFromPath(path) : name);
+    setCodingName((name) => !name.trim() || name === workspaceNameFromPath(selectedPath) ? workspaceNameFromPath(path) : name);
   }, [selectedPath]);
 
   const selectDirectory = useCallback(async () => {
@@ -203,7 +210,7 @@ export const useWorkspace = () => {
     updateSelectedLayout({ ...template.layout, openExternally: template.layout.sessions > 0 && extensionIds.length === 0 && template.layout.openExternally });
     setAgentFleet(fitFleetToLayout({ totalSlots: template.layout.sessions, allocation: { ...DEFAULT_AGENT_FLEET.allocation, ...template.allocation } }, template.layout));
     if (templateId !== 'custom') {
-      setWorkspaceName(template.name);
+      setCodingName(template.name);
     }
   }, []);
 
@@ -264,7 +271,7 @@ export const useWorkspace = () => {
   }, [selectedTemplateId]);
 
   const createWorkspace = useCallback(async () => {
-    if (!selectedPath || ((studio || !selectedLayout.openExternally) && !workspaceName.trim())) {
+    if (!studio && (!selectedPath || (!selectedLayout.openExternally && !workspaceName.trim()))) {
       throw new Error('Please select a directory and enter a workspace name');
     }
 
@@ -274,12 +281,14 @@ export const useWorkspace = () => {
       throw new Error('Install the selected extensions before opening this workspace.');
     }
 
-    addRecentDirectory(selectedPath);
+    // Studios save into the shared folder; it is not a project, so it stays out of the recent folders.
+    const path = studio ? await getStudioRoot() : selectedPath;
+    if (!studio) addRecentDirectory(selectedPath);
 
     const workspace: WorkspaceConfig = {
       id: crypto.randomUUID(),
-      name: workspaceName.trim(),
-      path: selectedPath,
+      name: workspaceName.trim() || (studio ? studioDefaultName(workspaceKind) : ''),
+      path,
       // A studio workspace starts without terminals; the studio runs the AI CLIs headlessly.
       layout: studio ? { type: 'grid', sessions: 0 } : selectedLayout,
       agentFleet: studio
@@ -312,10 +321,10 @@ export const useWorkspace = () => {
 
   const validationErrors = useMemo(() => {
     const errors: Record<string, string> = {};
-    if ((studio || !selectedLayout.openExternally) && workspaceName.trim().length === 0) {
+    if (!studio && !selectedLayout.openExternally && workspaceName.trim().length === 0) {
       errors.workspaceName = 'Workspace name is required';
     }
-    if (selectedPath.length === 0) {
+    if (!studio && selectedPath.length === 0) {
       errors.directory = 'Please select a workspace directory';
     }
     if (!isAllocationValid) {
@@ -324,8 +333,9 @@ export const useWorkspace = () => {
     return errors;
   }, [workspaceName, selectedPath, isAllocationValid, selectedLayout.openExternally, studio]);
 
-  const isValid = selectedPath.length > 0 && isAllocationValid &&
-    ((!studio && selectedLayout.openExternally) || workspaceName.trim().length > 0);
+  // A studio needs nothing from the user: the folder is automatic and the name optional.
+  const isValid = studio || (selectedPath.length > 0 && isAllocationValid &&
+    (selectedLayout.openExternally || workspaceName.trim().length > 0));
 
   const currentTemplateAllocation = useMemo(() => {
     const t = templates.find((tpl) => tpl.id === selectedTemplateId);

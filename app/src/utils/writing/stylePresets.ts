@@ -1,6 +1,8 @@
 // Page geometry, document fonts and the template themes a report starts from.
 // Dependency-free (tested by `npm run test:writing`).
 
+import { FONT_CATALOG, genericFor, type FontKind, type FontSource } from './fontCatalog';
+import { complexScriptFace, faceHasArabic } from './rtl';
 import type { CitationStyle, CoverStyle, HeadingNumbering, Orientation, PageSizeId, ReportStyle } from './types';
 
 export interface PageSizeDef {
@@ -35,35 +37,66 @@ export function pageDimensions(size: PageSizeId, orientation: Orientation): { wi
 
 export interface FontDef {
   family: string;
-  kind: 'serif' | 'sans' | 'mono';
+  kind: FontKind;
   /** CSS fallback stack after the family itself. */
   fallback: string;
+  /** The face draws Arabic letters. */
+  arabic: boolean;
+  /** Where it comes from; a "bundled" face must be installed for Word to show it. */
+  source: FontSource;
+  character: string;
 }
 
-// Fonts that ship with Windows and Office (and have close macOS fallbacks), so
-// the .docx opens with the same faces and the PDF needs nothing embedded.
-export const DOCUMENT_FONTS: FontDef[] = [
-  { family: 'Times New Roman', kind: 'serif', fallback: '"Tinos", "Liberation Serif", serif' },
-  { family: 'Georgia', kind: 'serif', fallback: '"Gelasio", serif' },
-  { family: 'Cambria', kind: 'serif', fallback: '"Caladea", Georgia, serif' },
-  { family: 'Garamond', kind: 'serif', fallback: '"EB Garamond", "Adobe Garamond Pro", Georgia, serif' },
-  { family: 'Palatino Linotype', kind: 'serif', fallback: '"Palatino", "Book Antiqua", Georgia, serif' },
-  { family: 'Book Antiqua', kind: 'serif', fallback: '"Palatino Linotype", Palatino, Georgia, serif' },
-  { family: 'Constantia', kind: 'serif', fallback: 'Georgia, serif' },
-  { family: 'Calibri', kind: 'sans', fallback: '"Carlito", "Segoe UI", sans-serif' },
-  { family: 'Aptos', kind: 'sans', fallback: '"Segoe UI", Calibri, sans-serif' },
-  { family: 'Segoe UI', kind: 'sans', fallback: '"Helvetica Neue", sans-serif' },
-  { family: 'Arial', kind: 'sans', fallback: '"Liberation Sans", Helvetica, sans-serif' },
-  { family: 'Verdana', kind: 'sans', fallback: 'Tahoma, sans-serif' },
-  { family: 'Franklin Gothic Book', kind: 'sans', fallback: '"Libre Franklin", "Segoe UI", sans-serif' },
-  { family: 'Century Gothic', kind: 'sans', fallback: '"Futura", "Segoe UI", sans-serif' },
-  { family: 'Consolas', kind: 'mono', fallback: '"Cascadia Mono", Menlo, monospace' },
-];
+/** Faces that stand in for a document font on systems that lack it (metric-compatible where one exists). */
+const SUBSTITUTES: Record<string, string> = {
+  'Times New Roman': '"Tinos", "Liberation Serif"',
+  Georgia: '"Gelasio"',
+  Cambria: '"Caladea", Georgia',
+  Garamond: '"EB Garamond", "Adobe Garamond Pro", Georgia',
+  'Palatino Linotype': '"Palatino", "Book Antiqua", Georgia',
+  'Book Antiqua': '"Palatino Linotype", Palatino, Georgia',
+  Constantia: 'Georgia',
+  Calibri: '"Carlito", "Segoe UI"',
+  Aptos: '"Segoe UI", Calibri',
+  'Segoe UI': '"Helvetica Neue"',
+  Arial: '"Liberation Sans", Helvetica',
+  Verdana: 'Tahoma',
+  'Franklin Gothic Book': '"Libre Franklin", "Segoe UI"',
+  'Century Gothic': '"Futura", "Segoe UI"',
+  Consolas: '"Cascadia Mono", Menlo',
+};
+
+// Every face of the shared catalog (`fontCatalog.ts`): Windows and Office faces, so the .docx opens with
+// the same ones, and faces bundled with the app (Arabic and Latin) that the editor and the PDF draw.
+export const DOCUMENT_FONTS: FontDef[] = FONT_CATALOG.map((entry) => {
+  const generic = genericFor(entry.kind);
+  const tail = [SUBSTITUTES[entry.name], generic].filter(Boolean).join(', ');
+  return { family: entry.name, kind: entry.kind, fallback: tail, arabic: entry.arabic, source: entry.source, character: entry.character };
+});
 
 export function fontStack(family: string): string {
   const font = DOCUMENT_FONTS.find((entry) => entry.family === family);
   const quoted = /[\s"]/.test(family) ? `"${family.replace(/"/g, '')}"` : family;
-  return font ? `${quoted}, ${font.fallback}` : `${quoted}, serif`;
+  // A face with no Arabic letters of its own is backed by one that has them, for Arabic text inside the document.
+  const arabicBackup = font && !font.arabic ? `, ${font.kind === 'serif' ? '"Times New Roman"' : '"Segoe UI"'}, Tahoma` : '';
+  return font ? `${quoted}, ${font.fallback.replace(/, (serif|sans-serif|monospace|cursive)$/, `${arabicBackup}, $1`)}` : `${quoted}, serif`;
+}
+
+/**
+ * A report style for a right-to-left language: faces that draw Arabic (a Latin-only face such as Calibri
+ * gets the Arabic face of its character), and, when a face had to change, a little more size and leading,
+ * which Arabic needs at the same visual weight.
+ */
+export function rtlStyle(style: ReportStyle): ReportStyle {
+  const body = faceHasArabic(style.bodyFont) ? style.bodyFont : complexScriptFace(style.bodyFont);
+  const heading = faceHasArabic(style.headingFont) ? style.headingFont : complexScriptFace(style.headingFont);
+  const changed = body !== style.bodyFont || heading !== style.headingFont;
+  return {
+    ...style,
+    bodyFont: body,
+    headingFont: heading,
+    ...(changed ? { bodySize: style.bodySize < 13 ? style.bodySize + 1 : style.bodySize, lineHeight: Math.max(style.lineHeight, 1.5) } : {}),
+  };
 }
 
 export interface StyleTheme {

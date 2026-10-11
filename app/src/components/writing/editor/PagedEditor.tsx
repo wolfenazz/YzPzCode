@@ -12,6 +12,9 @@ import { TableKit } from '@tiptap/extension-table';
 import { CharacterCount, Placeholder } from '@tiptap/extensions';
 import { PaginationPlus } from 'tiptap-pagination-plus';
 import { useAppStore } from '../../../stores/appStore';
+import { bundledFamiliesIn, registerBundledFont } from '../../../utils/bundledFonts';
+import { cssString, docIsRtl, docLabels } from '../../../utils/writing/labels';
+import { languageTag } from '../../../utils/writing/rtl';
 import { fontStack, headingSizes, mmToPx, pageDimensions } from '../../../utils/writing/stylePresets';
 import type { DocNode, ReportStyle } from '../../../utils/writing/types';
 import {
@@ -31,6 +34,7 @@ import {
   WritingContext,
 } from './extensions';
 import { ScrollKeeper } from './scrollKeeper';
+import { TextDirection } from './textDirection';
 
 export interface PageGeometry {
   pageWidth: number;
@@ -104,6 +108,8 @@ export interface PagedEditorProps {
   content: DocNode;
   style: ReportStyle;
   title: string;
+  /** The report's language ("Arabic", "English"…): printed labels, spell-check, base reading direction. */
+  language?: string;
   hasCover: boolean;
   zoom: number;
   editable: boolean;
@@ -120,6 +126,7 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
   content,
   style,
   title,
+  language = 'English',
   hasCover,
   zoom,
   editable,
@@ -146,6 +153,7 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
       SectionHeading,
       TextStyleKit,
       TextAlign.configure({ types: ['heading', 'paragraph', 'caption'] }),
+      TextDirection,
       Highlight.configure({ multicolor: true }),
       Subscript,
       Superscript,
@@ -222,6 +230,28 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
     editor?.setEditable(editable, false);
   }, [editor, editable]);
 
+  // The language: spell-check dictionary, and the direction of blocks that have no letters of their own.
+  const tag = languageTag(language);
+  const rtl = docIsRtl(language);
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    editor.view.dom.setAttribute('lang', tag);
+    editor.storage.textDirection.base = rtl ? 'rtl' : 'ltr';
+    editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false).setMeta('wrPageFlow', true));
+  }, [editor, tag, rtl]);
+
+  // Faces packaged with the app load when the report uses them, and the pages re-measure once they have.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return undefined;
+    const remeasure = (): void => {
+      if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta('addToHistory', false).setMeta('wrPageFlow', true));
+    };
+    const used = bundledFamiliesIn(`${style.bodyFont}|${style.headingFont}|${JSON.stringify(editor.getJSON())}`);
+    if (used.length > 0) void Promise.all(used.map((family) => registerBundledFont(family))).then(remeasure);
+    document.fonts.addEventListener('loadingdone', remeasure);
+    return () => document.fonts.removeEventListener('loadingdone', remeasure);
+  }, [editor, style.bodyFont, style.headingFont, contentKey]);
+
   // Page geometry, running heads and the desk colour follow the report style and app theme.
   useEffect(() => {
     if (!editor) return;
@@ -242,6 +272,7 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
   }, [editor, geometry, running, hasCover, style.sectionBreaks, themeKey]);
 
   const [h1, h2, h3, h4] = headingSizes(style);
+  const labels = docLabels(language);
   const cssVars = {
     '--wr-body-font': fontStack(style.bodyFont),
     '--wr-heading-font': fontStack(style.headingFont),
@@ -252,7 +283,11 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
     '--wr-h4-size': `${h4}pt`,
     '--wr-line-height': String(style.lineHeight),
     '--wr-paragraph-spacing': `${style.paragraphSpacing}pt`,
-    '--wr-text-align': style.alignment,
+    // "Left" means the start edge, so Arabic paragraphs sit at the right of their page.
+    '--wr-text-align': style.alignment === 'left' ? 'start' : style.alignment,
+    '--wr-label-chapter': cssString(labels.chapter),
+    '--wr-label-table': cssString(labels.table),
+    '--wr-label-figure': cssString(labels.figure),
     '--wr-indent': style.firstLineIndent ? '1.27cm' : '0',
     '--wr-heading-color': style.headingColor,
     '--wr-doc-accent': style.accentColor,
@@ -262,7 +297,7 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
 
   return (
     <div
-      className={`wr-editor is-numbering-${style.headingNumbering}${editable ? '' : ' is-readonly'}`}
+      className={`wr-editor is-numbering-${style.headingNumbering}${editable ? '' : ' is-readonly'}${rtl ? ' is-rtl' : ''}`}
       style={cssVars}
     >
       <div className="wr-editor__zoom">

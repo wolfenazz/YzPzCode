@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-studio-root"
+description = "Enables the get_studio_root command without any pre-configured scope."
+commands.allow = ["get_studio_root"]
+
+[[permission]]
+identifier = "deny-get-studio-root"
+description = "Denies the get_studio_root command without any pre-configured scope."
+commands.deny = ["get_studio_root"]

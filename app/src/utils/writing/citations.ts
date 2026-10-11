@@ -1,6 +1,7 @@
 // Reference parsing and formatting for APA 7, IEEE, Harvard, MLA 9 and
 // Chicago (author-date). Dependency-free (tested by `npm run test:writing`).
 
+import { hasRtl, westernDigits } from './rtl';
 import type { CitationStyle, Reference } from './types';
 
 export const CITATION_STYLES: Array<{ id: CitationStyle; label: string; example: string }> = [
@@ -15,7 +16,8 @@ export const isNumericStyle = (style: CitationStyle): boolean => style === 'ieee
 
 export function splitAuthors(authors: string): string[] {
   return authors
-    .split(/\s*;\s*|\s+and\s+|\s*&\s*/i)
+    // "and", "&", ";" and their Arabic forms: the semicolon ؛ and the conjunction و ("and") standing alone.
+    .split(/\s*[;؛]\s*|\s+and\s+|\s+و\s+|\s*&\s*/i)
     .map((author) => author.trim())
     .filter(Boolean);
 }
@@ -23,7 +25,7 @@ export function splitAuthors(authors: string): string[] {
 /** "Smith, J. A." or "Jane A. Smith" → "Smith". */
 export function surname(author: string): string {
   const trimmed = author.trim();
-  if (trimmed.includes(',')) return trimmed.split(',')[0].trim();
+  if (/[,،]/.test(trimmed)) return trimmed.split(/[,،]/)[0].trim();
   const parts = trimmed.split(/\s+/);
   return parts[parts.length - 1] ?? trimmed;
 }
@@ -31,7 +33,9 @@ export function surname(author: string): string {
 /** "Smith, Jane Anne" or "Jane Anne Smith" → "J. A." */
 function initials(author: string): string {
   const trimmed = author.trim();
-  const given = trimmed.includes(',') ? trimmed.split(',').slice(1).join(' ') : trimmed.split(/\s+/).slice(0, -1).join(' ');
+  const given = /[,،]/.test(trimmed) ? trimmed.split(/[,،]/).slice(1).join(' ').trim() : trimmed.split(/\s+/).slice(0, -1).join(' ');
+  // Arabic and Hebrew given names are written in full, not as initials.
+  if (hasRtl(given)) return given;
   return given
     .split(/[\s.-]+/)
     .filter(Boolean)
@@ -41,7 +45,7 @@ function initials(author: string): string {
 
 const invert = (author: string): string => {
   const init = initials(author);
-  return init ? `${surname(author)}, ${init}` : surname(author);
+  return init ? `${surname(author)}${hasRtl(author) ? '،' : ','} ${init}` : surname(author);
 };
 
 const forward = (author: string): string => {
@@ -51,6 +55,10 @@ const forward = (author: string): string => {
 
 function joinList(items: string[], conjunction: string, serialComma = true): string {
   if (items.length <= 1) return items[0] ?? '';
+  // Right-to-left names: "أ و ب" and "أ، ب و ج" (the conjunction is attached to the last name).
+  if (items.some((item) => hasRtl(item))) {
+    return items.length === 2 ? `${items[0]} و${items[1]}` : `${items.slice(0, -1).join('، ')} و${items[items.length - 1]}`;
+  }
   if (items.length === 2) return `${items[0]} ${conjunction} ${items[1]}`;
   return `${items.slice(0, -1).join(', ')}${serialComma ? ',' : ''} ${conjunction} ${items[items.length - 1]}`;
 }
@@ -71,17 +79,20 @@ export function formatInText(
   }
   const one = (ref: Reference): string => {
     const names = splitAuthors(ref.authors).map(surname);
+    // A reference in Arabic or Hebrew is cited with that language's words: "و" for and, "وآخرون" for et al.
+    const rtl = hasRtl(`${ref.authors} ${ref.title}`);
     let who: string;
     if (names.length === 0) who = ref.title.split(/\s+/).slice(0, 3).join(' ');
     else if (names.length === 1) who = names[0];
-    else if (names.length === 2) who = style === 'apa' ? `${names[0]} & ${names[1]}` : `${names[0]} and ${names[1]}`;
-    else who = `${names[0]} et al.`;
+    else if (names.length === 2) who = rtl ? `${names[0]} و${names[1]}` : style === 'apa' ? `${names[0]} & ${names[1]}` : `${names[0]} and ${names[1]}`;
+    else who = rtl ? `${names[0]} وآخرون` : `${names[0]} et al.`;
     if (style === 'mla') return locator ? `${who} ${locator}` : who;
-    const year = ref.year || 'n.d.';
-    if (style === 'apa') return `${who}, ${year}${locator ? `, ${locator}` : ''}`;
-    return `${who} ${year}${locator ? `, ${locator}` : ''}`;
+    const year = ref.year || (rtl ? 'د.ت' : 'n.d.');
+    const comma = rtl ? '،' : ',';
+    if (style === 'apa') return `${who}${comma} ${year}${locator ? `${comma} ${locator}` : ''}`;
+    return `${who} ${year}${locator ? `${comma} ${locator}` : ''}`;
   };
-  return `(${refs.map(one).join('; ')})`;
+  return `(${refs.map(one).join(refs.some((ref) => hasRtl(`${ref.authors} ${ref.title}`)) ? '؛ ' : '; ')})`;
 }
 
 /** A bibliography entry as plain text with `*italic*` markers around the title or source. */
@@ -94,7 +105,7 @@ export function formatReference(ref: Reference, style: CitationStyle, number?: n
     case 'apa': {
       const names = authors.length > 20
         ? `${authors.slice(0, 19).map(invert).join(', ')}, … ${invert(authors[authors.length - 1])}`
-        : authors.length === 2
+        : authors.length === 2 && !authors.some((author) => hasRtl(author))
           ? `${invert(authors[0])}, & ${invert(authors[1])}`
           : joinList(authors.map(invert), '&');
       const lead = names ? `${names} (${year}).` : `${withPeriod(ref.title)} (${year}).`;
@@ -143,11 +154,13 @@ const makeId = (): string => {
 /** A citation key such as `smith2024`, made unique against `taken`. */
 export function makeCitationKey(ref: Pick<Reference, 'authors' | 'year' | 'title'>, taken: Set<string>): string {
   const first = splitAuthors(ref.authors)[0];
+  // Letters of any script stay (an Arabic author gives an Arabic key); accents and marks are dropped.
   const stem = (first ? surname(first) : ref.title.split(/\s+/)[0] ?? 'ref')
     .normalize('NFKD')
-    .replace(/[^A-Za-z0-9]/g, '')
+    .replace(/[\p{M}\u0640]/gu, '')
+    .replace(/[^\p{L}\p{N}]/gu, '')
     .toLowerCase() || 'ref';
-  const base = `${stem}${ref.year.replace(/[^0-9a-z]/gi, '') || 'nd'}`;
+  const base = `${stem}${westernDigits(ref.year).replace(/[^0-9a-z]/gi, '') || 'nd'}`;
   let key = base;
   let suffix = 0;
   while (taken.has(key)) {
@@ -166,7 +179,7 @@ export function parseReferenceList(input: string, existing: Reference[] = []): R
   const taken = new Set(existing.map((ref) => ref.key));
   const refs: Reference[] = [];
   for (const rawLine of input.split(/\r?\n/)) {
-    const line = rawLine.replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/, '').trim();
+    const line = westernDigits(rawLine).replace(/^\s*(?:\[\d+\]|\d+[.)])\s*/, '').trim();
     if (line.length < 8) continue;
     const urlMatch = line.match(/https?:\/\/\S+/);
     const url = urlMatch ? urlMatch[0].replace(/[.,]$/, '') : '';
