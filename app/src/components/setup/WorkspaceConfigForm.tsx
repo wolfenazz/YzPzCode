@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { AnimatePresence, LayoutGroup, MotionConfig, motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight, CaretDown, Check, Code, Feather, PresentationChart, PuzzlePiece, TerminalWindow, WarningCircle } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowRight, CaretDown, Check, Code, Feather, PresentationChart, PuzzlePiece, Table, TerminalWindow, WarningCircle } from '@phosphor-icons/react';
 import { DirectorySelector } from './DirectorySelector';
 import { StudioLocation } from './StudioLocation';
 import { LayoutSelector } from './LayoutSelector';
@@ -14,9 +14,11 @@ import { InitializeWorkspace } from './InitializeWorkspace';
 import { WorkspacePreview } from './WorkspacePreview';
 import { WritingSetupSection } from './WritingSetupSection';
 import { PresentationSetupSection } from './PresentationSetupSection';
+import { SheetsSetupSection } from './SheetsSetupSection';
 import RubberSegment from '../reactbits/RubberSegment';
 import { useWritingStore } from '../../stores/writingStore';
 import { usePresentationStore } from '../../stores/presentationStore';
+import { useSheetsStore } from '../../stores/sheetsStore';
 import { AGENT_IDS, cliMeta, slotAssignments } from './cliCatalog';
 import { MOD_KEY, SETUP_EASE, useSetupMotion } from './useSetupMotion';
 import SpotlightCard from '../reactbits/SpotlightCard';
@@ -28,6 +30,7 @@ import { useExtensionStore } from '../../stores/extensionStore';
 import { IDE_DISPLAY_NAMES } from './ideConstants';
 import type { LayoutConfig, AgentFleet, ExtensionInstallProgress, WorkspaceKind } from '../../types';
 import type { WorkspaceTemplate } from '../../hooks/useWorkspace';
+import appLogo from '../../assets/YzPzCodeLogo.png';
 import './setup.css';
 
 export interface WorkspaceConfigFormProps {
@@ -129,11 +132,13 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   const ideStatuses = useAppStore((state) => state.ideStatuses);
   const writing = props.workspaceKind === 'writing';
   const presenting = props.workspaceKind === 'presentation';
-  // Writing and presentation studios have no terminals, extensions or IDEs.
-  const studio = writing || presenting;
+  const sheeting = props.workspaceKind === 'sheets';
+  // Writing, presentation and sheets studios have no terminals, extensions or IDEs.
+  const studio = writing || presenting || sheeting;
   const writerEngine = useWritingStore((state) => state.defaultEngine.engine);
   const writerProfile = useWritingStore((state) => state.profiles.find((profile) => profile.id === state.defaultProfileId)?.name);
   const presenterEngine = usePresentationStore((state) => state.defaultEngine.engine);
+  const sheetsEngine = useSheetsStore((state) => state.defaultEngine.engine);
   // A studio saves into one folder the app picks in Documents; there is nothing to choose.
   const studioRoot = useStudioRoot();
   const projectPath = studio ? studioRoot.path : props.selectedPath;
@@ -166,7 +171,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
             : !selectedExtensionsReady ? 'Install or deselect unavailable extensions.'
               : null;
   const primaryEnabled = continuing ? projectReady && !props.isLoading : canOpen;
-  const primaryLabel = props.isLoading ? 'Opening workspace' : continuing ? 'Continue' : writing ? 'Open writing studio' : presenting ? 'Open presentation studio' : props.isExternalMode ? 'Open terminals' : 'Open workspace';
+  const primaryLabel = props.isLoading ? 'Opening workspace' : continuing ? 'Continue' : writing ? 'Open writing studio' : presenting ? 'Open presentation studio' : sheeting ? 'Open sheets studio' : props.isExternalMode ? 'Open terminals' : 'Open workspace';
 
   const primaryAction = (): void => {
     if (!primaryEnabled) return;
@@ -223,45 +228,56 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
     <MotionConfig reducedMotion={motionEnabled ? 'user' : 'always'}>
       <div className="ws">
         <motion.header className="ws-hero" {...stagger(0)}>
-          <div>
-            <div className="ws-eyebrow"><span className="ws-eyebrow__dot" />New workspace</div>
-            <h1 className="ws-title">{writing ? 'Set up your writing studio' : presenting ? 'Set up your presentation studio' : 'Set up your workspace'}</h1>
-            <p className="ws-subtitle">
-              {writing
-                ? 'Choose the AI that writes your reports. Every report gets its own brief, house style and outline, and is saved in your Documents folder.'
-                : presenting
-                  ? 'Choose the AI that designs your decks. Describe a deck and the AI invents its look, then draws every slide with speaker notes. Decks are saved in your Documents folder.'
-                  : 'Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.'}
-            </p>
-            <div className="ws-mode">
-              <RubberSegment
-                size="md"
-                aria-label="Workspace mode"
-                items={[
-                  { value: 'coding', label: 'Coding', icon: <Code size={15} weight="bold" /> },
-                  { value: 'writing', label: 'Writing', icon: <Feather size={15} weight="fill" /> },
-                  { value: 'presentation', label: 'Presentation', icon: <PresentationChart size={15} weight="fill" /> },
-                ]}
-                value={props.workspaceKind}
-                onChange={(value) => props.onWorkspaceKindChange(value as WorkspaceKind)}
-                trackColor="color-mix(in srgb, var(--text-primary) 7%, transparent)"
-                thumbColor="var(--text-primary)"
-                textColor="var(--text-secondary)"
-                activeTextColor="var(--bg-primary)"
-                disabled={props.isLoading}
-              />
-              <span className="ws-mode__hint">
+          <div className="ws-hero__intro">
+            <img
+              src={appLogo}
+              alt="YzPzCode"
+              className="ws-hero__logo"
+              draggable={false}
+            />
+            <div className="ws-hero__copy">
+              <div className="ws-eyebrow"><span className="ws-eyebrow__dot" />New workspace</div>
+              <h1 className="ws-title">{writing ? 'Set up your writing studio' : presenting ? 'Set up your presentation studio' : sheeting ? 'Set up your sheets studio' : 'Set up your workspace'}</h1>
+              <p className="ws-subtitle">
                 {writing
-                  ? 'AI-written professional reports: academic, financial, technical and more, with Word-like editing and PDF / Word export.'
+                  ? 'Choose the AI that writes your reports. Every report gets its own brief, house style and outline, and is saved in your Documents folder.'
                   : presenting
-                    ? 'AI-built slide decks in designed themes, plus editing of existing PowerPoint files, with PowerPoint / PDF export.'
-                    : 'Terminals with AI coding agents, an editor, a browser and extensions.'}
-              </span>
+                    ? 'Choose the AI that designs your decks. Describe a deck and the AI invents its look, then draws every slide with speaker notes. Decks are saved in your Documents folder.'
+                    : sheeting
+                    ? 'Choose the AI that builds your workbooks. Describe one, or attach a photo, PDF or spreadsheet, and review the edits before you keep them. Workbooks are real .xlsx files saved in your Documents folder.'
+                    : 'Pick a project, arrange your terminals, and choose which agents start in them. Everything can be changed after it opens.'}
+              </p>
+              <div className="ws-mode">
+                <RubberSegment
+                  size="md"
+                  aria-label="Workspace mode"
+                  items={[
+                    { value: 'coding', label: 'Coding', icon: <Code size={15} weight="bold" /> },
+                    { value: 'writing', label: 'Writing', icon: <Feather size={15} weight="fill" /> },
+                    { value: 'presentation', label: 'Presentation', icon: <PresentationChart size={15} weight="fill" /> },
+                  { value: 'sheets', label: 'Sheets', icon: <Table size={15} weight="fill" /> },
+                  ]}
+                  value={props.workspaceKind}
+                  onChange={(value) => props.onWorkspaceKindChange(value as WorkspaceKind)}
+                  trackColor="color-mix(in srgb, var(--text-primary) 7%, transparent)"
+                  thumbColor="var(--text-primary)"
+                  textColor="var(--text-secondary)"
+                  activeTextColor="var(--bg-primary)"
+                  disabled={props.isLoading}
+                />
+                <span className="ws-mode__hint">
+                  {writing
+                    ? 'AI-written professional reports: academic, financial, technical and more, with Word-like editing and PDF / Word export.'
+                    : presenting
+                      ? 'AI-built slide decks in designed themes, plus editing of existing PowerPoint files, with PowerPoint / PDF export.'
+                      : sheeting ? 'AI-built Excel workbooks: turn photos, PDFs and notes into sheets with formulas and charts, plus full Excel-style editing of .xlsx files.' : 'Terminals with AI coding agents, an editor, a browser and extensions.'}
+                </span>
+              </div>
             </div>
           </div>
           {props.guided ? (
             <nav className="ws-steps" aria-label="Setup steps">
-              {([{ id: 'project', label: studio ? 'Studio' : 'Project' }, { id: 'setup', label: writing ? 'Writing setup' : presenting ? 'Presentation setup' : 'Layout & agents' }] as const).map((item, index) => (
+              {([{ id: 'project', label: studio ? 'Studio' : 'Project' }, { id: 'setup', label: writing ? 'Writing setup' : presenting ? 'Presentation setup' : sheeting ? 'Sheets setup' : 'Layout & agents' }] as const).map((item, index) => (
                 <button key={item.id} type="button" className="ws-steps__item" aria-current={step === item.id ? 'step' : undefined}
                   disabled={props.isLoading || (item.id === 'setup' && !projectReady)} onClick={() => setStep(item.id)}>
                   {step === item.id && <motion.span layoutId="ws-step-pill" className="ws-steps__pill" transition={{ type: 'spring', stiffness: 520, damping: 40 }} />}
@@ -287,7 +303,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 exit={motionEnabled ? { opacity: 0, x: step === 'setup' ? -16 : 16 } : undefined}
                 transition={{ duration: 0.26, ease: SETUP_EASE }}>
                 {showProject && (
-                  <Section number={1} state={states.project} title={studio ? 'Saved in' : 'Project'} description={writing ? 'Reports are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : presenting ? 'Decks are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : 'The folder your terminals, agents, and editor open in.'}>
+                  <Section number={1} state={states.project} title={studio ? 'Saved in' : 'Project'} description={writing ? 'Reports are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : presenting ? 'Decks are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : sheeting ? 'Workbooks are real .xlsx files kept in one folder in your Documents, with their history and exports. It stays there if you reinstall the app.' : 'The folder your terminals, agents, and editor open in.'}>
                     {studio
                       ? <StudioLocation path={studioRoot.path} error={studioRoot.error} />
                       : <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory}
@@ -313,6 +329,12 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 {showSetup && writing && (
                   <Section number={2} last state={projectReady ? 'done' : 'todo'} title="Writer" description="The AI that drafts your reports, and how a new report begins.">
                     <WritingSetupSection />
+                  </Section>
+                )}
+
+                {showSetup && sheeting && (
+                  <Section number={2} last state={projectReady ? 'done' : 'todo'} title="Assistant" description="The AI that builds and edits your workbooks, and the language it answers in.">
+                    <SheetsSetupSection />
                   </Section>
                 )}
 
@@ -435,11 +457,13 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
               <div className="ws-panel__section">
                 <dl className="ws-summary">
                   <div className="ws-summary__row"><dt>Folder</dt><dd className="font-mono text-xs" title={projectPath || undefined}>{folderName ?? '—'}</dd></div>
-                  <div className="ws-summary__row"><dt>Opens as</dt><dd>{writing ? 'Writing studio' : presenting ? 'Presentation studio' : sessions === 0 ? 'Editor' : props.isExternalMode ? 'Separate windows' : 'Terminal grid'}</dd></div>
+                  <div className="ws-summary__row"><dt>Opens as</dt><dd>{writing ? 'Writing studio' : presenting ? 'Presentation studio' : sheeting ? 'Sheets studio' : sessions === 0 ? 'Editor' : props.isExternalMode ? 'Separate windows' : 'Terminal grid'}</dd></div>
                   {writing && <div className="ws-summary__row"><dt>Writer</dt><dd>{cliMeta(writerEngine)?.label ?? writerEngine}</dd></div>}
                   {writing && <div className="ws-summary__row"><dt>Profile</dt><dd>{writerProfile ?? 'Chosen per report'}</dd></div>}
                   {presenting && <div className="ws-summary__row"><dt>Presenter AI</dt><dd>{cliMeta(presenterEngine)?.label ?? presenterEngine}</dd></div>}
                   {presenting && <div className="ws-summary__row"><dt>Design</dt><dd>Invented per deck</dd></div>}
+                  {sheeting && <div className="ws-summary__row"><dt>Sheets AI</dt><dd>{cliMeta(sheetsEngine)?.label ?? sheetsEngine}</dd></div>}
+                  {sheeting && <div className="ws-summary__row"><dt>Files</dt><dd>Excel .xlsx</dd></div>}
                   {!studio && selectedTemplate && <div className="ws-summary__row"><dt>Preset</dt><dd>{selectedTemplate.name}</dd></div>}
                   {!studio && launchIdes.length > 0 && <div className="ws-summary__row"><dt>Also opens</dt><dd title={launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}>{launchIdes.map((ide) => IDE_DISPLAY_NAMES[ide]).join(', ')}</dd></div>}
                 </dl>

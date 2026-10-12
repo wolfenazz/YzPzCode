@@ -7,6 +7,7 @@ import '@glideapps/glide-data-grid/dist/index.css';
 import { useAppStore } from '../../stores/appStore';
 import type { FileContent } from '../../types';
 import { OpenInOfficeButton } from './OpenInOfficeButton';
+import { OpenInSheetsButton } from '../sheets/OpenInSheetsButton';
 import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
 
 interface SpreadsheetEditorProps {
@@ -304,6 +305,7 @@ const SpreadsheetEditorInner: React.FC<SpreadsheetEditorProps> = ({ filePath, fi
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.58 9a8 8 0 0114.42 1M19.42 15a8 8 0 01-14.42-1" />
             </svg>
           </button>
+          <OpenInSheetsButton path={filePath} />
           <OpenInOfficeButton filePath={filePath} appName="Excel" />
           <button
             onClick={() => void handleSave()}

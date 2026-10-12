@@ -8,6 +8,7 @@ import {
   Database,
   Feather,
   PresentationChart,
+  Table,
   Flask,
   Info,
   Keyboard,
@@ -36,6 +37,7 @@ import { SettingsWorkspace } from './sections/SettingsWorkspace';
 import { SettingsRuns } from './sections/SettingsRuns';
 import { SettingsWriting } from './sections/SettingsWriting';
 import { SettingsPresentation } from './sections/SettingsPresentation';
+import { SettingsSheets } from './sections/SettingsSheets';
 import './settings.css';
 
 type SettingsSection =
@@ -47,6 +49,7 @@ type SettingsSection =
   | 'runs'
   | 'writing'
   | 'presentation'
+  | 'sheets'
   | 'narration'
   | 'ide'
   | 'quickPrompts'
@@ -136,6 +139,13 @@ const GROUPS: SettingsNavGroup[] = [
         description: 'Deck themes, presenter engines, slide batches and saving.',
         icon: PresentationChart,
         render: () => <SettingsPresentation />,
+      },
+      {
+        id: 'sheets',
+        label: 'Sheets',
+        description: 'Workbook engines, the assistant language and saving.',
+        icon: Table,
+        render: () => <SettingsSheets />,
       },
       {
         id: 'narration',

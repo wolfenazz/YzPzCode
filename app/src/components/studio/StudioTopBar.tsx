@@ -25,6 +25,8 @@ interface StudioTopBarProps {
   title: string;
   titlePlaceholder?: string;
   onTitle: (title: string) => void;
+  /** Called when the title field is left or Enter is pressed. */
+  onTitleCommit?: () => void;
   /** The line under the title: what kind of document, how big. */
   meta?: React.ReactNode;
   save: StudioSaveState;
@@ -34,7 +36,7 @@ interface StudioTopBarProps {
 }
 
 /** The bar on top of a studio: where you are, what it is called, what is running, what you can do. */
-export const StudioTopBar: React.FC<StudioTopBarProps> = ({ backLabel, onBack, title, titlePlaceholder, onTitle, meta, save, run, children }) => (
+export const StudioTopBar: React.FC<StudioTopBarProps> = ({ backLabel, onBack, title, titlePlaceholder, onTitle, onTitleCommit, meta, save, run, children }) => (
   <header className="sx-bar">
     <div className="sx-bar__lead">
       <button type="button" className="sx-bar__back" onClick={onBack} title={`Back to ${backLabel.toLowerCase()}`}>
@@ -51,6 +53,7 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({ backLabel, onBack, t
           aria-label="Title"
           size={Math.max(8, Math.min(48, (title || titlePlaceholder || 'Untitled').length + 1))}
           onChange={(event) => onTitle(event.target.value)}
+          onBlur={() => onTitleCommit?.()}
           onKeyDown={(event) => {
             event.stopPropagation();
             if (event.key === 'Enter') (event.target as HTMLInputElement).blur();

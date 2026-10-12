@@ -43,7 +43,7 @@ Templates capture a full workspace configuration so recurring project setups are
 
 - Built-in seeds: **React**, **Rust**, **Python**, **Full-Stack**, **Quick Edit**, and **Custom**
 - Save your own templates from a configured workspace setup, edit them later, or restore the defaults
-- Selecting a template during setup skips straight to workspace creation
+- Picking a preset in the Layout section of the new workspace screen fills in the terminal count and agents. Press **Launch** to open it
 
 ## Multi-Workspace
 

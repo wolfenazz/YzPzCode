@@ -1,7 +1,7 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.32.0",
+  "version": "5.33.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",
@@ -21,6 +21,7 @@
     "test:device": "node --test scripts/device.test.mjs",
     "test:writing": "node --test scripts/writing.test.mjs",
     "test:presentation": "node --test scripts/presentation.test.mjs",
+    "test:sheets": "node --test scripts/sheets.test.mjs",
     "preview": "vite preview",
     "fetch:drawio": "node scripts/fetch-drawio.mjs",
     "postinstall": "node scripts/ensure-drawio.mjs",

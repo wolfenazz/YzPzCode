@@ -23,6 +23,7 @@ const VIEW_DETAILS: Record<WorkspaceView, string> = {
   browser: 'Previewing a web project',
   writing: 'Writing a report',
   presentation: 'Building a presentation',
+  sheets: 'Building a spreadsheet',
 };
 
 function getFileName(path: string): string {

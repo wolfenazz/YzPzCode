@@ -265,7 +265,7 @@ test('retired agent views migrate to extensions while preserving other workspace
 });
 
 test('writing and presentation studios need no folder or name and save into the shared studio folder', async (context) => {
-  for (const [kind, name, view] of [['writing', 'Writing studio', 'writing'], ['presentation', 'Presentation studio', 'presentation']]) {
+  for (const [kind, name, view] of [['writing', 'Writing studio', 'writing'], ['presentation', 'Presentation studio', 'presentation'], ['sheets', 'Sheets studio', 'sheets']]) {
     const { render, events, fixture } = setup(context);
     let api = render();
     api.setWorkspaceKind(kind);

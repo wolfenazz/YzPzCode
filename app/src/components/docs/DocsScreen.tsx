@@ -28,6 +28,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   'AI Agents': 'ph:robot',
   Workspace: 'ph:squares-four',
   Design: 'ph:palette',
+  Studios: 'ph:notebook',
   Reference: 'ph:books',
 };
 
@@ -40,7 +41,9 @@ const PAGE_ICONS: Record<string, string> = {
   'editor-files': 'ph:code',
   'source-control': 'ph:git-branch',
   'browser-design': 'ph:monitor-browser',
-  'ai-designer': 'ph:magic-wand',
+  'writing-studio': 'ph:feather',
+  'presentation-studio': 'ph:presentation-chart',
+  'sheets-studio': 'ph:table',
   settings: 'ph:gear-six',
   integrations: 'ph:plug-box',
   'shortcuts-help': 'ph:keyboard',

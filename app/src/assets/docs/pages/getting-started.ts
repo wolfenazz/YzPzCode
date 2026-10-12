@@ -12,76 +12,76 @@ On first launch, YzPzCode checks for Node.js, which several agent CLIs depend on
 
 ## 3. What is a Workspace?
 
-A workspace is a project context: a name, a folder, a terminal layout, and a set of assigned AI agents. You can create multiple workspaces and switch between them with tabs at the top of the workspace screen. Each workspace keeps its own terminal sessions, open files, browser state, and active view.
+A workspace is a project context with its own views, open files, browser state, and terminal sessions. You can create several and switch between them with the tabs at the top of the window. Each workspace has one of three kinds:
 
-## 4. The Setup Wizard
+- **Coding**: terminals with AI agents, a code editor, the browser, and extensions
+- **Writing studio**: AI-drafted reports with an editor, outline, and export. See [Writing Studio](#docs/writing-studio)
+- **Presentation studio**: AI-designed slide decks with a presenter mode. See [Presentation Studio](#docs/presentation-studio)
 
-The Setup screen walks you through five steps: **Template → Workspace → Initialize → Layout → Agents**.
+## 4. The New Workspace Screen
 
-### Step 1: Choose a Template
+The **New workspace** screen is one page with three numbered sections on a progress rail. A live preview and a launch panel stay on the side, so you can see what will open before you press **Launch**.
 
-Pick a starting point or configure everything manually:
+Pick the kind of workspace at the top: **Coding**, **Writing**, or **Presentation**. The studios skip the folder, terminal, and extension choices, and save into your Documents folder instead.
 
-| Template | What You Get |
-|----------|-------------|
-| **React** | Frontend development with 4 terminals |
-| **Rust** | Rust development setup |
-| **Python** | Data and backend development with 4 terminals |
-| **Full-Stack** | 6 terminals for combined workloads |
-| **Quick Edit** | Single terminal for quick tasks |
-| **Custom** | Configure everything yourself |
-
-You can save your own templates, edit them, or restore defaults. Choosing any template other than **Custom** skips the Layout and Agents steps and creates the workspace immediately.
-
-### Step 2: Name and Locate the Workspace
+### Step 1: Project
 
 - **Name your workspace**, for example "my-project" or "website-work"
 - Click **Browse** to pick the project folder, or select one of your recent directories
 
-### Step 3: Initialize (Optional)
+### Step 2: Layout
 
-The Initialize step offers scaffolding command templates grouped by category (React, Next.js, and more). For each command you can:
+Start from a preset or choose how many terminals open:
 
-- **Run immediately**: Execute the command when the workspace opens
-- **Paste command**: Place it in the terminal so you can edit it first
-- **Copy**: Copy it to the clipboard
+| Preset | Terminals |
+|--------|-----------|
+| **React** | 4 |
+| **Rust** | 4 |
+| **Python** | 4 |
+| **Full-Stack** | 6 |
+| **Quick Edit** | 1 |
+| **Custom** | 4 (set your own) |
 
-Skip this step if your project already exists.
-
-### Step 4: Pick a Layout
-
-Choose how many terminal panes the workspace uses: **1, 2, 4, 6, or 8** terminals, shown as grid previews.
-
-- **1 Terminal**: Simple, focused work
-- **2-4 Terminals**: Good for most projects
-- **6-8 Terminals**: Parallel agent fleets and complex projects
+Choose **1, 2, 4, 6, or 8** terminals from the grid previews. Use **Manage** to save your own presets, edit them, delete them, or restore the defaults.
 
 There is also an **Open Terminals Externally** toggle. It opens the terminals as separate system windows outside the app instead of the grid, automatically tiled on your screen.
 
-### Step 5: Assign Agents
+### Step 3: Agents & tools
 
-The Agent Fleet section lists every supported AI agent (Claude, Codex, Antigravity, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, Cline, Grok) and every tool CLI (GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google WS, AgentMail, Vercel).
+The section has three tabs:
 
-- Toggle an agent on to assign it to a terminal slot
-- Use the \`+\` and \`-\` buttons to give an agent multiple slots
-- Each agent shows a **status badge** with three states: detected, installable, and authenticated. Use the refresh button to re-detect, and follow the provided install command if a CLI is missing
+- **Agents**: every supported AI agent (Claude, Codex, Antigravity, OpenCode, Cursor, Kilo, Hermes, Pi, Command Code, Cline, Grok)
+- **Tool CLIs**: GitHub, Stripe, Supabase, Valyu, PostHog, ElevenLabs, Ramp, Google Workspace, AgentMail, and Vercel
+- **Extensions**: AI assistant panels to open alongside the terminals
 
-You can also select IDEs (VS Code, Cursor, Zed, WebStorm, and more) to launch alongside the workspace.
+Toggle an agent on to assign it to a terminal slot, and use the \`+\` and \`-\` buttons to give it several slots. Each agent shows a **status badge** for installed, installable, and signed-in. Use the refresh button to re-detect, and follow the install command shown when a CLI is missing.
+
+You can also choose IDEs (VS Code, Cursor, Zed, WebStorm, and more) to launch alongside the workspace.
+
+### Optional: Initialize
+
+If you are starting a new project, the setup form offers scaffolding commands grouped by category (React, Next.js, and more). Each one can be run when the workspace opens, pasted into the terminal so you can edit it first, or copied. Skip this if your project already exists.
 
 > **Example:** With 4 terminals, assigning Claude (2) and Codex (1) leaves 1 empty terminal for regular shell commands.
 
+### Stepper view
+
+The header of the setup screen switches to a **stepper view**, which asks the same questions one step at a time. Both views create the same workspace.
+
 ## 5. Start Working
 
-1. Click **Execute** to create the workspace
-2. Your terminal grid opens with the assigned agents launched
-3. Use the view switcher in the header to move between **Terminal**, **Editor**, and **Browser** views
+1. Click **Launch** to create the workspace
+2. Your terminal grid opens with the assigned agents started
+3. Use the view switcher in the header to move between the views
 
-## Setup View Modes
+A coding workspace has these views:
 
-The Setup screen supports two modes:
+- **Terminal**: the terminal grid
+- **Extensions**: AI assistant panels
+- **Code**: the file explorer and editor
+- **Browser**: the in-app browser
 
-- **Page Mode**: All settings on a single page
-- **Stepper Mode**: The guided step-by-step wizard described above
+A studio has **Write** or **Slides**, **Files**, and **Research** views. Its **Terminal** view appears once you open a terminal in it. Press \`Ctrl+E\` to switch between the main view and Files.
 
-> **Tip:** Revisit templates later. Saved templates let you spin up a new workspace for a repeat project type in seconds.
+> **Tip:** Saved presets let you set up a repeat project type in seconds. Pick one in the Layout section and press Launch.
 `;

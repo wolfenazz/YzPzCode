@@ -11,7 +11,8 @@ YzPzCode is a multi-terminal AI development environment. It is a desktop app tha
 - **Source Control panel**: Stage, commit, diff, push, and pull without leaving the app
 - **In-app browser**: Webview browser with tabs, device presets, zoom, and snapshots
 - **Visual design inspector**: Inspect, capture, and apply styles from any webpage
-- **AI Designer**: Prompt-based UI generation with live preview and code export
+- **Writing studio**: AI-drafted reports with an outline, a paged editor, an assistant for rewrites, and PDF, Word, or web export. See [Writing Studio](#docs/writing-studio)
+- **Presentation studio**: AI-designed slide decks you can edit by hand, with animations, a presenter mode, and PowerPoint export. See [Presentation Studio](#docs/presentation-studio)
 - **Image editor**: Layer-based image editing with brushes, shapes, text, and blend modes
 - **AI extensions**: Open graphical assistants in a dedicated Extensions view with draggable, resizable panels
 - **Multi-workspace**: Switch between projects with tabbed workspaces

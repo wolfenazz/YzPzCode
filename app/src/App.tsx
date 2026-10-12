@@ -161,7 +161,7 @@ function App() {
         state.switchWorkspace(targetId);
         // A studio reopens in its own view; the terminal grid is the start of a coding workspace.
         const target = state.openWorkspaces.find((workspace) => workspace.id === targetId);
-        state.setActiveView(target?.kind === 'writing' || target?.kind === 'presentation'
+        state.setActiveView(target?.kind === 'writing' || target?.kind === 'presentation' || target?.kind === 'sheets'
           ? resolveWorkspaceView(state.activeViewByWorkspace[targetId], target, 0)
           : 'terminal');
         state.setView('workspace');

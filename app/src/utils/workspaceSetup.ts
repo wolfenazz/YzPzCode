@@ -6,7 +6,7 @@ export function workspaceNameFromPath(path: string): string {
 
 /** What a studio workspace is called until the user names it: it has no project folder to take a name from. */
 export function studioDefaultName(kind: WorkspaceKind): string {
-  return kind === 'presentation' ? 'Presentation studio' : kind === 'writing' ? 'Writing studio' : 'Workspace';
+  return kind === 'presentation' ? 'Presentation studio' : kind === 'writing' ? 'Writing studio' : kind === 'sheets' ? 'Sheets studio' : 'Workspace';
 }
 
 export function fitFleetToLayout(fleet: AgentFleet, layout: LayoutConfig): AgentFleet {

@@ -6,7 +6,9 @@ import { terminalsContent } from './pages/terminals';
 import { editorFilesContent } from './pages/editor-files';
 import { sourceControlContent } from './pages/source-control';
 import { browserDesignContent } from './pages/browser-design';
-import { aiDesignerContent } from './pages/ai-designer';
+import { writingStudioContent } from './pages/writing-studio';
+import { presentationStudioContent } from './pages/presentation-studio';
+import { sheetsStudioContent } from './pages/sheets-studio';
 import { settingsContent } from './pages/settings';
 import { integrationsContent } from './pages/integrations';
 import { shortcutsHelpContent } from './pages/shortcuts-help';
@@ -31,7 +33,7 @@ const docPages: DocPage[] = [
     id: 'getting-started',
     title: 'Getting Started',
     category: 'Getting Started',
-    description: 'Install, prerequisites, and the workspace setup wizard',
+    description: 'Install, prerequisites, and the new workspace screen',
     content: gettingStartedContent,
   },
   {
@@ -77,17 +79,31 @@ const docPages: DocPage[] = [
     content: browserDesignContent,
   },
   {
-    id: 'ai-designer',
-    title: 'AI Designer',
-    category: 'Design',
-    description: 'Prompt-based UI generation, themes, history, and code export',
-    content: aiDesignerContent,
+    id: 'writing-studio',
+    title: 'Writing Studio',
+    category: 'Studios',
+    description: 'AI-drafted reports, the editor, the assistant, and export',
+    content: writingStudioContent,
+  },
+  {
+    id: 'presentation-studio',
+    title: 'Presentation Studio',
+    category: 'Studios',
+    description: 'AI-designed slide decks, presenter mode, and export',
+    content: presentationStudioContent,
+  },
+  {
+    id: 'sheets-studio',
+    title: 'Sheets Studio',
+    category: 'Studios',
+    description: 'Spreadsheets with a ribbon, formulas, charts, pivot tables, and the assistant',
+    content: sheetsStudioContent,
   },
   {
     id: 'settings',
     title: 'Settings',
     category: 'Reference',
-    description: 'All 13 settings sections explained',
+    description: 'All 16 settings sections explained',
     content: settingsContent,
   },
   {
@@ -106,7 +122,7 @@ const docPages: DocPage[] = [
   },
 ];
 
-export const docCategories: string[] = ['Getting Started', 'AI Agents', 'Workspace', 'Design', 'Reference'];
+export const docCategories: string[] = ['Getting Started', 'AI Agents', 'Workspace', 'Design', 'Studios', 'Reference'];
 
 export function getPage(id: string): DocPage | undefined {
   return docPages.find((page) => page.id === id);

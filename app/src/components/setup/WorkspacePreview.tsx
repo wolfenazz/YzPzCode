@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import { TerminalWindow } from '@phosphor-icons/react';
@@ -94,6 +95,52 @@ function DeckMock({ title, motionEnabled }: { title: string; motionEnabled: bool
   );
 }
 
+/** A workbook filling in: a header row, rows of numbers, a total and a small chart. */
+function SheetMock({ title, motionEnabled }: { title: string; motionEnabled: boolean }): React.JSX.Element {
+  const loop = (delay: number) => ({ duration: 0.4, ease: SETUP_EASE, delay: motionEnabled ? delay : 0, repeat: motionEnabled ? Infinity : 0, repeatDelay: 3.6 });
+  const bars = [0.62, 0.8, 0.45, 0.9, 0.7];
+  return (
+    <div className="ws-canvas ws-sheet" aria-hidden="true">
+      <div className="ws-sheet__bar">
+        <span className="ws-sheet__fx">fx</span>
+        <span className="ws-sheet__formula">=SUM(C2:C6)</span>
+        <span className="ws-sheet__name">{title}</span>
+      </div>
+      <div className="ws-sheet__grid">
+        <span className="ws-sheet__cell ws-sheet__cell--corner" />
+        {['A', 'B', 'C', 'D'].map((letter) => <span key={letter} className="ws-sheet__cell ws-sheet__cell--head">{letter}</span>)}
+        {[1, 2, 3, 4, 5, 6].map((row) => (
+          <Fragment key={row}>
+            <span className="ws-sheet__cell ws-sheet__cell--head">{row}</span>
+            {[0, 1, 2, 3].map((col) => (
+              <motion.span
+                key={col}
+                className={`ws-sheet__cell${row === 1 ? ' ws-sheet__cell--title' : ''}${row === 6 && col > 0 ? ' ws-sheet__cell--total' : ''}`}
+                initial={motionEnabled ? { opacity: 0 } : false}
+                animate={{ opacity: 1 }}
+                transition={loop(0.1 + (row * 4 + col) * 0.05)}
+              >
+                <span className="ws-bar" style={{ width: `${row === 1 || col === 0 ? 55 : 30 + ((row * 17 + col * 23) % 50)}%` }} />
+              </motion.span>
+            ))}
+          </Fragment>
+        ))}
+      </div>
+      <div className="ws-sheet__chart">
+        {bars.map((height, index) => (
+          <motion.span
+            key={index}
+            style={{ height: `${height * 100}%`, transformOrigin: 'bottom' }}
+            initial={motionEnabled ? { scaleY: 0 } : false}
+            animate={{ scaleY: 1 }}
+            transition={loop(1.4 + index * 0.1)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const SHELL_HINTS = ['git status', 'npm run dev', 'ls', 'npm test', 'cargo check', 'git log --oneline', 'docker ps', 'code .'];
 
 function Pane({ cli, index, compact, folderName }: { cli: CliType | null; index: number; compact: boolean; folderName: string }): React.JSX.Element {
@@ -157,6 +204,7 @@ export function WorkspacePreview({ title, folderName, sessions, agentFleet, exte
   const folder = folderName || 'project';
   const writing = kind === 'writing';
   const presenting = kind === 'presentation';
+  const sheeting = kind === 'sheets';
   const spring = motionEnabled ? { type: 'spring' as const, stiffness: 420, damping: 38 } : { duration: 0 };
 
   return (
@@ -164,12 +212,16 @@ export function WorkspacePreview({ title, folderName, sessions, agentFleet, exte
       <div className="ws-window__bar">
         <span className="ws-window__lights" aria-hidden="true"><span /><span /><span /></span>
         <DecryptedText text={title} className="ws-window__title" disabled={!motionEnabled} />
-        <span className="ws-window__tag">{writing ? 'writing' : presenting ? 'slides' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
+        <span className="ws-window__tag">{writing ? 'writing' : presenting ? 'slides' : sheeting ? 'sheets' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
       </div>
       <AnimatePresence mode="wait" initial={false}>
         {writing ? (
           <motion.div key="writing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
             <WritingMock title={title} motionEnabled={motionEnabled} />
+          </motion.div>
+        ) : sheeting ? (
+          <motion.div key="sheets" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
+            <SheetMock title={title} motionEnabled={motionEnabled} />
           </motion.div>
         ) : presenting ? (
           <motion.div key="presentation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>

@@ -154,7 +154,7 @@ export const useWorkspace = () => {
     setWorkspaceKindState(kind);
     useWritingStore.getState().setLastWorkspaceKind(kind);
   }, []);
-  // Writing and presentation studios: no terminals, extensions, IDEs or project folder
+  // Writing, presentation and sheets studios: no terminals, extensions, IDEs or project folder
   // (they save into the app's own folder in Documents, see `getStudioRoot`).
   const studio = workspaceKind !== 'coding';
   const workspaceName = studio ? studioName : codingName;
@@ -303,7 +303,7 @@ export const useWorkspace = () => {
     }
     openWorkspace(workspace);
     if (studio) {
-      useAppStore.getState().setActiveView(workspaceKind === 'presentation' ? 'presentation' : 'writing');
+      useAppStore.getState().setActiveView(workspaceKind === 'presentation' ? 'presentation' : workspaceKind === 'sheets' ? 'sheets' : 'writing');
     } else if (selectedExtensionIds.length > 0) {
       useAppStore.getState().setActiveView('extensions');
     } else if (selectedLayout.sessions === 0) {

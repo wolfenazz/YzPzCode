@@ -30,6 +30,7 @@ import { DevicePanel } from './device/DevicePanel';
 import { useDeviceStore } from '../../stores/deviceStore';
 import { useWritingSessionStore } from '../../stores/writingSessionStore';
 import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
+import { useSheetsSessionStore } from '../../stores/sheetsSessionStore';
 import { FileEntry, WorkspaceView } from '../../types';
 
 interface WorkspaceProps {
@@ -47,6 +48,8 @@ const EMPTY_DEV_SERVER_URLS: string[] = [];
 const WritingWorkspace = lazy(() => import('../writing/WritingWorkspace'));
 // The presentation studio pulls in the slide renderer and the PowerPoint reader/writer.
 const PresentationWorkspace = lazy(() => import('../presentation/PresentationWorkspace'));
+// The sheets studio pulls in the grid, the formula engine and the xlsx reader/writer.
+const SheetsWorkspace = lazy(() => import('../sheets/SheetsWorkspace'));
 
 export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
@@ -100,6 +103,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const [writingMounted, setWritingMounted] = useState<Record<string, boolean>>({});
   // Presentation layers too, so a deck keeps generating while you look elsewhere.
   const [presentationMounted, setPresentationMounted] = useState<Record<string, boolean>>({});
+  // And sheets, so a workbook keeps its AI run and unsaved edits while you look elsewhere.
+  const [sheetsMounted, setSheetsMounted] = useState<Record<string, boolean>>({});
   const isDragging = useRef(false);
 
   useEffect(() => {
@@ -109,6 +114,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     }
     if (activeView === 'presentation' && activeWorkspaceId) {
       setPresentationMounted((mounted) => (mounted[activeWorkspaceId] ? mounted : { ...mounted, [activeWorkspaceId]: true }));
+    }
+    if (activeView === 'sheets' && activeWorkspaceId) {
+      setSheetsMounted((mounted) => (mounted[activeWorkspaceId] ? mounted : { ...mounted, [activeWorkspaceId]: true }));
     }
   }, [activeView, activeWorkspaceId]);
   const rafIdRef = useRef<number | null>(null);
@@ -327,6 +335,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
             setActiveView(activeView === 'writing' ? 'editor' : 'writing');
           } else if (kind === 'presentation') {
             setActiveView(activeView === 'presentation' ? 'editor' : 'presentation');
+          } else if (kind === 'sheets') {
+            setActiveView(activeView === 'sheets' ? 'editor' : 'sheets');
           } else {
             setActiveView(activeView === 'terminal' ? 'editor' : 'terminal');
           }
@@ -399,6 +409,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       return next;
     });
     window.setTimeout(() => usePresentationSessionStore.getState().closeWorkspace(workspaceId), 0);
+    // Unmounting the sheets layer saves the open workbook and stops any AI run.
+    setSheetsMounted((mounted) => {
+      const next = { ...mounted };
+      delete next[workspaceId];
+      return next;
+    });
+    window.setTimeout(() => useSheetsSessionStore.getState().closeWorkspace(workspaceId), 0);
     delete hasInitialized.current[workspaceId];
     closeBrowserView(workspaceId).catch((err) => {
       console.error('Error closing browser view:', err);
@@ -650,6 +667,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                   >
                     <Suspense fallback={<div className="h-full w-full bg-[var(--bg-primary)]" />}>
                       <PresentationWorkspace workspace={workspace} visible={isVisible && view === 'workspace'} />
+                    </Suspense>
+                  </div>
+                );
+              })}
+
+              {openWorkspaces.map((workspace) => {
+                if (workspace.kind !== 'sheets' || !sheetsMounted[workspace.id]) return null;
+                const isVisible = workspace.id === activeWorkspaceId && activeView === 'sheets';
+                return (
+                  <div
+                    key={`sheets:${workspace.id}`}
+                    className={isVisible ? 'absolute inset-0' : 'hidden'}
+                    aria-hidden={!isVisible}
+                  >
+                    <Suspense fallback={<div className="h-full w-full bg-[var(--bg-primary)]" />}>
+                      <SheetsWorkspace workspace={workspace} visible={isVisible && view === 'workspace'} />
                     </Suspense>
                   </div>
                 );

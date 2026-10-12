@@ -16,17 +16,20 @@ const { homeViewFor, resolveWorkspaceView } = await load('../src/utils/workspace
 const coding = { kind: 'coding' };
 const writing = { kind: 'writing' };
 const presentation = { kind: 'presentation' };
+const sheets = { kind: 'sheets' };
 
 test('every kind of workspace has its own home view', () => {
   assert.equal(homeViewFor(coding), 'terminal');
   assert.equal(homeViewFor({}), 'terminal');
   assert.equal(homeViewFor(writing), 'writing');
   assert.equal(homeViewFor(presentation), 'presentation');
+  assert.equal(homeViewFor(sheets), 'sheets');
 });
 
 test('a new studio workspace opens in its studio', () => {
   assert.equal(resolveWorkspaceView(undefined, writing, 0), 'writing');
   assert.equal(resolveWorkspaceView(undefined, presentation, 0), 'presentation');
+  assert.equal(resolveWorkspaceView(undefined, sheets, 0), 'sheets');
 });
 
 test('a studio that was saved on the terminal (older start-up) goes back to the studio when it has no terminal', () => {
@@ -47,6 +50,9 @@ test('a studio reopens on the files and research views it was left on', () => {
 test("a studio never lands on the other studio's view", () => {
   assert.equal(resolveWorkspaceView('presentation', writing, 0), 'writing');
   assert.equal(resolveWorkspaceView('writing', presentation, 0), 'presentation');
+  assert.equal(resolveWorkspaceView('presentation', sheets, 0), 'sheets');
+  assert.equal(resolveWorkspaceView('terminal', sheets, 0), 'sheets');
+  assert.equal(resolveWorkspaceView('terminal', sheets, 1), 'terminal');
 });
 
 test('coding workspaces keep the view they were left on', () => {

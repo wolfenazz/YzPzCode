@@ -8,6 +8,11 @@ export const shortcutsHelpContent = `# Shortcuts and Help
 | Quick Open file | \`Ctrl+P\` |
 | Find in file | \`Ctrl+F\` |
 | Search documentation | \`Ctrl+K\` |
+| Open Extensions catalog | \`Ctrl+Shift+X\` |
+| Toggle sidebar | \`Ctrl+B\` |
+| Toggle editor side panel | \`Ctrl+Alt+B\` |
+| Toggle editor terminal panel | Ctrl + Backtick |
+| Switch view (Terminal ↔ Code, Write ↔ Files, Slides ↔ Files) | \`Ctrl+E\` |
 | Save (image editor) | \`Ctrl+S\` |
 | Save As (image editor) | \`Ctrl+Shift+S\` |
 | Copy | \`Ctrl+C\` (with text selected) |
@@ -123,9 +128,9 @@ Yes. Unassigned terminals run as regular shell sessions in your workspace direct
 
 Check **Settings → Updates**. Choose the Stable, Beta, or Nightly channel, and enable auto-download for hands-off updates.
 
-### Where do my generated designs go?
+### Where do my reports and decks go?
 
-Saved designs from the AI Designer export to your workspace's \`Design\` folder as \`index.html\`, \`styles.css\`, and \`designer-meta.json\`.
+Writing studio reports are saved in \`Documents\\YzPzCode\\Reports\`, and Presentation studio decks in \`Documents\\YzPzCode\\Presentations\`. Each one has its own folder with its images and exports.
 
 ## Getting More Help
 

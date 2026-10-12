@@ -117,7 +117,7 @@ AI-assisted development usually turns into a shuffle between terminal tabs, agen
 
 ---
 
-## 🤖 Supported AI Coding CLIs
+##  Supported AI Coding CLIs
 
 YzPzCode detects, launches and manages PTY sessions for 26 external AI coding agents. The core integrations:
 
@@ -171,7 +171,7 @@ See [the CLI integration reference](docs/cli-integrations.md) for vendor install
 
 ---
 
-## 🛠️ SaaS & Developer Tool CLIs
+##  SaaS & Developer Tool CLIs
 
 Installation status, executable paths and authentication state for popular cloud and developer CLIs are tracked for you:
 
@@ -191,7 +191,7 @@ See [the Tool CLIs reference guide](docs/ToolCLIs.md) for workflows, common comm
 
 ---
 
-## 🧩 Graphical Workspace Extensions
+##  Graphical Workspace Extensions
 
 Run graphical coding assistants right next to your shells and agents, inside the workspace grid. Press **`Ctrl+Shift+X`** or click the Extensions icon in the header to open the catalog.
 
@@ -224,7 +224,7 @@ See [the graphical workspace extensions documentation](docs/extensions.md) for a
 
 ---
 
-## 📝 Writing & Presentation Studios
+##  Writing & Presentation Studios
 
 <div align="center">
   <img src="docs/readme/studios.svg" width="100%" alt="The Writing Studio with outline, paged report and assistant, and the Presentation Studio with filmstrip, canvas and design panel" />
@@ -238,7 +238,7 @@ Besides coding, the setup page's mode switch opens two document studios. They ne
 <tr>
 <td width="50%" valign="top">
 
-### 📝 Writing Studio
+###  Writing Studio
 
 - **30 report kinds**: pick a kind and answer one question in a single-box composer; attach files, paste material, add references
 - **Streaming paged editor**: outline with live section status, tables, figures, citations and footnotes, with your reading place held while sections stream in
@@ -251,7 +251,7 @@ Besides coding, the setup page's mode switch opens two document studios. They ne
 </td>
 <td width="50%" valign="top">
 
-### 🎞️ Presentation Studio
+###  Presentation Studio
 
 - **AI-designed decks**: describe the deck; the AI invents a design system, writes a storyline with per-page briefs, then draws every slide as SVG
 - **Real slide editor**: select, marquee, drag with guides, resize, type in place, shapes, pictures, tables, groups, format bar
@@ -265,13 +265,13 @@ Besides coding, the setup page's mode switch opens two document studios. They ne
 </tr>
 </table>
 
-### 🌍 Arabic and right-to-left, first-class
+###  Arabic and right-to-left, first-class
 
 Arabic, Hebrew, Persian and Urdu work in both studios: paragraph direction follows the text, printed labels (Chapter, Table, Figure, Contents…) follow the document language, Word and PowerPoint exports write real bidirectional paragraphs, and a catalog of about 150 fonts (Latin and Arabic, with bundled `@fontsource` faces) feeds every font picker.
 
 ---
 
-## 📲 Mobile Device Window
+##  Mobile Device Window
 
 <div align="center">
   <img src="docs/readme/devices.svg" width="100%" alt="An Android emulator and an iOS simulator streamed into the workspace next to a Flutter project with hot reload" />
@@ -288,7 +288,7 @@ A device window slides in from the right edge of every workspace view (terminal,
 
 ---
 
-## 🔊 Local Narration
+##  Local Narration
 
 <div align="center">
   <img src="docs/readme/narration.svg" width="100%" alt="A waveform and the three local voices SILMA, Lahgtna-Chatterbox and Kokoro" />
@@ -308,7 +308,7 @@ Language is detected from the text, speed is 0.75× / 1× / 1.25×, and synthesi
 
 ---
 
-## ⚡ Application Run & Build System
+##  Application Run & Build System
 
 Launch, build and debug your applications with zero configuration. Project manifests and runnable entry points are discovered across 15+ ecosystems, right inside terminal headers.
 
@@ -336,10 +336,10 @@ See [the application runs guide](docs/application-runs.md) for configuration sch
 
 ---
 
-## ✨ Core Features
+##  Core Features
 
 <details open>
-<summary><b>🖥️ Multi-agent terminal grid</b></summary>
+<summary><b> Multi-agent terminal grid</b></summary>
 
 <br />
 
@@ -357,7 +357,7 @@ See [the application runs guide](docs/application-runs.md) for configuration sch
 </details>
 
 <details>
-<summary><b>📝 Editor, previews & source control</b></summary>
+<summary><b> Editor, previews & source control</b></summary>
 
 <br />
 
@@ -373,7 +373,7 @@ See [the application runs guide](docs/application-runs.md) for configuration sch
 </details>
 
 <details>
-<summary><b>🌐 In-app browser & visual inspector</b></summary>
+<summary><b> In-app browser & visual inspector</b></summary>
 
 <br />
 
@@ -387,7 +387,7 @@ See [the application runs guide](docs/application-runs.md) for configuration sch
 </details>
 
 <details>
-<summary><b>🎨 AI designer & layered image editor</b></summary>
+<summary><b> AI designer & layered image editor</b></summary>
 
 <br />
 
@@ -399,7 +399,7 @@ See [the application runs guide](docs/application-runs.md) for configuration sch
 </details>
 
 <details>
-<summary><b>🎛️ Customization</b></summary>
+<summary><b> Customization</b></summary>
 
 <br />
 
@@ -416,7 +416,7 @@ See [the application runs guide](docs/application-runs.md) for configuration sch
 
 ---
 
-## 🧱 Architecture
+##  Architecture
 
 ```mermaid
 flowchart TB
@@ -537,7 +537,7 @@ yzpzcode/
 
 ---
 
-## 🚀 Download & Installation
+##  Download & Installation
 
 ### Option 1: Pre-built binaries (recommended)
 
@@ -569,7 +569,7 @@ The compiled binaries land in `app/src-tauri/target/release/bundle/`.
 
 ---
 
-## 🔒 Security & Privacy
+##  Security & Privacy
 
 YzPzCode is built **local-first**:
 
@@ -580,7 +580,7 @@ YzPzCode is built **local-first**:
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Contributions make open source incredible. Bug reports, improvements and new features are all appreciated. Check [open issues](https://github.com/wolfenazz/YzPzCode/issues) or start a discussion before proposing major architectural changes.
 
@@ -607,19 +607,22 @@ npm run test:device
 
 ---
 
-## 👥 Contributors
+##  Contributors
 
 <div align="center">
   <a href="https://github.com/wolfenazz/YzPzCode/graphs/contributors">
-    <img src="docs/readme/contributors.svg" width="100%" alt="Everyone who has contributed to YzPzCode, as circular profile pictures" />
+    <img src="docs/readme/contributors.svg" width="100%" alt="Contributors: Naz (@wolfenazz) and Noor (@Noor-Al-Khelaifi)" />
   </a>
-  <br />
-  <sub>This graphic is generated from the repository's commit authors and co-authors and refreshed automatically. <a href="https://github.com/wolfenazz/YzPzCode/graphs/contributors"><b>See the full contributor graph</b></a>.</sub>
+  <br /><br />
+  <sub>
+    <a href="https://github.com/wolfenazz"><b>@wolfenazz</b></a> · Creator &amp; Lead Architect &nbsp;&nbsp;|&nbsp;&nbsp;
+    <a href="https://github.com/Noor-Al-Khelaifi"><b>@Noor-Al-Khelaifi</b></a> · Core Contributor &amp; Developer
+  </sub>
 </div>
 
 ---
 
-## 📄 License
+##  License
 
 YzPzCode is open-source software licensed under the **[Apache License 2.0](LICENSE)**.
 
