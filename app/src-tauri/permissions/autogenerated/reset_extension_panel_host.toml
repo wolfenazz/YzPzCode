@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-reset-extension-panel-host"
+description = "Enables the reset_extension_panel_host command without any pre-configured scope."
+commands.allow = ["reset_extension_panel_host"]
+
+[[permission]]
+identifier = "deny-reset-extension-panel-host"
+description = "Denies the reset_extension_panel_host command without any pre-configured scope."
+commands.deny = ["reset_extension_panel_host"]

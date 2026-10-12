@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { DotsSixVertical, SidebarSimple, X } from '@phosphor-icons/react';
+import { ArrowsClockwise, DotsSixVertical, SidebarSimple, X } from '@phosphor-icons/react';
 import { useSortable } from '@dnd-kit/sortable';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
@@ -21,6 +21,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
   const activityGlowEnabled = useAppStore((state) => state.agentActivityGlowEnabled);
   const setActiveView = useAppStore((state) => state.setActiveView);
   const movePanel = useExtensionStore((state) => state.movePanel);
+  const restartPanelHost = useExtensionStore((state) => state.restartPanelHost);
   const contentRef = useRef<HTMLDivElement>(null);
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: panel.id });
   const { ready, error, closing, activity, retry, close } = useExtensionPanelHost({
@@ -43,6 +44,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
         {activityGlowEnabled && <AgentActivityChip activity={activity} />}
         <ExtensionPromptNotice panelId={panel.id} />
         <span className="flex-1" aria-hidden="true" />
+        {error && <button type="button" className="app-button h-6 min-h-0 gap-1 px-2 text-[11px]" onClick={() => void restartPanelHost(panel)} disabled={closing} title="Stop this assistant's host and start it again" aria-label={`Restart ${panel.name} host`}><ArrowsClockwise size={12} />Restart host</button>}
         <span className="text-[9px] text-[var(--text-secondary)]">Extension</span>
         <button type="button" className="app-icon-button app-icon-button--compact" onClick={moveToSidePanel} disabled={closing} aria-label={`Move ${panel.name} to the editor side panel`} title="Move to editor side panel"><SidebarSimple size={14} mirrored /></button>
         <TerminalLayoutPicker panelId={panel.id} panelName={panel.name} />

@@ -60,9 +60,11 @@ export function useExtensionPanelHost({ panel, workspace, contentRef, active, hi
   const closePanel = useExtensionStore((state) => state.closePanel);
   const activity = useExtensionStore((state) => state.activityByPanel[panel.id]) ?? IDLE_ACTIVITY;
   const setPanelActivity = useExtensionStore((state) => state.setPanelActivity);
+  // The failure lives in the store so the panel header can offer a restart.
+  const error = useExtensionStore((state) => state.hostErrorByPanel[panel.id]) ?? null;
+  const setError = useCallback((message: string | null) => useExtensionStore.getState().setHostError(panel.id, message), [panel.id]);
+  const attempt = useExtensionStore((state) => state.hostAttemptByPanel[panel.id]) ?? 0;
   const [ready, setReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [closing, setClosing] = useState(false);
 
   useEffect(() => {
@@ -74,7 +76,7 @@ export function useExtensionPanelHost({ panel, workspace, contentRef, active, hi
       .then(() => { if (!disposed) setReady(true); })
       .catch((error: unknown) => { if (!disposed) setError(String(error)); });
     return () => { disposed = true; };
-  }, [panel.id, panel.extensionId, workspace.id, workspace.path, attempt, active]);
+  }, [panel.id, panel.extensionId, workspace.id, workspace.path, attempt, active, setError]);
 
   useEffect(() => {
     if (!ready || error) return;
@@ -144,7 +146,7 @@ export function useExtensionPanelHost({ panel, workspace, contentRef, active, hi
       // Queue hiding behind any outstanding bounds update to prevent stale shows.
       void syncPanel({ panelId: panel.id, bounds: { x: 0, y: 0, width: 0, height: 0 }, visible: false }).catch(() => undefined);
     };
-  }, [panel.id, ready, active, hidden, error, closing, viewScale, contentRef]);
+  }, [panel.id, ready, active, hidden, error, closing, viewScale, contentRef, setError]);
 
   // The assistant runs in a native webview, so which panel the user is looking
   // at can't be observed; a finished panel stays marked for a while once shown.
@@ -174,13 +176,13 @@ export function useExtensionPanelHost({ panel, workspace, contentRef, active, hi
     if (error && useExtensionStore.getState().activityByPanel[panel.id]?.phase === 'busy') setPanelActivity(panel.id, IDLE_ACTIVITY);
   }, [error, panel.id, setPanelActivity]);
 
-  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  const retry = useCallback(() => useExtensionStore.getState().retryPanelHost(panel.id), [panel.id]);
 
   const close = useCallback(async (): Promise<void> => {
     setClosing(true);
     try { await closePanel(panel.id); }
     catch (error) { setError(String(error)); setClosing(false); }
-  }, [panel.id, closePanel]);
+  }, [panel.id, closePanel, setError]);
 
   return { ready, error, closing, activity, retry, close };
 }

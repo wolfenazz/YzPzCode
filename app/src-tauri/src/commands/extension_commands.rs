@@ -88,6 +88,21 @@ pub async fn close_workspace_extension_panels(
         .map_err(|error| format!("{error:#}"))
 }
 
+/// Stops a failed host and frees its saved address so the panel can start again.
+#[tauri::command]
+pub async fn reset_extension_panel_host(
+    app: AppHandle,
+    manager: State<'_, ExtensionHostManager>,
+    panel_id: String,
+    workspace_id: String,
+    extension_id: String,
+) -> Result<(), String> {
+    manager
+        .reset_panel_host(&app, &panel_id, &workspace_id, &extension_id)
+        .await
+        .map_err(|error| format!("{error:#}"))
+}
+
 /// Hands a prompt to the panel's assistant chat. The outcome arrives as an
 /// `extension-panel-prompt-result` event carrying `request_id`.
 #[tauri::command]

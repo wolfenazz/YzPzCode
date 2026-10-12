@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { AnimatePresence, motion, useIsPresent, useReducedMotion } from 'framer-motion';
-import { ArrowRight, DownloadSimple, Plus, PuzzlePiece, SidebarSimple, SquaresFour, X } from '@phosphor-icons/react';
+import { ArrowRight, ArrowsClockwise, DownloadSimple, Plus, PuzzlePiece, SidebarSimple, SquaresFour, X } from '@phosphor-icons/react';
 import { useAppStore } from '../../stores/appStore';
 import { DEFAULT_DOCK_STATE, DOCK_DEFAULT_WIDTH, DOCK_MIN_WIDTH, EMPTY_EXTENSION_PANELS, isSidePanel, useExtensionStore } from '../../stores/extensionStore';
 import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
@@ -67,6 +67,8 @@ function DockFrame({ workspace, visible, onBrowseExtensions }: ExtensionDockProp
   const panels = useMemo(() => allPanels.filter(isSidePanel), [allPanels]);
   const activePanel = panels.find((panel) => panel.id === dock.activePanelId) ?? panels[0] ?? null;
   const activity = useExtensionStore((state) => (activePanel ? state.activityByPanel[activePanel.id] : undefined)) ?? IDLE_ACTIVITY;
+  const activeHostError = useExtensionStore((state) => (activePanel ? state.hostErrorByPanel[activePanel.id] : undefined));
+  const restartPanelHost = useExtensionStore((state) => state.restartPanelHost);
 
   const asideRef = useRef<HTMLElement>(null);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
@@ -222,6 +224,11 @@ function DockFrame({ workspace, visible, onBrowseExtensions }: ExtensionDockProp
           </div>
           <div className="xd__actions">
             {activePanel && !showLauncher && <ExtensionPromptNotice panelId={activePanel.id} />}
+            {activePanel && !showLauncher && activeHostError && (
+              <button type="button" className="app-button h-6 min-h-0 gap-1 px-2 text-[11px]" onClick={() => void restartPanelHost(activePanel)} title="Stop this assistant's host and start it again" aria-label={`Restart ${activePanel.name} host`}>
+                <ArrowsClockwise size={12} />Restart host
+              </button>
+            )}
             {activePanel && !showLauncher && (
               <button type="button" className="app-icon-button app-icon-button--compact" onClick={() => moveToExtensionsView(activePanel)} title="Move to Extensions view" aria-label={`Move ${activePanel.name} to the Extensions view`}>
                 <SquaresFour size={14} />

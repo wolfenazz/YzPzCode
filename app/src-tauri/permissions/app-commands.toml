@@ -155,6 +155,7 @@ permissions = [
   "allow-reload-browser-view",
   "allow-rename-entry",
   "allow-request-browser-snapshot",
+  "allow-reset-extension-panel-host",
   "allow-resize-browser-view",
   "allow-resize-terminal",
   "allow-restart-cli-in-terminal",

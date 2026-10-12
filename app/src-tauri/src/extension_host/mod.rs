@@ -733,6 +733,21 @@ fn reclaim_stale_panel_host(port: u16) -> bool {
     true
 }
 
+/// Ports saved for one assistant profile: the first pane's origin and each
+/// concurrently open pane's origin. Only these can be held by an orphaned host.
+fn saved_panel_ports(profile: &Path) -> Vec<u16> {
+    let mut saved = vec![profile.join("panel-origin.json")];
+    if let Ok(entries) = fs::read_dir(profile.join("instances")) {
+        saved.extend(entries.flatten().map(|entry| entry.path().join("panel-origin.json")));
+    }
+    saved
+        .iter()
+        .filter_map(|path| serde_json::from_slice::<PanelOrigin>(&fs::read(path).ok()?).ok())
+        .map(|origin| origin.port)
+        .filter(|port| *port != 0)
+        .collect()
+}
+
 fn saved_port_in_use_message(port: u16, blocker: Option<&(u32, String)>) -> String {
     match blocker {
         Some((pid, name)) => {
@@ -1637,6 +1652,51 @@ impl ExtensionHostManager {
         );
         for id in ids {
             self.close_panel(app, &id)?;
+        }
+        Ok(())
+    }
+
+    /// Stops a failed or stuck host so its saved address can be bound again.
+    /// Unlike `close_panel` the panel is not marked closed, so it can start
+    /// again and keeps its saved browser state. Never stops a live host of
+    /// another open pane, and reclaims only hosts that look like ours.
+    pub async fn reset_panel_host(
+        &self,
+        app: &AppHandle,
+        panel_id: &str,
+        workspace_id: &str,
+        extension_id: &str,
+    ) -> Result<()> {
+        check_uuid(panel_id)?;
+        check_uuid(workspace_id)?;
+        entry(extension_id)?;
+        let _operation = self.operation.lock().await;
+        if let Some(webview) = app.get_webview(&format!("extension-panel-{panel_id}")) {
+            webview.close()?;
+        }
+        let removed = self
+            .hosts
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Extension host lock failed"))?
+            .remove(panel_id);
+        drop(removed);
+        let profile = root(app)?
+            .join("profiles")
+            .join(workspace_id)
+            .join(extension_id);
+        for port in saved_panel_ports(&profile) {
+            let held_by_open_pane = self
+                .hosts
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Extension host lock failed"))?
+                .values()
+                .any(|host| host.url.port() == Some(port));
+            if held_by_open_pane {
+                bail!(
+                    "The assistant's saved local address 127.0.0.1:{port} is used by another open assistant pane. Close that pane and try again"
+                );
+            }
+            reclaim_stale_panel_host(port);
         }
         Ok(())
     }

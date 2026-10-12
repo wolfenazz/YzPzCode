@@ -32,6 +32,14 @@ interface ExtensionStore {
   /** Latest prompt handoff outcome per panel (not persisted). */
   promptNoticeByPanel: Record<string, ExtensionPromptNotice>;
   setPromptNotice: (panelId: string, notice: Omit<ExtensionPromptNotice, 'at'> | null) => void;
+  /** Why each panel's host failed to start (not persisted); the panel header offers a restart. */
+  hostErrorByPanel: Record<string, string>;
+  setHostError: (panelId: string, message: string | null) => void;
+  /** Bumped to start a panel's host again (see useExtensionPanelHost). */
+  hostAttemptByPanel: Record<string, number>;
+  retryPanelHost: (panelId: string) => void;
+  /** Stops the panel's failed host and frees its saved address, then starts it again. */
+  restartPanelHost: (panel: WorkspaceExtensionPanel) => Promise<void>;
   refreshCatalog: () => Promise<void>;
   checkUpdates: () => Promise<void>;
   install: (extensionId: string) => Promise<void>;
@@ -100,7 +108,22 @@ export const useExtensionStore = create<ExtensionStore>()(
         catalog: supportedExtensions.map((extension) => ({ ...extension, installedVersion: null, registryUrl: `https://open-vsx.org/extension/${extension.id.replace('.', '/')}` })),
         loading: false, backendReady: false, error: null, installing: [], progress: {}, latestVersions: {},
         panelsByWorkspace: {}, paneOrderByWorkspace: {}, dockByWorkspace: {}, activityByPanel: {}, promptNoticeByPanel: {},
+        hostErrorByPanel: {}, hostAttemptByPanel: {},
         setPanelActivity: (panelId, activity) => set((state) => ({ activityByPanel: { ...state.activityByPanel, [panelId]: activity } })),
+        setHostError: (panelId, message) => set((state) => {
+          const { [panelId]: _previous, ...rest } = state.hostErrorByPanel;
+          return { hostErrorByPanel: message ? { ...rest, [panelId]: message } : rest };
+        }),
+        retryPanelHost: (panelId) => set((state) => ({ hostAttemptByPanel: { ...state.hostAttemptByPanel, [panelId]: (state.hostAttemptByPanel[panelId] ?? 0) + 1 } })),
+        restartPanelHost: async (panel) => {
+          try {
+            await invoke('reset_extension_panel_host', { panelId: panel.id, workspaceId: panel.workspaceId, extensionId: panel.extensionId });
+          } catch (error) {
+            get().setHostError(panel.id, String(error));
+            return;
+          }
+          get().retryPanelHost(panel.id);
+        },
         setPromptNotice: (panelId, notice) => set((state) => {
           const { [panelId]: _previous, ...rest } = state.promptNoticeByPanel;
           return { promptNoticeByPanel: notice ? { ...rest, [panelId]: { ...notice, at: Date.now() } } : rest };
@@ -185,6 +208,7 @@ export const useExtensionStore = create<ExtensionStore>()(
             paneOrderByWorkspace: Object.fromEntries(Object.entries(state.paneOrderByWorkspace).map(([id, order]) => [id, order.filter((id) => id !== panelId)])),
             activityByPanel: Object.fromEntries(Object.entries(state.activityByPanel).filter(([id]) => id !== panelId)),
             promptNoticeByPanel: Object.fromEntries(Object.entries(state.promptNoticeByPanel).filter(([id]) => id !== panelId)),
+            hostErrorByPanel: Object.fromEntries(Object.entries(state.hostErrorByPanel).filter(([id]) => id !== panelId)),
           }));
         },
         closeWorkspace: async (workspaceId) => {
