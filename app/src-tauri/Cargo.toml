@@ -1,6 +1,6 @@
 [package]
 name = "yzpzcode"
-version = "5.35.0"
+version = "5.36.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
