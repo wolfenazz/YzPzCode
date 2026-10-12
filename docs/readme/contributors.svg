@@ -82,7 +82,7 @@
       <circle cx="48" cy="46" r="28" fill="none" stroke="#3A404A" stroke-width="2"/>
       <text class="cn" x="90" y="38">Claude</text>
       <text class="cr" x="90" y="58">AI co-author</text>
-      <text class="cm" x="90" y="78">@claude · 3</text>
+      <text class="cm" x="90" y="78">@claude · 4</text>
     </g>
     <g transform="translate(60 480)">
       <rect width="355" height="92" rx="16" fill="#12151A" stroke="#232830"/>
