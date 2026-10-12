@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="440" viewBox="0 0 1600 440" role="img" aria-labelledby="t d">
+  <title id="t">Local narration</title>
+  <desc id="d">A speech waveform and the three on-device voices: SILMA TTS, Lahgtna-Chatterbox and Kokoro.</desc>
+  <defs>
+    <pattern id="px" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="3" y="3" width="12" height="12" rx="2.5" fill="#fff" opacity="0.03"/></pattern>
+    <linearGradient id="wave" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3B82F6"/><stop offset="0.5" stop-color="#9B72CB"/><stop offset="1" stop-color="#F26B3A"/></linearGradient>
+    <clipPath id="card"><rect width="1600" height="440" rx="28"/></clipPath>
+  </defs>
+  <style>
+    .tag{font:700 13px 'SF Mono','JetBrains Mono',Consolas,Menlo,monospace;letter-spacing:2.5px}
+    .h{font:700 30px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#F4F5F7;letter-spacing:-0.5px}
+    .p{font:400 15.5px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#8A929E}
+    .m{font:500 12px 'SF Mono',Consolas,Menlo,monospace;fill:#C9CED6}
+    .n{font:700 20px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#F4F5F7}
+    .c{fill:#12151A;stroke:#232830}
+  </style>
+  <g clip-path="url(#card)">
+    <rect width="1600" height="440" fill="#0B0D10"/>
+    <rect width="1600" height="440" fill="url(#px)"/>
+
+    <text class="tag" x="60" y="66" fill="#3B82F6">LOCAL NARRATION</text>
+    <text class="h" x="60" y="106">Hear your report. Nothing leaves your machine.</text>
+    <text class="p" x="60" y="136">Models download on demand into a managed local environment. Output is cached on disk.</text>
+
+    <!-- waveform -->
+    <g transform="translate(60 176)" fill="url(#wave)">
+      <rect x="0" y="86" width="8" height="28" rx="4"/><rect x="18" y="70" width="8" height="60" rx="4"/><rect x="36" y="48" width="8" height="104" rx="4"/><rect x="54" y="76" width="8" height="48" rx="4"/><rect x="72" y="30" width="8" height="140" rx="4"/><rect x="90" y="58" width="8" height="84" rx="4"/><rect x="108" y="82" width="8" height="36" rx="4"/><rect x="126" y="36" width="8" height="128" rx="4"/><rect x="144" y="64" width="8" height="72" rx="4"/><rect x="162" y="88" width="8" height="24" rx="4"/><rect x="180" y="52" width="8" height="96" rx="4"/><rect x="198" y="76" width="8" height="48" rx="4"/><rect x="216" y="92" width="8" height="16" rx="4"/><rect x="234" y="66" width="8" height="68" rx="4"/><rect x="252" y="84" width="8" height="32" rx="4"/><rect x="270" y="44" width="8" height="112" rx="4"/><rect x="288" y="72" width="8" height="56" rx="4"/><rect x="306" y="90" width="8" height="20" rx="4"/><rect x="324" y="58" width="8" height="84" rx="4"/><rect x="342" y="80" width="8" height="40" rx="4"/>
+    </g>
+    <g transform="translate(60 380)"><rect width="400" height="36" rx="18" class="c"/><path d="M20 11l12 7-12 7z" fill="#F4F5F7"/><rect x="48" y="16" width="190" height="4" rx="2" fill="#2A303A"/><rect x="48" y="16" width="80" height="4" rx="2" fill="#3B82F6"/><text class="m" x="256" y="23">0.75× · 1× · 1.25×</text></g>
+
+    <!-- model cards -->
+    <g transform="translate(500 176)">
+      <rect class="c" width="330" height="244" rx="18"/>
+      <text class="tag" x="24" y="40" fill="#3B82F6">DEFAULT</text>
+      <text class="n" x="24" y="78">SILMA TTS v1</text>
+      <text class="p" x="24" y="106">Balanced bilingual voice.</text>
+      <text class="p" x="24" y="128">Tashkeel-aware Arabic + English.</text>
+      <g transform="translate(24 168)"><rect width="46" height="26" rx="13" fill="#171B21" stroke="#2A303A"/><text class="m" x="12" y="17">AR</text><rect x="54" width="46" height="26" rx="13" fill="#171B21" stroke="#2A303A"/><text class="m" x="67" y="17">EN</text></g>
+      <text class="m" x="24" y="226" style="fill:#6B7380">~2.5 GB</text>
+    </g>
+    <g transform="translate(850 176)">
+      <rect class="c" width="330" height="244" rx="18"/>
+      <text class="tag" x="24" y="40" fill="#F26B3A">DIALECTS</text>
+      <text class="n" x="24" y="78">Lahgtna-Chatterbox</text>
+      <text class="p" x="24" y="106">Egyptian, Saudi, Moroccan</text>
+      <text class="p" x="24" y="128">and Iraqi Arabic.</text>
+      <g transform="translate(24 168)"><rect width="46" height="26" rx="13" fill="#171B21" stroke="#2A303A"/><text class="m" x="12" y="17">AR</text></g>
+      <text class="m" x="24" y="226" style="fill:#6B7380">~1.5 GB</text>
+    </g>
+    <g transform="translate(1200 176)">
+      <rect class="c" width="340" height="244" rx="18"/>
+      <text class="tag" x="24" y="40" fill="#34D399">FAST</text>
+      <text class="n" x="24" y="78">Kokoro-82M</text>
+      <text class="p" x="24" y="106">Ultra-fast English voice</text>
+      <text class="p" x="24" y="128">for long reports.</text>
+      <g transform="translate(24 168)"><rect width="46" height="26" rx="13" fill="#171B21" stroke="#2A303A"/><text class="m" x="12" y="17">EN</text></g>
+      <text class="m" x="24" y="226" style="fill:#6B7380">~350 MB</text>
+    </g>
+  </g>
+</svg>

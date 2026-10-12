@@ -67,7 +67,7 @@ export const OutlinePanel: React.FC<OutlinePanelProps> = ({ editor, run, busy, o
     });
   };
 
-  const sections = entries.filter((entry) => entry.level === 1).length;
+  const sections = entries.filter((entry) => entry.sectionId).length;
 
   return (
     <Inspector label="Outline" side="left" width={248}>
@@ -82,7 +82,7 @@ export const OutlinePanel: React.FC<OutlinePanelProps> = ({ editor, run, busy, o
                 {status && status !== 'done' && <span className={`wr-dot is-${status}`} aria-label={status} />}
                 <span className="wr-outline-item__text">{entry.text}</span>
               </button>
-              {entry.sectionId && entry.level === 1 && (
+              {entry.sectionId && (
                 <button type="button" className="sx-icon wr-outline-item__action" title="Write this section again" aria-label={`Write ${entry.text} again`} disabled={busy} onClick={() => onWriteSection(entry.sectionId!)}>
                   <ArrowClockwise size={13} />
                 </button>

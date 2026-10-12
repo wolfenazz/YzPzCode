@@ -1,0 +1,48 @@
+name: Contributors graphic
+
+# Regenerates docs/readme/contributors.svg from the repository's contributors
+# (commit authors and Co-authored-by trailers) so the README stays current.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/readme/contributors.svg'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: contributors-graphic
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Generate the graphic
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node .github/scripts/generate-contributors.mjs
+
+      - name: Commit when it changed
+        run: |
+          if git diff --quiet -- docs/readme/contributors.svg; then
+            echo "Contributors are unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/readme/contributors.svg
+          git commit -m "chore: update contributors graphic"
+          git push

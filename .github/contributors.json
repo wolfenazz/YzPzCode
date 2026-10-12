@@ -1,0 +1,19 @@
+{
+  "_comment": "Settings for .github/scripts/generate-contributors.mjs. 'emails' maps a Co-authored-by address to a GitHub login; 'names' and 'roles' override what the README graphic shows; 'exclude' hides a login.",
+  "emails": {
+    "noreply@anthropic.com": "claude",
+    "noreply@commandcode.ai": "CommandCodeBot"
+  },
+  "names": {
+    "wolfenazz": "Naz",
+    "Noor-Al-Khelaifi": "Noor",
+    "CommandCodeBot": "Command Code"
+  },
+  "roles": {
+    "wolfenazz": "Creator & Lead Architect",
+    "Noor-Al-Khelaifi": "Core Contributor & Developer",
+    "claude": "AI co-author",
+    "CommandCodeBot": "AI co-author"
+  },
+  "exclude": []
+}

@@ -2,7 +2,8 @@
 // serialisation and validation. Dependency-free (tested by `npm run test:writing`).
 
 import { defaultHumanizer } from './humanizer';
-import { getReportType } from './reportTypes';
+import { startsFrontBack } from './labels';
+import { getReportType, newSectionId } from './reportTypes';
 import { sanitizeStyle, styleFromTheme } from './stylePresets';
 import type {
   DocNode,
@@ -220,6 +221,62 @@ export function parseDoc(text: string): YzDoc {
     bibliography: Array.isArray(value.bibliography) ? value.bibliography : [],
     content,
   };
+}
+
+function nodeText(node: DocNode): string {
+  return node.text ?? (node.content ?? []).map(nodeText).join(' ');
+}
+
+/**
+ * Turns a document that has headings but no sections (a Word import, or a file
+ * saved before sections were tracked) into one the assistant can work on: the
+ * top heading level becomes the sections. With no level-1 headings the whole
+ * hierarchy moves up so sections are level 1, as everywhere else.
+ * Returns null when there is nothing to do.
+ */
+export function adoptSections(content: DocNode): { content: DocNode; outline: OutlineSection[] } | null {
+  const blocks = content.content ?? [];
+  const headings = blocks.filter((node) => node.type === 'heading' && nodeText(node).trim());
+  if (headings.length === 0 || blocks.some((node) => node.type === 'heading' && node.attrs?.sectionId)) return null;
+  const levelOf = (node: DocNode): number => Number(node.attrs?.level ?? 1);
+  const levels = [...new Set(headings.map(levelOf))].sort((a, b) => a - b);
+  // A lone top heading is the document's title, not a section.
+  let sectionLevel = levels[0];
+  if (levels.length > 1 && headings.filter((node) => levelOf(node) === sectionLevel).length === 1) sectionLevel = levels[1];
+  const lift = levels[0] > 1 ? levels[0] - 1 : 0;
+
+  const outline: OutlineSection[] = [];
+  const next: DocNode[] = [];
+  let current: { section: OutlineSection; words: number } | null = null;
+  const close = (open: { section: OutlineSection; words: number } | null): void => {
+    if (open) open.section.targetWords = Math.max(120, Math.round(open.words / 10) * 10);
+  };
+  for (const node of blocks) {
+    if (node.type !== 'heading') {
+      if (current) current.words += nodeText(node).split(/\s+/).filter(Boolean).length;
+      next.push(node);
+      continue;
+    }
+    const level = levelOf(node);
+    const title = nodeText(node).trim();
+    const attrs = { ...(node.attrs ?? {}), level: Math.max(1, level - lift) };
+    if (level === sectionLevel && title) {
+      close(current);
+      const unnumbered = startsFrontBack(title);
+      const section: OutlineSection = { id: newSectionId(), title, notes: '', targetWords: 0, subsections: [], unnumbered };
+      outline.push(section);
+      current = { section, words: 0 };
+      next.push({ ...node, attrs: { ...attrs, sectionId: section.id, unnumbered } });
+    } else {
+      if (level < sectionLevel) {
+        close(current);
+        current = null;
+      }
+      next.push({ ...node, attrs });
+    }
+  }
+  close(current);
+  return outline.length > 0 ? { content: { ...content, content: next }, outline } : null;
 }
 
 /** Headings for the navigator and the table of contents, with display numbers. */

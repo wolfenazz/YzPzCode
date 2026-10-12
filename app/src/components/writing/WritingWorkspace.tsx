@@ -5,12 +5,11 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { BookBookmark, Export, Minus, PaintBrush, Plus, SidebarSimple, Sparkle } from '@phosphor-icons/react';
 import { useWritingSessionStore, selectSession } from '../../stores/writingSessionStore';
 import { useWritingStore } from '../../stores/writingStore';
-import { createBrief, createDoc, fileName, parentPath, reportPath } from '../../utils/writing/document';
-import { startsFrontBack } from '../../utils/writing/labels';
+import { adoptSections, createBrief, createDoc, fileName, parentPath, reportPath } from '../../utils/writing/document';
 import { importDocx } from '../../utils/writing/docxImport';
 import { blocksToMarkdown, countWords } from '../../utils/writing/markdown';
 import type { RewriteAction } from '../../utils/writing/prompts';
-import { getReportType, newSectionId } from '../../utils/writing/reportTypes';
+import { getReportType } from '../../utils/writing/reportTypes';
 import type { DocNode, OutlineSection, Reference, ReportBrief, ReportDetails } from '../../utils/writing/types';
 import type { WorkspaceConfig } from '../../types';
 import { AssistantPanel } from './AssistantPanel';
@@ -124,20 +123,11 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
       pendingImport.current = null;
       instance.commands.setContent(html, { emitUpdate: false });
       // Imported chapters become outline sections so they can be rewritten section by section.
-      const outline: OutlineSection[] = [];
-      const tr = instance.state.tr;
-      instance.state.doc.forEach((node, offset) => {
-        if (node.type.name === 'heading' && node.attrs.level === 1) {
-          const id = newSectionId();
-          const title = node.textContent.trim() || 'Section';
-          const unnumbered = startsFrontBack(title);
-          outline.push({ id, title, notes: '', targetWords: 0, subsections: [], unnumbered });
-          tr.setNodeMarkup(offset, undefined, { ...node.attrs, sectionId: id, unnumbered });
-        }
-      });
-      tr.setMeta('addToHistory', false);
-      instance.view.dispatch(tr);
-      updateSession(workspaceId, { outline });
+      const adopted = adoptSections(instance.getJSON() as DocNode);
+      if (adopted) {
+        instance.commands.setContent(adopted.content, { emitUpdate: false });
+        updateSession(workspaceId, { outline: adopted.outline });
+      }
       void documents.save();
     }
     if (pendingStart.current === key) {

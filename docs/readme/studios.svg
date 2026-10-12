@@ -1,0 +1,158 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="t d">
+  <title id="t">Writing Studio and Presentation Studio</title>
+  <desc id="d">Left, the Writing Studio with outline, paged report and AI assistant. Right, the Presentation Studio with filmstrip, slide canvas and design panel.</desc>
+  <defs>
+    <pattern id="px" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="3" y="3" width="12" height="12" rx="2.5" fill="#fff" opacity="0.03"/></pattern>
+    <linearGradient id="gem" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4285F4"/><stop offset="0.55" stop-color="#9B72CB"/><stop offset="1" stop-color="#D96570"/></linearGradient>
+    <filter id="sh" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.5"/></filter>
+    <clipPath id="win"><rect width="740" height="520" rx="16"/></clipPath>
+    <clipPath id="card"><rect width="1600" height="760" rx="28"/></clipPath>
+  </defs>
+  <style>
+    .tag{font:700 13px 'SF Mono','JetBrains Mono',Consolas,Menlo,monospace;letter-spacing:2.5px}
+    .h{font:700 30px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#F4F5F7;letter-spacing:-0.5px}
+    .p{font:400 15.5px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#8A929E}
+    .m{font:500 11.5px 'SF Mono',Consolas,Menlo,monospace;fill:#C9CED6}
+    .ui{font:600 12px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#C9CED6}
+  </style>
+  <g clip-path="url(#card)">
+    <rect width="1600" height="760" fill="#0B0D10"/>
+    <rect width="1600" height="760" fill="url(#px)"/>
+
+    <!-- captions -->
+    <text class="tag" x="60" y="62" fill="#F26B3A">WRITING STUDIO</text>
+    <text class="h" x="60" y="100">30 kinds of report, written section by section.</text>
+    <text class="tag" x="840" y="62" fill="#3B82F6">PRESENTATION STUDIO</text>
+    <text class="h" x="840" y="100">Decks drawn by AI, edited like PowerPoint.</text>
+
+    <!-- writing window -->
+    <g transform="translate(40 130)" filter="url(#sh)">
+      <rect width="740" height="520" rx="16" fill="#12151A" stroke="#2A303A"/>
+      <path d="M0 16a16 16 0 0 1 16-16h708a16 16 0 0 1 16 16v36H0z" fill="#171B21"/>
+      <text class="ui" x="22" y="31">←  Documents</text>
+      <text class="ui" x="300" y="27" style="fill:#F4F5F7">Quarterly research report</text>
+      <text class="m" x="300" y="43" style="fill:#6B7380">Research report · Saved</text>
+      <g transform="translate(600 14)"><rect width="120" height="26" rx="8" fill="#F4F5F7"/><text class="ui" x="34" y="17" style="fill:#0B0D10">Export</text></g>
+
+      <g clip-path="url(#win)">
+      <!-- outline -->
+      <g transform="translate(0 52)">
+        <rect width="170" height="468" fill="#0F1217"/><path d="M0 0v452a16 16 0 0 0 16 16h154V0z" fill="none"/>
+        <text class="ui" x="18" y="30" style="fill:#F4F5F7">Outline</text>
+        <g class="m">
+          <circle cx="22" cy="62" r="4" fill="#34D399"/><text x="36" y="66">Abstract</text>
+          <circle cx="22" cy="92" r="4" fill="#34D399"/><text x="36" y="96">Introduction</text>
+          <circle cx="22" cy="122" r="4" fill="url(#gem)"/><text x="36" y="126" style="fill:#F4F5F7">Methodology</text>
+          <circle cx="22" cy="152" r="4" fill="#3A404A"/><text x="36" y="156">Findings</text>
+          <circle cx="22" cy="182" r="4" fill="#3A404A"/><text x="36" y="186">Discussion</text>
+          <circle cx="22" cy="212" r="4" fill="#3A404A"/><text x="36" y="216">References</text>
+        </g>
+      </g>
+
+      <!-- page -->
+      <g transform="translate(206 76)">
+        <rect width="290" height="420" rx="4" fill="#F7F6F2"/>
+        <rect x="34" y="34" width="170" height="12" rx="4" fill="#1B1F26"/>
+        <rect x="34" y="56" width="100" height="6" rx="3" fill="#9AA1AC"/>
+        <rect x="34" y="94" width="110" height="9" rx="3" fill="#1B1F26"/>
+        <g fill="#C9CED6"><rect x="34" y="118" width="222" height="5" rx="2"/><rect x="34" y="132" width="214" height="5" rx="2"/><rect x="34" y="146" width="222" height="5" rx="2"/><rect x="34" y="160" width="150" height="5" rx="2"/></g>
+        <rect x="34" y="192" width="120" height="9" rx="3" fill="#1B1F26"/>
+        <g fill="#C9CED6"><rect x="34" y="216" width="222" height="5" rx="2"/><rect x="34" y="230" width="196" height="5" rx="2"/><rect x="34" y="244" width="222" height="5" rx="2"/></g>
+        <rect x="34" y="256" width="2" height="12" fill="#3B82F6"/>
+        <g transform="translate(34 286)"><rect width="222" height="86" rx="4" fill="#ECEAE3"/><g fill="#F26B3A"><rect x="18" y="46" width="22" height="26"/><rect x="52" y="28" width="22" height="44" /><rect x="86" y="14" width="22" height="58"/></g><g fill="#C9CED6"><rect x="130" y="24" width="76" height="5" rx="2"/><rect x="130" y="40" width="60" height="5" rx="2"/></g></g>
+        <rect x="34" y="384" width="90" height="4" rx="2" fill="#9AA1AC"/>
+      </g>
+
+      <!-- assistant -->
+      <g transform="translate(520 52)">
+        <rect width="220" height="468" fill="#0F1217"/>
+        <path d="M0 468h204a16 16 0 0 0 16-16" fill="none"/>
+        <text class="ui" x="18" y="30" style="fill:#F4F5F7">Assistant</text>
+        <rect x="16" y="46" width="188" height="66" rx="10" fill="#171B21" stroke="#2A303A"/>
+        <text class="m" x="28" y="68" style="fill:#6B7380">Section · Methodology</text>
+        <text class="m" x="28" y="90">Add a comparison table</text>
+        <g class="m">
+          <rect x="16" y="126" width="90" height="28" rx="8" fill="#171B21"/><text x="30" y="144">Rewrite</text>
+          <rect x="114" y="126" width="90" height="28" rx="8" fill="#171B21"/><text x="128" y="144">Humanize</text>
+          <rect x="16" y="162" width="90" height="28" rx="8" fill="#171B21"/><text x="30" y="180">Expand</text>
+          <rect x="114" y="162" width="90" height="28" rx="8" fill="#171B21"/><text x="128" y="180">Shorten</text>
+        </g>
+        <text class="ui" x="18" y="228" style="fill:#F4F5F7">Whole document</text>
+        <g class="m"><rect x="16" y="242" width="90" height="28" rx="8" fill="#171B21"/><text x="26" y="260">Humanize all</text><rect x="114" y="242" width="90" height="28" rx="8" fill="#171B21"/><text x="122" y="260">Write again</text></g>
+        <text class="ui" x="18" y="306" style="fill:#F4F5F7">Naturalness</text><text class="m" x="128" y="306" style="fill:#34D399">85 · Natural</text>
+        <g class="m"><text x="18" y="334">Stock phrases</text><text x="190" y="334">0</text><text x="18" y="356">Formulaic openers</text><text x="190" y="356">0</text><text x="18" y="378">Flat rhythm</text><text x="190" y="378">3</text></g>
+      </g>
+      </g>
+    </g>
+
+    <!-- presentation window -->
+    <g transform="translate(820 130)" filter="url(#sh)">
+      <rect width="740" height="520" rx="16" fill="#12151A" stroke="#2A303A"/>
+      <path d="M0 16a16 16 0 0 1 16-16h708a16 16 0 0 1 16 16v36H0z" fill="#171B21"/>
+      <text class="ui" x="22" y="31">←  Decks</text>
+      <text class="ui" x="300" y="27" style="fill:#F4F5F7">Product launch</text>
+      <text class="m" x="300" y="43" style="fill:#6B7380">12 slides · Saved</text>
+      <g transform="translate(560 14)"><rect width="76" height="26" rx="8" fill="#171B21" stroke="#2A303A"/><text class="ui" x="14" y="17">▶ Present</text><rect x="84" width="76" height="26" rx="8" fill="#F4F5F7"/><text class="ui" x="100" y="17" style="fill:#0B0D10">Export</text></g>
+
+      <g clip-path="url(#win)">
+      <!-- filmstrip -->
+      <g transform="translate(0 52)">
+        <rect width="132" height="468" fill="#0F1217"/>
+        <g transform="translate(16 16)"><rect width="100" height="56" rx="5" fill="#0B0D10" stroke="#3B82F6" stroke-width="2"/><rect x="10" y="12" width="46" height="6" rx="3" fill="#F4F5F7"/><rect x="10" y="24" width="30" height="4" rx="2" fill="#6B7380"/><rect x="62" y="30" width="8" height="16" fill="#F26B3A"/><rect x="74" y="22" width="8" height="24" fill="#3B82F6"/></g>
+        <g transform="translate(16 86)"><rect width="100" height="56" rx="5" fill="#F7F6F2"/><rect x="10" y="12" width="50" height="6" rx="3" fill="#1B1F26"/><rect x="10" y="26" width="76" height="4" rx="2" fill="#C9CED6"/><rect x="10" y="36" width="64" height="4" rx="2" fill="#C9CED6"/></g>
+        <g transform="translate(16 156)"><rect width="100" height="56" rx="5" fill="#1F2A44"/><circle cx="50" cy="28" r="14" fill="#3B82F6" opacity="0.7"/></g>
+        <g transform="translate(16 226)"><rect width="100" height="56" rx="5" fill="#2A1710"/><rect x="10" y="12" width="50" height="6" rx="3" fill="#F26B3A"/><rect x="10" y="26" width="76" height="4" rx="2" fill="#6B7380"/></g>
+        <g transform="translate(16 296)"><rect width="100" height="56" rx="5" fill="#0B0D10" stroke="#232830"/></g>
+      </g>
+
+      <!-- canvas -->
+      <g transform="translate(160 84)">
+        <rect width="396" height="223" rx="6" fill="#0B0D10" stroke="#232830"/>
+        <rect x="30" y="34" width="26" height="4" rx="2" fill="#F26B3A"/>
+        <text x="30" y="84" font-family="Inter,'Segoe UI',Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#F4F5F7" letter-spacing="-1">Ship faster,</text>
+        <text x="30" y="118" font-family="Inter,'Segoe UI',Helvetica,Arial,sans-serif" font-size="30" font-weight="800" fill="#F4F5F7" letter-spacing="-1">together.</text>
+        <rect x="30" y="140" width="170" height="6" rx="3" fill="#6B7380"/><rect x="30" y="156" width="130" height="6" rx="3" fill="#3A404A"/>
+        <g transform="translate(246 56)"><rect y="70" width="26" height="40" rx="3" fill="#2A303A"/><rect x="36" y="44" width="26" height="66" rx="3" fill="#3B82F6"/><rect x="72" y="14" width="26" height="96" rx="3" fill="#F26B3A"/></g>
+        <!-- selection -->
+        <rect x="22" y="58" width="172" height="70" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+        <g fill="#3B82F6"><rect x="19" y="55" width="6" height="6"/><rect x="191" y="55" width="6" height="6"/><rect x="19" y="125" width="6" height="6"/><rect x="191" y="125" width="6" height="6"/></g>
+      </g>
+      <!-- timeline -->
+      <g transform="translate(160 330)">
+        <text class="ui" x="0" y="12" style="fill:#F4F5F7">Animations</text>
+        <g class="m">
+          <rect y="26" width="396" height="26" rx="8" fill="#171B21"/><text x="12" y="43">1 · Title</text><rect x="150" y="34" width="120" height="10" rx="5" fill="#3B82F6"/><text x="300" y="43" style="fill:#6B7380">fade · on click</text>
+          <rect y="58" width="396" height="26" rx="8" fill="#171B21"/><text x="12" y="75">2 · Chart bars</text><rect x="190" y="66" width="140" height="10" rx="5" fill="#F26B3A"/><text x="340" y="75" style="fill:#6B7380">wipe</text>
+          <rect y="90" width="396" height="26" rx="8" fill="#171B21"/><text x="12" y="107">3 · Caption</text><rect x="230" y="98" width="100" height="10" rx="5" fill="#34D399"/><text x="340" y="107" style="fill:#6B7380">float</text>
+        </g>
+      </g>
+
+      <!-- side panel -->
+      <g transform="translate(576 52)">
+        <rect width="164" height="468" fill="#0F1217"/>
+        <g class="ui" style="font-size:10.5px"><text x="12" y="28" style="fill:#F4F5F7">Format</text><text x="58" y="28">AI</text><text x="76" y="28">Design</text><text x="114" y="28">Animate</text></g>
+        <rect x="12" y="34" width="36" height="2" fill="#F4F5F7"/>
+        <text class="ui" x="14" y="68" style="fill:#F4F5F7">Edit with AI</text>
+        <rect x="14" y="80" width="136" height="64" rx="10" fill="#171B21" stroke="#2A303A"/>
+        <text class="m" x="24" y="102" style="fill:#6B7380">This slide ▾</text>
+        <text class="m" x="24" y="124">Make it bolder…</text>
+        <text class="ui" x="14" y="176" style="fill:#F4F5F7">Quick actions</text>
+        <g class="m"><rect x="14" y="188" width="136" height="26" rx="8" fill="#171B21"/><text x="24" y="205">Redesign</text><rect x="14" y="220" width="136" height="26" rx="8" fill="#171B21"/><text x="24" y="237">Animate</text><rect x="14" y="252" width="136" height="26" rx="8" fill="#171B21"/><text x="24" y="269">Web photo</text></g>
+        <g transform="translate(14 306)"><rect width="136" height="1" fill="#232830"/>
+          <text class="ui" y="28" style="fill:#F4F5F7">Proposal</text>
+          <rect y="40" width="64" height="28" rx="8" fill="#34D399" opacity="0.18"/><text class="m" x="14" y="58" style="fill:#34D399">Keep</text>
+          <rect x="72" y="40" width="64" height="28" rx="8" fill="#171B21"/><text class="m" x="82" y="58">Discard</text>
+        </g>
+      </g>
+      </g>
+    </g>
+
+    <!-- captions below -->
+    <g class="p">
+      <text x="60" y="702">Composer · paged editor · humanizer · citations</text>
+      <text x="60" y="728">Export to PDF, Word and HTML. Arabic and RTL first-class.</text>
+      <text x="840" y="702">AI art direction · SVG slides · animation · presenter view</text>
+      <text x="840" y="728">Round-trips PowerPoint. Export PPTX, PDF, PNG, HTML.</text>
+    </g>
+  </g>
+</svg>

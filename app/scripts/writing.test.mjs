@@ -27,6 +27,7 @@ const prompts = await load('prompts');
 const citations = await load('citations');
 const reportTypes = await load('reportTypes');
 const stylePresets = await load('stylePresets');
+const documentDoc = await load('document');
 
 const { parseBlocks, parseInline, sectionToNodes, blocksToMarkdown, countWords } = markdown;
 
@@ -106,6 +107,28 @@ test('section nodes drop a repeated title and carry the section id', () => {
   assert.equal(nodes[0].attrs.level, 1);
   assert.equal(nodes.length, 2);
   assert.equal(nodes[1].type, 'paragraph');
+});
+
+test('headings without sections (a Word import) become sections', () => {
+  const h = (level, text) => ({ type: 'heading', attrs: { level }, content: [{ type: 'text', text }] });
+  const p = (text) => ({ type: 'paragraph', content: [{ type: 'text', text }] });
+  const doc = { type: 'doc', content: [p('A title line'), h(2, 'Purpose'), p('one two three four five'), h(3, 'Detail'), p('six seven'), h(2, 'References'), p('x')] };
+  const adopted = documentDoc.adoptSections(doc);
+  assert.ok(adopted, 'sections are found');
+  assert.deepEqual(adopted.outline.map((section) => section.title), ['Purpose', 'References']);
+  assert.equal(adopted.outline[1].unnumbered, true);
+  const headings = adopted.content.content.filter((node) => node.type === 'heading');
+  assert.deepEqual(headings.map((node) => node.attrs.level), [1, 2, 1]);
+  assert.equal(headings[0].attrs.sectionId, adopted.outline[0].id);
+  assert.equal(headings[1].attrs.sectionId, undefined);
+  assert.ok(adopted.outline.every((section) => section.targetWords >= 120));
+  // A lone level-1 title stays a title; the level below becomes the sections.
+  const titled = documentDoc.adoptSections({ type: 'doc', content: [h(1, 'Guide'), h(2, 'Intro'), p('a'), h(2, 'Body'), p('b')] });
+  assert.deepEqual(titled.outline.map((section) => section.title), ['Intro', 'Body']);
+  assert.equal(titled.content.content[0].attrs.sectionId, undefined);
+  // Documents that already have sections, or no headings, are left alone.
+  assert.equal(documentDoc.adoptSections(adopted.content), null);
+  assert.equal(documentDoc.adoptSections({ type: 'doc', content: [p('plain')] }), null);
 });
 
 test('markdown round trip keeps structure', () => {

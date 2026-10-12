@@ -5,6 +5,7 @@ import type { FileContent, FileEntry } from '../../types';
 import { useWritingSessionStore } from '../../stores/writingSessionStore';
 import { useWritingStore } from '../../stores/writingStore';
 import {
+  adoptSections,
   fileName,
   joinPath,
   parentPath,
@@ -173,7 +174,10 @@ export function useWritingDocument(workspaceId: string, workspacePath: string, g
     if (useWritingSessionStore.getState().sessions[workspaceId]?.dirty) void save(content);
   }, [save, workspaceId]);
 
-  const loadDoc = useCallback((doc: YzDoc, path: string): void => {
+  const loadDoc = useCallback((loaded: YzDoc, path: string): void => {
+    // Headings without sections (a Word import, an older file) become sections.
+    const adopted = loaded.outline.length === 0 ? adoptSections(loaded.content) : null;
+    const doc = adopted ? { ...loaded, content: adopted.content, outline: adopted.outline } : loaded;
     update(workspaceId, (session) => ({
       docPath: path,
       meta: doc.meta,

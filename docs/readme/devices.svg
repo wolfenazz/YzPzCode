@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="600" viewBox="0 0 1600 600" role="img" aria-labelledby="t d">
+  <title id="t">Device window</title>
+  <desc id="d">An Android emulator and an iOS simulator streamed into the workspace, driven by a Flutter run bar with hot reload.</desc>
+  <defs>
+    <pattern id="px" width="18" height="18" patternUnits="userSpaceOnUse"><rect x="3" y="3" width="12" height="12" rx="2.5" fill="#fff" opacity="0.03"/></pattern>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#3B82F6"/><stop offset="1" stop-color="#34D399"/></linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#34D399" stop-opacity="0.16"/><stop offset="1" stop-color="#34D399" stop-opacity="0"/></radialGradient>
+    <filter id="sh" x="-20%" y="-10%" width="140%" height="130%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.5"/></filter>
+    <clipPath id="card"><rect width="1600" height="600" rx="28"/></clipPath>
+  </defs>
+  <style>
+    .tag{font:700 13px 'SF Mono','JetBrains Mono',Consolas,Menlo,monospace;letter-spacing:2.5px}
+    .h{font:700 30px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#F4F5F7;letter-spacing:-0.5px}
+    .p{font:400 15.5px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#8A929E}
+    .m{font:500 12px 'SF Mono',Consolas,Menlo,monospace;fill:#C9CED6}
+    .ui{font:600 12px Inter,'Segoe UI',Helvetica,Arial,sans-serif;fill:#C9CED6}
+  </style>
+  <g clip-path="url(#card)">
+    <rect width="1600" height="600" fill="#0B0D10"/>
+    <rect width="1600" height="600" fill="url(#px)"/>
+    <ellipse cx="800" cy="300" rx="520" ry="240" fill="url(#glow)"/>
+
+    <text class="tag" x="60" y="66" fill="#34D399">DEVICE WINDOW</text>
+    <text class="h" x="60" y="106">Test on a phone without leaving the workspace.</text>
+    <text class="p" x="60" y="136">The emulator screen is streamed into a panel that pushes the view aside, never over it.</text>
+
+    <!-- Android phone -->
+    <g transform="translate(130 170)" filter="url(#sh)">
+      <rect width="190" height="390" rx="34" fill="#171B21" stroke="#3A404A" stroke-width="2"/>
+      <rect x="9" y="9" width="172" height="372" rx="27" fill="#0B0D10"/>
+      <circle cx="95" cy="24" r="6" fill="#171B21"/>
+      <rect x="22" y="52" width="146" height="76" rx="14" fill="#3B82F6"/>
+      <rect x="36" y="68" width="78" height="10" rx="5" fill="#fff" opacity="0.9"/><rect x="36" y="88" width="104" height="7" rx="3.5" fill="#fff" opacity="0.5"/>
+      <g fill="#171B21"><rect x="22" y="142" width="70" height="70" rx="12"/><rect x="98" y="142" width="70" height="70" rx="12"/><rect x="22" y="224" width="146" height="48" rx="12"/><rect x="22" y="284" width="146" height="48" rx="12"/></g>
+      <circle cx="57" cy="177" r="14" fill="#F26B3A"/><circle cx="133" cy="177" r="14" fill="#34D399"/>
+      <rect x="66" y="360" width="58" height="5" rx="2.5" fill="#3A404A"/>
+    </g>
+    <text class="m" x="130" y="584" style="fill:#34D399">ANDROID · AVD</text>
+
+    <!-- iOS phone -->
+    <g transform="translate(360 190)" filter="url(#sh)">
+      <rect width="180" height="370" rx="38" fill="#171B21" stroke="#3A404A" stroke-width="2"/>
+      <rect x="9" y="9" width="162" height="352" rx="31" fill="#0B0D10"/>
+      <rect x="56" y="20" width="68" height="20" rx="10" fill="#171B21"/>
+      <rect x="22" y="60" width="136" height="64" rx="16" fill="#1F2A44"/>
+      <rect x="36" y="76" width="70" height="9" rx="4.5" fill="#F4F5F7"/><rect x="36" y="94" width="96" height="6" rx="3" fill="#6B7380"/>
+      <g fill="#171B21"><rect x="22" y="138" width="136" height="44" rx="12"/><rect x="22" y="192" width="136" height="44" rx="12"/><rect x="22" y="246" width="136" height="44" rx="12"/></g>
+      <rect x="62" y="346" width="56" height="5" rx="2.5" fill="#6B7380"/>
+    </g>
+    <text class="m" x="360" y="584" style="fill:#C9CED6">iOS SIMULATOR · macOS</text>
+
+    <!-- stream path -->
+    <g fill="none" stroke="url(#flow)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="2 9">
+      <path d="M560 360 C 640 360, 660 300, 740 300"/>
+      <path d="M560 400 C 640 400, 660 440, 740 440"/>
+    </g>
+    <g transform="translate(588 322)">
+      <rect width="120" height="26" rx="13" fill="#171B21" stroke="#2A303A"/><text class="m" x="14" y="17">gRPC frames</text>
+    </g>
+    <g transform="translate(580 408)">
+      <rect width="140" height="26" rx="13" fill="#171B21" stroke="#2A303A"/><text class="m" x="14" y="17">idb · simctl</text>
+    </g>
+
+    <!-- workspace window with device dock -->
+    <g transform="translate(740 170)" filter="url(#sh)">
+      <rect width="800" height="400" rx="16" fill="#12151A" stroke="#2A303A"/>
+      <path d="M0 16a16 16 0 0 1 16-16h768a16 16 0 0 1 16 16v32H0z" fill="#171B21"/>
+      <circle cx="26" cy="24" r="6" fill="#3A404A"/><circle cx="46" cy="24" r="6" fill="#3A404A"/><circle cx="66" cy="24" r="6" fill="#3A404A"/>
+      <g transform="translate(560 12)"><rect width="104" height="24" rx="8" fill="#0B0D10" stroke="#2A303A"/><text class="ui" x="14" y="16">▶ Run · Pixel 8</text></g>
+      <g transform="translate(676 12)"><rect width="96" height="24" rx="8" fill="#34D399" opacity="0.15"/><text class="ui" x="12" y="16" style="fill:#34D399">⟳ Hot reload</text></g>
+
+      <!-- editor -->
+      <g transform="translate(20 66)">
+        <rect width="480" height="314" rx="10" fill="#0B0D10" stroke="#232830"/>
+        <rect width="480" height="30" rx="10" fill="#171B21"/><rect y="18" width="480" height="12" fill="#171B21"/>
+        <text class="m" x="16" y="20">main.dart</text>
+        <g class="m" style="fill:#6B7380"><text x="16" y="62">1</text><text x="16" y="84">2</text><text x="16" y="106">3</text><text x="16" y="128">4</text><text x="16" y="150">5</text><text x="16" y="172">6</text><text x="16" y="194">7</text></g>
+        <g fill="#2A303A"><rect x="44" y="54" width="170" height="8" rx="4"/><rect x="60" y="76" width="250" height="8" rx="4"/><rect x="60" y="98" width="180" height="8" rx="4"/><rect x="76" y="120" width="130" height="8" rx="4" fill="#F26B3A" opacity="0.8"/><rect x="76" y="142" width="220" height="8" rx="4"/><rect x="60" y="164" width="60" height="8" rx="4"/><rect x="44" y="186" width="40" height="8" rx="4"/></g>
+        <rect x="16" y="228" width="448" height="70" rx="8" fill="#0F1217" stroke="#232830"/>
+        <text class="m" x="28" y="250" style="fill:#34D399">Reloaded 1 of 412 libraries in 318ms.</text>
+        <text class="m" x="28" y="270" style="fill:#6B7380">I/flutter: counter = 7</text>
+      </g>
+
+      <!-- device dock -->
+      <g transform="translate(520 66)">
+        <rect width="260" height="314" rx="10" fill="#0F1217" stroke="#232830"/>
+        <g transform="translate(66 14)">
+          <rect width="128" height="286" rx="26" fill="#171B21" stroke="#3A404A" stroke-width="2"/>
+          <rect x="6" y="6" width="116" height="274" rx="21" fill="#0B0D10"/>
+          <rect x="16" y="34" width="96" height="54" rx="10" fill="#3B82F6"/>
+          <g fill="#171B21"><rect x="16" y="100" width="45" height="45" rx="9"/><rect x="67" y="100" width="45" height="45" rx="9"/><rect x="16" y="156" width="96" height="36" rx="9"/><rect x="16" y="200" width="96" height="36" rx="9"/></g>
+          <circle cx="38" cy="122" r="10" fill="#F26B3A"/><circle cx="89" cy="122" r="10" fill="#34D399"/>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
