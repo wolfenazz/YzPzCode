@@ -556,6 +556,259 @@ fn panel_url(origin_id: &str, port: u16, token: &str) -> Result<url::Url> {
     Ok(url)
 }
 
+/// How often a busy saved port is retried before the blocker is diagnosed.
+/// A previous host needs a moment to exit after its window closes, and Windows
+/// can hold the port briefly (TIME_WAIT) after a crash or fast restart.
+const SAVED_PORT_RETRIES: u32 = 12;
+const SAVED_PORT_RETRY_DELAY: Duration = Duration::from_millis(250);
+
+fn parse_netstat_for_port(output: &str, port: u16) -> Option<u32> {
+    let suffix = format!(":{port}");
+    for line in output.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        if !parts[0].eq_ignore_ascii_case("TCP") {
+            continue;
+        }
+        // Only LISTENING sockets block a bind; established connections to the
+        // port must be ignored.
+        if !parts[3].eq_ignore_ascii_case("LISTENING") {
+            continue;
+        }
+        if !parts[1].ends_with(suffix.as_str()) {
+            continue;
+        }
+        if let Ok(pid) = parts[4].parse::<u32>() {
+            if pid != 0 {
+                return Some(pid);
+            }
+        }
+    }
+    None
+}
+
+#[cfg(windows)]
+fn listening_pid_on_port(port: u16) -> Option<u32> {
+    let output = Command::new("netstat")
+        .args(["-ano", "-p", "TCP"])
+        .output()
+        .ok()?;
+    parse_netstat_for_port(&String::from_utf8_lossy(&output.stdout), port)
+}
+
+#[cfg(not(windows))]
+fn listening_pid_on_port(port: u16) -> Option<u32> {
+    let output = Command::new("lsof")
+        .args([format!("-tiTCP:{port}"), "-sTCP:LISTEN".to_string()])
+        .output()
+        .ok()?;
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .filter_map(|line| line.trim().parse::<u32>().ok())
+        .find(|pid| *pid != 0)
+}
+
+#[cfg(windows)]
+fn blocker_process_name(pid: u32) -> Option<String> {
+    let output = Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+        .output()
+        .ok()?;
+    let line = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .next()?
+        .to_string();
+    let name = line
+        .split(',')
+        .next()?
+        .trim()
+        .trim_matches('"')
+        .trim()
+        .to_string();
+    if name.is_empty() || name.eq_ignore_ascii_case("INFO:") {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+#[cfg(not(windows))]
+fn blocker_process_name(pid: u32) -> Option<String> {
+    let output = Command::new("ps")
+        .args(["-p", &pid.to_string(), "-o", "comm="])
+        .output()
+        .ok()?;
+    let name = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if name.is_empty() {
+        None
+    } else {
+        Some(name)
+    }
+}
+
+fn blocker_command_line(pid: u32) -> Option<String> {
+    #[cfg(windows)]
+    {
+        let output = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                &format!("(Get-CimInstance Win32_Process -Filter 'ProcessId={pid}').CommandLine"),
+            ])
+            .output()
+            .ok()?;
+        let line = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if line.is_empty() {
+            None
+        } else {
+            Some(line)
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        let output = Command::new("ps")
+            .args(["-p", &pid.to_string(), "-o", "args="])
+            .output()
+            .ok()?;
+        let line = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if line.is_empty() {
+            None
+        } else {
+            Some(line)
+        }
+    }
+}
+
+fn port_blocker(port: u16) -> Option<(u32, String)> {
+    let pid = listening_pid_on_port(port)?;
+    let name = blocker_process_name(pid).unwrap_or_else(|| "unknown process".to_string());
+    Some((pid, name))
+}
+
+/// Only a command line that is recognisably our own extension host
+/// (`node ... server-main.js --start-server ...`) may be reclaimed. Anything
+/// else could be the user's own server that happened to reuse the port.
+fn looks_like_stale_panel_host(command_line: &str) -> bool {
+    let lower = command_line.to_ascii_lowercase();
+    lower.contains("server-main")
+        && (lower.contains("--start-server")
+            || lower.contains("server-data-dir")
+            || lower.contains("yzpz"))
+}
+
+/// Stops an orphaned panel host still holding `port` (left behind by a crash
+/// or a killed window) so the saved browser origin can be reused. Returns true
+/// when something was stopped and the caller should retry the bind. Never
+/// touches processes that are not recognisably our own host.
+fn reclaim_stale_panel_host(port: u16) -> bool {
+    let Some(pid) = listening_pid_on_port(port) else {
+        return false;
+    };
+    if !blocker_command_line(pid)
+        .as_deref()
+        .is_some_and(looks_like_stale_panel_host)
+    {
+        return false;
+    }
+    #[cfg(windows)]
+    {
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+    std::thread::sleep(Duration::from_millis(500));
+    true
+}
+
+fn saved_port_in_use_message(port: u16, blocker: Option<&(u32, String)>) -> String {
+    match blocker {
+        Some((pid, name)) => {
+            #[cfg(windows)]
+            {
+                format!(
+                    "The assistant's saved local address 127.0.0.1:{port} is already in use by {name} (PID {pid}). \
+                    Close other YzPzCode windows and choose Retry. If no other window is open, the previous host did not exit: \
+                    run Stop-Process -Id {pid} -Force, then retry. Your saved assistant state was kept"
+                )
+            }
+            #[cfg(not(windows))]
+            {
+                format!(
+                    "The assistant's saved local address 127.0.0.1:{port} is already in use by {name} (PID {pid}). \
+                    Close other YzPzCode windows and retry. If no other window is open, the previous host did not exit: \
+                    run kill {pid}, then retry. Your saved assistant state was kept"
+                )
+            }
+        }
+        None => format!(
+            "The assistant's saved local address 127.0.0.1:{port} is already in use. \
+            Close other YzPzCode windows and retry. If no other window is open, wait a few seconds for the \
+            previous host to exit, then retry. Your saved assistant state was kept"
+        ),
+    }
+}
+
+/// Binds the previously saved port without ever picking a different one (a new
+/// port would create a new browser origin and discard the assistant's saved
+/// state). Transient collisions from a shutting-down host are retried, and one
+/// orphaned host from a crashed window is reclaimed automatically.
+fn bind_saved_panel_port(port: u16) -> Result<TcpListener> {
+    use std::io::ErrorKind;
+    let mut last_error: Option<std::io::Error> = None;
+    for _ in 0..SAVED_PORT_RETRIES {
+        match TcpListener::bind(("127.0.0.1", port)) {
+            Ok(listener) => return Ok(listener),
+            Err(error) if error.kind() == ErrorKind::AddrInUse => {
+                last_error = Some(error);
+                std::thread::sleep(SAVED_PORT_RETRY_DELAY);
+            }
+            Err(error) => {
+                return Err(error).with_context(|| {
+                    format!(
+                        "The assistant's saved local address 127.0.0.1:{port} could not be reserved"
+                    )
+                });
+            }
+        }
+    }
+    if reclaim_stale_panel_host(port) {
+        for _ in 0..4 {
+            match TcpListener::bind(("127.0.0.1", port)) {
+                Ok(listener) => return Ok(listener),
+                Err(error) if error.kind() == ErrorKind::AddrInUse => {
+                    last_error = Some(error);
+                    std::thread::sleep(SAVED_PORT_RETRY_DELAY);
+                }
+                Err(error) => {
+                    return Err(error).with_context(|| {
+                        format!(
+                            "The assistant's saved local address 127.0.0.1:{port} could not be reserved"
+                        )
+                    });
+                }
+            }
+        }
+    }
+    let blocker = port_blocker(port);
+    if let Some(error) = last_error {
+        return Err(error).context(saved_port_in_use_message(port, blocker.as_ref()));
+    }
+    bail!("{}", saved_port_in_use_message(port, blocker.as_ref()))
+}
+
 fn reserve_panel_origin(profile: &Path) -> Result<(PanelOrigin, TcpListener)> {
     let saved_path = profile.join("panel-origin.json");
     let previous = if saved_path.exists() {
@@ -574,9 +827,7 @@ fn reserve_panel_origin(profile: &Path) -> Result<(PanelOrigin, TcpListener)> {
         }
         // Never silently choose another port: that would create a new browser
         // origin and discard the assistant's visible saved state again.
-        let listener = TcpListener::bind(("127.0.0.1", origin.port)).context(
-            "The assistant's saved local address is already in use. Close other YzPzCode instances and retry",
-        )?;
+        let listener = bind_saved_panel_port(origin.port)?;
         (origin, listener)
     } else {
         let listener = TcpListener::bind("127.0.0.1:0")?;
@@ -1949,5 +2200,48 @@ mod tests {
         assert_eq!(request["text"], text);
         assert_eq!(request["submit"], true);
         assert!(script.starts_with("(window.__yzpzPanelPrompt || "));
+    }
+
+    #[test]
+    fn netstat_parsing_finds_only_listening_sockets_on_the_exact_port() {
+        let output = "Active Connections\r\nProto  Local Address          Foreign Address        State           PID\r\nTCP    127.0.0.1:51234        0.0.0.0:0              LISTENING       1234\r\nTCP    127.0.0.1:51234        127.0.0.1:50000        ESTABLISHED     5678\r\nTCP    127.0.0.1:151234       0.0.0.0:0              LISTENING       9999\r\n";
+        assert_eq!(parse_netstat_for_port(output, 51234), Some(1234));
+        assert_eq!(parse_netstat_for_port(output, 9999), None);
+        assert_eq!(parse_netstat_for_port("no sockets here", 51234), None);
+    }
+
+    #[test]
+    fn stale_host_detection_only_matches_our_own_extension_server() {
+        assert!(looks_like_stale_panel_host(
+            r"C:\runtime\node.exe --require preload.cjs out/server-main.js --start-server --host 127.0.0.1 --port 51234 --server-data-dir C:\data"
+        ));
+        assert!(!looks_like_stale_panel_host(
+            r"C:\nodejs\node.exe C:\project\server.js --port 51234"
+        ));
+        assert!(!looks_like_stale_panel_host(""));
+    }
+
+    #[test]
+    fn busy_port_error_names_the_port_and_keeps_saved_state() {
+        let message = saved_port_in_use_message(51234, Some(&(4321, "node.exe".to_string())));
+        assert!(message.contains("51234"));
+        assert!(message.contains("4321"));
+        assert!(message.contains("Retry"));
+        let fallback = saved_port_in_use_message(51234, None);
+        assert!(fallback.contains("51234"));
+    }
+
+    #[test]
+    fn freed_saved_port_can_be_reserved_again_without_losing_origin() {
+        let profile = StagingDirectory::new(&std::env::temp_dir(), "yzpz-panel-port-retry")
+            .expect("profile directory");
+        let (first, reservation) = reserve_panel_origin(&profile.0).expect("saved origin");
+        let port = first.port;
+        drop(reservation);
+        // The port was just released, so a retrying bind must succeed and keep
+        // the same browser origin instead of reporting "already in use".
+        let (reopened, _reservation) = reserve_panel_origin(&profile.0).expect("reopened pane");
+        assert_eq!(reopened.id, first.id);
+        assert_eq!(reopened.port, port);
     }
 }
