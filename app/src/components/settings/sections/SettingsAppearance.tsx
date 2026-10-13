@@ -18,12 +18,12 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
-import { useActiveCustomTheme } from '../../../hooks/useCustomTheme';
+import { useActiveCustomTheme, useActiveTheme } from '../../../hooks/useCustomTheme';
 import { SettingsWorkspaceBackground } from './SettingsWorkspaceBackground';
 import { SettingsSetupBackground } from './SettingsSetupBackground';
 import { SettingsCustomThemes } from './SettingsCustomThemes';
 import { ThemeEditor } from '../theme/ThemeEditor';
-import { THEME_PRESETS, createCustomTheme, getThemePreset, uniqueThemeName } from '../../../utils/customTheme';
+import { createCustomTheme, uniqueThemeName } from '../../../utils/customTheme';
 import type { CursorSize, CursorStyleId, CustomTheme, ThemeMode } from '../../../types';
 import { CursorPreview } from '../../common/cursor/CursorPreview';
 import { CURSOR_STYLES } from '../../common/cursor/cursorStyles';
@@ -166,6 +166,7 @@ export const SettingsAppearance: React.FC = () => {
     setDiscordRichPresence,
   } = useAppStore();
   const customTheme = useActiveCustomTheme();
+  const activeTheme = useActiveTheme();
 
   const [tab, setTab] = useState<AppearanceTab>('theme');
   const [editor, setEditor] = useState<ThemeEditorState | null>(null);
@@ -186,13 +187,8 @@ export const SettingsAppearance: React.FC = () => {
 
   /** A new theme starts as a copy of whatever the app looks like right now. */
   const startNewTheme = (): void => {
-    const presetId =
-      themeMode === 'system'
-        ? window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-        : themeMode;
-    const source = customTheme ?? getThemePreset(presetId) ?? THEME_PRESETS[0];
     const name = uniqueThemeName('My theme', customThemes.map((theme) => theme.name));
-    setEditor({ theme: createCustomTheme(source, name), isNew: true });
+    setEditor({ theme: createCustomTheme(activeTheme, name), isNew: true });
   };
 
   const saveEditedTheme = (theme: CustomTheme, apply: boolean): void => {
@@ -217,7 +213,29 @@ export const SettingsAppearance: React.FC = () => {
     if (!customCursor) setCustomCursor(true);
   };
 
-  const activeAccent = ACCENT_COLORS.find((color) => color.value === accentColor);
+  const defaultAccentName =
+    themeMode === 'claude'
+      ? 'Claude'
+      : themeMode === 'yzpz'
+        ? 'YzPz Burple'
+        : themeMode === 'dark'
+          ? 'Deep Neutral'
+          : themeMode === 'light'
+            ? 'Bright Neutral'
+            : 'Default';
+  const activeAccent =
+    accentColor === 'default'
+      ? { name: defaultAccentName, value: 'default', color: activeTheme.colors.accent }
+      : ACCENT_COLORS.find((color) => color.value === accentColor) ?? {
+          name: defaultAccentName,
+          value: 'default',
+          color: activeTheme.colors.accent,
+        };
+
+  const accentSwatches = [
+    { name: defaultAccentName, value: 'default', color: activeTheme.colors.accent },
+    ...ACCENT_COLORS.filter((c) => c.value !== 'default' && !(themeMode === 'yzpz' && c.value === 'burple')),
+  ];
 
   return (
     <>
@@ -237,7 +255,7 @@ export const SettingsAppearance: React.FC = () => {
 
       {tab === 'theme' && !editor && (
         <SettingsStack>
-          <SettingsGroup title="Theme" description="Claude and YzPzCode themes bring their own accent color.">
+          <SettingsGroup title="Theme" description="Each theme fully styles the interface, terminals, editor, and highlights.">
             <SettingsBlock>
               <div className="st-options st-options--5" role="group" aria-label="Theme">
                 {THEME_OPTIONS.map(({ value, label, description, icon, swatches }) => (
@@ -273,26 +291,32 @@ export const SettingsAppearance: React.FC = () => {
             ) : (
               <>
                 <SettingsRow
-                  badge={activeAccent && <Badge tone="accent">{activeAccent.name}</Badge>}
+                  badge={<Badge tone="accent">{activeAccent.name}</Badge>}
                   description="Used for toggles, selection and highlights."
                   label="Highlight color"
                 />
                 <SettingsBlock>
                   <div className="st-swatches" role="group" aria-label="Accent color">
-                    {ACCENT_COLORS.map((color) => (
-                      <button
-                        aria-label={color.name}
-                        aria-pressed={accentColor === color.value}
-                        className="st-swatch"
-                        key={color.value}
-                        onClick={() => setAccentColor(color.value)}
-                        style={{ backgroundColor: color.color, ['--swatch-color' as string]: color.color }}
-                        title={color.name}
-                        type="button"
-                      >
-                        {accentColor === color.value && <Check size={13} weight="bold" aria-hidden="true" />}
-                      </button>
-                    ))}
+                    {accentSwatches.map((color) => {
+                      const isSelected =
+                        accentColor === color.value ||
+                        (accentColor === 'default' && color.value === 'default') ||
+                        (themeMode === 'yzpz' && accentColor === 'burple' && color.value === 'default');
+                      return (
+                        <button
+                          aria-label={color.name}
+                          aria-pressed={isSelected}
+                          className="st-swatch"
+                          key={color.value}
+                          onClick={() => setAccentColor(color.value)}
+                          style={{ backgroundColor: color.color, ['--swatch-color' as string]: color.color }}
+                          title={color.name}
+                          type="button"
+                        >
+                          {isSelected && <Check size={13} weight="bold" aria-hidden="true" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </SettingsBlock>
               </>

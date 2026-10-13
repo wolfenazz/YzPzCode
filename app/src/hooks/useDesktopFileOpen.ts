@@ -19,6 +19,7 @@ const EMPTY_ALLOCATION: Record<CliType, number> = {
   commandcode: 0,
   cline: 0,
   grok: 0,
+  jcode: 0,
   ...ADDITIONAL_AGENT_ZEROS,
   gh: 0,
   stripe: 0,

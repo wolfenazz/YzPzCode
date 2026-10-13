@@ -23,6 +23,8 @@ const {
   sanitizeCustomThemes,
   serializeCustomTheme,
   uniqueThemeName,
+  getBuiltInTheme,
+  resolveActiveTheme,
 } = theme;
 
 const dark = THEME_PRESETS.find((preset) => preset.id === 'dark');
@@ -200,3 +202,84 @@ test('new theme names avoid collisions', () => {
   assert.equal(uniqueThemeName('My theme', ['my theme']), 'My theme 2');
   assert.equal(uniqueThemeName('My theme', ['My theme', 'My theme 2']), 'My theme 3');
 });
+
+test('built-in themes are fully configured and customize the terminal and UI sections', () => {
+  const modes = ['dark', 'light', 'claude', 'yzpz'];
+  for (const mode of modes) {
+    const builtIn = getBuiltInTheme(mode);
+    assert.ok(builtIn, `${mode} should resolve`);
+    assert.equal(builtIn.id, mode);
+    assert.ok(builtIn.colors.background, `${mode} should have background`);
+    assert.ok(builtIn.colors.terminal, `${mode} should have terminal color`);
+
+    // Verify token generation produces all CSS variables
+    const tokens = buildThemeTokens(builtIn);
+    assert.ok(tokens['--bg-primary']);
+    assert.ok(tokens['--bg-terminal']);
+    assert.ok(tokens['--accent']);
+    assert.ok(tokens['--color-zinc-500']);
+
+    // Verify terminal palette is derived and matching
+    const terminal = buildTerminalPalette(builtIn);
+    assert.equal(terminal.background, builtIn.colors.terminal);
+    assert.ok(terminal.foreground);
+    assert.ok(terminal.cursor);
+    assert.ok(terminal.selectionBackground);
+  }
+
+  // Check signature presets
+  const claude = getBuiltInTheme('claude');
+  assert.equal(claude.base, 'light');
+  assert.equal(claude.colors.accent, '#c15f3c');
+  assert.equal(claude.colors.terminal, '#1f1e1b');
+
+  const yzpz = getBuiltInTheme('yzpz');
+  assert.equal(yzpz.base, 'dark');
+  assert.equal(yzpz.colors.accent, '#8c4edd');
+  assert.equal(yzpz.colors.terminal, '#080611');
+
+  const darkTheme = getBuiltInTheme('dark');
+  assert.equal(darkTheme.base, 'dark');
+  assert.equal(darkTheme.colors.background, '#0b0b0b');
+  assert.equal(darkTheme.colors.terminal, '#050505');
+
+  const lightTheme = getBuiltInTheme('light');
+  assert.equal(lightTheme.base, 'light');
+  assert.equal(lightTheme.colors.background, '#f6f6f4');
+  assert.equal(lightTheme.colors.terminal, '#151515');
+});
+
+test('resolveActiveTheme handles default, system and custom modes', () => {
+  const custom = createCustomTheme(dark, 'Custom Blue');
+  custom.colors.accent = '#0088ff';
+
+  const resolvedCustom = resolveActiveTheme({
+    themeMode: 'custom',
+    activeCustomThemeId: custom.id,
+    customThemes: [custom],
+  });
+  assert.equal(resolvedCustom.id, custom.id);
+  assert.equal(resolvedCustom.colors.accent, '#0088ff');
+
+  const resolvedDark = resolveActiveTheme({ themeMode: 'dark' });
+  assert.equal(resolvedDark.id, 'dark');
+
+  const resolvedClaude = resolveActiveTheme({ themeMode: 'claude' });
+  assert.equal(resolvedClaude.id, 'claude');
+  assert.equal(resolvedClaude.colors.accent, '#c15f3c');
+
+  const resolvedYzPz = resolveActiveTheme({ themeMode: 'yzpz' });
+  assert.equal(resolvedYzPz.id, 'yzpz');
+  assert.equal(resolvedYzPz.colors.accent, '#8c4edd');
+
+  const systemDark = resolveActiveTheme({ themeMode: 'system', systemDark: true });
+  assert.equal(systemDark.id, 'dark');
+
+  const systemLight = resolveActiveTheme({ themeMode: 'system', systemDark: false });
+  assert.equal(systemLight.id, 'light');
+
+  // Custom accent applies to built-in themes
+  const customAccentDark = resolveActiveTheme({ themeMode: 'dark', accentColor: 'cyan' });
+  assert.equal(customAccentDark.colors.accent, '#06b6d4');
+});
+

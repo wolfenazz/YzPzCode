@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -7,6 +7,8 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { TerminalSession } from '../../types';
 import { useAppStore } from '../../stores/appStore';
+import { useActiveTheme } from '../../hooks/useCustomTheme';
+import { buildTerminalPalette } from '../../utils/customTheme';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
 import { refreshTerminalAtlases, registerTerminalRenderer } from '../../utils/terminalRendering';
 import '@xterm/xterm/css/xterm.css';
@@ -41,6 +43,25 @@ const TERMINAL_THEME = {
   brightMagenta: '#d670d6',
   brightCyan: '#29b8db',
   brightWhite: '#faf8f1',
+};
+
+const LIGHT_TERMINAL_ANSI = {
+  black: '#2b2b2b',
+  red: '#c42b1c',
+  green: '#0f7b45',
+  yellow: '#8a6100',
+  blue: '#1b5fb8',
+  magenta: '#9b2f9b',
+  cyan: '#0e6f87',
+  white: '#6b6b6b',
+  brightBlack: '#555555',
+  brightRed: '#d13438',
+  brightGreen: '#13804b',
+  brightYellow: '#9a6c00',
+  brightBlue: '#2468c4',
+  brightMagenta: '#a93fa9',
+  brightCyan: '#137a94',
+  brightWhite: '#1a1a1a',
 };
 
 const getTerminalCellPixels = (term: XTerm): { width: number; height: number } => {
@@ -82,6 +103,27 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
   const [isClosing, setIsClosing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const activeTheme = useActiveTheme();
+  const palette = useMemo(() => buildTerminalPalette(activeTheme), [activeTheme]);
+  const terminalTheme = useMemo(
+    () => ({
+      ...(palette.light ? { ...TERMINAL_THEME, ...LIGHT_TERMINAL_ANSI } : TERMINAL_THEME),
+      background: palette.background,
+      foreground: palette.foreground,
+      cursor: palette.cursor,
+      cursorAccent: palette.cursorAccent,
+      selectionBackground: palette.selectionBackground,
+      selectionForeground: palette.selectionForeground,
+    }),
+    [palette],
+  );
+
+  useEffect(() => {
+    if (!xtermRef.current) return;
+    xtermRef.current.options.theme = terminalTheme;
+    refreshTerminalAtlases();
+  }, [terminalTheme]);
+
   const handleClose = useCallback(async () => {
     if (isClosing) return;
     setIsClosing(true);
@@ -122,7 +164,7 @@ export const InlineTerminal: React.FC<InlineTerminalProps> = ({ command, cwd, au
         sessionIdRef.current = session.id;
 
         const xterm = new XTerm({
-          theme: TERMINAL_THEME,
+          theme: terminalTheme,
           fontFamily: getTerminalFontStack(useAppStore.getState().terminalFontFamily),
           fontSize: 14,
           fontWeight: '400',

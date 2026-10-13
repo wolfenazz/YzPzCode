@@ -35,6 +35,7 @@ YzPzCode detects, installs, authenticates, and launches these AI coding CLIs:
 | Command Code | \`cmd\` / \`cmdc\` | Command Code |
 | Cline CLI | \`cline\` | Cline |
 | Grok CLI | \`grok\` | xAI |
+| Jcode | \`jcode\` | Jcode |
 
 ## Supported Tool CLIs
 

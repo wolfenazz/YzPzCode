@@ -33,9 +33,6 @@
   transition: border-color 180ms var(--ease-product), box-shadow 180ms var(--ease-product);
 }
 
-.light-theme .term-pane {
-  --term-accent: #b9bcc2;
-}
 
 .term-pane--active {
   border-color: color-mix(in srgb, var(--term-accent) 58%, transparent);

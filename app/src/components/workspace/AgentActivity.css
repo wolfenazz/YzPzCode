@@ -4,6 +4,10 @@
  * Shared by terminal panes (.term-pane / .term-header) and extension panes
  * (.ext-pane / .ext-header); both take the --busy / --done modifiers.
  *
+ * The pane carries data-glow="subtle" | "balanced" | "vivid" (see Settings →
+ * Terminal → Behavior). The base below is the balanced default; vivid
+ * restores the full-strength effect and subtle keeps only a quiet ring.
+ *
  * Rotation runs on transform (`rotate`) of an oversized conic square clipped
  * to a thin band, so the compositor animates it without repainting. Layers
  * are mounted only while needed (see AgentActivityIndicator.tsx).
@@ -23,7 +27,7 @@
 }
 
 :is(.term-pane, .ext-pane).term-pane--busy {
-  border-color: color-mix(in srgb, var(--gm-violet) 38%, transparent);
+  border-color: color-mix(in srgb, var(--gm-violet) 26%, transparent);
 }
 
 :is(.term-pane, .ext-pane).term-pane--done {
@@ -97,12 +101,12 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  opacity: 0.9;
-  filter: blur(10px);
+  opacity: 0.55;
+  filter: blur(7px);
 }
 
 .term-aura__band--glow {
-  --band: 5px;
+  --band: 3px;
   animation: term-aura-breathe 3.4s ease-in-out infinite;
 }
 
@@ -152,6 +156,11 @@
 }
 
 @keyframes term-aura-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.65; }
+}
+
+@keyframes term-aura-breathe-vivid {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
@@ -204,12 +213,12 @@
   background:
     linear-gradient(
       100deg,
-      color-mix(in srgb, var(--gm-blue) 15%, transparent),
-      color-mix(in srgb, var(--gm-violet) 12%, transparent) 22%,
-      color-mix(in srgb, var(--gm-rose) 9%, transparent) 40%,
+      color-mix(in srgb, var(--gm-blue) 9%, transparent),
+      color-mix(in srgb, var(--gm-violet) 7%, transparent) 22%,
+      color-mix(in srgb, var(--gm-rose) 6%, transparent) 40%,
       transparent 62%,
-      color-mix(in srgb, var(--gm-cyan) 8%, transparent) 84%,
-      color-mix(in srgb, var(--gm-blue) 15%, transparent)
+      color-mix(in srgb, var(--gm-cyan) 5%, transparent) 84%,
+      color-mix(in srgb, var(--gm-blue) 9%, transparent)
     );
   background-size: 200% 100%;
   animation: term-aurora 7s linear infinite;
@@ -229,7 +238,7 @@
 }
 
 :is(.term-pane, .ext-pane).term-pane--busy :is(.term-header, .ext-header)::after {
-  height: 1.5px;
+  height: 1px;
   opacity: 1;
   background: var(--gm-linear);
   background-size: 200% 100%;
@@ -242,7 +251,7 @@
 }
 
 .term-pane--busy .term-agent__logo {
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--gm-violet) 70%, transparent));
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gm-violet) 45%, transparent));
   transition: filter 400ms ease;
 }
 
@@ -304,7 +313,7 @@
   flex: 0 0 auto;
   width: 11px;
   height: 11px;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gm-violet) 75%, transparent));
+  filter: drop-shadow(0 0 2px color-mix(in srgb, var(--gm-violet) 50%, transparent));
   animation: term-spark 2.4s cubic-bezier(0.45, 0, 0.2, 1) infinite;
 }
 
@@ -401,6 +410,88 @@
 
 @keyframes term-draw {
   to { stroke-dashoffset: 0; }
+}
+
+/* ── Glow strength (Settings → Terminal → Behavior) ──────────────────── */
+/* Vivid restores the full-strength effect. */
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"].term-pane--busy {
+  border-color: color-mix(in srgb, var(--gm-violet) 38%, transparent);
+}
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"] .term-aura__glow {
+  opacity: 0.9;
+  filter: blur(10px);
+}
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"] .term-aura__band--glow {
+  --band: 5px;
+  animation-name: term-aura-breathe-vivid;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"].term-pane--busy :is(.term-header, .ext-header)::before {
+  background:
+    linear-gradient(
+      100deg,
+      color-mix(in srgb, var(--gm-blue) 15%, transparent),
+      color-mix(in srgb, var(--gm-violet) 12%, transparent) 22%,
+      color-mix(in srgb, var(--gm-rose) 9%, transparent) 40%,
+      transparent 62%,
+      color-mix(in srgb, var(--gm-cyan) 8%, transparent) 84%,
+      color-mix(in srgb, var(--gm-blue) 15%, transparent)
+    );
+}
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"].term-pane--busy :is(.term-header, .ext-header)::after {
+  height: 1.5px;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"].term-pane--busy .term-agent__logo {
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--gm-violet) 70%, transparent));
+}
+
+:is(.term-pane, .ext-pane)[data-glow="vivid"] .term-activity__spark {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gm-violet) 75%, transparent));
+}
+
+/* Subtle keeps only a quiet ring: no blurred glow, no header aurora, no
+   shimmer or pulsing on the chip. */
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"].term-pane--busy {
+  border-color: color-mix(in srgb, var(--gm-violet) 22%, transparent);
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"] .term-aura__glow {
+  display: none;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"].term-pane--busy :is(.term-header, .ext-header)::before {
+  display: none;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"].term-pane--busy :is(.term-header, .ext-header)::after {
+  height: 1px;
+  opacity: 0.7;
+  animation: none;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"].term-pane--busy .term-agent__logo {
+  filter: none;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"] .term-activity--busy {
+  animation: term-activity-in 280ms var(--ease-product, ease) both;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"] .term-activity--busy .term-activity__label {
+  color: var(--term-fg);
+  background: none;
+  animation: none;
+}
+
+:is(.term-pane, .ext-pane)[data-glow="subtle"] .term-activity__spark {
+  filter: none;
+  animation: none;
 }
 
 /* ── Extension panes ────────────────────────────────────────────────────── */

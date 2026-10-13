@@ -2,7 +2,7 @@ import type { AgentType } from '../types';
 
 export type AdditionalAgentType = Exclude<AgentType,
   'claude' | 'codex' | 'antigravity' | 'opencode' | 'cursor' | 'kilo' |
-  'hermes' | 'pi' | 'commandcode' | 'cline' | 'grok'>;
+  'hermes' | 'pi' | 'commandcode' | 'cline' | 'grok' | 'jcode'>;
 
 export const ADDITIONAL_AGENTS: Record<AdditionalAgentType, {
   label: string;

@@ -4,7 +4,7 @@ import { ADDITIONAL_AGENT_TYPES, ADDITIONAL_AGENT_ZEROS } from '../data/addition
 
 const STORAGE_KEY = 'yzpzcode-agent-allocation';
 
-const AGENT_TYPES: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
+const AGENT_TYPES: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', 'jcode', ...ADDITIONAL_AGENT_TYPES];
 const TOOL_TYPES: ToolCliType[] = ['gh', 'stripe', 'supabase', 'valyu', 'posthog', 'elevenlabs', 'ramp', 'gws', 'agentmail', 'vercel'];
 const ALL_CLI_TYPES: CliType[] = [...AGENT_TYPES, ...TOOL_TYPES];
 
@@ -55,6 +55,7 @@ const DEFAULT_ALLOCATION: Record<CliType, number> = {
   commandcode: 0,
   cline: 0,
   grok: 0,
+  jcode: 0,
   ...ADDITIONAL_AGENT_ZEROS,
   gh: 0,
   stripe: 0,

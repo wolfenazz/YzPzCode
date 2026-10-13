@@ -53,24 +53,50 @@ test('a submitted request that streams and then settles notifies the workbench o
   const pane = setup(t);
   pane.submit();
   pane.stream(6000);
-  pane.wait(3500);
+  pane.wait(5500);
   assert.deepEqual(pane.events(), ['task-busy', 'task-complete']);
   assert.ok(pane.posted.every(({ origin }) => origin === 'http://panel-a.localhost:4000'));
   pane.wait(10000);
   assert.equal(pane.posted.length, 2);
 });
 
+test('activity resuming shortly after completion reopens the task', t => {
+  const pane = setup(t);
+  pane.submit();
+  pane.stream(6000);
+  pane.wait(5500);
+  assert.deepEqual(pane.events(), ['task-busy', 'task-complete']);
+  // The assistant paused mid-task and keeps going 10s later.
+  pane.wait(10000);
+  pane.stream(3000);
+  assert.deepEqual(pane.events(), ['task-busy', 'task-complete', 'task-busy']);
+  pane.wait(5500);
+  assert.deepEqual(pane.events(), ['task-busy', 'task-complete', 'task-busy', 'task-complete']);
+});
+
+test('a lone stray mutation after completion does not complete twice', t => {
+  const pane = setup(t);
+  pane.submit();
+  pane.stream(6000);
+  pane.wait(5500);
+  assert.deepEqual(pane.events(), ['task-busy', 'task-complete']);
+  pane.wait(10000);
+  pane.mutate();
+  pane.wait(5500);
+  assert.deepEqual(pane.events(), ['task-busy', 'task-complete']);
+});
+
 test('quick replies, interrupted requests, and unsubmitted activity stay silent', t => {
   const pane = setup(t);
   pane.submit();
   pane.stream(2000);
-  pane.wait(3500);
+  pane.wait(5500);
   pane.stream(8000); // Activity without a new submit.
-  pane.wait(3500);
+  pane.wait(5500);
   pane.submit();
   pane.stream(5000);
   pane.escape();
-  pane.wait(3500);
+  pane.wait(5500);
   assert.equal(pane.completions().length, 0);
 });
 
@@ -81,7 +107,7 @@ test('a spinner shown for the request keeps it busy without DOM changes', t => {
   pane.wait(10000);
   assert.deepEqual(pane.events(), ['task-busy']);
   pane.doc.animations = [];
-  pane.wait(3500);
+  pane.wait(5500);
   assert.deepEqual(pane.events(), ['task-busy', 'task-complete']);
 });
 
@@ -90,7 +116,7 @@ test('idle animations that were already running do not hold the task open', t =>
   pane.doc.animations = [pane.spinner()];
   pane.submit();
   pane.stream(5000);
-  pane.wait(3500);
+  pane.wait(5500);
   assert.equal(pane.completions().length, 1);
 });
 
@@ -98,27 +124,27 @@ test('busy is reported once a request is underway and cleared when it ends early
   const pane = setup(t);
   pane.submit();
   pane.stream(500);
-  pane.wait(3500);
+  pane.wait(5500);
   assert.deepEqual(pane.events(), [], 'a quick reply never shows as working');
 
   pane.submit();
   pane.stream(2000);
   assert.deepEqual(pane.events(), ['task-busy']);
-  pane.wait(3500);
+  pane.wait(5500);
   assert.deepEqual(pane.events(), ['task-busy', 'task-idle'], 'too short to count as done');
 
   pane.submit();
   pane.stream(3000);
   pane.escape();
   assert.deepEqual(pane.events(), ['task-busy', 'task-idle', 'task-busy', 'task-idle'], 'Escape clears it at once');
-  pane.wait(3500);
+  pane.wait(5500);
   assert.equal(pane.posted.length, 4);
 });
 
 test('activity without a submit never shows as working', t => {
   const pane = setup(t);
   pane.stream(8000);
-  pane.wait(3500);
+  pane.wait(5500);
   assert.deepEqual(pane.events(), []);
 });
 

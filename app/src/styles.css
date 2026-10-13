@@ -1093,7 +1093,7 @@ html.animations-disabled *::after {
 
 /* ── Setup Background ────────────────────────────────────────────────── */
 .setup-bg {
-  background-color: #262626;
+  background-color: var(--bg-primary);
   background-image:
     radial-gradient(ellipse 80% 60% at 50% 40%, rgba(48, 48, 48, 0.8) 0%, transparent 70%),
     radial-gradient(ellipse 120% 100% at 50% 50%, transparent 40%, rgba(0, 0, 0, 0.3) 100%);

@@ -50,6 +50,7 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AdditionalCliProvider, AgentmailCliProvider, AntigravityCliProvider, ClaudeCliProvider,
         ClineCliProvider, CodexCliProvider, CommandCodeCliProvider, CursorCliProvider,
         ElevenlabsCliProvider, GhCliProvider, GrokCliProvider, GwsCliProvider, HermesCliProvider,
+        JcodeCliProvider,
         KiloCliProvider, OpenCodeCliProvider, PiCliProvider, PosthogCliProvider, RampCliProvider,
         StripeCliProvider, SupabaseCliProvider, ValyuCliProvider, VercelCliProvider,
     };
@@ -65,6 +66,7 @@ pub fn get_provider(agent: AgentType) -> Box<dyn AgentCliProvider> {
         AgentType::CommandCode => Box::new(CommandCodeCliProvider),
         AgentType::Cline => Box::new(ClineCliProvider),
         AgentType::Grok => Box::new(GrokCliProvider),
+        AgentType::Jcode => Box::new(JcodeCliProvider),
         AgentType::Devin
         | AgentType::Trae
         | AgentType::Kimi

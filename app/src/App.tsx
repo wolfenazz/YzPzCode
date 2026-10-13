@@ -11,7 +11,6 @@ import { useAppStore } from './stores/appStore';
 import { resolveWorkspaceView } from './utils/workspaceView';
 import { useDiscordPresence } from './hooks/useDiscordPresence';
 import { useExtensionActivity } from './hooks/useExtensionActivity';
-import { useEffectiveTheme } from './hooks/useEffectiveTheme';
 import { useApplyCustomTheme } from './hooks/useCustomTheme';
 import { useDesktopFileOpen } from './hooks/useDesktopFileOpen';
 import { initWindowPlatform } from './utils/window';
@@ -29,17 +28,7 @@ const LoadingFallback = () => (
   </div>
 );
 
-const ACCENT_COLOR_MAP: Record<string, string> = {
-  default: '#c15f3c',  // Claude Crail
-  burple: '#8c4edd',   // YzPzCode Burple
-  blue: '#1b7ede',     // Claude blue (ring color)
-  purple: '#8b5cf6',
-  green: '#10b981',
-  orange: '#f97316',
-  red: '#f14444',
-  pink: '#ec4899',
-  cyan: '#06b6d4',
-};
+
 
 function App() {
   const {
@@ -48,10 +37,8 @@ function App() {
     setView,
     setViewWithPrevious,
     customCursor,
-    accentColor,
     uiDensity,
     appZoom,
-    themeMode,
     animationsEnabled,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
@@ -63,8 +50,7 @@ function App() {
   useEffect(() => {
     if (view === 'workspace') setWorkspaceVisited(true);
   }, [view]);
-  const effectiveTheme = useEffectiveTheme();
-  const customTheme = useApplyCustomTheme();
+  useApplyCustomTheme();
   useDiscordPresence();
   useExtensionActivity();
   useDesktopFileOpen(startupReady);
@@ -80,33 +66,7 @@ function App() {
     };
   }, [customCursor]);
 
-  useEffect(() => {
-    // A custom theme owns its accent (and every accent tint) via useApplyCustomTheme.
-    if (customTheme) return;
-    const usesYzPzPalette = themeMode === 'yzpz' && (accentColor === 'burple' || accentColor === 'default');
-    const palette = usesYzPzPalette ? ACCENT_COLOR_MAP.burple : ACCENT_COLOR_MAP[accentColor] || ACCENT_COLOR_MAP.default;
-    const usesClaudePalette = themeMode === 'claude' && accentColor === 'default';
-    const hex = palette;
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const root = document.documentElement;
-    root.style.setProperty('--accent', hex);
-    root.style.setProperty('--accent-light', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.12 : usesYzPzPalette ? 0.2 : 0.15})`);
-    root.style.setProperty('--accent-glow', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.16 : usesYzPzPalette ? 0.28 : 0.3})`);
-    root.style.setProperty('--accent-border', `rgba(${r}, ${g}, ${b}, ${usesClaudePalette ? 0.28 : usesYzPzPalette ? 0.38 : 0.2})`);
-    root.style.setProperty('--accent-text', usesClaudePalette ? '#a64d31' : usesYzPzPalette ? '#c7b8f5' : `rgba(${r}, ${g}, ${b}, 0.7)`);
-  }, [accentColor, themeMode, customTheme]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('light-theme', effectiveTheme === 'light');
-    root.classList.toggle('claude-theme', themeMode === 'claude');
-    root.classList.toggle('yzpz-theme', themeMode === 'yzpz');
-    return () => {
-      root.classList.remove('light-theme', 'claude-theme', 'yzpz-theme');
-    };
-  }, [effectiveTheme, themeMode]);
 
   useEffect(() => {
     const root = document.documentElement;

@@ -13,9 +13,8 @@ import { useAppStore } from '../../stores/appStore';
 import { BracketsCurly, CaretRight, Code, DotsThree, Eye, FloppyDisk, MagnifyingGlass, TerminalWindow, TextAlignLeft, WarningCircle } from '@phosphor-icons/react';
 import { useEditorTerminalStore } from '../../stores/editorTerminalStore';
 import monaco from '../../lib/monaco';
-import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
-import { useActiveCustomTheme } from '../../hooks/useCustomTheme';
-import { buildThemeTokens } from '../../utils/customTheme';
+import { useActiveTheme } from '../../hooks/useCustomTheme';
+import { buildThemeTokens, withAlpha } from '../../utils/customTheme';
 import { saveEditorFile } from '../../utils/editorSave';
 import { EditorActionButton } from './EditorActionButton';
 import { EditorProblems } from './EditorProblems';
@@ -78,7 +77,6 @@ interface EditorPaneProps {
 }
 
 export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused, groupLabel, onSelectFile, onOpenBeside }) => {
-  const theme = useEffectiveTheme();
   const editorRef = useRef<MonacoEditor | null>(null);
   const currentFileRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -310,33 +308,33 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
 
   // A custom theme is read from its own tokens, not from <html>: the CSS variables it sets
   // are applied after this component renders, so reading them back would be one theme behind.
-  // Each saved revision gets its own Monaco theme name so edits always refresh the editor.
-  const customTheme = useActiveCustomTheme();
-  const monacoThemeName = customTheme ? `yzpz-editor-custom-${customTheme.id}-${customTheme.updatedAt}` : `yzpz-editor-${theme}`;
+  const activeTheme = useActiveTheme();
+  const monacoThemeName = `yzpz-editor-${activeTheme.id}-${activeTheme.updatedAt ?? 0}-${activeTheme.colors.accent.replace('#', '')}`;
 
   const defineMonacoGlobals = useCallback<BeforeMount>((instance) => {
-    const root = getComputedStyle(document.documentElement);
-    const customTokens = customTheme ? buildThemeTokens(customTheme) : null;
-    const color = (name: string, fallback: string): string => toMonacoThemeColor(customTokens?.[name] ?? root.getPropertyValue(name), fallback);
-    const background = color('--bg-primary', '#262626');
-    const foreground = color('--text-primary', '#faf8f1');
+    const tokens = buildThemeTokens(activeTheme);
+    const color = (name: string, fallback: string): string => toMonacoThemeColor(tokens[name], fallback);
+    const background = color('--bg-primary', activeTheme.colors.background);
+    const foreground = color('--text-primary', activeTheme.colors.text);
     instance.editor.defineTheme(monacoThemeName, {
-      base: theme === 'light' ? 'vs' : 'vs-dark', inherit: true, rules: [],
+      base: activeTheme.base === 'light' ? 'vs' : 'vs-dark',
+      inherit: true,
+      rules: [],
       colors: {
         'editor.background': background,
         'editor.foreground': foreground,
-        'editorLineNumber.foreground': customTokens ? color('--color-zinc-500', '#76746b') : theme === 'light' ? '#939086' : '#76746b',
+        'editorLineNumber.foreground': color('--color-zinc-500', activeTheme.colors.textMuted),
         'editorLineNumber.activeForeground': foreground,
         'editorGutter.background': background,
-        'editorWidget.background': color('--bg-secondary', '#303030'),
-        'editorWidget.border': color('--border-primary', '#3e3e38'),
-        'editorCursor.foreground': color('--accent', '#d87757'),
-        'editor.lineHighlightBackground': theme === 'light' ? '#00000006' : '#ffffff04',
+        'editorWidget.background': color('--bg-secondary', activeTheme.colors.surface),
+        'editorWidget.border': color('--border-primary', activeTheme.colors.border),
+        'editorCursor.foreground': color('--accent', activeTheme.colors.accent),
+        'editor.lineHighlightBackground': activeTheme.base === 'light' ? '#00000006' : '#ffffff04',
         'editor.lineHighlightBorder': '#00000000',
-        'editor.selectionBackground': customTokens ? color('--accent-border', '#d8775740') : theme === 'light' ? '#d8775738' : '#d8775740',
+        'editor.selectionBackground': color('--accent-border', withAlpha(activeTheme.colors.accent, 0.25)),
       },
     });
-  }, [theme, customTheme, monacoThemeName]);
+  }, [activeTheme, monacoThemeName]);
 
   useEffect(() => {
     defineMonacoGlobals(monaco);

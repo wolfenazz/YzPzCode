@@ -11,6 +11,7 @@ import kiloLogo from '../../assets/kiloCode.gif';
 import hermesLogo from '../../assets/Hermes-logo.png';
 import piLogo from '../../assets/pi.svg';
 import grokLogo from '../../assets/Grok.png';
+import jcodeLogo from '../../assets/jcode.svg';
 import { ADDITIONAL_AGENT_LOGOS } from '../../data/additionalAgents';
 
 export interface AgentTargetOption {
@@ -33,6 +34,7 @@ const AGENT_LOGO: Record<string, string> = {
   hermes: hermesLogo,
   pi: piLogo,
   grok: grokLogo,
+  jcode: jcodeLogo,
   ...ADDITIONAL_AGENT_LOGOS,
 };
 

@@ -1,4 +1,4 @@
-export type AgentType = "claude" | "codex" | "antigravity" | "opencode" | "cursor" | "kilo" | "hermes" | "pi" | "commandcode" | "cline" | "grok" | "devin" | "trae" | "kimi" | "qoder" | "copilot" | "kiro" | "mistralvibe" | "deepseektui" | "aider" | "reasonix" | "amp" | "dsh" | "codebuddy" | "mimo" | "atomcode";
+export type AgentType = "claude" | "codex" | "antigravity" | "opencode" | "cursor" | "kilo" | "hermes" | "pi" | "commandcode" | "cline" | "grok" | "jcode" | "devin" | "trae" | "kimi" | "qoder" | "copilot" | "kiro" | "mistralvibe" | "deepseektui" | "aider" | "reasonix" | "amp" | "dsh" | "codebuddy" | "mimo" | "atomcode";
 
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
@@ -83,6 +83,8 @@ export interface ExtensionDockState {
   activePanelId: string | null;
 }
 export type WorkspaceAuroraPalette = 'gemini' | 'sage' | 'accent' | 'custom';
+/** How strong the agent working glow is on terminal and extension panes. */
+export type AgentActivityGlowStyle = 'subtle' | 'balanced' | 'vivid';
 export type WorkspaceBackground = 'none' | 'aurora' | 'light-rays';
 export type SetupBackground = 'none' | 'galaxy' | 'aurora' | 'threads' | 'iridescence' | 'waves' | 'particles' | 'dark-veil' | 'gradient-blinds' | 'liquid-chrome' | 'plasma' | 'shape-grid';
 export type RaysOrigin = 'top-center' | 'top-left' | 'top-right' | 'right' | 'left' | 'bottom-center' | 'bottom-right' | 'bottom-left';

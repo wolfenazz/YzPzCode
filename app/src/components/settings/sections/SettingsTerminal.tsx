@@ -162,6 +162,8 @@ export const SettingsTerminal: React.FC = () => {
     setAgentDoneSoundEnabled,
     agentActivityGlowEnabled,
     setAgentActivityGlowEnabled,
+    agentActivityGlowStyle,
+    setAgentActivityGlowStyle,
     extensionDoneSoundEnabled,
     setExtensionDoneSoundEnabled,
     notificationSoundVolume,
@@ -476,6 +478,24 @@ export const SettingsTerminal: React.FC = () => {
               label="Agent activity glow"
               onChange={setAgentActivityGlowEnabled}
             />
+            {agentActivityGlowEnabled && (
+              <SettingsRow
+                description="Subtle keeps a quiet ring, Balanced softens the glow, Vivid is the full effect."
+                icon={<Sparkle size={16} aria-hidden="true" />}
+                label="Glow style"
+              >
+                <Segmented
+                  label="Glow style"
+                  onChange={setAgentActivityGlowStyle}
+                  options={[
+                    { value: 'subtle' as const, label: 'Subtle' },
+                    { value: 'balanced' as const, label: 'Balanced' },
+                    { value: 'vivid' as const, label: 'Vivid' },
+                  ]}
+                  value={agentActivityGlowStyle}
+                />
+              </SettingsRow>
+            )}
           </SettingsGroup>
 
           <SettingsGroup title="Sounds">

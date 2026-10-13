@@ -17,6 +17,7 @@ YzPzCode detects, installs, authenticates, and launches AI coding agents into te
 | **Command Code** | \`cmd\` / \`cmdc\` | Agentic coding CLI that learns your taste and applies it to every session |
 | **Cline CLI** | \`cline\` | Agentic coding CLI with interactive TUI and headless automation |
 | **Grok CLI** | \`grok\` | xAI's agentic coding assistant |
+| **Jcode** | \`jcode\` | High-performance Rust coding agent harness with swarm collaboration |
 
 ## Installing and Signing In
 

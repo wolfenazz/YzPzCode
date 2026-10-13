@@ -19,6 +19,7 @@ interface ExtensionPaneProps {
 
 export function ExtensionPane({ panel, workspace, visible, suspended }: ExtensionPaneProps): React.JSX.Element {
   const activityGlowEnabled = useAppStore((state) => state.agentActivityGlowEnabled);
+  const activityGlowStyle = useAppStore((state) => state.agentActivityGlowStyle);
   const setActiveView = useAppStore((state) => state.setActiveView);
   const movePanel = useExtensionStore((state) => state.movePanel);
   const restartPanelHost = useExtensionStore((state) => state.restartPanelHost);
@@ -36,7 +37,7 @@ export function ExtensionPane({ panel, workspace, visible, suspended }: Extensio
   };
 
   return (
-    <section ref={setNodeRef} className={`ext-pane app-surface flex h-full min-h-0 flex-col overflow-hidden border border-[var(--border-primary)] bg-[var(--bg-primary)] ${isDragging ? 'opacity-40' : ''}${showActivity ? ` term-pane--${activity.phase}` : ''}`} aria-label={`${panel.name} extension panel`}>
+    <section ref={setNodeRef} className={`ext-pane app-surface flex h-full min-h-0 flex-col overflow-hidden border border-[var(--border-primary)] bg-[var(--bg-primary)] ${isDragging ? 'opacity-40' : ''}${showActivity ? ` term-pane--${activity.phase}` : ''}`} data-glow={activityGlowStyle} aria-label={`${panel.name} extension panel`}>
       <header className="ext-header flex h-9 shrink-0 items-center gap-2 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-2">
         <button type="button" {...attributes} {...listeners} className="app-icon-button app-icon-button--compact cursor-grab" aria-label={`Move ${panel.name} panel`}><DotsSixVertical size={14} /></button>
         <ExtensionLogo extensionId={panel.extensionId} name={panel.name} small />

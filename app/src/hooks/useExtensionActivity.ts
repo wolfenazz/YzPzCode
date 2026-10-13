@@ -15,8 +15,8 @@ import { playExtensionDoneSound } from '../utils/agentDoneNotifier';
 
 /** The webview reports busy about this long after the user submits. */
 const BUSY_REPORT_DELAY_MS = 1000;
-/** ...and done this long after the assistant's last activity. */
-const DONE_REPORT_DELAY_MS = 3000;
+/** ...and done this long after the assistant's last activity (QUIET_MS in webview-activity.js). */
+const DONE_REPORT_DELAY_MS = 5000;
 
 export function useExtensionActivity(): void {
   useEffect(() => {
@@ -43,6 +43,10 @@ export function useExtensionActivity(): void {
     track(listen<{ panelId: string }>('extension-panel-task-complete', ({ payload }) => {
       const { activityByPanel, setPanelActivity } = useExtensionStore.getState();
       const current = activityByPanel[payload.panelId];
+      // A completion only ends a run that is not already done. Anything else
+      // is a duplicate event; replaying it would restart the done sound and
+      // shorten the visible duration.
+      if (current?.phase === 'done') return;
       const now = Date.now();
       setPanelActivity(payload.panelId, {
         phase: 'done',

@@ -56,6 +56,7 @@ function DockFrame({ workspace, visible, onBrowseExtensions }: ExtensionDockProp
   const framePresent = useIsPresent();
   const motionOn = useMotionEnabled();
   const activityGlowEnabled = useAppStore((state) => state.agentActivityGlowEnabled);
+  const activityGlowStyle = useAppStore((state) => state.agentActivityGlowStyle);
   const setActiveView = useAppStore((state) => state.setActiveView);
   const dock = useExtensionStore((state) => state.dockByWorkspace[workspace.id]) ?? DEFAULT_DOCK_STATE;
   const allPanels = useExtensionStore((state) => state.panelsByWorkspace[workspace.id] ?? EMPTY_EXTENSION_PANELS);
@@ -192,6 +193,7 @@ function DockFrame({ workspace, visible, onBrowseExtensions }: ExtensionDockProp
       />
       <motion.div
         className={`xd__frame ext-pane${showAura ? ` term-pane--${activity.phase}` : ''}`}
+        data-glow={activityGlowStyle}
         style={{ width }}
         initial={motionOn ? { x: 36, opacity: 0 } : false}
         animate={{ x: 0, opacity: 1 }}

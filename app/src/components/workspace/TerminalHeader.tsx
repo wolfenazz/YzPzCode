@@ -33,6 +33,7 @@ import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
 import clineLogo from '../../assets/cline.webp';
 import grokLogo from '../../assets/Grok.png';
+import jcodeLogo from '../../assets/jcode.svg';
 import { ADDITIONAL_AGENT_LABELS, ADDITIONAL_AGENT_LOGOS } from '../../data/additionalAgents';
 
 export const AGENT_LOGOS: Record<AgentType, string> = {
@@ -47,6 +48,7 @@ export const AGENT_LOGOS: Record<AgentType, string> = {
   commandcode: commandCodeLogo,
   cline: clineLogo,
   grok: grokLogo,
+  jcode: jcodeLogo,
   ...ADDITIONAL_AGENT_LOGOS,
 };
 
@@ -75,6 +77,7 @@ export const CLI_LABELS: Partial<Record<CliType, string>> = {
   commandcode: 'Command Code',
   cline: 'Cline',
   grok: 'Grok',
+  jcode: 'Jcode',
   ...ADDITIONAL_AGENT_LABELS,
   gh: 'GitHub',
   stripe: 'Stripe',
@@ -134,7 +137,7 @@ const AgentMark: React.FC<{ agent: CliType }> = ({ agent }) => {
   if (agent === 'claude') {
     return <Icon icon="simple-icons:anthropic" style={{ color: '#D97757' }} />;
   }
-  const invert = agent === 'opencode' || agent === 'cursor' || agent === 'codex';
+  const invert = agent === 'opencode' || agent === 'cursor' || agent === 'codex' || agent === 'jcode';
   return (
     <img
       src={AGENT_LOGOS[agent]}

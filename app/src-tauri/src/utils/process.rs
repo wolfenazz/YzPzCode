@@ -303,6 +303,23 @@ impl ProcessRunner {
             paths.push(format!(r"{}\Programs\nodejs", local));
             paths.push(format!(r"{}\hermes\bin", local));
             paths.push(format!(r"{}\hermes\hermes-agent\venv\Scripts", local));
+            // Official Jcode Windows installer location:
+            // %LOCALAPPDATA%\jcode\bin\jcode.exe (launcher) + builds\stable fallback.
+            // See https://jcode.sh/install / install.ps1 (JCODE_INSTALL_DIR default).
+            paths.push(format!(r"{}\jcode\bin", local));
+            paths.push(format!(r"{}\jcode\builds\stable", local));
+        }
+        // Respect JCODE_INSTALL_DIR / JCODE_HOME overrides used by the installer.
+        if let Ok(install_dir) = std::env::var("JCODE_INSTALL_DIR") {
+            if !install_dir.is_empty() {
+                paths.push(install_dir);
+            }
+        }
+        if let Ok(jcode_home) = std::env::var("JCODE_HOME") {
+            if !jcode_home.is_empty() {
+                paths.push(format!(r"{}\bin", jcode_home));
+                paths.push(format!(r"{}\builds\stable", jcode_home));
+            }
         }
         paths.push(r"C:\Program Files\nodejs".to_string());
         paths.push(r"C:\Program Files\Git\bin".to_string());
@@ -313,6 +330,9 @@ impl ProcessRunner {
             paths.push(format!(r"{}\.local\bin", home));
             paths.push(format!(r"{}\bin", home));
             paths.push(format!(r"{}\.npm-global\bin", home));
+            paths.push(format!(r"{}\.cargo\bin", home));
+            paths.push(format!(r"{}\.jcode\bin", home));
+            paths.push(format!(r"{}\.jcode\builds\stable", home));
             paths.extend(Self::nvm_version_dirs(&home));
 
             if let Ok(nvm_home) = std::env::var("NVM_HOME") {
@@ -369,7 +389,23 @@ impl ProcessRunner {
             paths.push(format!("{}/.fnm/bin", home));
             paths.push(format!("{}/go/bin", home));
             paths.push(format!("{}/.local/share/hermes/bin", home));
+            // Jcode Unix installer: launcher in ~/.local/bin (already above),
+            // versioned binary in ~/.jcode/builds.
+            paths.push(format!("{}/.jcode/bin", home));
+            paths.push(format!("{}/.jcode/builds/stable", home));
             paths.extend(Self::nvm_version_dirs(&home));
+        }
+
+        if let Ok(install_dir) = std::env::var("JCODE_INSTALL_DIR") {
+            if !install_dir.is_empty() {
+                paths.push(install_dir);
+            }
+        }
+        if let Ok(jcode_home) = std::env::var("JCODE_HOME") {
+            if !jcode_home.is_empty() {
+                paths.push(format!("{}/bin", jcode_home));
+                paths.push(format!("{}/builds/stable", jcode_home));
+            }
         }
 
         paths
@@ -413,7 +449,23 @@ impl ProcessRunner {
             paths.push(format!("{}/.local/share/fnm/bin", home));
             paths.push(format!("{}/.sdkman/candidates/java/current/bin", home));
             paths.push(format!("{}/.local/share/hermes/bin", home));
+            // Jcode Unix installer: launcher in ~/.local/bin (already above),
+            // versioned binary in ~/.jcode/builds.
+            paths.push(format!("{}/.jcode/bin", home));
+            paths.push(format!("{}/.jcode/builds/stable", home));
             paths.extend(Self::nvm_version_dirs(&home));
+        }
+
+        if let Ok(install_dir) = std::env::var("JCODE_INSTALL_DIR") {
+            if !install_dir.is_empty() {
+                paths.push(install_dir);
+            }
+        }
+        if let Ok(jcode_home) = std::env::var("JCODE_HOME") {
+            if !jcode_home.is_empty() {
+                paths.push(format!("{}/bin", jcode_home));
+                paths.push(format!("{}/builds/stable", jcode_home));
+            }
         }
 
         if let Ok(data_home) = std::env::var("XDG_DATA_HOME") {

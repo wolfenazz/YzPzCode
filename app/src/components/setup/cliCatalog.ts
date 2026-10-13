@@ -10,6 +10,7 @@ import piLogo from '../../assets/pi.svg';
 import commandCodeLogo from '../../assets/commandcode-logo.svg';
 import clineLogo from '../../assets/cline.webp';
 import grokLogo from '../../assets/Grok.png';
+import jcodeLogo from '../../assets/jcode.svg';
 import { ADDITIONAL_AGENTS, ADDITIONAL_AGENT_TYPES } from '../../data/additionalAgents';
 
 /** Everything the setup screen needs to draw one agent or tool CLI. */
@@ -37,6 +38,7 @@ const CORE_AGENTS: Record<Exclude<AgentType, keyof typeof ADDITIONAL_AGENTS>, Cl
   commandcode: { label: 'Command Code', color: '#a3a3a3', command: 'cmd', description: 'Command Code agent', logo: commandCodeLogo },
   cline: { label: 'Cline', color: '#0ea5e9', command: 'cline', description: 'Autonomous coding agent', logo: clineLogo },
   grok: { label: 'Grok', color: '#a1a1aa', command: 'grok', description: 'xAI coding agent', logo: grokLogo },
+  jcode: { label: 'Jcode', color: '#ff6b35', command: 'jcode', description: 'High-performance Rust coding agent', logo: jcodeLogo },
 };
 
 export const AGENT_CATALOG: Record<AgentType, CliMeta> = {

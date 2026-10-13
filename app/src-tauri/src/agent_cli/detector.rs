@@ -107,6 +107,7 @@ impl AgentCliDetector {
             AgentType::CommandCode,
             AgentType::Cline,
             AgentType::Grok,
+            AgentType::Jcode,
             AgentType::Devin,
             AgentType::Trae,
             AgentType::Kimi,

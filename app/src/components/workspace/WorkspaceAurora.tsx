@@ -2,7 +2,7 @@ import { Color, Mesh, Program, Renderer, Triangle } from 'ogl';
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactElement } from 'react';
 import { useAppStore } from '../../stores/appStore';
 import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
-import { useActiveCustomTheme } from '../../hooks/useCustomTheme';
+import { useActiveTheme } from '../../hooks/useCustomTheme';
 import { useBackgroundMotion } from '../../hooks/useBackgroundMotion';
 import type { WorkspaceAuroraPalette } from '../../types';
 
@@ -89,13 +89,13 @@ export function WorkspaceAurora(): ReactElement | null {
   const motion = useBackgroundMotion(motionEnabled);
   const enabled = intensity > 0;
   const effectiveTheme = useEffectiveTheme();
-  const customThemeAccent = useActiveCustomTheme()?.colors.accent;
+  const themeAccent = useActiveTheme().colors.accent;
   const stops = useMemo((): [string, string, string] => {
     if (palette === 'custom') return customColors;
     if (palette !== 'accent') return PALETTE_STOPS[palette];
-    const accent = customThemeAccent ?? APP_ACCENTS[accentColor] ?? PALETTE_STOPS.accent[0];
+    const accent = themeAccent ?? APP_ACCENTS[accentColor] ?? PALETTE_STOPS.accent[0];
     return [accent, '#aa91b5', '#7594b9'];
-  }, [palette, accentColor, customColors, customThemeAccent]);
+  }, [palette, accentColor, customColors, themeAccent]);
   const containerRef = useRef<HTMLDivElement>(null);
   const latestRef = useRef({ stops, intensity, blend, amplitude, speed, motion });
   const renderOnceRef = useRef<() => void>(() => {});

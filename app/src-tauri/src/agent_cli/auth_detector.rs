@@ -39,6 +39,7 @@ impl AuthDetector {
             AgentType::CommandCode => Self::check_commandcode_auth(),
             AgentType::Cline => Self::check_cline_auth(),
             AgentType::Grok => Self::check_grok_auth(),
+            AgentType::Jcode => Self::check_jcode_auth(),
             AgentType::Devin
             | AgentType::Trae
             | AgentType::Kimi
@@ -85,6 +86,7 @@ impl AuthDetector {
             AgentType::CommandCode,
             AgentType::Cline,
             AgentType::Grok,
+            AgentType::Jcode,
             AgentType::Devin,
             AgentType::Trae,
             AgentType::Kimi,
@@ -804,6 +806,86 @@ impl AuthDetector {
         }
     }
 
+    fn check_jcode_auth() -> AuthInfo {
+        // Any configured provider key also authenticates jcode, since it can
+        // route through Claude, OpenAI, Gemini, Copilot and 20+ other providers.
+        for env_name in [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "DEEPSEEK_API_KEY",
+            "XAI_API_KEY",
+        ] {
+            if std::env::var(env_name)
+                .ok()
+                .is_some_and(|value| !value.trim().is_empty())
+            {
+                return AuthInfo {
+                    agent: AgentType::Jcode,
+                    status: AuthStatus::Authenticated,
+                    error: None,
+                    config_path: Some(format!("environment variable {env_name}")),
+                };
+            }
+        }
+
+        // `jcode login` writes provider credentials under ~/.jcode
+        // (config.toml, auth state, pending logins) with per-provider keys in
+        // ~/.config/jcode/*.env. A custom home lives in $JCODE_HOME.
+        let config_dirs: Vec<PathBuf> = {
+            let mut dirs = Vec::new();
+            if let Ok(custom) = env::var("JCODE_HOME") {
+                dirs.push(PathBuf::from(custom));
+            }
+            if let Some(home) = Self::get_home_dir() {
+                dirs.push(home.join(".jcode"));
+            }
+            dirs
+        };
+        for config_path in &config_dirs {
+            if config_path.exists() {
+                let config_file = config_path.join("config.toml");
+                let auth_file = config_path.join("auth.json");
+                let credentials_file = config_path.join("credentials.json");
+                if config_file.exists() || auth_file.exists() || credentials_file.exists() {
+                    return AuthInfo {
+                        agent: AgentType::Jcode,
+                        status: AuthStatus::Authenticated,
+                        error: None,
+                        config_path: Some(config_path.to_string_lossy().to_string()),
+                    };
+                }
+            }
+        }
+
+        if let Some(home) = Self::get_home_dir() {
+            let env_dir = home.join(".config").join("jcode");
+            if env_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&env_dir) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.extension().is_some_and(|ext| ext == "env") {
+                            return AuthInfo {
+                                agent: AgentType::Jcode,
+                                status: AuthStatus::Authenticated,
+                                error: None,
+                                config_path: Some(path.to_string_lossy().to_string()),
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        AuthInfo {
+            agent: AgentType::Jcode,
+            status: AuthStatus::NotAuthenticated,
+            error: None,
+            config_path: None,
+        }
+    }
+
     fn get_home_dir() -> Option<PathBuf> {
         #[cfg(target_os = "windows")]
         {
@@ -868,6 +950,11 @@ impl AuthDetector {
                 "Run 'grok login' in a terminal".to_string(),
                 "Or set XAI_API_KEY environment variable".to_string(),
                 "Credentials are stored in ~/.grok".to_string(),
+            ],
+            AgentType::Jcode => vec![
+                "Run 'jcode login' in a terminal and pick a provider (Claude, OpenAI, Gemini, Copilot, ...)".to_string(),
+                "Or run 'jcode login --provider <provider>' for a specific provider".to_string(),
+                "Credentials are stored in ~/.jcode (config.toml) with keys in ~/.config/jcode/*.env".to_string(),
             ],
             AgentType::Cline => vec![
                 "Run 'cline' and sign in to configure your provider".to_string(),

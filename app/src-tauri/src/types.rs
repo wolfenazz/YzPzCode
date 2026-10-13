@@ -14,6 +14,7 @@ pub enum AgentType {
     CommandCode,
     Cline,
     Grok,
+    Jcode,
     Devin,
     Trae,
     Kimi,

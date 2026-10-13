@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { invoke } from '@tauri-apps/api/core';
 import { AgentType, WorkspaceConfig, TerminalSession, AgentCliInfo, PrerequisiteStatus, IdeType, IdeInfo, FileTab, GitFileStatus, GitDiffStat, CliLaunchState, AuthInfo, ToolCliType, ToolCliInfo, ToolAuthInfo, CliType, BrowserDeviceId, BrowserDeviceOrientation, BrowserSelectedElement, BrowserWorkspaceState, WorkspaceView, BrowserTab, CapturedStyle, AppliedStyle, CapturedUiElementReference, BrowserUiIntegrationMode, InspectorQuickPrompt, InspectorQuickPromptGroup, ImageEditorWorkspaceState, ThemeMode } from '../types';
 import { useImageEditorStore } from './imageEditorStore';
-import type { CursorSize, CursorStyleId, CustomTheme, FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings } from '../types';
+import type { CursorSize, CursorStyleId, CustomTheme, FileContent, WorkspaceAuroraPalette, WorkspaceBackground, WorkspaceLightRaysSettings, SetupBackground, SetupGalaxySettings, AgentActivityGlowStyle } from '../types';
 import { MAX_CUSTOM_THEMES, sanitizeCustomTheme, sanitizeCustomThemes } from '../utils/customTheme';
 import { DEFAULT_LIGHT_RAYS, migrateWorkspaceBackground, normalizeLightRays } from '../utils/workspaceBackground';
 import { DEFAULT_SETUP_GALAXY, migrateSetupBackground, normalizeSetupBackground, normalizeSetupGalaxy } from '../utils/setupBackground';
@@ -239,6 +239,8 @@ interface AppState {
   agentDoneSoundEnabled: boolean;
   /** Rainbow glow while an agent works, plus a finish effect when it is done. */
   agentActivityGlowEnabled: boolean;
+  /** How strong the working glow is: a quiet ring, the default soft glow, or the full vivid effect. */
+  agentActivityGlowStyle: AgentActivityGlowStyle;
   extensionDoneSoundEnabled: boolean;
   notificationSoundVolume: number;
   terminalOpacity: number;
@@ -324,6 +326,7 @@ interface AppState {
   setTerminalBellEnabled: (enabled: boolean) => void;
   setAgentDoneSoundEnabled: (enabled: boolean) => void;
   setAgentActivityGlowEnabled: (enabled: boolean) => void;
+  setAgentActivityGlowStyle: (style: AgentActivityGlowStyle) => void;
   setExtensionDoneSoundEnabled: (enabled: boolean) => void;
   setNotificationSoundVolume: (volume: number) => void;
   setTerminalOpacity: (opacity: number) => void;
@@ -480,6 +483,7 @@ const initialCliStatuses: Record<CliType, AgentCliInfo | null> = {
   commandcode: null,
   cline: null,
   grok: null,
+  jcode: null,
   devin: null,
   trae: null,
   kimi: null,
@@ -569,6 +573,7 @@ export const useAppStore = create<AppState>()(
       terminalBellEnabled: true,
       agentDoneSoundEnabled: true,
       agentActivityGlowEnabled: true,
+      agentActivityGlowStyle: 'balanced',
       extensionDoneSoundEnabled: true,
       notificationSoundVolume: 70,
       terminalOpacity: 100,
@@ -843,6 +848,9 @@ export const useAppStore = create<AppState>()(
       setTerminalBellEnabled: (enabled) => set({ terminalBellEnabled: enabled }),
       setAgentDoneSoundEnabled: (enabled) => set({ agentDoneSoundEnabled: enabled }),
       setAgentActivityGlowEnabled: (enabled) => set({ agentActivityGlowEnabled: enabled }),
+      setAgentActivityGlowStyle: (style) => set({
+        agentActivityGlowStyle: style === 'subtle' || style === 'vivid' ? style : 'balanced',
+      }),
       setExtensionDoneSoundEnabled: (enabled) => set({ extensionDoneSoundEnabled: enabled }),
       setNotificationSoundVolume: (volume) => set({ notificationSoundVolume: volume }),
       setTerminalOpacity: (opacity) => set({ terminalOpacity: opacity }),
@@ -1986,6 +1994,9 @@ export const useAppStore = create<AppState>()(
           setupBackground: normalizeSetupBackground(persisted.setupBackground ?? currentState.setupBackground),
         };
         if (merged.themeMode === 'custom' && !activeCustomThemeId) merged.themeMode = 'dark';
+        if (merged.agentActivityGlowStyle !== 'subtle' && merged.agentActivityGlowStyle !== 'balanced' && merged.agentActivityGlowStyle !== 'vivid') {
+          merged.agentActivityGlowStyle = 'balanced';
+        }
         return merged;
       },
       partialize: (state) => {
@@ -2027,6 +2038,7 @@ export const useAppStore = create<AppState>()(
           terminalBellEnabled: state.terminalBellEnabled,
           agentDoneSoundEnabled: state.agentDoneSoundEnabled,
           agentActivityGlowEnabled: state.agentActivityGlowEnabled,
+          agentActivityGlowStyle: state.agentActivityGlowStyle ?? 'balanced',
           extensionDoneSoundEnabled: state.extensionDoneSoundEnabled,
           notificationSoundVolume: state.notificationSoundVolume,
           terminalOpacity: state.terminalOpacity,

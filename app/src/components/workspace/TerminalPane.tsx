@@ -11,8 +11,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import { TerminalSession, AgentCliInfo, CliLaunchState, AuthInfo, AgentType, CliType, ManagedTerminalCommandState } from '../../types';
 import { useAgentCli } from '../../hooks/useAgentCli';
 import { useCliLauncher } from '../../hooks/useCliLauncher';
-import { useEffectiveTheme } from '../../hooks/useEffectiveTheme';
-import { useActiveCustomTheme } from '../../hooks/useCustomTheme';
+import { useActiveTheme } from '../../hooks/useCustomTheme';
 import { useAppStore } from '../../stores/appStore';
 import { buildTerminalPalette } from '../../utils/customTheme';
 import { getTerminalFontStack } from '../../utils/terminalFonts';
@@ -131,6 +130,7 @@ const NEW_SESSION_COMMANDS: Partial<Record<CliType, string>> = {
   pi: '/new',
   claude: '/clear',
   grok: '/new',
+  jcode: '/clear',
 };
 
 // AI agent binary names a user may type to launch an agent manually inside a
@@ -154,6 +154,7 @@ const AGENT_BINARY_NAMES: Record<string, AgentType> = {
   'command-code': 'commandcode',
   cline: 'cline',
   grok: 'grok',
+  jcode: 'jcode',
   devin: 'devin',
   traecli: 'trae',
   kimi: 'kimi',
@@ -336,6 +337,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const agentActivityRef = useRef<AgentActivityTracker | null>(null);
   const [agentActivity, setAgentActivity] = useState<AgentActivityState>({ phase: 'idle' });
   const agentActivityGlowEnabled = useAppStore((state) => state.agentActivityGlowEnabled);
+  const agentActivityGlowStyle = useAppStore((state) => state.agentActivityGlowStyle);
   useEffect(() => {
     setAgentActivity({ phase: 'idle' });
     const tracker = new AgentActivityTracker((state) => {
@@ -411,29 +413,21 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   const launchState: CliLaunchState | null | undefined = session.agent ? getLaunchStateSync(session.id) : undefined;
   const authInfo: AuthInfo | null | undefined = session.agent ? getAuthInfoSync(session.agent) : undefined;
 
-  const effectiveTheme = useEffectiveTheme();
-  const customTheme = useActiveCustomTheme();
+  const activeTheme = useActiveTheme();
 
-  // xterm's color parser rejects CSS var strings, so read the resolved value
-  // of --bg-terminal (app background darkened) for the canvas background.
-  // A custom theme supplies its palette directly: the CSS variables it sets land
-  // after this memo runs, so reading them back here would be one theme behind.
   const terminalTheme = useMemo(() => {
-    const palette = customTheme ? buildTerminalPalette(customTheme) : null;
-    const themeBackground = palette?.background ?? getComputedStyle(document.documentElement).getPropertyValue('--bg-terminal').trim();
-    const background = terminalBackgroundColor || themeBackground || DARK_TERMINAL_THEME.background;
+    const palette = buildTerminalPalette(activeTheme);
+    const background = terminalBackgroundColor || palette.background || DARK_TERMINAL_THEME.background;
     return {
-      ...(palette?.light ? { ...DARK_TERMINAL_THEME, ...LIGHT_TERMINAL_ANSI } : DARK_TERMINAL_THEME),
-      ...(palette && {
-        cursor: palette.cursor,
-        selectionBackground: palette.selectionBackground,
-        selectionForeground: palette.selectionForeground,
-      }),
+      ...(palette.light ? { ...DARK_TERMINAL_THEME, ...LIGHT_TERMINAL_ANSI } : DARK_TERMINAL_THEME),
+      cursor: palette.cursor,
+      cursorAccent: palette.cursorAccent,
+      selectionBackground: palette.selectionBackground,
+      selectionForeground: palette.selectionForeground,
       background: withOpacity(background, terminalOpacity),
-      foreground: terminalForegroundColor || palette?.foreground || DARK_TERMINAL_THEME.foreground,
-      cursorAccent: background,
+      foreground: terminalForegroundColor || palette.foreground || DARK_TERMINAL_THEME.foreground,
     };
-  }, [effectiveTheme, customTheme, terminalBackgroundColor, terminalForegroundColor, terminalOpacity]);
+  }, [activeTheme, terminalBackgroundColor, terminalForegroundColor, terminalOpacity]);
   const managedCommandActive =
     managedCommandState?.status === 'Starting' ||
     managedCommandState?.status === 'Running' ||
@@ -1129,6 +1123,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   useEffect(() => {
     if (!xtermRef.current) return;
     xtermRef.current.options.theme = terminalTheme;
+    refreshTerminalAtlases();
   }, [terminalTheme]);
 
   useEffect(() => {
@@ -1341,7 +1336,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
 
   const handleRetryInstall = async () => {
     if (!session.agent) return;
-    const agentTypes: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', ...ADDITIONAL_AGENT_TYPES];
+    const agentTypes: AgentType[] = ['claude', 'codex', 'antigravity', 'opencode', 'cursor', 'kilo', 'hermes', 'pi', 'commandcode', 'cline', 'grok', 'jcode', ...ADDITIONAL_AGENT_TYPES];
     if (!agentTypes.includes(session.agent as AgentType)) return;
     if (session.agent === 'amp' && navigator.userAgent.includes('Windows')) {
       await openUrl('https://ampcode.com/docs/cli');
@@ -1381,6 +1376,7 @@ export const TerminalPane: React.FC<TerminalPaneProps> = ({
   return (
     <div
       className={`term-pane${embedded ? ' term-pane--embedded' : ''}${isActive ? ' term-pane--active' : ''}${activityClass}`}
+      data-glow={agentActivityGlowStyle}
       style={terminalBackgroundColor ? ({ '--term-surface': terminalBackgroundColor } as React.CSSProperties) : undefined}
       onMouseDown={embedded ? undefined : () => setActiveSession(session.id)}
     >

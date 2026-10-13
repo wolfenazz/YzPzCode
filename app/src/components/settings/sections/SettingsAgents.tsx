@@ -23,6 +23,7 @@ import piLogo from '../../../assets/pi.svg';
 import commandCodeLogo from '../../../assets/commandcode-logo.svg';
 import clineLogo from '../../../assets/cline.webp';
 import grokLogo from '../../../assets/Grok.png';
+import jcodeLogo from '../../../assets/jcode.svg';
 import { ADDITIONAL_AGENT_LOGOS } from '../../../data/additionalAgents';
 import {
   Badge,
@@ -47,6 +48,7 @@ const AGENT_ICONS: Record<string, string> = {
   commandcode: commandCodeLogo,
   cline: clineLogo,
   grok: grokLogo,
+  jcode: jcodeLogo,
   ...ADDITIONAL_AGENT_LOGOS,
 };
 

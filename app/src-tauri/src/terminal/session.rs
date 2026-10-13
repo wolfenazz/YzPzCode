@@ -84,7 +84,12 @@ impl PtySession {
                 let npm_path = format!("{}\\npm", local_appdata);
                 let windows_apps = format!("{}\\Microsoft\\WindowsApps", local_appdata);
                 let programs_path = format!("{}\\Programs", local_appdata);
-                path = format!("{};{};{};{}", path, npm_path, windows_apps, programs_path);
+                let jcode_bin = format!("{}\\jcode\\bin", local_appdata);
+                let jcode_stable = format!("{}\\jcode\\builds\\stable", local_appdata);
+                path = format!(
+                    "{};{};{};{};{};{}",
+                    path, npm_path, windows_apps, programs_path, jcode_bin, jcode_stable
+                );
             }
 
             if !appdata.is_empty() {
@@ -106,10 +111,29 @@ impl PtySession {
                 let nvm_path = format!("{}\\.nvm", userprofile);
                 let nvm_current = format!("{}\\.nvm\\current", userprofile);
                 let npm_global_path = format!("{}\\.npm-global\\bin", userprofile);
+                let jcode_home_bin = format!("{}\\.jcode\\bin", userprofile);
+                let jcode_home_stable = format!("{}\\.jcode\\builds\\stable", userprofile);
                 path = format!(
-                    "{};{};{};{};{}",
-                    path, cargo_path, nvm_path, nvm_current, npm_global_path
+                    "{};{};{};{};{};{};{}",
+                    path,
+                    cargo_path,
+                    nvm_path,
+                    nvm_current,
+                    npm_global_path,
+                    jcode_home_bin,
+                    jcode_home_stable
                 );
+
+                if let Ok(install_dir) = std::env::var("JCODE_INSTALL_DIR") {
+                    if !install_dir.is_empty() {
+                        path = format!("{};{}", path, install_dir);
+                    }
+                }
+                if let Ok(jcode_home) = std::env::var("JCODE_HOME") {
+                    if !jcode_home.is_empty() {
+                        path = format!("{};{}\\bin;{}\\builds\\stable", path, jcode_home, jcode_home);
+                    }
+                }
 
                 if let Ok(nvm_home) = std::env::var("NVM_HOME") {
                     if !nvm_home.is_empty() {

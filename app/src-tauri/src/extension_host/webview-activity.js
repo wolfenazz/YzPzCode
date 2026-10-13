@@ -6,10 +6,16 @@
 // still arriving BUSY_SHOW_MS after the submit) and `task-idle` when a busy
 // request ends without completing (interrupted or too short), so the pane can
 // show a working indicator.
+//
+// Assistants also pause mid-task (tool calls, waiting on results), so a quiet
+// gap alone is weak evidence. QUIET_MS is long enough to cover short pauses,
+// and activity resuming within RESUME_MS of a completion reopens the run as
+// `task-busy` instead of leaving the pane stuck on done.
 (() => {
-  const QUIET_MS = 3000;
+  const QUIET_MS = 5000;
   const MIN_BUSY_MS = 4000;
   const BUSY_SHOW_MS = 1000;
+  const RESUME_MS = 60000;
   const SAMPLE_MS = 500;
   const parentOrigin = new URLSearchParams(location.search).get('parentOrigin');
   if (!parentOrigin || window.parent === window) return;
@@ -20,6 +26,10 @@
   let runStart = 0;
   let lastActivity = 0;
   let busy = false;
+  // The last completion, kept so activity resuming shortly after it reopens
+  // the run instead of being ignored as unsubmitted noise.
+  let completedAt = 0;
+  let completedRunStart = 0;
   // Animations already running when the request was sent (idle decorations)
   // never count as work; spinners shown for the request are new animations.
   let baseline = new WeakSet();
@@ -38,6 +48,15 @@
   };
 
   function activity(now = Date.now()) {
+    if (!armedAt && completedAt && now - completedAt <= RESUME_MS) {
+      // The run was closed during a mid-task pause and the assistant is still
+      // going. Reopen it as a continuation of the same run; `task-busy` is
+      // only re-posted once the activity proves itself by streaming a while.
+      armedAt = now;
+      runStart = completedRunStart;
+      lastActivity = now;
+      return;
+    }
     if (!lastActivity) runStart = now;
     lastActivity = now;
   }
@@ -47,6 +66,7 @@
     armedAt = now;
     runStart = now;
     lastActivity = now;
+    completedAt = 0;
     try { baseline = new WeakSet(doc.getAnimations()); } catch { baseline = new WeakSet(); }
   }
 
@@ -91,12 +111,18 @@
     if (armedAt && animating()) activity(now);
     if (armedAt && lastActivity - armedAt >= BUSY_SHOW_MS && now - lastActivity < QUIET_MS) setBusy(true);
     if (lastActivity && now - lastActivity >= QUIET_MS) {
-      // The first settle after a submit ends that request, long or short.
-      const finished = armedAt && lastActivity - runStart >= MIN_BUSY_MS;
+      // The first settle after a submit ends that request, long or short. A
+      // resumed run only completes when its continuation visibly worked;
+      // otherwise a lone stray mutation after a real completion would post a
+      // duplicate `task-complete`.
+      const continued = lastActivity - armedAt >= BUSY_SHOW_MS;
+      const finished = armedAt && continued && lastActivity - runStart >= MIN_BUSY_MS;
       lastActivity = 0;
       armedAt = 0;
       if (finished) {
         busy = false;
+        completedAt = now;
+        completedRunStart = runStart;
         post('task-complete');
       } else {
         setBusy(false);

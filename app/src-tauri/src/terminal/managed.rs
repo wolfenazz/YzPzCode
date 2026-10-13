@@ -563,8 +563,8 @@ pub(crate) fn build_windows_path() -> String {
     }
     if !local_appdata.is_empty() {
         path = format!(
-            "{};{}\\npm;{}\\Microsoft\\WindowsApps;{}\\Programs",
-            path, local_appdata, local_appdata, local_appdata
+            "{};{}\\npm;{}\\Microsoft\\WindowsApps;{}\\Programs;{}\\jcode\\bin;{}\\jcode\\builds\\stable",
+            path, local_appdata, local_appdata, local_appdata, local_appdata, local_appdata
         );
     }
     if !appdata.is_empty() {
@@ -580,9 +580,19 @@ pub(crate) fn build_windows_path() -> String {
     }
     if !userprofile.is_empty() {
         path = format!(
-            "{};{}\\.cargo\\bin;{}\\.nvm;{}\\.nvm\\current;{}\\.npm-global\\bin",
-            path, userprofile, userprofile, userprofile, userprofile
+            "{};{}\\.cargo\\bin;{}\\.nvm;{}\\.nvm\\current;{}\\.npm-global\\bin;{}\\.jcode\\bin;{}\\.jcode\\builds\\stable",
+            path, userprofile, userprofile, userprofile, userprofile, userprofile, userprofile
         );
+    }
+    if let Ok(install_dir) = std::env::var("JCODE_INSTALL_DIR") {
+        if !install_dir.is_empty() {
+            path = format!("{};{}", path, install_dir);
+        }
+    }
+    if let Ok(jcode_home) = std::env::var("JCODE_HOME") {
+        if !jcode_home.is_empty() {
+            path = format!("{};{}\\bin;{}\\builds\\stable", path, jcode_home, jcode_home);
+        }
     }
     if let Ok(system_root) = std::env::var("SystemRoot") {
         path = format!("{};{}\\System32", path, system_root);

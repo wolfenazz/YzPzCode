@@ -9,7 +9,7 @@
  * This file is dependency-free on purpose: it is shared by the live app, the
  * editor preview and the node test runner.
  */
-import type { CustomTheme, CustomThemeBase, CustomThemeColors } from '../types';
+import type { CustomTheme, CustomThemeBase, CustomThemeColors, ThemeMode } from '../types';
 
 export const MAX_CUSTOM_THEMES = 24;
 export const THEME_NAME_MAX_LENGTH = 40;
@@ -184,6 +184,88 @@ export const THEME_PRESETS: ReadonlyArray<ThemePreset> = [
 ];
 
 export const getThemePreset = (id: string): ThemePreset | undefined => THEME_PRESETS.find((preset) => preset.id === id);
+
+export const ACCENT_COLOR_MAP: Record<string, string> = {
+  default: '#c15f3c', // Claude Crail
+  claude: '#c15f3c',
+  burple: '#8c4edd', // YzPzCode Burple
+  blue: '#1b7ede', // Claude blue (ring color)
+  purple: '#8b5cf6',
+  green: '#10b981',
+  orange: '#f97316',
+  red: '#f14444',
+  pink: '#ec4899',
+  cyan: '#06b6d4',
+};
+
+export function getBuiltInTheme(
+  id: 'dark' | 'light' | 'claude' | 'yzpz',
+  accentColor?: string,
+): CustomTheme {
+  const preset = getThemePreset(id) ?? THEME_PRESETS[0];
+  let accent = preset.colors.accent;
+
+  if (accentColor && accentColor !== 'default' && ACCENT_COLOR_MAP[accentColor]) {
+    accent = ACCENT_COLOR_MAP[accentColor];
+  } else if (id === 'claude' && accentColor === 'default') {
+    accent = '#c15f3c';
+  } else if (id === 'yzpz' && (accentColor === 'burple' || accentColor === 'default')) {
+    accent = '#8c4edd';
+  } else if (id === 'dark' && accentColor === 'default') {
+    accent = '#d0d0d0';
+  } else if (id === 'light' && accentColor === 'default') {
+    accent = '#4f5358';
+  }
+
+  return {
+    id: preset.id,
+    name: preset.name,
+    base: preset.base,
+    colors: {
+      ...preset.colors,
+      accent,
+    },
+    radius: THEME_RADIUS_DEFAULT,
+    createdAt: 0,
+    updatedAt: 0,
+  };
+}
+
+export interface ResolveThemeParams {
+  themeMode: ThemeMode;
+  activeCustomThemeId?: string | null;
+  customThemes?: CustomTheme[];
+  accentColor?: string;
+  systemDark?: boolean;
+}
+
+export function resolveActiveTheme({
+  themeMode,
+  activeCustomThemeId = null,
+  customThemes = [],
+  accentColor,
+  systemDark,
+}: ResolveThemeParams): CustomTheme {
+  if (themeMode === 'custom') {
+    const custom = customThemes.find((theme) => theme.id === activeCustomThemeId);
+    if (custom) return custom;
+  }
+
+  if (themeMode === 'system') {
+    const isDark =
+      systemDark ??
+      (typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-color-scheme: dark)').matches
+        : true);
+    return getBuiltInTheme(isDark ? 'dark' : 'light', accentColor);
+  }
+
+  if (themeMode === 'light' || themeMode === 'claude' || themeMode === 'yzpz' || themeMode === 'dark') {
+    return getBuiltInTheme(themeMode, accentColor);
+  }
+
+  return getBuiltInTheme('dark', accentColor);
+}
 
 const FALLBACK_PRESET: Record<CustomThemeBase, ThemePreset> = {
   dark: THEME_PRESETS[0],

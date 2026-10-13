@@ -28,9 +28,52 @@ test('a submitted task goes busy, then done once output goes quiet', (t) => {
   tracker.arm();
   stream(tracker, 6000);
   assert.deepEqual(phases(), ['busy']);
-  mock.timers.tick(3000);
+  mock.timers.tick(5000);
   assert.deepEqual(phases(), ['busy', 'done']);
   assert.ok(states[1].durationMs >= 5900 && states[1].durationMs <= 6100, `duration ${states[1].durationMs}`);
+});
+
+test('output resuming shortly after done returns to working', (t) => {
+  const { tracker, phases, states } = setup(t);
+  tracker.arm();
+  const submittedAt = 1_000_000;
+  stream(tracker, 6000);
+  mock.timers.tick(5000);
+  assert.deepEqual(phases(), ['busy', 'done']);
+  // The agent paused mid-task (tool call, file edit) and keeps going.
+  mock.timers.tick(10000);
+  stream(tracker, 3000);
+  assert.deepEqual(phases(), ['busy', 'done', 'busy']);
+  // The continuation measures from the original submit, not the pause.
+  assert.equal(states[2].startedAt, submittedAt);
+  mock.timers.tick(5000);
+  assert.deepEqual(phases(), ['busy', 'done', 'busy', 'done']);
+  assert.ok(states[3].durationMs >= states[1].durationMs, `durations ${states[1].durationMs} -> ${states[3].durationMs}`);
+});
+
+test('a lone stray chunk after done does not replay the done state', (t) => {
+  const { tracker, phases } = setup(t);
+  tracker.arm();
+  stream(tracker, 6000);
+  mock.timers.tick(5000);
+  assert.deepEqual(phases(), ['busy', 'done']);
+  // A delayed echo arrives while the agent is actually finished.
+  mock.timers.tick(10000);
+  tracker.output();
+  mock.timers.tick(5000);
+  assert.deepEqual(phases(), ['busy', 'done']);
+});
+
+test('output long after done stays done', (t) => {
+  const { tracker, phases } = setup(t);
+  tracker.arm();
+  stream(tracker, 6000);
+  mock.timers.tick(5000);
+  assert.deepEqual(phases(), ['busy', 'done']);
+  mock.timers.tick(61000);
+  stream(tracker, 2000);
+  mock.timers.tick(5000);
+  assert.deepEqual(phases(), ['busy', 'done']);
 });
 
 test('a quick menu pick never shows as working', (t) => {
@@ -50,7 +93,7 @@ test('typing after a short run does not read as a task', (t) => {
   tracker.typed('\x1b[B');
   tracker.typed('h');
   stream(tracker, 6000);
-  mock.timers.tick(3000);
+  mock.timers.tick(5000);
   assert.deepEqual(phases(), []);
 });
 
@@ -60,7 +103,7 @@ test('typing ahead while the agent works keeps it working', (t) => {
   stream(tracker, 2000);
   tracker.typed('next question');
   stream(tracker, 3000);
-  mock.timers.tick(3000);
+  mock.timers.tick(5000);
   assert.deepEqual(phases(), ['busy', 'done']);
 });
 
@@ -71,7 +114,7 @@ test('focus and mouse reports are not typing', (t) => {
   tracker.typed('\x1b[O');
   tracker.typed('\x1b[<0;12;4M');
   stream(tracker, 5000);
-  mock.timers.tick(3000);
+  mock.timers.tick(5000);
   assert.deepEqual(phases(), ['busy', 'done']);
 });
 
@@ -81,7 +124,7 @@ test('an interrupt ends the working state without a done', (t) => {
   stream(tracker, 5000);
   tracker.disarm();
   stream(tracker, 500);
-  mock.timers.tick(3000);
+  mock.timers.tick(5000);
   assert.deepEqual(phases(), ['busy', 'idle']);
 });
 
@@ -89,6 +132,6 @@ test('a short working run ends idle, not done', (t) => {
   const { tracker, phases } = setup(t);
   tracker.arm();
   stream(tracker, 1500);
-  mock.timers.tick(3000);
+  mock.timers.tick(5000);
   assert.deepEqual(phases(), ['busy', 'idle']);
 });
