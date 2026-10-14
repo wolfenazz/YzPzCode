@@ -58,7 +58,7 @@
       <circle cx="48" cy="46" r="28" fill="none" stroke="url(#gem)" stroke-width="2"/>
       <text class="cn" x="90" y="38">Naz</text>
       <text class="cr" x="90" y="58">Creator &amp; Lead Architect</text>
-      <text class="cm" x="90" y="78">@wolfenazz · 219</text>
+      <text class="cm" x="90" y="78">@wolfenazz · 223</text>
     </g>
     <g transform="translate(435 372)">
       <rect width="355" height="92" rx="16" fill="#12151A" stroke="#232830"/>
@@ -74,7 +74,7 @@
       <circle cx="48" cy="46" r="28" fill="none" stroke="url(#gem)" stroke-width="2"/>
       <text class="cn" x="90" y="38">github-actions[bot]</text>
       <text class="cr" x="90" y="58">Contributor</text>
-      <text class="cm" x="90" y="78">@github-actions[bot] · 6</text>
+      <text class="cm" x="90" y="78">@github-actions[bot] · 8</text>
     </g>
     <g transform="translate(1185 372)">
       <rect width="355" height="92" rx="16" fill="#12151A" stroke="#232830"/>
