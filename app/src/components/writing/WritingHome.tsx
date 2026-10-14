@@ -20,6 +20,25 @@ export const WritingHome: React.FC<WritingHomeProps> = ({ workspaceName, reports
   const [category, setCategory] = useState<ReportCategory | 'all'>('all');
   const [query, setQuery] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const tabs: Array<{ id: ReportCategory | 'all'; label: string }> = useMemo(
+    () => [{ id: 'all' as const, label: 'All' }, ...REPORT_CATEGORIES],
+    [],
+  );
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === category));
+  const onTabsKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    let next = activeIndex;
+    if (event.key === 'ArrowRight') next = (activeIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (activeIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    const target = tabs[next];
+    if (target && target.id !== category) setCategory(target.id);
+    requestAnimationFrame(() => {
+      (event.currentTarget.querySelector(`#wr-home-tab-${String(tabs[next]?.id)}`) as HTMLElement | null)?.focus();
+    });
+  };
   const kinds = useMemo(
     () => searchReportTypes(query).filter((type) => query.trim() !== '' || category === 'all' || type.category === category),
     [category, query],
@@ -74,9 +93,9 @@ export const WritingHome: React.FC<WritingHomeProps> = ({ workspaceName, reports
             </label>
           </div>
           {!query.trim() && (
-            <div className="wr-tabs" role="tablist" aria-label="Category">
-              {[{ id: 'all' as const, label: 'All' }, ...REPORT_CATEGORIES].map((entry) => (
-                <button key={entry.id} type="button" role="tab" aria-selected={category === entry.id} className="wr-tabs__tab" onClick={() => setCategory(entry.id)}>
+            <div className="wr-tabs" role="tablist" aria-label="Category" onKeyDown={onTabsKeyDown}>
+              {tabs.map((entry, index) => (
+                <button key={entry.id} id={`wr-home-tab-${entry.id}`} type="button" role="tab" aria-selected={category === entry.id} tabIndex={index === activeIndex ? 0 : -1} className="wr-tabs__tab" onClick={() => setCategory(entry.id)}>
                   {entry.label}
                 </button>
               ))}

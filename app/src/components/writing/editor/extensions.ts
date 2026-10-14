@@ -213,6 +213,14 @@ interface AiStreamState {
   sectionId: string | null;
 }
 
+/** Whether the AI is streaming into a section right now (user edits there are refused). */
+export function isStreaming(state: EditorState): boolean {
+  return aiStreamKey.getState(state)?.sectionId != null;
+}
+
+let lastLockNotice = 0;
+const LOCK_NOTICE_MS = 2000;
+
 /** Top-level position range of a section: from its heading to the next section heading. */
 export function findSectionRange(doc: PmNode, sectionId: string): { from: number; to: number; bodyFrom: number } | null {
   let from = -1;
@@ -263,7 +271,16 @@ export const AiStream = Extension.create({
               if (oldStart < range.to && oldEnd > range.bodyFrom - 1) touches = true;
             });
           });
-          return !touches;
+          if (!touches) return true;
+          // Tell the UI once in a while instead of silently eating keystrokes.
+          if (typeof window !== 'undefined') {
+            const now = Date.now();
+            if (now - lastLockNotice > LOCK_NOTICE_MS) {
+              lastLockNotice = now;
+              window.dispatchEvent(new CustomEvent('wr-stream-locked'));
+            }
+          }
+          return false;
         },
         props: {
           decorations: (state) => {

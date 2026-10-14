@@ -6,6 +6,7 @@ import { REWRITE_ACTIONS, type RewriteAction } from '../../utils/writing/prompts
 import type { HumanizerSettings, Person, ReadingLevel, ReportBrief, Spelling, Tone } from '../../utils/writing/types';
 import { ActionList, Facts, Field, Hint, PromptBox, Section, Select, Slider, Target, Toggle } from '../studio/Inspector';
 import { findSectionRange } from './editor/extensions';
+import { WRITTEN_WORDS } from './useReportGenerator';
 import { EngineFields, formatElapsed, WebPhotosToggle } from './ui';
 
 const KIND_LABEL: Record<LintKind, string> = {
@@ -98,7 +99,7 @@ export const AssistantPanel: React.FC<AssistantPanelProps> = ({
         let empty = 0;
         for (const section of outline) {
           const range = findSectionRange(doc, section.id);
-          if (!range || doc.textBetween(range.bodyFrom, range.to, ' ', ' ').trim().split(/\s+/).filter(Boolean).length < 20) empty += 1;
+          if (!range || doc.textBetween(range.bodyFrom, range.to, ' ', ' ').trim().split(/\s+/).filter(Boolean).length < WRITTEN_WORDS) empty += 1;
         }
         setEmptyCount(empty);
         setLint(lintText(doc.textBetween(0, doc.content.size, '\n', ' '), brief?.humanizer.bannedPhrases));

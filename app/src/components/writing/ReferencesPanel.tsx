@@ -22,10 +22,15 @@ interface ReferencesPanelProps {
 /** The report's references (cited with [@key]) and the files the writer takes its facts from. */
 export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({ editor, bibliography, citationStyle, sourceFiles, workspacePath, onBibliographyChange, onCitationStyleChange, onSourceFilesChange }) => {
   const [draft, setDraft] = useState('');
+  const [unrecognised, setUnrecognised] = useState(false);
 
   const add = (): void => {
     const parsed = parseReferenceList(draft, bibliography);
-    if (parsed.length === 0) return;
+    if (parsed.length === 0) {
+      setUnrecognised(true);
+      return;
+    }
+    setUnrecognised(false);
     onBibliographyChange([...bibliography, ...parsed]);
     setDraft('');
   };
@@ -71,9 +76,10 @@ export const ReferencesPanel: React.FC<ReferencesPanelProps> = ({ editor, biblio
           value={draft}
           placeholder="Paste references, one per line"
           onKeyDown={(event) => event.stopPropagation()}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => { setDraft(event.target.value); setUnrecognised(false); }}
         />
         <button type="button" className="sx-btn sx-btn--block" disabled={!draft.trim()} onClick={add}>Add to references</button>
+        {unrecognised && <Hint error>No references recognised. Add one per line, e.g. “Author (2024). Title.”</Hint>}
         {bibliography.length > 0 && <Hint>Click a reference to cite it at the cursor.</Hint>}
       </Section>
 

@@ -12,7 +12,7 @@ const source = await readFile(new URL('../src/utils/terminalMouseModes.ts', impo
 const { outputText } = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
 });
-const { registerTerminalMouseModes, buildMouseModeSequence, DEFAULT_MOUSE_TRACKING_MODES } =
+const { registerTerminalMouseModes, buildMouseModeSequence, DEFAULT_MOUSE_TRACKING_MODES, isMouseTrackingActive } =
   await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 
 function createTerminal(context) {
@@ -129,4 +129,45 @@ test('two live workspace terminals retain independent states through background 
   await first.write('\x1b[?1003h');
   assert.deepEqual(first.latest(), { modes: [1003, 1006], enabled: true });
   assert.deepEqual(second.latest(), { modes: [1000, 1016], enabled: true });
+});
+
+test('isMouseTrackingActive correctly identifies active mouse reporting modes', () => {
+  assert.equal(isMouseTrackingActive([]), false);
+  assert.equal(isMouseTrackingActive([1006]), false);
+  assert.equal(isMouseTrackingActive([1016]), false);
+  assert.equal(isMouseTrackingActive([9]), true);
+  assert.equal(isMouseTrackingActive([1000]), true);
+  assert.equal(isMouseTrackingActive([1002]), true);
+  assert.equal(isMouseTrackingActive([1003]), true);
+  assert.equal(isMouseTrackingActive(DEFAULT_MOUSE_TRACKING_MODES), true);
+  assert.equal(isMouseTrackingActive(new Set([1002, 1006])), true);
+  assert.equal(isMouseTrackingActive(new Set([])), false);
+});
+
+test('jcode CLI agent session automatically enables mouse mode on startup', async (context) => {
+  const session = createTerminal(context);
+  // Simulate TerminalPane mount for jcode agent with no prior saved modes
+  const isJcode = true;
+  const savedMouseModes = undefined;
+  const initialModes = savedMouseModes !== undefined ? savedMouseModes : (isJcode ? Array.from(DEFAULT_MOUSE_TRACKING_MODES) : []);
+  assert.deepEqual(initialModes, [1002, 1006]);
+  assert.equal(isMouseTrackingActive(initialModes), true);
+
+  await session.write(buildMouseModeSequence(initialModes, 'h'));
+  assert.deepEqual(session.latest(), { modes: [1002, 1006], enabled: true });
+  assert.equal(session.terminal.modes.mouseTrackingMode, 'drag');
+});
+
+test('plain terminal stays off initially but auto-enables when promoted to jcode', async (context) => {
+  const session = createTerminal(context);
+  // Plain terminal initially
+  const isJcodeInitial = false;
+  const initialModes = isJcodeInitial ? Array.from(DEFAULT_MOUSE_TRACKING_MODES) : [];
+  assert.deepEqual(initialModes, []);
+  assert.equal(session.terminal.modes.mouseTrackingMode, 'none');
+
+  // Promote to jcode
+  await session.write(buildMouseModeSequence(DEFAULT_MOUSE_TRACKING_MODES, 'h'));
+  assert.deepEqual(session.latest(), { modes: [1002, 1006], enabled: true });
+  assert.equal(session.terminal.modes.mouseTrackingMode, 'drag');
 });

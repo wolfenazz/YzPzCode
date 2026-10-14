@@ -28,7 +28,7 @@ import { SelectionMenu } from './SelectionMenu';
 import { StudioToolbar } from './StudioToolbar';
 import { applyRewrite, captureSelection, type RewriteTarget } from './rewriteSelection';
 import { Toast, formatElapsed, type ToastMessage } from './ui';
-import { replaceSectionBody, rewriteToBlocks, sectionBodyJson, setStreamingSection, useReportGenerator } from './useReportGenerator';
+import { replaceSectionBody, rewriteToBlocks, sectionBodyJson, setStreamingSection, useReportGenerator, WRITTEN_WORDS } from './useReportGenerator';
 import { useWritingDocument } from './useWritingDocument';
 import { WritingHome } from './WritingHome';
 import './writing.css';
@@ -79,6 +79,8 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
   const [review, setReview] = useState<ReviewState | null>(null);
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const reviewTarget = useRef<RewriteTarget | null>(null);
+  /** Each review gets a number; late results from an older one are ignored. */
+  const reviewSeq = useRef(0);
   const pendingStart = useRef<string | null>(null);
   const pendingImport = useRef<{ key: string; html: string } | null>(null);
   const restored = useRef(false);
@@ -149,8 +151,13 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
       setWordCount(countWords([editor.getJSON() as DocNode]));
       const root = editor.view.dom as HTMLElement;
       const total = pageCount(root);
-      const dom = editor.view.domAtPos(editor.state.selection.from).node;
-      const element = dom instanceof Element ? dom : dom.parentElement;
+      let element: Element | null = null;
+      try {
+        const dom = editor.view.domAtPos(editor.state.selection.from).node;
+        element = dom instanceof Element ? dom : dom.parentElement;
+      } catch {
+        element = null;
+      }
       setPages({ current: element ? Math.min(total, pageOfElement(root, element)) : 1, total });
     };
     const update = (props?: { transaction?: Transaction }): void => {
@@ -205,6 +212,14 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
     previousPhase.current = phase;
   }, [documents, session.run, showToast]);
 
+  // The editor refuses keystrokes in the section being streamed; say so instead of going quiet.
+  useEffect(() => {
+    if (!visible) return;
+    const onLock = (): void => showToast('That section is locked while streaming.');
+    window.addEventListener('wr-stream-locked', onLock);
+    return () => window.removeEventListener('wr-stream-locked', onLock);
+  }, [showToast, visible]);
+
   // Keyboard: save and export.
   useEffect(() => {
     if (!visible) return;
@@ -246,11 +261,12 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
       if (run?.phase !== 'cancelled') setComposerError(run?.error ?? 'The writer could not plan this report.');
       return;
     }
+    if (design.sourceErrors.length > 0) showToast('Some source files could not be read and were skipped.');
     const titled: ReportBrief = design.title
       ? { ...brief, details: { ...brief.details, title: design.title.title, subtitle: brief.details.subtitle || design.title.subtitle } }
       : brief;
     commission(titled, design.outline, bibliography);
-  }, [commission, generator, workspaceId]);
+  }, [commission, generator, showToast, workspaceId]);
 
   const goHome = useCallback(async (): Promise<void> => {
     if (busy) generator.cancel();
@@ -309,6 +325,9 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
   // Review flow -------------------------------------------------------------
 
   const runReview = useCallback(async (action: RewriteAction, target: RewriteTarget, instruction?: string): Promise<void> => {
+    // A newer review replaces the running one; only its results may land.
+    generator.cancelRewrite();
+    const seq = (reviewSeq.current += 1);
     reviewTarget.current = target;
     setReview({ action, instruction, before: target.before, after: '', status: 'running', error: null });
     const result = await generator.rewrite({
@@ -316,8 +335,12 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
       passage: target.passage,
       sectionTitle: target.sectionTitle,
       instruction,
-      onText: (text) => setReview((current) => (current ? { ...current, after: text } : current)),
+      onText: (text) => {
+        if (reviewSeq.current !== seq) return;
+        setReview((current) => (current ? { ...current, after: text } : current));
+      },
     });
+    if (reviewSeq.current !== seq) return;
     setReview((current) => (current ? {
       ...current,
       after: result.ok ? result.text : current.after,
@@ -345,6 +368,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
     if (!id) return null;
     const range = findSectionRange(instance.state.doc, id);
     if (!range) return null;
+    const size = instance.state.doc.content.size;
     return {
       kind: 'blocks',
       from: range.bodyFrom,
@@ -352,6 +376,8 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
       passage: blocksToMarkdown(sectionBodyJson(instance, id)),
       before: instance.state.doc.textBetween(range.bodyFrom, range.to, '\n\n', ' '),
       sectionTitle: current.outline.find((section) => section.id === id)?.title,
+      neighborBefore: instance.state.doc.textBetween(Math.max(0, range.bodyFrom - 40), range.bodyFrom, ' ', ' '),
+      neighborAfter: instance.state.doc.textBetween(range.to, Math.min(size, range.to + 40), ' ', ' '),
     };
   }, [workspaceId]);
 
@@ -375,7 +401,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
     store.updateRun(workspaceId, { phase: 'writing', startedAt: Date.now(), endedAt: null, error: null, calls: [], wordsWritten: 0, sectionStatus: Object.fromEntries(current.outline.map((section) => [section.id, 'queued' as const])) });
     for (const section of current.outline) {
       const blocks = sectionBodyJson(instance, section.id);
-      if (countWords(blocks) < 30) {
+      if (countWords(blocks) < WRITTEN_WORDS) {
         store.updateRun(workspaceId, (run) => ({ sectionStatus: { ...run.sectionStatus, [section.id]: 'done' } }));
         continue;
       }
@@ -390,17 +416,19 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
       replaceSectionBody(instance, section.id, rewriteToBlocks(result.text), true);
       void generator.fillPictures();
       store.updateRun(workspaceId, (run) => ({ wordsWritten: run.wordsWritten + countWords(rewriteToBlocks(result.text)), sectionStatus: { ...run.sectionStatus, [section.id]: 'done' } }));
+      documents.scheduleSave();
     }
     store.updateRun(workspaceId, { phase: 'done', endedAt: Date.now(), currentSectionId: null });
     documents.scheduleSave();
   }, [documents, generator, workspaceId]);
 
+  // The word count moves with every edit, so the snapshot below always holds the live text.
   const exportSource = useMemo(() => (exporting && session.brief && editorRef.current ? {
     brief: session.brief,
     bibliography: session.bibliography,
     content: editorRef.current.getJSON() as DocNode,
     docDir,
-  } : null), [docDir, exporting, session.bibliography, session.brief]);
+  } : null), [docDir, exporting, session.bibliography, session.brief, wordCount]);
 
   const title = session.brief?.details.title || session.meta?.title || 'Untitled';
   const save: StudioSaveState = session.error
@@ -475,7 +503,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
             {panelOpen && (
               <Inspector label="Side panel">
                 <InspectorTabs tabs={PANELS} value={panel} onChange={setPanel} label="Side panel" />
-                <InspectorBody>
+                <InspectorBody id={`sx-panel-${panel}`} labelledBy={`sx-tab-${panel}`}>
                 {panel === 'assistant' && (
                   <AssistantPanel
                     editor={editor}
@@ -495,7 +523,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
                     busy={busy}
                     onChange={(style) => setBrief({ style })}
                     onRestyle={generator.restyle}
-                    onCancel={generator.cancel}
+                    onCancel={generator.cancelRestyle}
                   />
                 )}
                 {panel === 'references' && (
@@ -577,7 +605,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
             showToast('Change applied', { label: 'Undo', run: () => editorRef.current?.chain().focus().undo().run() });
           }}
           onRetry={() => { if (reviewTarget.current) void runReview(review.action, reviewTarget.current, review.instruction); }}
-          onDiscard={() => { if (review.status === 'running') generator.cancel(); setReview(null); }}
+          onDiscard={() => { if (review.status === 'running') generator.cancelRewrite(); setReview(null); }}
         />
       )}
 

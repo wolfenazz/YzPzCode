@@ -26,6 +26,12 @@ import { aiStreamKey, findSectionRange } from './editor/extensions';
 
 const STREAM_INTERVAL_MS = 120;
 
+/** A section counts as written once it holds at least this many words. */
+export const WRITTEN_WORDS = 25;
+
+/** Which kind of AI work a run belongs to, so cancelling one never stops another. */
+type RunScope = 'writing' | 'rewrite' | 'restyle';
+
 let callCounter = 0;
 const newCallId = (): string => `call-${Date.now().toString(36)}-${(callCounter += 1).toString(36)}`;
 
@@ -123,11 +129,13 @@ export interface OutlineDesign {
   outline: OutlineSection[];
   /** The title the AI proposed, when the brief had none. */
   title: { title: string; subtitle: string } | null;
+  /** Source files that could not be read; their material was skipped. */
+  sourceErrors: string[];
 }
 
 export function useReportGenerator(workspaceId: string, getEditor: () => Editor | null) {
-  const activeRun = useRef<AiRun | null>(null);
-  const cancelled = useRef(false);
+  const runs = useRef<Record<RunScope, AiRun | null>>({ writing: null, rewrite: null, restyle: null });
+  const cancelled = useRef<Record<RunScope, boolean>>({ writing: false, rewrite: false, restyle: false });
 
   const session = useCallback(() => useWritingSessionStore.getState().sessions[workspaceId], [workspaceId]);
   const store = useWritingSessionStore.getState;
@@ -147,7 +155,7 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
     }));
   }, [store, workspaceId]);
 
-  const runAi = useCallback(async (label: string, system: string, prompt: string, onText?: (text: string) => void): Promise<AiRunResult> => {
+  const runAi = useCallback(async (scope: RunScope, label: string, system: string, prompt: string, onText?: (text: string) => void): Promise<AiRunResult> => {
     const brief = session()?.brief;
     if (!brief) return { ok: false, cancelled: false, text: '', error: 'No report is open.' };
     const callId = recordCall(label);
@@ -160,31 +168,42 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
       timeoutSecs: useWritingStore.getState().aiTimeoutSecs,
       onText,
     });
-    activeRun.current = run;
+    runs.current[scope] = run;
     const result = await run.result;
-    if (activeRun.current === run) activeRun.current = null;
+    if (runs.current[scope] === run) runs.current[scope] = null;
     finishCall(callId, result);
     return result;
   }, [finishCall, recordCall, session]);
 
-  const cancel = useCallback((): void => {
-    cancelled.current = true;
-    activeRun.current?.cancel();
+  const cancelScope = useCallback((scope: RunScope): void => {
+    cancelled.current[scope] = true;
+    runs.current[scope]?.cancel();
   }, []);
+
+  /** Stops every run in flight (leaving the workspace, the top-bar stop button). */
+  const cancel = useCallback((): void => {
+    (Object.keys(runs.current) as RunScope[]).forEach((scope) => cancelScope(scope));
+  }, [cancelScope]);
+
+  /** Stops only a review/humanize rewrite; a writing run continues. */
+  const cancelRewrite = useCallback((): void => cancelScope('rewrite'), [cancelScope]);
+
+  /** Stops only a design restyle; a writing run continues. */
+  const cancelRestyle = useCallback((): void => cancelScope('restyle'), [cancelScope]);
 
   useEffect(() => () => {
     // Closing the workspace (unmount) stops any run in flight.
-    activeRun.current?.cancel();
+    (Object.values(runs.current) as Array<AiRun | null>).forEach((run) => run?.cancel());
   }, []);
 
   /** Asks the AI for an outline (and a title). Returns null (with the run marked failed) when it cannot. */
   const generateOutline = useCallback(async (brief: ReportBrief, bibliography: Reference[]): Promise<OutlineDesign | null> => {
-    cancelled.current = false;
+    cancelled.current.writing = false;
     store().update(workspaceId, { brief });
     store().updateRun(workspaceId, { phase: 'outline', startedAt: Date.now(), endedAt: null, error: null, calls: [], sectionStatus: {}, currentSectionId: null, wordsWritten: 0 });
-    const { text: sources } = await gatherSources(brief.details.sourceNotes, brief.details.sourceFiles);
+    const { text: sources, errors: sourceErrors } = await gatherSources(brief.details.sourceNotes, brief.details.sourceFiles);
     const { system, prompt } = buildOutlinePrompt(brief, sources, bibliography);
-    const result = await runAi('Designing the outline', system, prompt);
+    const result = await runAi('writing', 'Designing the outline', system, prompt);
     if (!result.ok) {
       store().updateRun(workspaceId, { phase: result.cancelled ? 'cancelled' : 'failed', endedAt: Date.now(), error: result.error });
       return null;
@@ -195,16 +214,23 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
       return null;
     }
     store().updateRun(workspaceId, { phase: 'idle', endedAt: Date.now() });
-    return { outline, title: brief.details.title.trim() ? null : parseOutlineTitle(result.text) };
+    return { outline, title: brief.details.title.trim() ? null : parseOutlineTitle(result.text), sourceErrors };
   }, [runAi, store, workspaceId]);
 
   // Web photos: every figure the writer asked for with [Photo: …] gets a real, credited photo.
   const fetching = useRef(new Set<string>());
   const notFound = useRef(new Set<string>());
+  const photoDoc = useRef<string | null>(null);
   const fillPictures = useCallback(async (): Promise<void> => {
     const editor = getEditor();
     const current = session();
     const docPath = current?.docPath;
+    // "Nothing found" belongs to the report it was searched for.
+    if (docPath !== photoDoc.current) {
+      photoDoc.current = docPath ?? null;
+      notFound.current.clear();
+      fetching.current.clear();
+    }
     if (!editor || !docPath || !current.brief || !photosOn(current.brief)) return;
     let placed = 0;
     const queries: string[] = [];
@@ -245,28 +271,28 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
     if (tr.docChanged) live.view.dispatch(tr.setMeta('aiStreamWrite', true).setMeta('addToHistory', false));
   }, [getEditor, session]);
 
-  /** Writes sections one after another, streaming each into the page. */
-  const generateSections = useCallback(async (options: GenerateOptions = {}): Promise<void> => {
+  /** Writes sections one after another, streaming each into the page. Returns source files that could not be read. */
+  const generateSections = useCallback(async (options: GenerateOptions = {}): Promise<string[]> => {
     const editor = getEditor();
     const current = session();
-    if (!editor || !current?.brief) return;
-    cancelled.current = false;
+    if (!editor || !current?.brief) return [];
+    cancelled.current.writing = false;
     const { brief, outline, bibliography } = current;
     const targets = outline.filter((section) => !options.sectionIds || options.sectionIds.includes(section.id));
-    const sectionStatus = Object.fromEntries(targets.map((section) => [section.id, 'queued' as const]));
+    const queued = Object.fromEntries(targets.map((section) => [section.id, 'queued' as const]));
     store().updateRun(workspaceId, (run) => ({
       phase: 'writing',
       startedAt: Date.now(),
       endedAt: null,
       error: null,
       calls: run.phase === 'outline' || run.phase === 'idle' ? run.calls : [],
-      sectionStatus,
+      // Sections this run is not writing keep their status.
+      sectionStatus: { ...run.sectionStatus, ...queued },
       currentSectionId: null,
       wordsWritten: 0,
     }));
 
     const { text: sources, errors } = await gatherSources(brief.details.sourceNotes, brief.details.sourceFiles);
-    if (errors.length > 0) console.warn('Some source files could not be read:', errors);
 
     let previous: OutlineSection | null = null;
     let failure: string | null = null;
@@ -275,8 +301,8 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
       ensureSectionHeading(editor, section, previous);
       previous = section;
       if (!targets.includes(section)) continue;
-      if (cancelled.current) break;
-      if (options.skipWritten && countWords(sectionBodyJson(editor, section.id)) > 20) {
+      if (cancelled.current.writing) break;
+      if (options.skipWritten && countWords(sectionBodyJson(editor, section.id)) >= WRITTEN_WORDS) {
         store().updateRun(workspaceId, (run) => ({ sectionStatus: { ...run.sectionStatus, [section.id]: 'done' } }));
         continue;
       }
@@ -302,7 +328,7 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
       const timer = window.setInterval(() => {
         if (latest !== flushed && !frame) frame = requestAnimationFrame(() => { frame = 0; flush(); });
       }, STREAM_INTERVAL_MS);
-      const result = await runAi(`Writing ${section.title}`, system, prompt, (text) => { latest = text; });
+      const result = await runAi('writing', `Writing ${section.title}`, system, prompt, (text) => { latest = text; });
       window.clearInterval(timer);
       cancelAnimationFrame(frame);
       setStreamingSection(editor, null);
@@ -323,7 +349,7 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
         flush();
         const status = result.cancelled ? 'cancelled' : 'failed';
         store().updateRun(workspaceId, (run) => ({ sectionStatus: { ...run.sectionStatus, [section.id]: status } }));
-        if (result.cancelled || cancelled.current) break;
+        if (result.cancelled || cancelled.current.writing) break;
         failure = result.error ?? 'The AI run failed.';
         break;
       }
@@ -331,38 +357,39 @@ export function useReportGenerator(workspaceId: string, getEditor: () => Editor 
 
     setStreamingSection(editor, null);
     store().updateRun(workspaceId, (run) => ({
-      phase: failure ? 'failed' : cancelled.current ? 'cancelled' : 'done',
+      phase: failure ? 'failed' : cancelled.current.writing ? 'cancelled' : 'done',
       endedAt: Date.now(),
       currentSectionId: null,
       error: failure,
-      sectionStatus: Object.fromEntries(Object.entries(run.sectionStatus).map(([id, status]) => [id, status === 'queued' ? (cancelled.current ? 'cancelled' : status) : status])),
+      sectionStatus: Object.fromEntries(Object.entries(run.sectionStatus).map(([id, status]) => [id, status === 'queued' ? (cancelled.current.writing ? 'cancelled' : status) : status])),
     }));
+    return errors;
   }, [fillPictures, getEditor, runAi, session, store, workspaceId]);
 
   /** Runs a rewrite on a passage and returns the new Markdown (the caller shows it for review). */
   const rewrite = useCallback(async ({ action, passage, sectionTitle, instruction, onText }: RewriteRequest): Promise<AiRunResult> => {
     const current = session();
     if (!current?.brief) return { ok: false, cancelled: false, text: '', error: 'No report is open.' };
-    cancelled.current = false;
+    cancelled.current.rewrite = false;
     const { system, prompt } = buildRewritePrompt({ brief: current.brief, action, passage, sectionTitle, instruction, references: current.bibliography, photos: photosOn(current.brief) });
     const label = action === 'custom' ? 'Applying your instruction' : `${action[0].toUpperCase()}${action.slice(1)}`;
-    return runAi(label, system, prompt, onText);
+    return runAi('rewrite', label, system, prompt, onText);
   }, [runAi, session]);
 
   /** Asks the AI to restyle the open report; the caller applies the result. */
   const restyle = useCallback(async (instruction: string): Promise<{ ok: true; result: RestyleResult } | { ok: false; cancelled: boolean; error: string }> => {
     const current = session();
     if (!current?.brief) return { ok: false, cancelled: false, error: 'No report is open.' };
-    cancelled.current = false;
+    cancelled.current.restyle = false;
     const { brief } = current;
     const { system, prompt } = buildRestylePrompt(brief.style, instruction, { typeName: getReportType(brief.typeId).name, title: brief.details.title });
-    const reply = await runAi('Restyling', system, prompt);
+    const reply = await runAi('restyle', 'Restyling', system, prompt);
     if (!reply.ok) return { ok: false, cancelled: reply.cancelled, error: reply.error ?? 'The AI run failed.' };
     const result = parseRestyle(reply.text, useWritingSessionStore.getState().sessions[workspaceId]?.brief?.style ?? brief.style);
     return result ? { ok: true, result } : { ok: false, cancelled: false, error: 'The AI did not suggest a change it could apply. Try describing the look differently.' };
   }, [runAi, session, workspaceId]);
 
-  return { generateOutline, generateSections, rewrite, restyle, fillPictures, cancel };
+  return { generateOutline, generateSections, rewrite, restyle, fillPictures, cancel, cancelRewrite, cancelRestyle };
 }
 
 /** Parses rewritten Markdown into blocks for the review diff and for insertion. */

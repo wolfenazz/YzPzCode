@@ -38,23 +38,42 @@ const sizes = (base: number[], current: number): number[] => [...new Set([...bas
 
 export const DesignPanel: React.FC<DesignPanelProps> = ({ style, busy, onChange, onRestyle, onCancel }) => {
   const [prompt, setPrompt] = useState('');
-  const [restyle, setRestyle] = useState<{ status: 'idle' | 'running' | 'done' | 'failed'; message?: string; changes?: string[]; previous?: ReportStyle }>({ status: 'idle' });
+  const [restyle, setRestyle] = useState<{ status: 'idle' | 'running' | 'done' | 'failed'; message?: string; changes?: string[]; history: ReportStyle[] }>({ status: 'idle', history: [] });
   const set = <K extends keyof ReportStyle>(key: K, value: ReportStyle[K]): void => onChange({ ...style, [key]: value, themeId: key === 'pageSize' || key === 'orientation' || key === 'margins' ? style.themeId : 'custom' });
   const running = restyle.status === 'running';
+  /** Style and template controls lock while any AI run is in flight. */
+  const locked = busy || running;
 
   const run = async (instruction: string): Promise<void> => {
     const text = instruction.trim();
     if (!text || busy || running) return;
     const previous = style;
-    setRestyle({ status: 'running' });
+    setRestyle((current) => ({ status: 'running', history: current.history }));
     const reply = await onRestyle(text);
     if (reply.ok) {
-      onChange(reply.result.style);
-      setRestyle({ status: 'done', message: reply.result.summary, changes: reply.result.changes, previous });
+      const { summary, changes, style: next } = reply.result;
+      onChange(next);
       setPrompt('');
+      // Every restyle remembers what it replaced, so a second run cannot eat the first undo.
+      setRestyle((current) => ({ status: 'done', message: summary, changes, history: [...current.history, previous].slice(-10) }));
+    } else if (reply.cancelled) {
+      setRestyle((current) => ({ status: 'idle', history: current.history }));
     } else {
-      setRestyle(reply.cancelled ? { status: 'idle' } : { status: 'failed', message: reply.error });
+      const message = reply.error;
+      setRestyle((current) => ({ status: 'failed', message, history: current.history }));
     }
+  };
+
+  const undo = (): void => {
+    const last = restyle.history[restyle.history.length - 1];
+    if (!last) return;
+    onChange(last);
+    setRestyle((current) => ({
+      status: current.history.length > 1 ? 'done' : 'idle',
+      message: current.message,
+      changes: current.changes,
+      history: current.history.slice(0, -1),
+    }));
   };
 
   const margin = Math.round(style.margins.left * 10) / 10;
@@ -78,19 +97,21 @@ export const DesignPanel: React.FC<DesignPanelProps> = ({ style, busy, onChange,
             <div className="sx-job__row"><strong>{restyle.message || 'Restyled'}</strong></div>
             {restyle.changes && restyle.changes.length > 0 && <Hint>{restyle.changes.join(' · ')}</Hint>}
             <div className="sx-row">
-              <button type="button" className="sx-btn sx-btn--sm" onClick={() => { if (restyle.previous) onChange(restyle.previous); setRestyle({ status: 'idle' }); }}>Undo</button>
-              <button type="button" className="sx-btn sx-btn--sm" onClick={() => setRestyle({ status: 'idle' })}>Keep</button>
+              <button type="button" className="sx-btn sx-btn--sm" disabled={restyle.history.length === 0} onClick={undo}>Undo{restyle.history.length > 1 ? ` (${restyle.history.length})` : ''}</button>
+              <button type="button" className="sx-btn sx-btn--sm" onClick={() => setRestyle({ status: 'idle', history: [] })}>Keep</button>
             </div>
           </div>
         )}
         {restyle.status === 'idle' && !prompt && (
           <ActionList
             single
-            items={RESTYLE_SUGGESTIONS.map((suggestion) => ({ id: suggestion, label: suggestion, disabled: busy, onSelect: () => void run(suggestion) }))}
+            items={RESTYLE_SUGGESTIONS.map((suggestion) => ({ id: suggestion, label: suggestion, disabled: busy || running, onSelect: () => void run(suggestion) }))}
           />
         )}
       </Section>
 
+      <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {locked && <Hint>{running ? 'Applying the new look…' : 'Style controls unlock when the writer finishes.'}</Hint>}
       <Section title="Templates">
         <div className="wr-templates">
           {STYLE_THEMES.map((theme) => (
@@ -202,6 +223,7 @@ export const DesignPanel: React.FC<DesignPanelProps> = ({ style, busy, onChange,
         <Toggle label="Chapters start on a new page" checked={style.sectionBreaks} onChange={(value) => set('sectionBreaks', value)} />
         <Toggle label="Roman numbers before chapter 1" checked={style.romanFrontMatter} onChange={(value) => set('romanFrontMatter', value)} />
       </Section>
+      </fieldset>
     </>
   );
 };

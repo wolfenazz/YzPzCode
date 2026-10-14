@@ -109,7 +109,16 @@ export function useWritingDocument(workspaceId: string, workspacePath: string, g
     if (saving.current) await saving.current;
     const session = useWritingSessionStore.getState().sessions[workspaceId];
     const doc = snapshotDoc(contentOverride);
-    if (!doc || !session?.docPath) return;
+    if (!doc || !session?.docPath) {
+      // Never leave dirty stuck with no error to explain it.
+      if (session && (session.dirty || session.docPath)) {
+        update(workspaceId, {
+          saving: false,
+          error: !session.docPath ? 'Could not save: no document is open.' : 'Could not save: the editor content is unavailable.',
+        });
+      }
+      return;
+    }
     const path = session.docPath;
     const task = (async () => {
       update(workspaceId, { saving: true, error: null });

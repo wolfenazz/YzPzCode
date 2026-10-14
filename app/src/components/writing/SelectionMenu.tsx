@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { BubbleMenu } from '@tiptap/react/menus';
 import type { Editor } from '@tiptap/react';
 import { CaretDown, CircleNotch, SpeakerHigh, Sparkle, Stop, TextB, TextItalic, TextUnderline, ArrowRight } from '@phosphor-icons/react';
@@ -18,6 +18,8 @@ interface SelectionMenuProps {
 export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAction, onToast }) => {
   const [open, setOpen] = useState(false);
   const [instruction, setInstruction] = useState('');
+  /** The editor range when the menu opened; focusing the input must not lose it. */
+  const savedRange = useRef<{ from: number; to: number } | null>(null);
   const ttsEnabled = useTtsStore((state) => state.enabled);
   const { status: ttsStatus, errorMsg: ttsError, speak: ttsSpeak, stop: ttsStop } = useTtsPlayback();
 
@@ -31,9 +33,25 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAc
     return () => { editor.off('selectionUpdate', close); };
   }, [editor]);
 
+  const toggleOpen = (): void => {
+    if (!open) {
+      const { empty, from, to } = editor.state.selection;
+      savedRange.current = empty ? null : { from, to };
+    }
+    setOpen((value) => !value);
+  };
+
   const run = (action: RewriteAction, text?: string): void => {
+    const saved = savedRange.current;
+    savedRange.current = null;
     setOpen(false);
     setInstruction('');
+    if (saved) {
+      const size = editor.state.doc.content.size;
+      const from = Math.max(0, Math.min(saved.from, size));
+      const to = Math.max(0, Math.min(saved.to, size));
+      if (to > from) editor.commands.setTextSelection({ from, to });
+    }
     onAction(action, text);
   };
 
@@ -74,7 +92,7 @@ export const SelectionMenu: React.FC<SelectionMenuProps> = ({ editor, busy, onAc
         <button type="button" className={`wr-icon-btn${editor.isActive('underline') ? ' is-active' : ''}`} aria-label="Underline" onClick={() => editor.chain().focus().toggleUnderline().run()}><TextUnderline size={15} /></button>
         <span className="wr-bubble__sep" />
         <div style={{ position: 'relative' }}>
-          <button type="button" className="wr-bubble__ai" disabled={busy} onClick={() => setOpen((value) => !value)} aria-expanded={open}>
+          <button type="button" className="wr-bubble__ai" disabled={busy} onClick={toggleOpen} aria-expanded={open}>
             <Sparkle size={14} weight="fill" /> {busy ? 'Working…' : 'Ask AI'} <CaretDown size={11} />
           </button>
           {open && (

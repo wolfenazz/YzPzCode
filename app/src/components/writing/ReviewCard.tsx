@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from '@phosphor-icons/react';
 import { lintText } from '../../utils/writing/humanizer';
 import { REWRITE_ACTIONS, type RewriteAction } from '../../utils/writing/prompts';
@@ -27,10 +27,14 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ review, bannedPhrases, o
   const label = review.action === 'custom' ? 'Your instruction' : REWRITE_ACTIONS.find((entry) => entry.id === review.action)?.label ?? 'Rewrite';
   const beforeScore = review.before ? lintText(review.before, bannedPhrases).score : null;
   const afterScore = review.after && review.status === 'done' ? lintText(plain(review.after), bannedPhrases).score : null;
+  const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
+        // An open menu gets the first Escape; the review only answers keys aimed at it.
+        if (document.querySelector('.wr-dd__menu')) return;
+        if (!root.current?.contains(event.target as Node | null)) return;
         event.stopPropagation();
         onDiscard();
       } else if (event.key === 'Enter' && (event.ctrlKey || event.metaKey) && review.status === 'done') {
@@ -45,7 +49,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({ review, bannedPhrases, o
   }, [onAccept, onDiscard, review.status]);
 
   return (
-    <div className="wr-review" role="dialog" aria-label="Review the suggestion">
+    <div className="wr-review" role="dialog" aria-label="Review the suggestion" ref={root}>
       <div className="wr-review__head">
         <div>
           <div className="wr-review__title">{label}</div>

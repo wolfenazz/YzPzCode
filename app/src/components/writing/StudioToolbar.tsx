@@ -156,7 +156,21 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
 
   const disabled = !editor;
   const chain = () => editor!.chain().focus();
-  const family = DOCUMENT_FONTS.find((font) => state?.fontFamily && fontStack(font.family) === state.fontFamily)?.family ?? '';
+  /** Applies the link draft; on blur a valid address commits instead of being discarded. */
+  const commitLink = (fromBlur: boolean): void => {
+    if (linkDraft === null || !editor) return;
+    const value = linkDraft.trim();
+    try {
+      if (value && value !== 'https://') {
+        editor.chain().focus().extendMarkRange('link').setLink({ href: value }).run();
+      } else if (!fromBlur) {
+        editor.chain().focus().extendMarkRange('link').unsetLink().run();
+      }
+    } catch {
+      // The selection moved on; leave the text alone.
+    }
+    setLinkDraft(null);
+  };  const family = DOCUMENT_FONTS.find((font) => state?.fontFamily && fontStack(font.family) === state.fontFamily)?.family ?? '';
   const block = state?.h1 ? 'Heading 1' : state?.h2 ? 'Heading 2' : state?.h3 ? 'Heading 3' : state?.quote ? 'Quote' : state?.caption ? 'Caption' : state?.code ? 'Code' : 'Normal text';
   const align = state?.align ?? style.alignment;
   const AlignIcon = align === 'center' ? TextAlignCenter : align === 'right' ? TextAlignRight : align === 'justify' ? TextAlignJustify : TextAlignLeft;
@@ -281,12 +295,10 @@ export const StudioToolbar: React.FC<StudioToolbarProps> = ({ editor, style, bib
           className="wr-tb-link"
           onSubmit={(event) => {
             event.preventDefault();
-            if (linkDraft.trim() && linkDraft !== 'https://') chain().extendMarkRange('link').setLink({ href: linkDraft.trim() }).run();
-            else chain().extendMarkRange('link').unsetLink().run();
-            setLinkDraft(null);
+            commitLink(false);
           }}
         >
-          <input className="wr-control" value={linkDraft} autoFocus aria-label="Link address" onChange={(event) => setLinkDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setLinkDraft(null); }} onBlur={() => setLinkDraft(null)} />
+          <input className="wr-control" value={linkDraft} autoFocus aria-label="Link address" onChange={(event) => setLinkDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Escape') setLinkDraft(null); }} onBlur={() => commitLink(true)} />
         </form>
       )}
 

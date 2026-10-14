@@ -14,6 +14,19 @@ export interface RewriteTarget {
   /** Plain text shown as "before" in the review. */
   before: string;
   sectionTitle: string | undefined;
+  /** Text just outside the range when captured; a mismatch means the document shifted. */
+  neighborBefore?: string;
+  neighborAfter?: string;
+}
+
+/** How much text either side of a target is remembered for drift detection. */
+const NEIGHBOR_CHARS = 40;
+
+function neighborsOf(doc: PmNode, from: number, to: number): { neighborBefore: string; neighborAfter: string } {
+  return {
+    neighborBefore: doc.textBetween(Math.max(0, from - NEIGHBOR_CHARS), from, ' ', ' '),
+    neighborAfter: doc.textBetween(to, Math.min(doc.content.size, to + NEIGHBOR_CHARS), ' ', ' '),
+  };
 }
 
 function sectionTitleAt(editor: Editor, pos: number): string | undefined {
@@ -33,7 +46,7 @@ export function captureSelection(editor: Editor, action: RewriteAction): Rewrite
   const wholeBlock = sameTextblock && $from.parentOffset === 0 && $to.parentOffset === $from.parent.content.size;
   if (sameTextblock && !wholeBlock && action !== 'continue') {
     const text = state.doc.textBetween(from, to, ' ', ' ');
-    return { kind: 'inline', from, to, passage: text, before: text, sectionTitle };
+    return { kind: 'inline', from, to, passage: text, before: text, sectionTitle, ...neighborsOf(state.doc, from, to) };
   }
   // Expand to top-level blocks.
   const start = $from.before(1);
@@ -44,7 +57,7 @@ export function captureSelection(editor: Editor, action: RewriteAction): Rewrite
     return false;
   });
   const passage = blocksToMarkdown(blocks);
-  return { kind: 'blocks', from: start, to: end, passage, before: state.doc.textBetween(start, end, '\n\n', ' '), sectionTitle };
+  return { kind: 'blocks', from: start, to: end, passage, before: state.doc.textBetween(start, end, '\n\n', ' '), sectionTitle, ...neighborsOf(state.doc, start, end) };
 }
 
 function toNodes(editor: Editor, blocks: DocNode[]): PmNode[] {
@@ -64,7 +77,14 @@ function toNodes(editor: Editor, blocks: DocNode[]): PmNode[] {
 /** Applies an accepted rewrite as a single undoable step. Returns false if the document moved on. */
 export function applyRewrite(editor: Editor, target: RewriteTarget, markdown: string, action: RewriteAction): boolean {
   const { doc } = editor.state;
-  if (target.to > doc.content.size) return false;
+  if (target.from < 0 || target.from > target.to || target.to > doc.content.size) return false;
+  // The review was written against other text: refuse rather than replace the wrong words.
+  const anchor = target.kind === 'inline'
+    ? doc.textBetween(target.from, target.to, ' ', ' ')
+    : doc.textBetween(target.from, target.to, '\n\n', ' ');
+  if (anchor !== target.before) return false;
+  if (target.neighborBefore !== undefined && doc.textBetween(Math.max(0, target.from - NEIGHBOR_CHARS), target.from, ' ', ' ') !== target.neighborBefore) return false;
+  if (target.neighborAfter !== undefined && doc.textBetween(target.to, Math.min(doc.content.size, target.to + NEIGHBOR_CHARS), ' ', ' ') !== target.neighborAfter) return false;
   if (action === 'continue') {
     const nodes = toNodes(editor, parseBlocks(markdown, { minHeadingLevel: 2 }));
     if (nodes.length === 0) return false;

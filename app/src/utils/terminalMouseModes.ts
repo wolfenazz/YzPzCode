@@ -12,7 +12,14 @@ export const normalizeMouseModes = (modes: Iterable<number>): number[] =>
 
 export const buildMouseModeSequence = (modes: Iterable<number>, operation: 'h' | 'l'): string =>
   normalizeMouseModes(modes).map((mode) => `\x1b[?${mode}${operation}`).join('');
-
+export const isMouseTrackingActive = (modes: Iterable<number>): boolean => {
+  for (const mode of modes) {
+    if (mode === 9 || mode === 1000 || mode === 1002 || mode === 1003) {
+      return true;
+    }
+  }
+  return false;
+};
 /** Observe parsed state, including sequences split across PTY output chunks. */
 export const registerTerminalMouseModes = (
   terminal: Terminal,

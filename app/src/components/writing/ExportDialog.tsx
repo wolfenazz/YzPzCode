@@ -29,6 +29,15 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ source, title, onClo
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [openAfter, setOpenAfter] = useState(true);
+  /** Closing the dialog mid-export aborts it: nothing is applied afterwards. */
+  const abort = useRef(false);
+  /** What the running (or finished) export was built from, to notice later edits. */
+  const [exportedFrom, setExportedFrom] = useState<ExportSource | null>(null);
+
+  const requestClose = (): void => {
+    abort.current = true;
+    onClose();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -47,14 +56,14 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ source, title, onClo
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !busy) {
+      if (event.key === 'Escape') {
         event.stopPropagation();
-        onClose();
+        requestClose();
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [busy, onClose]);
+  }, [onClose]);
 
   const runExport = async (): Promise<void> => {
     setError(null);
@@ -66,32 +75,37 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ source, title, onClo
       filters: [{ name: FORMATS.find((entry) => entry.id === format)!.label, extensions: [extension] }],
     });
     if (!path) return;
+    abort.current = false;
+    setExportedFrom(source);
     setBusy(true);
     try {
       if (format === 'pdf') {
         if (!paged) throw new Error(layoutError ?? 'The pages are still being laid out.');
         const written = await writePdf(paged.html, path);
+        if (abort.current) return;
         if (!written) {
           setDone('Use “Save as PDF” in the print dialog.');
           return;
         }
       } else if (format === 'docx') {
         await writeDocx(source, path);
+        if (abort.current) return;
       } else {
         await writeHtml(source, path);
+        if (abort.current) return;
       }
       setDone(path);
       onExported(path, format);
       if (openAfter) await openPath(path).catch(() => undefined);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (!abort.current) setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setBusy(false);
+      if (!abort.current) setBusy(false);
     }
   };
 
   return (
-    <div className="wr-modal" role="dialog" aria-modal="true" aria-label="Export" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose(); }}>
+    <div className="wr-modal" role="dialog" aria-modal="true" aria-label="Export" onMouseDown={(event) => { if (event.target === event.currentTarget) requestClose(); }}>
       <div className="wr-modal__panel">
         <div className="wr-export__preview">
           <iframe ref={iframeRef} title="Print preview" className="wr-export__frame" style={{ opacity: paged ? 1 : 0 }} />
@@ -110,7 +124,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ source, title, onClo
               <h3 className="wr-export__title">{title}</h3>
               <p className="wr-note">{paged ? `${paged.pages} pages` : 'Laying out pages…'}</p>
             </div>
-            <button type="button" className="wr-icon" onClick={onClose} aria-label="Close" disabled={busy}><X size={14} /></button>
+            <button type="button" className="wr-icon" onClick={requestClose} aria-label="Close"><X size={14} /></button>
           </div>
           <div className="wr-formats" role="radiogroup" aria-label="Format">
             {FORMATS.map((entry) => (
@@ -135,6 +149,8 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ source, title, onClo
             <input type="checkbox" className="wr-switch" checked={openAfter} onChange={(event) => setOpenAfter(event.target.checked)} />
           </label>
           {error && <p className="wr-note is-error">{error}</p>}
+          {exportedFrom && exportedFrom !== source && <p className="wr-note">The document changed; export again for the latest text.</p>}
+          {busy && <p className="wr-note">Closing the dialog stops the export.</p>}
           {done && (
             <p className="wr-note wr-export__done">
               <FolderOpen size={13} /> <span>{done}</span>
