@@ -2,7 +2,9 @@ import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { getIconForFilePath } from 'vscode-material-icons';
 import { useAppStore } from '../stores/appStore';
-import type { WorkspaceView } from '../types';
+import { EMPTY_EXTENSION_PANELS, useExtensionStore } from '../stores/extensionStore';
+import type { WorkspaceExtensionPanel, WorkspaceView } from '../types';
+import { agentPresenceIcon, extensionPresenceIcon, materialIconPresenceIcon } from '../utils/presenceIcons';
 
 const PRESENCE_UPDATE_DELAY_MS = 500;
 const PRESENCE_RETRY_INTERVAL_MS = 30_000;
@@ -12,8 +14,22 @@ interface DiscordActivityPayload {
   workspaceName: string | null;
   details: string;
   stateText: string;
-  fileIcon: string | null;
-  fileIconText: string | null;
+  smallImage: string | null;
+  smallImageText: string | null;
+}
+
+/** The badge drawn on the corner of the large logo: the thing the user is focused on. */
+interface SmallImage {
+  path: string;
+  text: string;
+}
+
+interface SmallImageInput {
+  activeView: WorkspaceView;
+  focusedAgent: string | null;
+  focusedPanel: WorkspaceExtensionPanel | null;
+  dockOpen: boolean;
+  filePath: string | null;
 }
 
 const VIEW_DETAILS: Record<WorkspaceView, string> = {
@@ -44,16 +60,6 @@ function getPresenceFilePath(
   return gitDiffFileName ?? imageEditorPath ?? activeFilePath;
 }
 
-function getFileIcon(filePath: string | null): string | null {
-  if (!filePath) return null;
-
-  try {
-    return getIconForFilePath(filePath);
-  } catch {
-    return 'file';
-  }
-}
-
 function buildWorkspaceDetails(
   activeView: WorkspaceView,
   activeFilePath: string | null,
@@ -79,6 +85,41 @@ function buildWorkspaceDetails(
   return VIEW_DETAILS.editor;
 }
 
+function getFileBadge(filePath: string): SmallImage {
+  let iconName: string;
+  try {
+    iconName = getIconForFilePath(filePath);
+  } catch {
+    iconName = 'file';
+  }
+  return { path: materialIconPresenceIcon(iconName), text: `File: ${getFileName(filePath)}` };
+}
+
+function getAgentBadge(agent: string | null): SmallImage | null {
+  const icon = agent ? agentPresenceIcon(agent) : null;
+  return icon ? { path: icon.path, text: `Agent: ${icon.label}` } : null;
+}
+
+function getExtensionBadge(panel: WorkspaceExtensionPanel): SmallImage | null {
+  const path = extensionPresenceIcon(panel.extensionId);
+  return path ? { path, text: `Extension: ${panel.name}` } : null;
+}
+
+/**
+ * The badge follows the focused surface of the current view: the agent of the
+ * focused terminal, the focused extension, or the open file in the editor.
+ * A focused extension in the editor's side panel takes the badge over the file.
+ */
+function getSmallImage({ activeView, focusedAgent, focusedPanel, dockOpen, filePath }: SmallImageInput): SmallImage | null {
+  if (activeView === 'terminal') return getAgentBadge(focusedAgent);
+  if (activeView === 'extensions') return focusedPanel ? getExtensionBadge(focusedPanel) : null;
+  if (activeView === 'editor') {
+    if (dockOpen && focusedPanel?.dock === 'side') return getExtensionBadge(focusedPanel);
+    return filePath ? getFileBadge(filePath) : null;
+  }
+  return null;
+}
+
 /** Keeps Discord Rich Presence synchronized with the active app/workspace state. */
 export function useDiscordPresence(): void {
   const enabled = useAppStore((state) => state.discordRichPresence);
@@ -91,6 +132,19 @@ export function useDiscordPresence(): void {
     const workspaceId = state.currentWorkspace?.id;
     return workspaceId ? state.imageEditorByWorkspace[workspaceId]?.path ?? null : null;
   });
+  // The terminal the user is in: its fleet agent, or the agent typed into it.
+  const focusedAgent = useAppStore((state) => {
+    const workspaceId = state.currentWorkspace?.id;
+    const sessionId = state.activeSessionId;
+    if (!workspaceId || !sessionId) return null;
+    const session = state.sessionsByWorkspace[workspaceId]?.find((entry) => entry.id === sessionId);
+    return state.manualAgentBySession[sessionId] ?? session?.agent ?? null;
+  });
+  const focusedPanelId = useExtensionStore((state) => state.focusedPanelId);
+  const extensionPanels = useExtensionStore((state) => (
+    workspace ? state.panelsByWorkspace[workspace.id] ?? EMPTY_EXTENSION_PANELS : EMPTY_EXTENSION_PANELS
+  ));
+  const dockOpen = useExtensionStore((state) => (workspace ? state.dockByWorkspace[workspace.id]?.open ?? false : false));
 
   useEffect(() => {
     if (!('__TAURI_INTERNALS__' in window)) return;
@@ -107,46 +161,46 @@ export function useDiscordPresence(): void {
 
     let payload: DiscordActivityPayload;
     if (appView === 'workspace' && workspace) {
-      const presenceFilePath = getPresenceFilePath(
+      const focusedPanel = extensionPanels.find((panel) => panel.id === focusedPanelId) ?? null;
+      const smallImage = getSmallImage({
         activeView,
-        activeFilePath,
-        gitDiffFileName,
-        imageEditorPath,
-      );
+        focusedAgent,
+        focusedPanel,
+        dockOpen,
+        filePath: getPresenceFilePath(activeView, activeFilePath, gitDiffFileName, imageEditorPath),
+      });
       payload = {
         workspaceName: limitDiscordText(workspace.name),
         details: limitDiscordText(
           buildWorkspaceDetails(activeView, activeFilePath, gitDiffFileName, imageEditorPath),
         ),
         stateText: limitDiscordText(`Workspace: ${workspace.name}`),
-        fileIcon: getFileIcon(presenceFilePath),
-        fileIconText: presenceFilePath
-          ? limitDiscordText(`File: ${getFileName(presenceFilePath)}`)
-          : null,
+        smallImage: smallImage?.path ?? null,
+        smallImageText: smallImage ? limitDiscordText(smallImage.text) : null,
       };
     } else if (appView === 'docs') {
       payload = {
         workspaceName: null,
         details: 'Reading the documentation',
         stateText: 'Learning YzPzCode',
-        fileIcon: null,
-        fileIconText: null,
+        smallImage: null,
+        smallImageText: null,
       };
     } else if (appView === 'settings') {
       payload = {
         workspaceName: null,
         details: 'Customizing the app',
         stateText: 'YzPzCode settings',
-        fileIcon: null,
-        fileIconText: null,
+        smallImage: null,
+        smallImageText: null,
       };
     } else {
       payload = {
         workspaceName: null,
         details: 'Choosing a workspace',
         stateText: 'Getting ready to code',
-        fileIcon: null,
-        fileIconText: null,
+        smallImage: null,
+        smallImageText: null,
       };
     }
 
@@ -158,8 +212,8 @@ export function useDiscordPresence(): void {
           workspaceName: payload.workspaceName,
           details: payload.details,
           stateText: payload.stateText,
-          fileIcon: payload.fileIcon,
-          fileIconText: payload.fileIconText,
+          smallImage: payload.smallImage,
+          smallImageText: payload.smallImageText,
         });
       } catch (error: unknown) {
         if (!cancelled) {
@@ -186,7 +240,11 @@ export function useDiscordPresence(): void {
     activeFilePath,
     activeView,
     appView,
+    dockOpen,
     enabled,
+    extensionPanels,
+    focusedAgent,
+    focusedPanelId,
     gitDiffFileName,
     imageEditorPath,
     workspace,

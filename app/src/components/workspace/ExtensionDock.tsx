@@ -287,7 +287,7 @@ function DockTab({ panel, workspaceId, selected, motionOn, onSelect, onClose }: 
   const phase = useExtensionStore((state) => state.activityByPanel[panel.id]?.phase ?? 'idle');
   const status = phase === 'busy' ? `${panel.name} is working` : phase === 'done' ? `${panel.name} finished` : panel.name;
   return (
-    <div className={`xd__tab${selected ? ' is-selected' : ''}`} data-phase={phase}>
+    <div className={`xd__tab${selected ? ' is-selected' : ''}`} data-phase={phase} data-extension-panel-id={panel.id}>
       {selected && (
         <motion.span
           layoutId={`xd-tab-${workspaceId}`}

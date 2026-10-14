@@ -287,8 +287,17 @@
       return;
     }
     let name = event.data?.yzpzPanelEvent;
-    if (!TASK_EVENTS.includes(name)) return;
+    if (!TASK_EVENTS.includes(name) && name !== 'panel-focus') return;
     if (!fromWebview(event.origin)) return;
+    if (name === 'panel-focus') {
+      // Not task activity: every press is forwarded, so focus follows the last panel used.
+      taskEvents = taskEvents.then(() => fetch('/yzpz-panel/event', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: name }),
+      })).catch(() => undefined);
+      return;
+    }
     if (name === 'task-complete') {
       const now = Date.now();
       // A repeat completion still has to end the working state.

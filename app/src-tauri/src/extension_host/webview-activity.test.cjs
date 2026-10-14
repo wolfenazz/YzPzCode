@@ -43,6 +43,7 @@ function setup(t) {
     completions: () => events().filter(event => event === 'task-complete'),
     submit: () => listeners.keydown({ key: 'Enter', shiftKey: false, isComposing: false, target: textarea }),
     escape: () => listeners.keydown({ key: 'Escape', target: textarea }),
+    press: () => listeners.pointerdown({ isTrusted: true, target: textarea }),
     mutate: () => observerCallback([{ target: { nodeType: 1, parentNode: body } }]),
     stream(ms) { for (let elapsed = 0; elapsed < ms; elapsed += 250) { this.mutate(); t.mock.timers.tick(250); } },
     wait: ms => t.mock.timers.tick(ms),
@@ -58,6 +59,15 @@ test('a submitted request that streams and then settles notifies the workbench o
   assert.ok(pane.posted.every(({ origin }) => origin === 'http://panel-a.localhost:4000'));
   pane.wait(10000);
   assert.equal(pane.posted.length, 2);
+});
+
+test('pressing inside the assistant reports its panel as focused, on every press', t => {
+  const pane = setup(t);
+  pane.press();
+  pane.press();
+  assert.deepEqual(pane.events(), ['panel-focus', 'panel-focus']);
+  pane.wait(10000);
+  assert.deepEqual(pane.events(), ['panel-focus', 'panel-focus']);
 });
 
 test('activity resuming shortly after completion reopens the task', t => {

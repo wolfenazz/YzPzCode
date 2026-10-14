@@ -100,6 +100,8 @@
     doc.addEventListener('click', event => {
       if (event.target?.closest?.('button, [role="button"]')) arm();
     }, true);
+    // Pressing inside the assistant makes its extension the focused one (the app's Discord presence).
+    doc.addEventListener('pointerdown', () => post('panel-focus'), true);
   }
 
   setInterval(() => {

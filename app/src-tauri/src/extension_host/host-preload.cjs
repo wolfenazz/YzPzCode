@@ -52,14 +52,15 @@ function adaptWorkbenchHtml(html, panel, onConfiguration) {
 
 // The Tauri side reads this marker from the host's stdout (see mod.rs).
 const PANEL_EVENT_PREFIX = '[YzPzCode panel event] ';
-const TASK_EVENTS = ['task-busy', 'task-idle', 'task-complete'];
+// Activity reported by the assistant webview (webview-activity.js), plus its focus.
+const PANEL_EVENTS = ['task-busy', 'task-idle', 'task-complete', 'panel-focus'];
 // Outcomes of a prompt handed to the assistant (panel-chrome.js, panel-prompt.js).
 const PROMPT_STATUSES = ['submitted', 'inserted', 'no-input', 'failed', 'not-ready', 'no-view', 'timeout', 'unavailable'];
 const PROMPT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Validates a pane event body and returns its stdout line for mod.rs. */
 function panelEventLine(value) {
-  if (TASK_EVENTS.includes(value?.event)) return `${PANEL_EVENT_PREFIX}${value.event}\n`;
+  if (PANEL_EVENTS.includes(value?.event)) return `${PANEL_EVENT_PREFIX}${value.event}\n`;
   if (value?.event === 'prompt-result' && typeof value.id === 'string' && PROMPT_ID.test(value.id) &&
       PROMPT_STATUSES.includes(value.status))
     return `${PANEL_EVENT_PREFIX}prompt-result ${value.id.toLowerCase()} ${value.status}\n`;

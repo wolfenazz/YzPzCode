@@ -19,7 +19,10 @@ Toggle **Discord Rich Presence** under **Settings → Appearance**. If Discord i
   - "Previewing a web project"
   - "Editing \<file\>", "Reviewing changes in \<file\>", or "Editing image \<file\>" in the editor
   - "Reading the documentation", "Customizing the app", or "Choosing a workspace" in other screens
-- **File icon**: When a file is open in the editor, a small badge image shows its file-type icon with a "File: \<filename\>" tooltip
+- **Focus badge**: A small badge image shows what you are focused on, with a tooltip naming it:
+  - In a terminal, the logo of the AI agent in that pane (for example "Agent: Claude")
+  - In the Extensions view, or in the editor's side panel, the logo of the extension you last pressed ("Extension: \<name\>")
+  - In the editor, the file-type icon of the open file ("File: \<filename\>")
 - **Elapsed time** for the current activity, plus YzPzCode branding and links
 
 The connection reconnects automatically if Discord restarts.

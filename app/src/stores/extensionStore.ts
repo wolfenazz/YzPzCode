@@ -29,6 +29,9 @@ interface ExtensionStore {
   /** Whether each panel's assistant is working or just finished (not persisted). */
   activityByPanel: Record<string, AgentActivityState>;
   setPanelActivity: (panelId: string, activity: AgentActivityState) => void;
+  /** The panel the user pressed last, in the Extensions view, the side panel or the assistant itself (not persisted). */
+  focusedPanelId: string | null;
+  setFocusedPanel: (panelId: string | null) => void;
   /** Latest prompt handoff outcome per panel (not persisted). */
   promptNoticeByPanel: Record<string, ExtensionPromptNotice>;
   setPromptNotice: (panelId: string, notice: Omit<ExtensionPromptNotice, 'at'> | null) => void;
@@ -108,7 +111,8 @@ export const useExtensionStore = create<ExtensionStore>()(
         catalog: supportedExtensions.map((extension) => ({ ...extension, installedVersion: null, registryUrl: `https://open-vsx.org/extension/${extension.id.replace('.', '/')}` })),
         loading: false, backendReady: false, error: null, installing: [], progress: {}, latestVersions: {},
         panelsByWorkspace: {}, paneOrderByWorkspace: {}, dockByWorkspace: {}, activityByPanel: {}, promptNoticeByPanel: {},
-        hostErrorByPanel: {}, hostAttemptByPanel: {},
+        hostErrorByPanel: {}, hostAttemptByPanel: {}, focusedPanelId: null,
+        setFocusedPanel: (panelId) => set((state) => (state.focusedPanelId === panelId ? state : { focusedPanelId: panelId })),
         setPanelActivity: (panelId, activity) => set((state) => ({ activityByPanel: { ...state.activityByPanel, [panelId]: activity } })),
         setHostError: (panelId, message) => set((state) => {
           const { [panelId]: _previous, ...rest } = state.hostErrorByPanel;

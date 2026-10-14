@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 const DISCORD_APP_ID: &str = "1544244849207672862";
 const DISCORD_LOGO_URL: &str =
     "https://cdn.jsdelivr.net/gh/wolfenazz/YzPzCode@main/app/src-tauri/icons/icon.png";
-const FILE_ICON_PROXY_BASE: &str =
-    "https://wsrv.nl/?url=cdn.jsdelivr.net/gh/wolfenazz/YzPzCode@main/app/public/material-icons";
+/// Discord only fetches http(s) images, so repo icons go through wsrv.nl, which also rasterizes SVG.
+const SMALL_IMAGE_PROXY_BASE: &str =
+    "https://wsrv.nl/?url=cdn.jsdelivr.net/gh/wolfenazz/YzPzCode@main";
 const PROJECT_URL: &str = "https://github.com/wolfenazz/YzPzCode";
 const RELEASES_URL: &str = "https://github.com/wolfenazz/YzPzCode/releases/latest";
 
@@ -22,8 +23,9 @@ pub struct DiscordPresenceState {
     pub workspace_name: Option<String>,
     pub details: Option<String>,
     pub state_text: Option<String>,
-    pub file_icon: Option<String>,
-    pub file_icon_text: Option<String>,
+    /// Repo path of the small badge icon, e.g. `app/src/assets/claude.png`.
+    pub small_image: Option<String>,
+    pub small_image_text: Option<String>,
 }
 
 #[derive(Debug)]
@@ -56,8 +58,8 @@ impl DiscordPresenceManager {
                 workspace_name: None,
                 details: None,
                 state_text: None,
-                file_icon: None,
-                file_icon_text: None,
+                small_image: None,
+                small_image_text: None,
             })),
         }
     }
@@ -101,16 +103,16 @@ impl DiscordPresenceManager {
         workspace_name: Option<String>,
         details: Option<String>,
         state_text: Option<String>,
-        file_icon: Option<String>,
-        file_icon_text: Option<String>,
+        small_image: Option<String>,
+        small_image_text: Option<String>,
     ) -> Result<(), String> {
         {
             let mut current = self.current_state.lock().unwrap();
             current.workspace_name = workspace_name.clone();
             current.details = details.clone();
             current.state_text = state_text.clone();
-            current.file_icon = file_icon;
-            current.file_icon_text = file_icon_text;
+            current.small_image = small_image;
+            current.small_image_text = small_image_text;
         }
 
         if !self.is_enabled() {
@@ -126,8 +128,8 @@ impl DiscordPresenceManager {
             current.workspace_name = None;
             current.details = None;
             current.state_text = None;
-            current.file_icon = None;
-            current.file_icon_text = None;
+            current.small_image = None;
+            current.small_image_text = None;
         }
 
         if !self.is_enabled() {
@@ -138,7 +140,7 @@ impl DiscordPresenceManager {
     }
 
     fn connect_and_update(&self) -> Result<(), String> {
-        let (details_text, state_text, workspace_name, file_icon, file_icon_text) = {
+        let (details_text, state_text, workspace_name, small_image, small_image_text) = {
             let state = self.current_state.lock().unwrap();
             let d = state
                 .details
@@ -149,8 +151,8 @@ impl DiscordPresenceManager {
                 .clone()
                 .unwrap_or_else(|| "Idle".to_string());
             let w = state.workspace_name.clone();
-            let icon = state.file_icon.clone();
-            let icon_text = state.file_icon_text.clone();
+            let icon = state.small_image.clone();
+            let icon_text = state.small_image_text.clone();
             (d, s, w, icon, icon_text)
         };
         let details_text = Self::truncate_for_discord(&details_text);
@@ -165,10 +167,10 @@ impl DiscordPresenceManager {
         let mut assets = Assets::new()
             .large_image(DISCORD_LOGO_URL)
             .large_text(large_text);
-        if let Some(file_icon_url) = file_icon.as_deref().and_then(Self::file_icon_url) {
-            assets = assets.small_image(file_icon_url);
-            if let Some(file_icon_text) = file_icon_text {
-                assets = assets.small_text(Self::truncate_for_discord(&file_icon_text));
+        if let Some(small_image_url) = small_image.as_deref().and_then(Self::small_image_url) {
+            assets = assets.small_image(small_image_url);
+            if let Some(small_image_text) = small_image_text {
+                assets = assets.small_text(Self::truncate_for_discord(&small_image_text));
             }
         }
 
@@ -215,19 +217,21 @@ impl DiscordPresenceManager {
         value.chars().take(128).collect()
     }
 
-    fn file_icon_url(icon_name: &str) -> Option<String> {
-        if icon_name.is_empty()
-            || !icon_name.chars().all(|character| {
-                character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
-            })
-        {
+    /// Builds the proxied URL for an icon inside the repo. Only plain paths under `app/`
+    /// are accepted, so the frontend cannot point the badge at an arbitrary host or file.
+    fn small_image_url(repo_path: &str) -> Option<String> {
+        let valid = repo_path.starts_with("app/")
+            && !repo_path.contains("..")
+            && repo_path.chars().all(|character| {
+                character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.' | '/')
+            });
+        if !valid {
             return None;
         }
 
-        // Rasterize the exact explorer SVG as a transparent PNG for reliable
-        // rendering in Discord clients.
+        // Rasterize the icon as a transparent PNG for reliable rendering in Discord clients.
         Some(format!(
-            "{FILE_ICON_PROXY_BASE}/{icon_name}.svg&output=png&w=256&h=256"
+            "{SMALL_IMAGE_PROXY_BASE}/{repo_path}&output=png&w=256&h=256"
         ))
     }
 
@@ -285,21 +289,39 @@ impl DiscordPresenceManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{DiscordPresenceManager, FILE_ICON_PROXY_BASE};
+    use super::{DiscordPresenceManager, SMALL_IMAGE_PROXY_BASE};
 
     #[test]
-    fn builds_file_icon_url_for_material_icon() {
+    fn builds_small_image_url_for_repo_icon() {
         assert_eq!(
-            DiscordPresenceManager::file_icon_url("react_ts"),
+            DiscordPresenceManager::small_image_url("app/public/material-icons/react_ts.svg"),
             Some(format!(
-                "{FILE_ICON_PROXY_BASE}/react_ts.svg&output=png&w=256&h=256"
+                "{SMALL_IMAGE_PROXY_BASE}/app/public/material-icons/react_ts.svg&output=png&w=256&h=256"
+            ))
+        );
+        assert_eq!(
+            DiscordPresenceManager::small_image_url("app/src/assets/claude.png"),
+            Some(format!(
+                "{SMALL_IMAGE_PROXY_BASE}/app/src/assets/claude.png&output=png&w=256&h=256"
             ))
         );
     }
 
     #[test]
-    fn rejects_invalid_file_icon_name() {
-        assert_eq!(DiscordPresenceManager::file_icon_url("../secret"), None);
-        assert_eq!(DiscordPresenceManager::file_icon_url(""), None);
+    fn rejects_invalid_small_image_paths() {
+        assert_eq!(
+            DiscordPresenceManager::small_image_url("app/../secret"),
+            None
+        );
+        assert_eq!(DiscordPresenceManager::small_image_url("../secret"), None);
+        assert_eq!(
+            DiscordPresenceManager::small_image_url("src/assets/claude.png"),
+            None
+        );
+        assert_eq!(
+            DiscordPresenceManager::small_image_url("app/src/a b.png"),
+            None
+        );
+        assert_eq!(DiscordPresenceManager::small_image_url(""), None);
     }
 }

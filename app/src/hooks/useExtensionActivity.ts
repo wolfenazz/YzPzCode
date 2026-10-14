@@ -29,6 +29,20 @@ export function useExtensionActivity(): void {
       });
     };
 
+    // Presses inside an extension pane or dock tab focus that panel; any other
+    // press moves focus away. Presses inside the assistant's webview never reach
+    // the page, so those come in as `extension-panel-focus` below.
+    const onPointerDown = (event: PointerEvent) => {
+      const panel = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-extension-panel-id]') : null;
+      useExtensionStore.getState().setFocusedPanel(panel?.dataset.extensionPanelId ?? null);
+    };
+    document.addEventListener('pointerdown', onPointerDown, true);
+    unlisteners.push(() => document.removeEventListener('pointerdown', onPointerDown, true));
+
+    track(listen<{ panelId: string }>('extension-panel-focus', ({ payload }) => {
+      useExtensionStore.getState().setFocusedPanel(payload.panelId);
+    }));
+
     track(listen<{ panelId: string; busy: boolean }>('extension-panel-activity', ({ payload }) => {
       const { activityByPanel, setPanelActivity } = useExtensionStore.getState();
       const current = activityByPanel[payload.panelId];

@@ -31,15 +31,15 @@ pub async fn update_discord_activity(
     workspace_name: Option<String>,
     details: Option<String>,
     state_text: Option<String>,
-    file_icon: Option<String>,
-    file_icon_text: Option<String>,
+    small_image: Option<String>,
+    small_image_text: Option<String>,
 ) -> Result<(), String> {
     manager.update_activity(
         workspace_name,
         details,
         state_text,
-        file_icon,
-        file_icon_text,
+        small_image,
+        small_image_text,
     )
 }
 

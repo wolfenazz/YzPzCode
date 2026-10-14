@@ -255,6 +255,13 @@ struct PanelTaskComplete {
     panel_id: String,
 }
 
+/// The user pressed inside this panel's assistant, so it is the focused extension.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PanelFocus {
+    panel_id: String,
+}
+
 /// An assistant request is underway (`busy`) or ended without finishing (`idle`).
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -276,6 +283,8 @@ struct PanelPromptResult {
 enum PanelEvent {
     TaskComplete,
     Activity { busy: bool },
+    /// The user pressed inside the assistant's webview.
+    Focus,
     PromptResult { request_id: String, status: String },
 }
 
@@ -285,6 +294,7 @@ fn parse_panel_event(line: &str) -> Option<PanelEvent> {
         "task-complete" => Some(PanelEvent::TaskComplete),
         "task-busy" => Some(PanelEvent::Activity { busy: true }),
         "task-idle" => Some(PanelEvent::Activity { busy: false }),
+        "panel-focus" => Some(PanelEvent::Focus),
         other => {
             let mut parts = other.strip_prefix("prompt-result ")?.split(' ');
             let (request_id, status) = (parts.next()?, parts.next()?);
@@ -347,6 +357,14 @@ fn forward_host_output(
                         PanelActivity {
                             panel_id: panel_id.clone(),
                             busy,
+                        },
+                    );
+                }
+                Some(PanelEvent::Focus) => {
+                    let _ = app.emit(
+                        "extension-panel-focus",
+                        PanelFocus {
+                            panel_id: panel_id.clone(),
                         },
                     );
                 }
@@ -2230,6 +2248,7 @@ mod tests {
             parse_panel_event(&line("task-busy")),
             Some(PanelEvent::Activity { busy: true })
         );
+        assert_eq!(parse_panel_event(&line("panel-focus")), Some(PanelEvent::Focus));
         assert_eq!(
             parse_panel_event(&line(&format!("prompt-result {id} submitted"))),
             Some(PanelEvent::PromptResult {
