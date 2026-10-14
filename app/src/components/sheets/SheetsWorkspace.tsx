@@ -90,6 +90,9 @@ const measureBlock = (wb: Workbook, sheetName: string, origin: { row: number; co
   return { rows: Math.max(1, rows), cols: Math.max(1, cols) };
 };
 
+/** The studio attachments folder once resolved, reused as the initial value on remounts. */
+let cachedAttachmentsFolder: string | null = null;
+
 const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible }) => {
   const workspaceId = workspace.id;
   const workspacePath = workspace.path;
@@ -111,13 +114,21 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
   const [title, setTitle] = useState('');
   const [homeBusy, setHomeBusy] = useState(false);
   const [homeError, setHomeError] = useState<string | null>(null);
-  const [attachmentsFolder, setAttachmentsFolder] = useState(joinPath(workspacePath, SHEETS_FOLDER, '.attachments'));
+  // The studio root resolves async; a previous resolution is reused so the
+  // first render already points at the right folder on remounts.
+  const [attachmentsFolder, setAttachmentsFolder] = useState(() => cachedAttachmentsFolder ?? joinPath(workspacePath, SHEETS_FOLDER, '.attachments'));
   const openedRef = useRef(false);
   const wb = editor.shown;
   const sheet = wb?.sheets[editor.sheetIndex];
 
   useEffect(() => {
-    void getStudioRoot().then((root) => setAttachmentsFolder(joinPath(root, SHEETS_FOLDER, '.attachments'))).catch(() => undefined);
+    let live = true;
+    void getStudioRoot().then((root) => {
+      const next = joinPath(root, SHEETS_FOLDER, '.attachments');
+      cachedAttachmentsFolder = next;
+      if (live) setAttachmentsFolder(next);
+    }).catch(() => undefined);
+    return () => { live = false; };
   }, []);
 
   // Reopen the workbook this workspace was left on.
@@ -132,9 +143,12 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
   const request = useSheetsSessionStore((state) => state.requests[workspaceId]);
   useEffect(() => {
     if (!request) return;
+    // A review in progress is read-only: opening now would drop it, so the
+    // request stays pending until the proposal is kept or discarded.
+    if (session.proposal) return;
     useSheetsSessionStore.getState().clearRequest(workspaceId);
     void doc.open(request.path);
-  }, [doc, request, workspaceId]);
+  }, [doc, request, workspaceId, session.proposal]);
 
   useEffect(() => {
     setTitle(session.path ? fileName(session.path).replace(/\.[^.]+$/, '') : '');
@@ -174,8 +188,14 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
   /** The selected range, or the block of data around the active cell when one cell is selected. */
   const dataRange = (): RangeRef => {
     const range = lastRange();
-    if (range.r1 === range.r2 && range.c1 === range.c2 && sheet) return currentRegion(sheet, editor.selection.active);
-    return range;
+    const base = range.r1 === range.r2 && range.c1 === range.c2 && sheet ? currentRegion(sheet, editor.selection.active) : range;
+    if (!sheet) return base;
+    // A full-column, full-row or Ctrl+A selection must not dispatch
+    // million-row sort/filter/dedup operations: stay inside what is used.
+    const used = usedBounds(sheet);
+    const maxRow = Math.max(0, used.rows - 1);
+    const maxCol = Math.max(0, used.cols - 1);
+    return { r1: Math.min(base.r1, maxRow), c1: Math.min(base.c1, maxCol), r2: Math.min(base.r2, maxRow), c2: Math.min(base.c2, maxCol) };
   };
 
   const askAi = useCallback((instruction: string, label?: string, forcedScope?: AiScope): void => {
@@ -580,6 +600,15 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
         </div>
       )}
 
+      {session.error && (
+        <div className="sh-banner" role="alert">
+          <span>{session.error}</span>
+          <span className="sh-banner__actions">
+            <button type="button" className="sx-btn sx-btn--sm sx-btn--primary" onClick={() => void doc.save()}>Retry save</button>
+          </span>
+        </div>
+      )}
+
       <div className="sh-main">
         <div className="sh-sheetwrap">
           <SheetGrid
@@ -623,6 +652,7 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
               tabs={[{ id: 'assistant', label: 'Assistant' }, { id: 'format', label: 'Format' }, { id: 'data', label: 'Data' }]}
             />
             {panelTab === 'assistant' ? (
+              <InspectorBody id={`sx-panel-${panelTab}`} labelledBy={`sx-tab-${panelTab}`}>
               <SheetsAssistant
                 turns={session.chat}
                 run={session.run}
@@ -642,8 +672,9 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
                 onDiscard={assistant.discard}
                 onPeek={editor.setPeek}
               />
+              </InspectorBody>
             ) : (
-              <InspectorBody>
+              <InspectorBody id={`sx-panel-${panelTab}`} labelledBy={`sx-tab-${panelTab}`}>
                 {panelTab === 'format'
                   ? <FormatInspector editor={editor} onMore={() => setDialog({ kind: 'format' })} />
                   : <DataInspector editor={editor} onNames={() => setDialog({ kind: 'names' })} onFormat={() => setDialog({ kind: 'format' })} pivots={session.pivots} onRefreshPivot={(id) => refreshPivots([id])} onRefreshAllPivots={() => refreshPivots()} onRemovePivot={(id) => { doc.removePivot(id); notify('Pivot table forgotten. Its cells stay.'); }} />}
@@ -667,7 +698,7 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
         sheetIndex={editor.sheetIndex}
         selection={editor.selection}
         zoom={editor.zoom}
-        note={session.importNotes[0]}
+        note={session.importNotes[0] ?? (used.rows === 0 ? 'Empty sheet — click a cell and start typing, or paste data from another app.' : undefined)}
         onZoom={editor.setZoom}
       />
 
@@ -725,6 +756,7 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
           title={title || 'Workbook'}
           path={session.path}
           original={session.original}
+          initialFormat={session.format === 'csv' || session.format === 'tsv' ? session.format : undefined}
           onClose={() => { setDialog(null); editor.requestFocus(); }}
           onDone={(message) => notify(message)}
         />

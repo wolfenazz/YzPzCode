@@ -224,7 +224,7 @@ See [the graphical workspace extensions documentation](docs/extensions.md) for a
 
 ---
 
-##  Writing & Presentation Studios
+##  Writing, Presentation & Sheets Studios
 
 <div align="center">
   <img src="docs/readme/studios.svg" width="100%" alt="The Writing Studio with outline, paged report and assistant, and the Presentation Studio with filmstrip, canvas and design panel" />
@@ -232,7 +232,7 @@ See [the graphical workspace extensions documentation](docs/extensions.md) for a
 
 <br />
 
-Besides coding, the setup page's mode switch opens two document studios. They need no terminals or IDEs, run the AI through the CLIs you already have installed (Claude Code, Codex, Grok, Antigravity, OpenCode) in a headless runner, and save into one folder, `Documents/YzPzCode`, so reports and decks are found again after a reinstall.
+Besides coding, the setup page's mode switch opens three document studios. They need no terminals or IDEs, run the AI through the CLIs you already have installed (Claude Code, Codex, Grok, Antigravity, OpenCode) in a headless runner, and save into one folder, `Documents/YzPzCode`, so reports, decks and workbooks are found again after a reinstall.
 
 <table>
 <tr>

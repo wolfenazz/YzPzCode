@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -45,12 +45,18 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ deck, deckDir, conte
   const [progress, setProgress] = useState<string | null>(null);
   const formats = preserve ? FORMATS.filter((entry) => entry.id === 'pptx') : FORMATS;
   const visible = deck.slides.filter((slide) => !slide.hidden);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+  const cancel = (): void => abortRef.current?.abort();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !busy) {
-        event.stopPropagation();
-        onClose();
+      if (event.key === 'Escape') {
+        if (busy) cancel();
+        else {
+          event.stopPropagation();
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -60,37 +66,45 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ deck, deckDir, conte
   const run = async (): Promise<void> => {
     setError(null);
     const entry = FORMATS.find((item) => item.id === format)!;
+    const base = slugify(deck.meta.title) || 'presentation';
     if (format === 'png') {
       const folder = await open({ directory: true, title: 'Choose a folder for the slide images', defaultPath: joinPath(deckDir, 'exports') });
       if (typeof folder !== 'string') return;
+      const controller = new AbortController();
+      abortRef.current = controller;
       setBusy(true);
       try {
-        const [images, icons] = await Promise.all([loadImageDataUrls(imageSources(deck.slides), deckDir), loadIconSvgs(iconNames(deck.slides))]);
-        const base = slugify(deck.meta.title);
+        const [images, icons] = await Promise.all([loadImageDataUrls(imageSources(visible), deckDir), loadIconSvgs(iconNames(visible))]);
         let number = 0;
         for (const [index, slide] of deck.slides.entries()) {
           if (slide.hidden) continue;
+          controller.signal.throwIfAborted();
           number += 1;
           setProgress(`Slide ${number} of ${visible.length}`);
           const bytes = await slideToPng(context, slide, index, { images, icons });
+          controller.signal.throwIfAborted();
           await writeFileBytes(joinPath(folder, `${base}-${String(number).padStart(2, '0')}.png`), bytes);
         }
         setDone(folder);
         onExported(folder);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason));
+        if (controller.signal.aborted) setError('Export cancelled.');
+        else setError(reason instanceof Error ? reason.message : String(reason));
       } finally {
         setProgress(null);
         setBusy(false);
+        if (abortRef.current === controller) abortRef.current = null;
       }
       return;
     }
     const path = await save({
       title: `Export ${entry.label}`,
-      defaultPath: joinPath(deckDir, 'exports', `${slugify(deck.meta.title)}.${format}`),
+      defaultPath: joinPath(deckDir, 'exports', `${base}.${format}`),
       filters: [{ name: entry.label, extensions: [format] }],
     });
     if (!path) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     try {
       if (format === 'pptx') {
@@ -100,12 +114,15 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ deck, deckDir, conte
           await exportPptx(deck, deckDir, path);
         }
       } else if (format === 'html') {
-        const [images, icons] = await Promise.all([loadImageDataUrls(imageSources(deck.slides), deckDir), loadIconSvgs(iconNames(deck.slides))]);
-        await invoke('write_file_content', { path, content: buildStandaloneDeckHtml({ ...context, title: deck.meta.title, transition: deck.transition }, deck.slides, { images, icons }) });
+        const [images, icons] = await Promise.all([loadImageDataUrls(imageSources(visible), deckDir), loadIconSvgs(iconNames(visible))]);
+        controller.signal.throwIfAborted();
+        await invoke('write_file_content', { path, content: buildStandaloneDeckHtml({ ...context, title: deck.meta.title, transition: deck.transition }, visible, { images, icons }) });
       } else {
-        const [images, icons] = await Promise.all([loadImageDataUrls(imageSources(deck.slides), deckDir), loadIconSvgs(iconNames(deck.slides))]);
-        const html = buildDeckPrintHtml({ ...context, title: deck.meta.title }, deck.slides, { images, icons });
+        const [images, icons] = await Promise.all([loadImageDataUrls(imageSources(visible), deckDir), loadIconSvgs(iconNames(visible))]);
+        controller.signal.throwIfAborted();
+        const html = buildDeckPrintHtml({ ...context, title: deck.meta.title }, visible, { images, icons });
         const written = await invoke<boolean>('export_writing_pdf', { html, outputPath: path });
+        controller.signal.throwIfAborted();
         if (!written) {
           setDone('Use “Save as PDF” in the print dialog.');
           return;
@@ -114,9 +131,11 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ deck, deckDir, conte
       setDone(path);
       onExported(path);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (controller.signal.aborted) setError('Export cancelled.');
+      else setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setBusy(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
@@ -144,7 +163,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ deck, deckDir, conte
             <button type="button" className="pr-icon-btn" onClick={onClose} aria-label="Close" disabled={busy}><X size={15} /></button>
           </div>
           <h3 className="pr-export__title">{deck.meta.title}</h3>
-          <p className="pr-hint">{preserve ? `${deck.source?.slides.length ?? 0} slides · original design kept` : `${visible.length} slide${visible.length === 1 ? '' : 's'}${visible.length < deck.slides.length ? ` (${deck.slides.length - visible.length} hidden left out of the PDF)` : ''} · ${context.theme.name} · ${context.size}`}</p>
+          <p className="pr-hint">{preserve ? `${deck.source?.slides.length ?? 0} slides · original design kept` : `${visible.length} slide${visible.length === 1 ? '' : 's'}${format !== 'pptx' && visible.length < deck.slides.length ? ` (${deck.slides.length - visible.length} hidden left out)` : ''} · ${context.theme.name} · ${context.size}`}</p>
           <div className="pr-stack">
             {formats.map((entry) => (
               <button key={entry.id} type="button" className="pr-format" data-active={format === entry.id || undefined} onClick={() => { setFormat(entry.id); setDone(null); }}>
@@ -168,6 +187,11 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ deck, deckDir, conte
           <button type="button" className="pr-btn pr-btn--primary pr-btn--lg pr-export__go" disabled={busy} onClick={() => void run()}>
             {busy ? progress ?? 'Exporting…' : `Export ${formats.find((entry) => entry.id === format)!.badge}`} <ArrowRight size={14} />
           </button>
+          {busy && (
+            <button type="button" className="pr-btn pr-btn--lg pr-export__cancel" onClick={cancel}>
+              Cancel
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

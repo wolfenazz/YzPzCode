@@ -130,14 +130,16 @@ export const usePresentationSessionStore = create<PresentationSessionStore>()((s
     if (!current?.deck || current.past.length === 0) return {};
     const previous = current.past[current.past.length - 1];
     lastEdit = null;
-    return { sessions: { ...state.sessions, [workspaceId]: { ...current, deck: previous, past: current.past.slice(0, -1), future: [current.deck, ...current.future].slice(0, HISTORY_LIMIT), dirty: true } } };
+    const known = new Set([...previous.slides.map((slide) => slide.id), ...(previous.design?.slides.map((slide) => slide.id) ?? [])]);
+    return { sessions: { ...state.sessions, [workspaceId]: { ...current, deck: previous, past: current.past.slice(0, -1), future: [current.deck, ...current.future].slice(0, HISTORY_LIMIT), dirty: true, selectedIds: current.selectedIds.filter((id) => known.has(id)) } } };
   }),
   redo: (workspaceId) => set((state) => {
     const current = state.sessions[workspaceId];
     if (!current?.deck || current.future.length === 0) return {};
     const [next, ...rest] = current.future;
     lastEdit = null;
-    return { sessions: { ...state.sessions, [workspaceId]: { ...current, deck: next, past: [...current.past, current.deck], future: rest, dirty: true } } };
+    const known = new Set([...next.slides.map((slide) => slide.id), ...(next.design?.slides.map((slide) => slide.id) ?? [])]);
+    return { sessions: { ...state.sessions, [workspaceId]: { ...current, deck: next, past: [...current.past, current.deck], future: rest, dirty: true, selectedIds: current.selectedIds.filter((id) => known.has(id)) } } };
   }),
   closeWorkspace: (workspaceId) => set((state) => {
     const sessions = { ...state.sessions };

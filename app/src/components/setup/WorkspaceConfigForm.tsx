@@ -145,7 +145,8 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
 
   const sessions = props.selectedLayout.sessions;
   const selectedExtensionsReady = studio || props.selectedExtensionIds.every((id) => backendReady && catalog.some((extension) => extension.id === id && extension.installedVersion));
-  const canOpen = props.isValid && selectedExtensionsReady && (studio || installing.length === 0) && !props.isLoading;
+  const studioReady = !studio || (Boolean(studioRoot.path) && !studioRoot.error);
+  const canOpen = props.isValid && selectedExtensionsReady && (studio || installing.length === 0) && !props.isLoading && studioReady;
   const projectReady = studio || Boolean(props.selectedPath && (props.isExternalMode || props.workspaceName.trim()));
   const showProject = !props.guided || step === 'project';
   const showSetup = !props.guided || step === 'setup';
@@ -163,6 +164,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
   const externalAvailable = sessions > 0 && props.selectedExtensionIds.length === 0;
 
   const blocker = studio && studioRoot.error ? studioRoot.error
+    : studio && !studioRoot.path ? 'Preparing your studio folder…'
     : !studio && !props.selectedPath ? 'Choose a project folder to continue.'
     : !projectReady ? 'Give your workspace a name.'
       : continuing ? null
@@ -170,7 +172,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
           : !studio && installing.length > 0 ? 'Waiting for extensions to finish installing…'
             : !selectedExtensionsReady ? 'Install or deselect unavailable extensions.'
               : null;
-  const primaryEnabled = continuing ? projectReady && !props.isLoading : canOpen;
+  const primaryEnabled = continuing ? projectReady && !props.isLoading && studioReady : canOpen;
   const primaryLabel = props.isLoading ? 'Opening workspace' : continuing ? 'Continue' : writing ? 'Open writing studio' : presenting ? 'Open presentation studio' : sheeting ? 'Open sheets studio' : props.isExternalMode ? 'Open terminals' : 'Open workspace';
 
   const primaryAction = (): void => {
@@ -305,7 +307,7 @@ export function WorkspaceConfigForm(props: WorkspaceConfigFormProps): React.JSX.
                 {showProject && (
                   <Section number={1} state={states.project} title={studio ? 'Saved in' : 'Project'} description={writing ? 'Reports are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : presenting ? 'Decks are kept in one folder in your Documents, with their images and exports. It stays there if you reinstall the app.' : sheeting ? 'Workbooks are real .xlsx files kept in one folder in your Documents, with their history and exports. It stays there if you reinstall the app.' : 'The folder your terminals, agents, and editor open in.'}>
                     {studio
-                      ? <StudioLocation path={studioRoot.path} error={studioRoot.error} />
+                      ? <StudioLocation path={studioRoot.path} error={studioRoot.error} onRetry={studioRoot.retry} />
                       : <DirectorySelector selectedPath={props.selectedPath} onSelectDirectory={props.onSelectDirectory} onSelectRecentDirectory={props.onSelectRecentDirectory}
                         errorMessage={props.selectedPath ? props.validationErrors.directory : undefined} />}
                     <AnimatePresence initial={false}>

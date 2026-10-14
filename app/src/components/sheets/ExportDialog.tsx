@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { sheetToCsv } from '../../utils/sheets/csv';
+import { sheetToCsv, sheetToTsv } from '../../utils/sheets/csv';
 import { DEFAULT_PRINT, workbookToHtml, type PrintOptions } from '../../utils/sheets/printHtml';
 import type { Workbook } from '../../utils/sheets/types';
 import { writeXlsx } from '../../utils/sheets/xlsxWrite';
@@ -9,7 +9,7 @@ import { fileName, joinPath, parentPath } from '../../utils/writing/document';
 import { CheckRow, Dialog, FieldRow } from './Dialog';
 import { bytesToBase64 } from './useWorkbookDocument';
 
-type Format = 'xlsx' | 'csv' | 'pdf' | 'html';
+type Format = 'xlsx' | 'csv' | 'tsv' | 'pdf' | 'html';
 
 interface ExportDialogProps {
   wb: Workbook;
@@ -17,6 +17,8 @@ interface ExportDialogProps {
   title: string;
   path: string | null;
   original: Uint8Array | null;
+  /** Preselects the session's text format (a .tsv workbook offers TSV first). */
+  initialFormat?: 'csv' | 'tsv';
   onClose: () => void;
   onDone: (message: string) => void;
 }
@@ -25,19 +27,22 @@ const FORMATS: Array<{ id: Format; label: string; hint: string }> = [
   { id: 'xlsx', label: 'Excel workbook', hint: '.xlsx, opens in Excel with formulas, formats and charts' },
   { id: 'pdf', label: 'PDF', hint: 'Print layout, fit to the page width' },
   { id: 'csv', label: 'CSV', hint: 'Values only, one file per sheet' },
+  { id: 'tsv', label: 'TSV', hint: 'Values only, tab-separated, one file per sheet' },
   { id: 'html', label: 'Web page', hint: 'A standalone .html file' },
 ];
 
 const safeName = (name: string): string => name.replace(/[\\/:*?"<>|]+/g, '-').trim() || 'workbook';
 
-export const ExportDialog: React.FC<ExportDialogProps> = ({ wb, sheetIndex, title, path, original, onClose, onDone }) => {
-  const [format, setFormat] = useState<Format>('xlsx');
+export const ExportDialog: React.FC<ExportDialogProps> = ({ wb, sheetIndex, title, path, original, initialFormat, onClose, onDone }) => {
+  const [format, setFormat] = useState<Format>(initialFormat ?? 'xlsx');
   const [print, setPrint] = useState<PrintOptions>({ ...DEFAULT_PRINT });
   const [allSheets, setAllSheets] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const base = safeName(title);
   const exportsDir = path ? joinPath(parentPath(path), 'exports') : undefined;
+  const exported = allSheets ? wb.sheets : wb.sheets[sheetIndex] ? [wb.sheets[sheetIndex]] : [];
+  const formulaCount = exported.reduce((total, sheet) => total + Object.values(sheet.cells).filter((cell) => cell?.f !== undefined).length, 0);
 
   const run = async (): Promise<void> => {
     setBusy(true);
@@ -49,20 +54,21 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ wb, sheetIndex, titl
         const bytes = await writeXlsx(wb, original);
         await invoke('write_file_bytes', { path: target, base64Data: bytesToBase64(bytes) });
         onDone(`Saved ${fileName(target)}`);
-      } else if (format === 'csv') {
+      } else if (format === 'csv' || format === 'tsv') {
         const indexes = allSheets ? wb.sheets.map((_, i) => i) : [sheetIndex];
+        const textOf = (index: number): string => (format === 'tsv' ? sheetToTsv(wb.sheets[index], wb.styles) : sheetToCsv(wb.sheets[index], wb.styles));
         if (indexes.length === 1) {
-          const target = await save({ defaultPath: exportsDir ? joinPath(exportsDir, `${safeName(wb.sheets[indexes[0]].name)}.csv`) : `${safeName(wb.sheets[indexes[0]].name)}.csv`, filters: [{ name: 'CSV', extensions: ['csv'] }] });
+          const target = await save({ defaultPath: exportsDir ? joinPath(exportsDir, `${safeName(wb.sheets[indexes[0]].name)}.${format}`) : `${safeName(wb.sheets[indexes[0]].name)}.${format}`, filters: [{ name: format.toUpperCase(), extensions: [format] }] });
           if (!target) return;
-          await invoke('write_file_content', { path: target, content: `﻿${sheetToCsv(wb.sheets[indexes[0]], wb.styles)}` });
+          await invoke('write_file_content', { path: target, content: `﻿${textOf(indexes[0])}` });
           onDone(`Saved ${fileName(target)}`);
         } else {
           const folder = await open({ directory: true, defaultPath: exportsDir });
           if (!folder || Array.isArray(folder)) return;
           for (const index of indexes) {
-            await invoke('write_file_content', { path: joinPath(folder, `${safeName(wb.sheets[index].name)}.csv`), content: `﻿${sheetToCsv(wb.sheets[index], wb.styles)}` });
+            await invoke('write_file_content', { path: joinPath(folder, `${safeName(wb.sheets[index].name)}.${format}`), content: `﻿${textOf(index)}` });
           }
-          onDone(`Saved ${indexes.length} CSV files`);
+          onDone(`Saved ${indexes.length} ${format.toUpperCase()} files`);
         }
       } else {
         const html = workbookToHtml(wb, { ...print, sheets: allSheets ? wb.sheets.map((_, i) => i) : [sheetIndex], title });
@@ -109,6 +115,9 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({ wb, sheetIndex, titl
           ))}
         </div>
         {format !== 'xlsx' && wb.sheets.length > 1 && <CheckRow label="Every sheet (otherwise only the open one)" checked={allSheets} onChange={setAllSheets} />}
+        {(format === 'csv' || format === 'tsv') && formulaCount > 0 && (
+          <p className="sh-note" role="note">Values only: {formulaCount} formula{formulaCount === 1 ? '' : 's'} will be replaced by {formulaCount === 1 ? 'its' : 'their'} calculated value{formulaCount === 1 ? '' : 's'}.</p>
+        )}
         {(format === 'pdf' || format === 'html') && (
           <>
             {format === 'pdf' && (

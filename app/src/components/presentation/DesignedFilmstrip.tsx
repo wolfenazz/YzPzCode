@@ -24,9 +24,7 @@ interface ThumbProps {
   onSelect: (id: string, event: React.MouseEvent) => void;
   onCheck: (id: string) => void;
   onContext: (id: string, event: React.MouseEvent) => void;
-}
-
-const Thumb = memo(function Thumb({ slide, index, canvas, picked, current, checks, status, resolveHref, onSelect, onCheck, onContext }: ThumbProps): React.JSX.Element {
+}const Thumb = memo(function Thumb({ slide, index, canvas, picked, current, checks, status, resolveHref, onSelect, onCheck, onContext, onStep }: ThumbProps & { onStep: (index: number, dir: 1 | -1) => void }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
   const busy = status === 'queued' || status === 'writing';
   return (
@@ -45,7 +43,29 @@ const Thumb = memo(function Thumb({ slide, index, canvas, picked, current, check
       title={slide.title}
       {...attributes}
       {...listeners}
+      tabIndex={0}
+      role="option"
+      aria-selected={picked}
       aria-label={`Slide ${index + 1}: ${slide.title}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+          event.preventDefault();
+          event.stopPropagation();
+          onSelect(slide.id, event as unknown as React.MouseEvent);
+        } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep(index, 1);
+          const items = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+          items[items.indexOf(event.currentTarget as HTMLElement) + 1]?.focus();
+        } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep(index, -1);
+          const items = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+          items[items.indexOf(event.currentTarget as HTMLElement) - 1]?.focus();
+        }
+      }}
     >
       <span className="pr-thumb__num">{index + 1}</span>
       <div className="pr-thumb__frame">
@@ -91,6 +111,8 @@ export interface DesignedFilmstripProps {
   onSelectAll: () => void;
   onClear: () => void;
   onEditWithAi: () => void;
+  /** False when no slide is on the stage: Blank has nothing to base on. */
+  hasSlide?: boolean;
   onNewBlank: () => void;
   onNewWithAi: (description: string) => void;
 }
@@ -98,7 +120,7 @@ export interface DesignedFilmstripProps {
 /** The slide strip: thumbnails, a Select mode for several slides, and the New slide controls docked at the bottom. */
 export const DesignedFilmstrip: React.FC<DesignedFilmstripProps> = ({
   slides, canvas, pickedIds, currentId, status, resolveHref, picking, busy,
-  onPickingChange, onSelect, onCheck, onContext, onMove, onSelectAll, onClear, onEditWithAi, onNewBlank, onNewWithAi,
+  onPickingChange, onSelect, onCheck, onContext, onMove, onSelectAll, onClear, onEditWithAi, hasSlide = true, onNewBlank, onNewWithAi,
 }) => {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const [adding, setAdding] = useState<string | null>(null);
@@ -106,6 +128,12 @@ export const DesignedFilmstrip: React.FC<DesignedFilmstripProps> = ({
   const picked = new Set(pickedIds);
   const several = pickedIds.length > 1;
   const checks = picking || several;
+
+  // Keyboard arrows move the selection to the neighbouring slide.
+  const onStep = (index: number, dir: 1 | -1): void => {
+    const next = slides[index + dir];
+    if (next) onSelect(next.id, { shiftKey: false, ctrlKey: false, metaKey: false } as unknown as React.MouseEvent);
+  };
 
   // Keep the stage's slide in view when it changes from the keyboard.
   useEffect(() => {
@@ -141,7 +169,10 @@ export const DesignedFilmstrip: React.FC<DesignedFilmstripProps> = ({
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={slides.map((entry) => entry.id)} strategy={verticalListSortingStrategy}>
-          <div className="pr-filmstrip__list" ref={listRef}>
+          <div className="pr-filmstrip__list" ref={listRef} role="listbox" aria-label="Slides" aria-orientation="vertical">
+            {slides.length === 0 && (
+              <p className="pr-hint">No slides yet. Add a blank one below, or describe one for the AI.</p>
+            )}
             {slides.map((entry, index) => (
               <Thumb
                 key={entry.id}
@@ -156,6 +187,7 @@ export const DesignedFilmstrip: React.FC<DesignedFilmstripProps> = ({
                 onSelect={onSelect}
                 onCheck={onCheck}
                 onContext={onContext}
+                onStep={onStep}
               />
             ))}
           </div>
@@ -206,7 +238,7 @@ export const DesignedFilmstrip: React.FC<DesignedFilmstripProps> = ({
           </div>
         ) : (
           <div className="pd-fs__add" role="group" aria-label="Add a slide">
-            <button type="button" disabled={busy} onClick={onNewBlank} title="A blank slide after this one, with this slide's background">
+            <button type="button" disabled={busy || !hasSlide} onClick={onNewBlank} title={hasSlide ? "A blank slide after this one, with this slide's background" : 'Select a slide first: a blank slide takes its background'}>
               <Plus size={14} /> Blank
             </button>
             <button type="button" disabled={busy} onClick={() => setAdding('')} title="Describe a slide and let the AI design it">

@@ -67,9 +67,6 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
   const sheetName = shown ? shown.sheets[sheetIndex]?.name ?? '' : '';
   const sheetId = shown ? shown.sheets[sheetIndex]?.id ?? '' : '';
   const zoom = (zoomOverrides[sheetId] ?? (shown?.sheets[sheetIndex]?.zoom ?? 100)) / 100;
-  const setZoom = useCallback((percent: number): void => {
-    setZoomOverrides((current) => ({ ...current, [sheetId]: Math.min(400, Math.max(25, Math.round(percent))) }));
-  }, [sheetId]);
 
   // Leaving a sheet or opening another workbook ends an entry in progress.
   useEffect(() => {
@@ -86,15 +83,25 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
   ), []);
 
   /** Applies operations to the real workbook as one undo step. Returns what the engine said. */
-  const apply = useCallback((ops: Op[], options: { coalesce?: string; quiet?: boolean } = {}): ApplyResult | null => {
+  const apply = useCallback((ops: Op[], options: { coalesce?: string; quiet?: boolean; skipHistory?: boolean } = {}): ApplyResult | null => {
     const { wb: current, readOnly: locked } = latest.current;
     if (!current || locked || ops.length === 0) return null;
     const result = applyOps(current, ops, { formatCell: (cell, style) => formatCell(cell, style) });
     // Opening the new sheet makes an added sheet visible.
-    store().commit(workspaceId, result.wb, { coalesce: options.coalesce });
+    store().commit(workspaceId, result.wb, { coalesce: options.coalesce, skipHistory: options.skipHistory });
     if (result.warnings.length && !options.quiet) notify(result.warnings[0], 'error');
     return result;
   }, [formatCell, notify, store, workspaceId]);
+
+  /** Zoom is a view change: it persists on the sheet (surviving restarts) but never enters the undo history. */
+  const setZoom = useCallback((percent: number): void => {
+    const next = Math.min(400, Math.max(25, Math.round(percent)));
+    setZoomOverrides((current) => ({ ...current, [sheetId]: next }));
+    const { shown: view, sheetIndex: index, readOnly: locked } = latest.current;
+    const name = view?.sheets[index]?.name;
+    if (!view || locked || !name || (view.sheets[index]?.zoom ?? 100) === next) return;
+    apply([{ op: 'sheetProps', sheet: name, zoom: next }], { skipHistory: true, quiet: true });
+  }, [sheetId, apply]);
 
   const setSelection = useCallback((next: GridSelection): void => {
     store().setSelection(workspaceId, next);
@@ -165,7 +172,7 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
           return;
         }
       }
-      apply([{ op: 'setValues', sheet: sheet.name, at: cellKey(current.row, current.col), values: [[current.text === '' ? null : current.text]], parse: true }]);
+      apply([{ op: 'setValues', sheet: sheet.name, at: cellKey(current.row, current.col), values: [[current.text === '' ? null : current.text]], parse: true }], { coalesce: 'typing' });
     }
     refPick.current = null;
     latest.current.edit = null;
@@ -211,7 +218,7 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
     else if (action === 'keep') {
       // The entry goes in despite the rule (a warning the user accepted).
       const { wb: committed, sheetIndex: index } = latest.current;
-      if (committed) apply([{ op: 'setValues', sheet: committed.sheets[index].name, at: cellKey(pending.row, pending.col), values: [[pending.text]], parse: true }]);
+      if (committed) apply([{ op: 'setValues', sheet: committed.sheets[index].name, at: cellKey(pending.row, pending.col), values: [[pending.text]], parse: true }], { coalesce: 'typing' });
       setEdit(null);
     }
   }, [apply, cancelEdit, entryAlert]);
@@ -244,7 +251,9 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
     const sheet = view.sheets[index];
     const range = lastRange(sel);
     const clampedR2 = Math.min(range.r2, range.r1 + 5000);
-    const clamped = { ...range, r2: clampedR2, c2: Math.min(range.c2, range.c1 + 200) };
+    const clampedC2 = Math.min(range.c2, range.c1 + 200);
+    if (clampedR2 !== range.r2 || clampedC2 !== range.c2) notify(`Copied the first ${clampedR2 - range.r1 + 1} rows × ${clampedC2 - range.c1 + 1} columns; the selection was larger.`);
+    const clamped = { ...range, r2: clampedR2, c2: clampedC2 };
     const tsv = rangeToTsv(view, sheet, clamped);
     const html = rangeToHtml(view, sheet, clamped);
     if (event?.clipboardData) {
@@ -259,7 +268,7 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
     }
     clip.current = { text: tsv, sheetName: sheet.name, range: normRange(range), cut: cut && !latest.current.readOnly };
     setCopied(normRange(range));
-  }, []);
+  }, [notify]);
 
   const pasteInto = useCallback((text: string, mode: 'all' | 'values' | 'formats' = 'all'): void => {
     const { shown: view, wb: committed, sheetIndex: index, selection: sel, readOnly: locked } = latest.current;
@@ -298,13 +307,16 @@ export function useSheetsEditor(workspaceId: string, notify: (text: string, tone
     const targetRows = target.r2 - target.r1 + 1;
     const targetCols = target.c2 - target.c1 + 1;
     if (single && (targetRows > 1 || targetCols > 1)) {
-      const filled = Array.from({ length: Math.min(targetRows, 2000) }, () => Array.from({ length: Math.min(targetCols, 100) }, () => rows[0][0]));
+      const fillRows = Math.min(targetRows, 2000);
+      const fillCols = Math.min(targetCols, 100);
+      if (fillRows !== targetRows || fillCols !== targetCols) notify(`Filled ${fillRows} rows × ${fillCols} columns; the target was larger.`);
+      const filled = Array.from({ length: fillRows }, () => Array.from({ length: fillCols }, () => rows[0][0]));
       apply([{ op: 'setValues', sheet: sheet.name, at: cellKey(origin.row, origin.col), values: filled, parse: true }]);
       return;
     }
     apply([{ op: 'setValues', sheet: sheet.name, at: cellKey(origin.row, origin.col), values: rows.map((row) => row.map((cell) => (cell === '' ? null : cell))), parse: true }]);
     select({ r1: origin.row, c1: origin.col, r2: origin.row + rows.length - 1, c2: origin.col + Math.max(...rows.map((r) => r.length)) - 1 }, { row: origin.row, col: origin.col });
-  }, [apply, select]);
+  }, [apply, notify, select]);
 
   const pasteFromClipboard = useCallback(async (mode: 'all' | 'values' | 'formats' = 'all'): Promise<void> => {
     try {

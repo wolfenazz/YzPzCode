@@ -9,6 +9,7 @@ import {
 import type { PresentationSession } from '../../stores/presentationSessionStore';
 import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
 import { newDesignedSlideId, placeablePictures, redesignInstruction, type SelectedElement } from '../../utils/presentation/designPrompts';
+import { luminance } from '../../utils/presentation/designColors';
 import { assetName, MAX_DECK_PICTURES } from '../../utils/presentation/designPictures';
 import { designCanvas, stylesIn } from '../../utils/presentation/designStyles';
 import type { DesignAttachment, DesignedSlide, DesignPalette } from '../../utils/presentation/designTypes';
@@ -79,8 +80,9 @@ const NUDGE = 1;
 const NUDGE_BIG = 10;
 const PASTE_OFFSET = 16;
 
-/** Elements copied with Ctrl+C, shared by every slide (and deck) in this window. */
-let elementClipboard: string[] = [];
+/** Elements copied with Ctrl+C, scoped per workspace + deck (a module map leaks across decks otherwise). */
+const elementClipboards = new Map<string, string[]>();
+const clipboardOf = (key: string): string[] => elementClipboards.get(key) ?? [];
 
 /** Fits a box of the canvas aspect inside an element, with a margin. */
 function useFit(aspect: number, margin = 40): [React.RefObject<HTMLDivElement | null>, number] {
@@ -153,13 +155,22 @@ function coverCrop(iw: number, ih: number, w: number, h: number): [number, numbe
 
 export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, workspacePath, session, deck, deckDir, visible, generator, deckSwitcher, onSave, onExport, onPresent, onToast }) => {
   const design = deck.design!;
-  const canvas = useMemo(() => svgSize(design.slides.find((entry) => entry.svg)?.svg ?? '', designCanvas(deck.size)), [deck.size, design.slides]);
+  // The canvas size only depends on the deck size and the first drawn page: hash that (not the
+  // slides array, which is a new object after every keystroke) so the memo stays stable.
+  const drawnKey = useMemo(() => {
+    const first = design.slides.find((entry) => entry.svg)?.svg ?? '';
+    let hash = 0;
+    const head = first.slice(0, 512);
+    for (let i = 0; i < head.length; i += 1) hash = ((hash * 31 + head.charCodeAt(i)) | 0);
+    return `${first.length}:${hash}`;
+  }, [design.slides]);
+  const canvas = useMemo(() => svgSize(design.slides.find((entry) => entry.svg)?.svg ?? '', designCanvas(deck.size)), [deck.size, drawnKey]);
   const store = usePresentationSessionStore.getState;
   const run = session.run;
   const status = run?.slideStatus ?? {};
   const selectedId = session.selectedIds[session.selectedIds.length - 1] ?? design.slides[0]?.id ?? null;
   const selectedIndex = design.slides.findIndex((slide) => slide.id === selectedId);
-  const slide = selectedIndex >= 0 ? design.slides[selectedIndex] : null;
+  const slide = design.slides[selectedIndex] ?? design.slides[0] ?? null;
   const order = useMemo(() => design.slides.map((entry) => entry.id), [design.slides]);
   const pickedIds = useMemo(() => selectedInOrder(order, session.selectedIds), [order, session.selectedIds]);
   const pickedCount = pickedIds.length;
@@ -195,8 +206,20 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const [batch, setBatch] = useState<Batch | null>(null);
   const batchToken = useRef(0);
   const batchRunning = Boolean(batch?.running);
-  // A different deck starts with no pending batch.
-  useEffect(() => () => { batchToken.current += 1; setBatch(null); }, [deckDir]);
+  // Copied elements belong to one deck: prune other decks' clipboards when the deck changes.
+  const clipKey = `${workspaceId}::${deckDir}`;
+  useEffect(() => {
+    for (const key of [...elementClipboards.keys()]) {
+      if (key.startsWith(`${workspaceId}::`) && key !== clipKey) elementClipboards.delete(key);
+    }
+  }, [clipKey, workspaceId]);
+  // A different deck starts fresh: no pending batch, drafts, or per-deck UI state.
+  useEffect(() => {
+    batchToken.current += 1;
+    setBatch(null);
+    setFontDraft(null);
+    setRestyle('');
+  }, [deckDir]);
   const [restyle, setRestyle] = useState('');
   const [now, setNow] = useState(Date.now());
   const [selection, setSelection] = useState<string[]>([]);
@@ -212,15 +235,28 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     return () => window.clearInterval(timer);
   }, [generating, review?.status]);
 
-  useEffect(() => { setShowBefore(false); setSelection([]); setEditing(null); setStageMenu(null); }, [selectedId]);
+  useEffect(() => {
+    setShowBefore(false);
+    setSelection([]);
+    setEditing(null);
+    setStageMenu(null);
+    setTab('format');
+    setInstruction('');
+    setReview(null);
+    setScope('current');
+  }, [selectedId, deckDir]);
 
   // Fonts the slides use (Office cloud fonts are registered when they are not installed).
   const slideFonts = useMemo(() => svgFontFamilies(design.slides.map((entry) => entry.svg)), [design.slides]);
   useEffect(() => {
     let alive = true;
-    void ensureFonts([...slideFonts, design.system.fonts.heading, design.system.fonts.body]).then(() => { if (alive) setFontsReady((value) => value + 1); });
-    return () => { alive = false; };
-  }, [design.system.fonts.body, design.system.fonts.heading, slideFonts]);
+    const timer = window.setTimeout(() => {
+      void ensureFonts([...slideFonts, design.system.fonts.heading, design.system.fonts.body])
+        .then(() => { if (alive) setFontsReady((value) => value + 1); })
+        .catch((error: unknown) => { if (alive) onToast('Fonts unavailable', error instanceof Error ? error.message : String(error)); });
+    }, 250);
+    return () => { alive = false; window.clearTimeout(timer); };
+  }, [design.system.fonts.body, design.system.fonts.heading, onToast, slideFonts]);
 
   const resolveHref = useCallback((href: string): string => (/^data:/.test(href) ? href : localFileUrl(isAbsolutePath(href) ? href : joinPath(deckDir, href))), [deckDir]);
 
@@ -250,6 +286,12 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const pickAll = useCallback(() => select(selectAll(order, selectedId)), [order, select, selectedId]);
   const clearPicks = useCallback(() => select(selectedId ? [selectedId] : []), [select, selectedId]);
 
+  // The store filters dangling ids on undo/redo, but an outside change can still leave one:
+  // fall back to the first slide so the stage never shows nothing while slides exist.
+  useEffect(() => {
+    if (selectedIndex < 0 && design.slides.length > 0) select([design.slides[0].id]);
+  }, [design.slides, select, selectedIndex]);
+
   // Choosing several slides points the AI tab at them; going back to one points it back.
   const lastPicked = useRef(pickedCount);
   useEffect(() => {
@@ -272,7 +314,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     const index = slides.findIndex((entry) => entry.id === id);
     if (index < 0) return;
     if (cmd === 'delete') {
-      if (slides.length <= 1) return;
+      if (slides.length <= 1) { onToast('Cannot delete', 'A presentation keeps at least one slide.'); return; }
       editSlides((list) => list.filter((entry) => entry.id !== id));
       select([(slides[index + 1] ?? slides[index - 1]).id]);
     } else if (cmd === 'duplicate') {
@@ -292,15 +334,18 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     } else if (cmd === 'redraw') {
       void generator.drawSlides([id]);
     }
-  }, [editSlides, generator, patchSlide, select, store, workspaceId]);
+  }, [editSlides, generator, onToast, patchSlide, select, store, workspaceId]);
 
   /** Delete, duplicate or hide several slides in one step (one Undo). */
   const commandMany = useCallback((cmd: 'duplicate' | 'delete' | 'hide', ids: string[]) => {
     const slides = store().sessions[workspaceId]?.deck?.design?.slides ?? [];
     const chosen = slides.filter((entry) => ids.includes(entry.id));
-    if (chosen.length === 0) return;
+    if (chosen.length === 0) {
+      if (cmd === 'delete') onToast('Nothing to delete', 'Select a slide first.');
+      return;
+    }
     if (cmd === 'delete') {
-      if (chosen.length >= slides.length) return;
+      if (chosen.length >= slides.length) { onToast('Cannot delete', 'A presentation keeps at least one slide.'); return; }
       const last = slides.findIndex((entry) => entry.id === chosen[chosen.length - 1].id);
       const first = slides.findIndex((entry) => entry.id === chosen[0].id);
       const after = slides.slice(last + 1).find((entry) => !ids.includes(entry.id)) ?? [...slides.slice(0, first)].reverse().find((entry) => !ids.includes(entry.id));
@@ -314,7 +359,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       const hide = chosen.some((entry) => !entry.hidden);
       editSlides((list) => list.map((entry) => (ids.includes(entry.id) ? { ...entry, hidden: hide } : entry)));
     }
-  }, [editSlides, select, store, workspaceId]);
+  }, [editSlides, onToast, select, store, workspaceId]);
 
   const moveSlide = (from: string, to: string): void => {
     if (from === to) return;
@@ -341,7 +386,8 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     if (!slide || !text.trim()) return;
     setShowBefore(false);
     setReview({ kind: 'replace', slideId: slide.id, at: selectedIndex, label, instruction: text, status: 'running', proposal: null, error: null });
-    settle(await generator.refine(slide.id, text, label, selected.length > 0 ? { selection: selected } : {}));
+    // Pass the adopted artwork along: the AI answers with `data-el` ids that only exist in it.
+    settle(await generator.refine(slide.id, text, label, selected.length > 0 ? { selection: selected, svg: adopted().svg } : {}));
   };
 
   const addSlide = async (description: string): Promise<void> => {
@@ -418,7 +464,10 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       .map((entry, index) => ({ entry, index }))
       .filter(({ entry }) => ids.includes(entry.id) && entry.svg)
       .map(({ entry, index }) => ({ slideId: entry.id, index, title: entry.title, baseSvg: entry.svg, status: 'queued', proposal: null, error: null, keep: true }));
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      onToast('Nothing to change', scope === 'all' ? 'No slides are drawn yet. Draw them first, then try again.' : 'Select drawn slides first: ones that are not drawn yet cannot be changed.');
+      return;
+    }
     setReview(null);
     setShowBefore(false);
     setBatch({ kind, label, instruction, shown, items, running: true });
@@ -684,18 +733,19 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const copySelected = (cut: boolean): void => {
     const { svg, ids } = adopted();
     if (!ids.length) return;
-    elementClipboard = copyElements(svg, ids);
+    elementClipboards.set(clipKey, copyElements(svg, ids));
     if (cut) { commit(deleteElements(svg, ids)); setSelection([]); }
   };
 
   const paste = (): void => {
-    if (!elementClipboard.length || !slide) return;
+    const clip = clipboardOf(clipKey);
+    if (!clip.length || !slide) return;
     const svg = liveSvg();
-    const sameSlide = elementClipboard.every((markup) => {
+    const sameSlide = clip.every((markup) => {
       const id = markup.match(/data-el="([^"]+)"/)?.[1];
       return id && svg.includes(`data-el="${id}"`);
     });
-    const result = pasteElements(svg, elementClipboard, sameSlide ? PASTE_OFFSET : 0, { measure });
+    const result = pasteElements(svg, clip, sameSlide ? PASTE_OFFSET : 0, { measure });
     commit(result.svg);
     setSelection(result.ids);
   };
@@ -717,12 +767,14 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
 
   /** A new empty slide with the current slide's background and master artwork, and a title box ready to type into. */
   const addBlankSlide = (): void => {
-    if (!slide) return;
-    const base = blankSlide(slide.svg || '');
+    if (!slide && design.slides.length > 0) return;
+    const at = design.slides.length === 0 ? 0 : selectedIndex + 1;
+    const base = slide ? blankSlide(slide.svg || '') : null;
+    const fallback = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${canvas.width} ${canvas.height}"><rect data-bg="1" x="0" y="0" width="${canvas.width}" height="${canvas.height}" fill="${design.system.palette.background}"/></svg>`;
     const titleBox = textBoxModel({ x: canvas.width * 0.07, y: canvas.height * 0.08, w: canvas.width * 0.86, h: (design.system.type.title || 44) * 1.4 }, 'Title', { font: design.system.fonts.heading, size: design.system.type.title || 44, color: design.system.palette.text, bold: true });
-    const inserted = insertElement(base || `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${canvas.width} ${canvas.height}"><rect data-bg="1" x="0" y="0" width="${canvas.width}" height="${canvas.height}" fill="${design.system.palette.background}"/></svg>`, titleBox, { measure });
+    const inserted = insertElement(base || fallback, titleBox, { measure });
     const created: DesignedSlide = { id: newDesignedSlideId(), role: 'content', title: 'New slide', brief: '', density: 'dense', svg: inserted.svg, notes: '' };
-    editSlides((list) => [...list.slice(0, selectedIndex + 1), created, ...list.slice(selectedIndex + 1)]);
+    editSlides((list) => [...list.slice(0, at), created, ...list.slice(at)]);
     select([created.id]);
     window.setTimeout(() => {
       setSelection([inserted.id]);
@@ -757,7 +809,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
     void ensureFonts(fonts ? [fonts.heading, fonts.body] : []).then(() => {
       edit((current) => {
         if (!current.design) return current;
-        const system = { ...current.design.system, palette, ...(fonts ? { fonts } : { name, dark: contrast(palette.background, '#000000') < 7 }) };
+        const system = { ...current.design.system, palette, ...(fonts ? { fonts } : { name, dark: luminance(palette.background) < 0.4 }) };
         return {
           ...current,
           design: {
@@ -867,7 +919,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
       if (typing || editing) return;
       if (mod && key === 'z' && !event.shiftKey) { event.preventDefault(); store().undo(workspaceId); return; }
       if (mod && (key === 'y' || (key === 'z' && event.shiftKey))) { event.preventDefault(); store().redo(workspaceId); return; }
-      if (mod && key === 'v' && elementClipboard.length) { event.preventDefault(); paste(); return; }
+      if (mod && key === 'v' && clipboardOf(clipKey).length) { event.preventDefault(); paste(); return; }
       if (mod && key === 'a' && slide) { event.preventDefault(); setSelection(listElements(liveSvg()).map((info) => info.id)); return; }
 
       // With elements selected, keys act on them.
@@ -938,6 +990,8 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
   const menuSlide = menu ? design.slides.find((entry) => entry.id === menu.id) : null;
   const slideBusy = Boolean(slide && (status[slide.id] === 'writing' || status[slide.id] === 'queued'));
   const stageEditable = Boolean(slide?.svg) && !reviewing && !inserting && !slideBusy && !generating && previewStep === null;
+  /** A slide with no drawing yet shows a Draw again call to action instead of an empty frame. */
+  const undrawn = Boolean(slide && !slide.svg && !slideBusy && !generating && !review);
   const single = selectedInfos.length === 1 ? selectedInfos[0] : null;
   const singleModel = single?.model ?? null;
   const scale = stageWidth / canvas.width;
@@ -1020,9 +1074,19 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
           onEditWithAi={() => { setScope('picked'); setTab('slide'); }}
           onNewBlank={addBlankSlide}
           onNewWithAi={(description) => void addSlide(description)}
+          hasSlide={Boolean(slide)}
         />
 
         <div className="pr-center">
+          {design.slides.length === 0 ? (
+            <div className="pd-stage pd-stage--empty" ref={stageRef}>
+              <div className="pd-empty">
+                <strong>No slides yet</strong>
+                <p>Add your first slide below, or describe one for the AI in the strip on the left.</p>
+                <button type="button" className="pr-btn pr-btn--primary" onClick={addBlankSlide}><Plus size={13} /> New blank slide</button>
+              </div>
+            </div>
+          ) : (
           <div
             className="pd-stage"
             ref={stageRef}
@@ -1034,14 +1098,14 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
             }}
           >
             <div className="pd-stage__frame" ref={frameRef} data-review={reviewing || (inserting && review?.status === 'ready') || undefined}>
-              {stageEditable && slide ? (
+              {slide && (stageEditable || undrawn) ? (
                 <SlideStage
                   svg={slide.svg}
                   canvas={canvas}
                   width={stageWidth}
                   resolveHref={resolveHref}
                   measure={measure}
-                  editable
+                  editable={stageEditable}
                   selection={selection}
                   onSelection={(ids) => { setSelection(ids); setStageMenu(null); }}
                   onCommit={commit}
@@ -1050,6 +1114,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                   editorRef={editorRef}
                   textDefaults={textStyle}
                   apiRef={stageApi}
+                  onDrawAgain={() => void generator.drawSlides([slide.id])}
                   onPicture={(target) => { if (target.id) void replacePicture(target.id); else if (target.imageIndex !== undefined) void replaceDrawnImage(target.imageIndex); }}
                 />
               ) : (
@@ -1096,6 +1161,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
               )}
             </div>
           </div>
+          )}
           {slide && (
             <div className="pr-notes" data-open={notesOpen || undefined}>
               <div className="pr-notes__head pr-notes__head--with-narrate">
@@ -1326,6 +1392,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                   onValue={setInstruction}
                   busy={generating || animating || review?.status === 'running'}
                   blank={scope === 'current' && !slide.svg}
+                  error={run?.error ?? null}
                   engine={`${deck.brief.engine.engine === 'claude' ? 'Claude Code' : deck.brief.engine.engine}${deck.brief.engine.model ? ` · ${deck.brief.engine.model}` : ''}`}
                   imported={imported}
                   onSend={sendInstruction}
@@ -1406,7 +1473,10 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                   <p className="pr-hint">Recolours every slide; layouts and text stay. Undo brings the old colours back.</p>
                   <div className="ps-themes">
                     {themeOptions.map((option) => {
-                      const current = option.palette.primary.toUpperCase() === design.system.palette.primary.toUpperCase() && option.palette.background.toUpperCase() === design.system.palette.background.toUpperCase();
+                      const paletteKeys = Object.keys(option.palette) as Array<keyof DesignPalette>;
+                      const current = paletteKeys.every((key) => option.palette[key].toUpperCase() === design.system.palette[key].toUpperCase())
+                        && option.fonts.heading.toLowerCase() === design.system.fonts.heading.toLowerCase()
+                        && option.fonts.body.toLowerCase() === design.system.fonts.body.toLowerCase();
                       return (
                         <button key={option.id} type="button" className="ps-theme" data-active={current || undefined} title={`${option.name} · ${option.fonts.heading} / ${option.fonts.body}`} onClick={() => applyTheme(option.palette, null, option.name)}>
                           <span className="ps-theme__card" style={{ background: option.palette.background }}>
@@ -1637,7 +1707,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
               <>
                 <button type="button" role="menuitem" onClick={() => { copySelected(true); setStageMenu(null); }}><Scissors size={13} /> Cut <kbd>Ctrl X</kbd></button>
                 <button type="button" role="menuitem" onClick={() => { copySelected(false); setStageMenu(null); }}><Copy size={13} /> Copy <kbd>Ctrl C</kbd></button>
-                <button type="button" role="menuitem" disabled={!elementClipboard.length} onClick={() => { paste(); setStageMenu(null); }}><ClipboardText size={13} /> Paste <kbd>Ctrl V</kbd></button>
+                <button type="button" role="menuitem" disabled={!clipboardOf(clipKey).length} onClick={() => { paste(); setStageMenu(null); }}><ClipboardText size={13} /> Paste <kbd>Ctrl V</kbd></button>
                 <button type="button" role="menuitem" onClick={() => { duplicate(); setStageMenu(null); }}><CopySimple size={13} /> Duplicate <kbd>Ctrl D</kbd></button>
                 <hr />
                 <button type="button" role="menuitem" onClick={() => { arrange('front'); setStageMenu(null); }}><SquaresFour size={13} /> Bring to front</button>
@@ -1649,7 +1719,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
               </>
             ) : (
               <>
-                <button type="button" role="menuitem" disabled={!elementClipboard.length} onClick={() => { paste(); setStageMenu(null); }}><ClipboardText size={13} /> Paste <kbd>Ctrl V</kbd></button>
+                <button type="button" role="menuitem" disabled={!clipboardOf(clipKey).length} onClick={() => { paste(); setStageMenu(null); }}><ClipboardText size={13} /> Paste <kbd>Ctrl V</kbd></button>
                 <button type="button" role="menuitem" onClick={() => { insertText(); setStageMenu(null); }}><NotePencil size={13} /> Add a text box</button>
                 <button type="button" role="menuitem" onClick={() => { void insertPicture(); setStageMenu(null); }}><ImageSquare size={13} /> Add a picture…</button>
                 <hr />

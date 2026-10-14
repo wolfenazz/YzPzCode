@@ -92,6 +92,8 @@ export interface SheetsSession {
 
 const HISTORY_LIMIT = 100;
 const COALESCE_MS = 700;
+/** Successive cell commits merge longer, so typing a column of values stays one undo step. */
+const TYPING_COALESCE_MS = 5000;
 
 const emptySelection = (): GridSelection => ({ active: { row: 0, col: 0 }, ranges: [{ r1: 0, c1: 0, r2: 0, c2: 0 }] });
 
@@ -168,7 +170,8 @@ export const useSheetsSessionStore = create<SheetsSessionStore>()((set) => ({
     const current = state.sessions[workspaceId];
     if (!current?.wb || next === current.wb) return {};
     const now = Date.now();
-    const merge = options.skipHistory || (options.coalesce && lastEdit && lastEdit.workspaceId === workspaceId && lastEdit.key === options.coalesce && now - lastEdit.at < COALESCE_MS);
+    const window = options.coalesce === 'typing' ? TYPING_COALESCE_MS : COALESCE_MS;
+    const merge = options.skipHistory || (options.coalesce && lastEdit && lastEdit.workspaceId === workspaceId && lastEdit.key === options.coalesce && now - lastEdit.at < window);
     lastEdit = options.coalesce ? { workspaceId, key: options.coalesce, at: now } : null;
     return {
       sessions: {

@@ -9,6 +9,7 @@ import { chartFromSpec } from './charts';
 import { generalFit, isDateFormat, parseInput } from './numberFormat';
 import { fillSeries, type FillCell } from './fillSeries';
 import { copyFormula, rewriteRefs, shiftParts } from './formula/refs';
+import { tryParseFormula } from './formula/parse';
 import { recalculate } from './formula/recalc';
 import type { Op, StylePatch, CellInput, ConditionalRule } from './opTypes';
 import { computePivot, type PivotCell } from './pivot';
@@ -91,6 +92,16 @@ export function mergeStyle(base: CellStyle, patch: StylePatch): CellStyle {
 
 const styleKey = (style: CellStyle): string => JSON.stringify(style);
 
+/** True when two cells show the same value (a pure style change leaves values alone). */
+function sameValue(old: Cell | undefined, next: Cell | null): boolean {
+  return (old?.v ?? undefined) === (next?.v ?? undefined)
+    && (old?.f ?? undefined) === (next?.f ?? undefined)
+    && (old?.e ?? undefined) === (next?.e ?? undefined)
+    && (old?.sp ?? undefined) === (next?.sp ?? undefined)
+    && (old?.spill?.rows ?? 0) === (next?.spill?.rows ?? 0)
+    && (old?.spill?.cols ?? 0) === (next?.spill?.cols ?? 0);
+}
+
 class Editor {
   sheets: Sheet[];
   styles: CellStyle[];
@@ -104,6 +115,8 @@ class Editor {
   readonly warnings: string[] = [];
   /** Whether the workbook needs a recalculation afterwards. */
   dirty = false;
+  /** Whether values or formulas changed (style-only edits leave this false so recalc is skipped). */
+  valuesDirty = false;
 
   constructor(readonly original: Workbook) {
     this.sheets = original.sheets.slice();
@@ -124,7 +137,7 @@ class Editor {
 
   /** Recalculates the working copy so a later operation (auto-fit) sees computed values. */
   refresh(): void {
-    if (!this.dirty) return;
+    if (!this.valuesDirty) return;
     const next = recalculate(this.workbook());
     next.sheets.forEach((sheet, index) => {
       if (sheet !== this.sheets[index]) {
@@ -204,10 +217,12 @@ class Editor {
 
   /** Writes a cell, dropping it when nothing is left. */
   put(sheet: Sheet, key: string, cell: Cell | null): void {
+    const old = sheet.cells[key];
     if (cell === null || (cell.v === undefined && cell.f === undefined && cell.e === undefined && !cell.s && cell.sp === undefined)) delete sheet.cells[key];
     else sheet.cells[key] = cell;
     this.mark(sheet, key);
     this.dirty = true;
+    if (!sameValue(old, cell)) this.valuesDirty = true;
   }
 
   restyle(sheet: Sheet, key: string, patch: StylePatch, memo: Map<number, number>): void {
@@ -328,7 +343,10 @@ function writeInput(ed: Editor, sheet: Sheet, key: string, input: CellInput, par
   const typed = parse ? parseInput(input, currentFormat) : input.startsWith('=') && input.length > 1 ? { kind: 'formula' as const, formula: input.slice(1) } : { kind: 'text' as const, value: input };
   switch (typed.kind) {
     case 'formula':
-      ed.put(sheet, key, { ...base, f: typed.formula });
+      // A leading `=` that is not a valid formula (CSV text such as `=hello`)
+      // stays text instead of becoming a broken formula cell.
+      if (typed.formula !== undefined && tryParseFormula(typed.formula).ok) ed.put(sheet, key, { ...base, f: typed.formula });
+      else ed.put(sheet, key, { ...base, v: input });
       break;
     case 'number':
     case 'bool':
@@ -494,6 +512,8 @@ function adjustFormulas(ed: Editor, rewrite: (formula: string, ownerSheet: strin
   });
   ed.names = ed.names.map((entry) => ({ ...entry, ref: rewrite(entry.ref, entry.scope !== undefined ? ed.sheets[entry.scope]?.name ?? '' : '') }));
   ed.dirty = true;
+  // Rewritten references change what formulas compute.
+  ed.valuesDirty = true;
 }
 
 function rewriteChartRefs(ed: Editor, rewrite: (ref: string, ownerSheet: string) => string): void {
@@ -590,6 +610,8 @@ function applyShift(ed: Editor, sheetIndex: number, shift: Shift): void {
   });
   ed.changed.structural = true;
   ed.dirty = true;
+  // Moved cells carry (rewritten) formulas whose results must be recomputed.
+  ed.valuesDirty = true;
 }
 
 function shiftRangeIndex(index: number, shift: Shift): number | null {
@@ -843,7 +865,13 @@ export function applyOps(wb: Workbook, ops: Op[], options: ApplyOptions = {}): A
     }
   }
   let result = ed.workbook();
-  if (ed.dirty && !options.skipRecalc) result = recalculate(result);
+  // Style-only batches (formats, sizes, views) skip the recalculation: no
+  // value or formula changed, so cached results are still current.
+  if (ed.valuesDirty && !options.skipRecalc) {
+    const cycleWarnings: string[] = [];
+    result = recalculate(result, { warnings: cycleWarnings });
+    ed.warnings.push(...cycleWarnings);
+  }
   return { wb: result, inverse: [{ op: 'restore', workbook: wb }], changed: ed.changed, warnings: ed.warnings };
 }
 
@@ -1040,6 +1068,8 @@ function applyOne(ed: Editor, op: Op, options: ApplyOptions): void {
       ed.changed.sheets.push(copy.id);
       ed.changed.structural = true;
       ed.dirty = true;
+      // Spill links are dropped on copy and regenerated by the recalculation.
+      ed.valuesDirty = true;
       return;
     }
     case 'sheetProps': {
@@ -1183,6 +1213,8 @@ function applyOne(ed: Editor, op: Op, options: ApplyOptions): void {
         ed.names = [...rest, { name: op.name, ref, scope: scope !== undefined && scope >= 0 ? scope : undefined }];
       }
       ed.dirty = true;
+      // A (re)defined name can change what existing formulas compute.
+      ed.valuesDirty = true;
       return;
     }
     case 'note': {

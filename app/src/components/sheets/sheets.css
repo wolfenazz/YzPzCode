@@ -19,6 +19,7 @@
   --sx-focus: color-mix(in oklab, var(--accent) 65%, transparent);
   --sx-danger: #e5484d;
   --sx-success: #3f9f75;
+  --sx-warning: #d9971f;
   font-family: var(--font-ui);
   color: var(--text-primary);
 }

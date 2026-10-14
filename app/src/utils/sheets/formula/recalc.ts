@@ -20,6 +20,8 @@ export interface RecalcOptions {
   now?: Date;
   /** Read formula cells as stored instead of evaluating them (for per-cell lookups on an already calculated workbook). */
   trustCached?: boolean;
+  /** Receives one entry per circular reference found (sheet-qualified addresses). */
+  warnings?: string[];
 }
 
 class Calculator {
@@ -30,6 +32,8 @@ class Calculator {
   readonly view: Workbook;
   readonly now: Date;
   private readonly trusted: boolean;
+  /** Sheet-qualified addresses caught in a reference cycle during this run. */
+  readonly cycles = new Set<string>();
 
   constructor(readonly wb: Workbook, options: RecalcOptions) {
     this.now = options.now ?? new Date();
@@ -87,9 +91,12 @@ class Calculator {
     const state = this.state.get(id) ?? 0;
     if (state === 2) return;
     if (state === 1) {
-      // Circular reference: show it instead of a stale number.
+      // Circular reference: a stale number or #REF! would mislead, so the
+      // cell shows #CALC! and the address is reported to the caller.
       const cell = this.cells[sheet][key];
-      if (cell) this.cells[sheet][key] = { ...cell, v: undefined, e: '#REF!' };
+      if (cell) this.cells[sheet][key] = { ...cell, v: undefined, e: '#CALC!' };
+      const name = this.wb.sheets[sheet]?.name ?? `Sheet${sheet + 1}`;
+      this.cycles.add(`${name}!${key}`);
       return;
     }
     if (this.nesting > MAX_NESTING) throw new Defer(sheet, key);
@@ -234,6 +241,12 @@ export function recalculate(wb: Workbook, options: RecalcOptions = {}): Workbook
   });
   order.sort((a, b) => a.sheet - b.sheet || a.row - b.row || a.col - b.col);
   for (const entry of order) calc.top(entry.sheet, entry.key);
+
+  if (options.warnings && calc.cycles.size > 0) {
+    const shown = [...calc.cycles].sort().slice(0, 5);
+    for (const address of shown) options.warnings.push(`Circular reference at ${address}: showing #CALC!.`);
+    if (calc.cycles.size > shown.length) options.warnings.push(`…and ${calc.cycles.size - shown.length} more circular references.`);
+  }
 
   // Spilled cells whose anchor stopped claiming them go away.
   calc.cells.forEach((cells) => {

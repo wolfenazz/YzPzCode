@@ -77,6 +77,14 @@ export function parseCsv(text: string, delimiter = detectDelimiter(text)): strin
 
 const needsQuote = (value: string, delimiter: string): boolean => value.includes(delimiter) || /["\r\n]/.test(value) || /^\s|\s$/.test(value);
 
+/** The tab delimiter, shared by the TSV import, save and export paths. */
+export const TSV_DELIMITER = '\t';
+
+/** Rows of text from TSV (tabs, same quoting rules as CSV). */
+export function parseTsv(text: string): string[][] {
+  return parseCsv(text, TSV_DELIMITER);
+}
+
 /** One sheet as CSV text, values shown the way the grid shows them. */
 export function sheetToCsv(sheet: Sheet, styles: CellStyle[], delimiter = ','): string {
   let maxRow = -1;
@@ -103,4 +111,9 @@ export function sheetToCsv(sheet: Sheet, styles: CellStyle[], delimiter = ','): 
     lines.push(fields.join(delimiter));
   }
   return `${lines.join('\r\n')}\r\n`;
+}
+
+/** One sheet as TSV text, values shown the way the grid shows them. */
+export function sheetToTsv(sheet: Sheet, styles: CellStyle[]): string {
+  return sheetToCsv(sheet, styles, TSV_DELIMITER);
 }

@@ -34,6 +34,8 @@ interface SlideStageProps {
   apiRef?: React.MutableRefObject<StageApi | null>;
   /** Double-click on a picture: a modelled picture by id, or a drawn `<image>` by index. */
   onPicture?: (target: { id?: string; imageIndex?: number }) => void;
+  /** Redraws an undrawn slide (shown as a call to action when `svg` is empty). */
+  onDrawAgain?: () => void;
 }
 
 export interface StageApi {
@@ -55,7 +57,7 @@ const unionBox = (boxes: Box[]): Box => {
   return { x, y, w: Math.max(...boxes.map((box) => box.x + box.w)) - x, h: Math.max(...boxes.map((box) => box.y + box.h)) - y };
 };
 
-export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, resolveHref, measure, editable, selection, onSelection, onCommit, editing, onEditing, editorRef, textDefaults, apiRef, onPicture }) => {
+export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, resolveHref, measure, editable, selection, onSelection, onCommit, editing, onEditing, editorRef, textDefaults, apiRef, onPicture, onDrawAgain }) => {
   const prefix = `st${useId().replace(/[^\w]/g, '')}`;
   const scale = width / canvas.width;
   const height = canvas.height * scale;
@@ -514,7 +516,14 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
     };
   })();
 
-  if (!svg) return null;
+  if (!svg) return (
+    <div className="ps-stage ps-stage--empty" style={{ width, height }}>
+      <div className="ps-empty">
+        <p>This slide is not drawn yet.</p>
+        {onDrawAgain && <button type="button" className="pr-btn pr-btn--sm pr-btn--primary" onClick={onDrawAgain}>Draw again</button>}
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -559,6 +568,9 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
               contentEditable
               suppressContentEditableWarning
               spellCheck
+              role="textbox"
+              aria-label="Slide text"
+              aria-multiline="true"
               style={{
                 ...frame(editorBox, editing.kind === 'model' ? editTarget?.top.rot : 0),
                 // A text box grows downward as it is typed into, as it does once the text is kept.

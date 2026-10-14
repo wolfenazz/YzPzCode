@@ -27,7 +27,7 @@ interface FilmstripProps {
 
 const THUMB_WIDTH = 168;
 
-const Thumb = memo(function Thumb({ slide, index, context, selected, status, warned, resolveImage, onSelect, onContext, onMeasure }: {
+const Thumb = memo(function Thumb({ slide, index, context, selected, status, warned, resolveImage, onSelect, onContext, onMeasure, onStep }: {
   slide: Slide;
   index: number;
   context: PlanContext;
@@ -38,6 +38,7 @@ const Thumb = memo(function Thumb({ slide, index, context, selected, status, war
   onSelect: (id: string, event: React.MouseEvent) => void;
   onContext: (id: string, event: React.MouseEvent) => void;
   onMeasure: (slideId: string, overflowing: string[]) => void;
+  onStep: (index: number, dir: 1 | -1) => void;
 }): React.JSX.Element {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: slide.id });
   return (
@@ -53,7 +54,29 @@ const Thumb = memo(function Thumb({ slide, index, context, selected, status, war
       onContextMenu={(event) => onContext(slide.id, event)}
       {...attributes}
       {...listeners}
+      tabIndex={0}
+      role="option"
+      aria-selected={selected}
       aria-label={`Slide ${index + 1}`}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar') {
+          event.preventDefault();
+          event.stopPropagation();
+          onSelect(slide.id, event as unknown as React.MouseEvent);
+        } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep(index, 1);
+          const items = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+          items[items.indexOf(event.currentTarget as HTMLElement) + 1]?.focus();
+        } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+          event.preventDefault();
+          event.stopPropagation();
+          onStep(index, -1);
+          const items = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLElement>('[role="option"]') ?? []);
+          items[items.indexOf(event.currentTarget as HTMLElement) - 1]?.focus();
+        }
+      }}
     >
       <span className="pr-thumb__num">{index + 1}</span>
       <div className="pr-thumb__frame">
@@ -83,12 +106,20 @@ export const Filmstrip: React.FC<FilmstripProps> = ({ context, slides, selectedI
     if (menu) onCommand(command, menu.id);
     setMenu(null);
   };
+  // Keyboard arrows move the selection to the neighbouring slide.
+  const onStep = (index: number, dir: 1 | -1): void => {
+    const next = slides[index + dir];
+    if (next) onSelect(next.id, { shiftKey: false, ctrlKey: false, metaKey: false } as unknown as React.MouseEvent);
+  };
 
   return (
     <aside className="pr-filmstrip" aria-label="Slides">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={slides.map((slide) => slide.id)} strategy={verticalListSortingStrategy}>
-          <div className="pr-filmstrip__list">
+          <div className="pr-filmstrip__list" role="listbox" aria-label="Slides" aria-orientation="vertical">
+            {slides.length === 0 && (
+              <p className="pr-hint">No slides yet. Add one below to start.</p>
+            )}
             {slides.map((slide, index) => (
               <Thumb
                 key={slide.id}
@@ -102,6 +133,7 @@ export const Filmstrip: React.FC<FilmstripProps> = ({ context, slides, selectedI
                 onSelect={onSelect}
                 onContext={onContext}
                 onMeasure={onMeasure}
+                onStep={onStep}
               />
             ))}
           </div>

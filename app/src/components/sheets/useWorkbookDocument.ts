@@ -3,14 +3,13 @@ import { invoke } from '@tauri-apps/api/core';
 import type { FileContent, FileEntry } from '../../types';
 import { useSheetsSessionStore, type ChatTurn } from '../../stores/sheetsSessionStore';
 import { useSheetsStore } from '../../stores/sheetsStore';
-import { parseCsv } from '../../utils/sheets/csv';
+import { parseCsv, parseTsv, sheetToCsv, sheetToTsv } from '../../utils/sheets/csv';
 import { cellDisplay } from '../../utils/sheets/display';
 import { recalculate } from '../../utils/sheets/formula/recalc';
 import { applyOps } from '../../utils/sheets/ops';
 import { emptyWorkbook, type Pivot, type Workbook } from '../../utils/sheets/types';
 import { readXlsx } from '../../utils/sheets/xlsxRead';
 import { writeXlsx } from '../../utils/sheets/xlsxWrite';
-import { sheetToCsv } from '../../utils/sheets/csv';
 import { fileName, joinPath, parentPath, slugify } from '../../utils/writing/document';
 import { readBytes } from '../../utils/writing/sources';
 import { importLegacySpreadsheet } from './legacyImport';
@@ -107,6 +106,30 @@ async function writeBytes(path: string, bytes: Uint8Array): Promise<void> {
   await invoke('write_file_bytes', { path, base64Data: bytesToBase64(bytes) });
 }
 
+/** Rough serialized size from cell counts, so a huge workbook skips the deep compare below. */
+function estimateWorkbookSize(wb: Workbook): number {
+  let cells = 0;
+  for (const sheet of wb.sheets) cells += Object.keys(sheet.cells).length;
+  return wb.sheets.length * 4096 + wb.styles.length * 512 + cells * 220;
+}
+
+/** Cheap equality: sheet count and names, style count, cell counts, then per-cell compare with early exit. */
+function sameWorkbook(a: Workbook, b: Workbook): boolean {
+  if (a.sheets.length !== b.sheets.length || a.styles.length !== b.styles.length) return false;
+  for (let i = 0; i < a.sheets.length; i += 1) {
+    const x = a.sheets[i];
+    const y = b.sheets[i];
+    if (x.name !== y.name) return false;
+    const xk = Object.keys(x.cells);
+    if (xk.length !== Object.keys(y.cells).length) return false;
+    for (const key of xk) {
+      const cy = y.cells[key];
+      if (cy === undefined || JSON.stringify(x.cells[key]) !== JSON.stringify(cy)) return false;
+    }
+  }
+  return true;
+}
+
 function previewOf(wb: Workbook): string[][] {
   const sheet = wb.sheets[0];
   const rows: string[][] = [];
@@ -165,7 +188,7 @@ export async function loadWorkbookFile(path: string): Promise<LoadedWorkbook> {
   const bytes = await readBytes(path);
   if (extension === '.csv' || extension === '.tsv') {
     const text = new TextDecoder('utf-8').decode(bytes);
-    const rows = parseCsv(text, extension === '.tsv' ? '\t' : undefined);
+    const rows = extension === '.tsv' ? parseTsv(text) : parseCsv(text);
     return { wb: workbookFromRows(rows, fileName(path).replace(/\.[^.]+$/, '')), original: null, format: extension === '.tsv' ? 'tsv' : 'csv', notes: [] };
   }
   if (extension === '.xls' || extension === '.ods') {
@@ -265,9 +288,10 @@ export function useWorkbookDocument(workspaceId: string, workspacePath: string) 
         if (format === 'xlsx') {
           bytes = await writeXlsx(wb, session.original);
           await writeBytes(path, bytes);
+        } else if (format === 'tsv') {
+          await invoke('write_file_content', { path, content: sheetToTsv(wb.sheets[Math.min(wb.activeSheet, wb.sheets.length - 1)], wb.styles) });
         } else {
-          const csv = sheetToCsv(wb.sheets[Math.min(wb.activeSheet, wb.sheets.length - 1)], wb.styles, format === 'tsv' ? '\t' : ',');
-          await invoke('write_file_content', { path, content: csv });
+          await invoke('write_file_content', { path, content: sheetToCsv(wb.sheets[Math.min(wb.activeSheet, wb.sheets.length - 1)], wb.styles) });
         }
         const dir = sidecarDir(path, workspacePath);
         const meta: SidecarMeta = { title: fileName(path).replace(/\.[^.]+$/, ''), sheets: wb.sheets.length, preview: previewOf(wb), updatedAt: Date.now() };
@@ -400,7 +424,10 @@ export function useWorkbookDocument(workspaceId: string, workspacePath: string) 
       const file = await invoke<FileContent>('read_file_content', { path: joinPath(sidecarDir(path, workspacePath), RECOVERY_FILE) });
       const parsed = JSON.parse(file.content) as Partial<RecoveryFile>;
       if (!parsed || typeof parsed.savedAt !== 'number' || !parsed.wb || !Array.isArray((parsed.wb as Workbook).sheets)) return;
-      if (JSON.stringify(parsed.wb) === JSON.stringify(loaded)) {
+      // Counts first, then per-cell with early exit: never two giant strings.
+      // Past the recovery limit the snapshot is offered as-is instead of compared.
+      const snapshot = parsed.wb as Workbook;
+      if (estimateWorkbookSize(snapshot) <= RECOVERY_LIMIT && sameWorkbook(snapshot, loaded)) {
         await invoke('delete_entry', { path: joinPath(sidecarDir(path, workspacePath), RECOVERY_FILE) }).catch(() => undefined);
         return;
       }

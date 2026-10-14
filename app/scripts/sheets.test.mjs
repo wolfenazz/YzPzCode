@@ -285,7 +285,7 @@ test('a spill blocked by a value shows #SPILL! and a cycle shows an error', () =
   const blocked = book({ Sheet1: { A1: '=SEQUENCE(3)', A2: 'in the way' } });
   assert.equal(valueAt(blocked, 'A1'), '#SPILL!');
   const loop = book({ Sheet1: { A1: '=B1', B1: '=A1' } });
-  assert.equal(valueAt(loop, 'A1'), '#REF!');
+  assert.equal(valueAt(loop, 'A1'), '#CALC!');
 });
 
 test('formulas across sheets and defined names', () => {

@@ -1,5 +1,5 @@
-// The side panel's building blocks, shared by the Writing and Presentation
-// studios: tabs, titled sections, label/control fields, a prompt box and a
+// The side panel's building blocks, shared by the Writing, Presentation and
+// Sheets studios: tabs, titled sections, label/control fields, a prompt box and a
 // quiet action list. Everything is a plain element with an `sx-*` class, so a
 // panel reads as markup rather than as a pile of one-off styles.
 import React, { useState } from 'react';
@@ -24,10 +24,35 @@ export interface InspectorTab<T extends string> {
 }
 
 export function InspectorTabs<T extends string>({ tabs, value, onChange, label }: { tabs: Array<InspectorTab<T>>; value: T; onChange: (id: T) => void; label: string }): React.JSX.Element {
+  const activeIndex = Math.max(0, tabs.findIndex((tab) => tab.id === value));
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    let next = activeIndex;
+    if (event.key === 'ArrowRight') next = (activeIndex + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (activeIndex - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    const target = tabs[next];
+    if (target && target.id !== value) onChange(target.id);
+    requestAnimationFrame(() => {
+      (event.currentTarget.querySelector(`#sx-tab-${String(tabs[next]?.id)}`) as HTMLElement | null)?.focus();
+    });
+  };
   return (
-    <div className="sx-tabs" role="tablist" aria-label={label}>
-      {tabs.map((tab) => (
-        <button key={tab.id} type="button" role="tab" className="sx-tab" aria-selected={value === tab.id} onClick={() => onChange(tab.id)}>
+    <div className="sx-tabs" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
+      {tabs.map((tab, index) => (
+        <button
+          key={tab.id}
+          id={`sx-tab-${tab.id}`}
+          type="button"
+          role="tab"
+          className="sx-tab"
+          aria-selected={value === tab.id}
+          aria-controls={`sx-panel-${tab.id}`}
+          tabIndex={index === activeIndex ? 0 : -1}
+          onClick={() => onChange(tab.id)}
+        >
           {tab.icon}
           <span>{tab.label}</span>
         </button>
@@ -37,7 +62,9 @@ export function InspectorTabs<T extends string>({ tabs, value, onChange, label }
 }
 
 /** The scrolling body under the tabs. */
-export const InspectorBody: React.FC<{ children: React.ReactNode }> = ({ children }) => <div className="sx-scroll">{children}</div>;
+export const InspectorBody: React.FC<{ children: React.ReactNode; id?: string; labelledBy?: string }> = ({ children, id, labelledBy }) => (
+  <div className="sx-scroll" role="tabpanel" id={id} aria-labelledby={labelledBy} tabIndex={0}>{children}</div>
+);
 
 /** A plain heading row for a panel without tabs (the outline, the filmstrip). */
 export const InspectorHead: React.FC<{ title: string; count?: React.ReactNode; children?: React.ReactNode }> = ({ title, count, children }) => (
@@ -64,7 +91,7 @@ export const Section: React.FC<SectionProps> = ({ title, aside, collapsible, def
     <section className={`sx-section${title ? '' : ' sx-section--bare'}`} data-open={shown}>
       {title && (collapsible ? (
         <button type="button" className="sx-section__head" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-          <h3 className="sx-section__title">{title}</h3>
+          <span className="sx-section__title">{title}</span>
           <span className="sx-section__aside">{aside}<CaretRight size={12} weight="bold" className="sx-section__caret" /></span>
         </button>
       ) : (
@@ -97,12 +124,23 @@ export const Select: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = (
   </span>
 );
 
-export const ColorInput: React.FC<{ value: string; label: string; onChange: (value: string) => void; text?: string }> = ({ value, label, onChange, text }) => (
-  <span className="sx-color">
-    <input type="color" value={value} aria-label={label} onChange={(event) => onChange(event.target.value)} />
-    <code>{text ?? value.toUpperCase()}</code>
-  </span>
-);
+/** Normalizes any stored colour to #rrggbb so the native picker never throws. */
+function normalizeHexColor(value: string): string {
+  const raw = value.trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;
+  if (/^[0-9a-fA-F]{3}$/.test(raw)) return `#${raw.split('').map((c) => c + c).join('').toLowerCase()}`;
+  return '#000000';
+}
+
+export const ColorInput: React.FC<{ value: string; label: string; onChange: (value: string) => void; text?: string }> = ({ value, label, onChange, text }) => {
+  const safe = normalizeHexColor(value);
+  return (
+    <span className="sx-color">
+      <input type="color" value={safe} aria-label={label} onChange={(event) => onChange(event.target.value)} />
+      <code>{text ?? (safe === '#000000' && value.trim().toLowerCase() !== '#000000' ? value : safe.toUpperCase())}</code>
+    </span>
+  );
+};
 
 export const Toggle: React.FC<{ label: string; hint?: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }> = ({ label, hint, checked, disabled, onChange }) => (
   <label className="sx-toggle">

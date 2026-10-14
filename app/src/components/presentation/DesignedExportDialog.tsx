@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -47,12 +47,18 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
   const [progress, setProgress] = useState<string | null>(null);
   const drawn = design.slides.filter((slide) => slide.svg);
   const visible = drawn.filter((slide) => !slide.hidden);
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
+  const cancel = (): void => abortRef.current?.abort();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape' && !busy) {
-        event.stopPropagation();
-        onClose();
+      if (event.key === 'Escape') {
+        if (busy) cancel();
+        else {
+          event.stopPropagation();
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -63,25 +69,32 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
     setError(null);
     setNotices([]);
     const entry = FORMATS.find((item) => item.id === format)!;
-    const base = slugify(deck.meta.title);
+    const base = slugify(deck.meta.title) || 'presentation';
     if (format === 'png') {
       const folder = await open({ directory: true, title: 'Choose a folder for the slide images', defaultPath: joinPath(deckDir, 'exports') });
       if (typeof folder !== 'string') return;
+      const controller = new AbortController();
+      abortRef.current = controller;
       setBusy(true);
       try {
         const pictures = await loadSlidePictures(visible, deckDir);
+        controller.signal.throwIfAborted();
         const fontCss = await bundledFontFaceCss(svgFontFamilies(visible.map((slide) => slide.svg)));
+        controller.signal.throwIfAborted();
         for (const [index, slide] of visible.entries()) {
+          controller.signal.throwIfAborted();
           setProgress(`Slide ${index + 1} of ${visible.length}`);
           await writeFileBytes(joinPath(folder, `${base}-${String(index + 1).padStart(2, '0')}.png`), await slideSvgToPng(slide.svg, deck.size, pictures, 1920, fontCss));
         }
         setDone(folder);
         onExported(folder);
       } catch (reason) {
-        setError(reason instanceof Error ? reason.message : String(reason));
+        if (controller.signal.aborted) setError('Export cancelled.');
+        else setError(reason instanceof Error ? reason.message : String(reason));
       } finally {
         setProgress(null);
         setBusy(false);
+        if (abortRef.current === controller) abortRef.current = null;
       }
       return;
     }
@@ -91,27 +104,34 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
       filters: [{ name: entry.label, extensions: [entry.extension] }],
     });
     if (!path) return;
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     try {
       // Hidden slides stay in the PowerPoint file (hidden there too); the other formats leave them out.
       const slides = format === 'pptx' || format === 'pptx-pictures' ? drawn : visible;
       const pictures = await loadSlidePictures(slides, deckDir);
+      controller.signal.throwIfAborted();
       // Faces packaged with the app are embedded where the export cannot reach them (PNG, PDF, HTML); a
       // .pptx names them, so the machine that opens it needs them installed.
       const families = svgFontFamilies(slides.map((slide) => slide.svg));
       const fontCss = await bundledFontFaceCss([...families, design.system.fonts.heading, design.system.fonts.body]);
+      controller.signal.throwIfAborted();
       const missing = needsInstalling([...families, design.system.fonts.heading, design.system.fonts.body]);
       if (format === 'pptx' || format === 'pptx-pictures') {
         const { buildDesignedPptx } = await import('../../utils/presentation/svgDeckExport');
+        controller.signal.throwIfAborted();
         let pngs: Uint8Array[] = [];
         if (format === 'pptx-pictures') {
           for (const [index, slide] of slides.entries()) {
+            controller.signal.throwIfAborted();
             setProgress(`Painting slide ${index + 1} of ${slides.length}`);
             pngs.push(await slideSvgToPng(slide.svg, deck.size, pictures, 2400, fontCss));
           }
         }
         setProgress('Building the PowerPoint file');
         const usable = await pptxPictures(pictures, slides);
+        controller.signal.throwIfAborted();
         const { bytes, warnings } = await buildDesignedPptx({
           title: deck.meta.title,
           size: deck.size,
@@ -142,10 +162,12 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
       setDone(path);
       onExported(path);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (controller.signal.aborted) setError('Export cancelled.');
+      else setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       setProgress(null);
       setBusy(false);
+      if (abortRef.current === controller) abortRef.current = null;
     }
   };
 
@@ -201,6 +223,11 @@ export const DesignedExportDialog: React.FC<DesignedExportDialogProps> = ({ deck
           <button type="button" className="pr-btn pr-btn--primary pr-btn--lg pr-export__go" disabled={busy || visible.length === 0} onClick={() => void run()}>
             {busy ? progress ?? 'Exporting…' : `Export ${current.badge}`} <ArrowRight size={14} />
           </button>
+          {busy && (
+            <button type="button" className="pr-btn pr-btn--lg pr-export__cancel" onClick={cancel}>
+              Cancel
+            </button>
+          )}
         </div>
       </motion.div>
     </div>

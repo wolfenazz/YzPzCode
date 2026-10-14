@@ -53,6 +53,8 @@ const PAGES_PER_CALL = 1;
 const PARALLEL_CALLS = 5;
 /** Selected slides changed at once (each is one call, and may fetch a photo first). */
 const REFINE_PARALLEL = 4;
+/** Mirrors the session store's undo depth for the single coalesced history entries below. */
+const HISTORY_LIMIT = 80;
 
 let callCounter = 0;
 const newCallId = (): string => `call-${Date.now().toString(36)}-${(callCounter += 1).toString(36)}`;
@@ -193,6 +195,21 @@ export function useDesignGenerator(workspaceId: string) {
       error,
       slideStatus: Object.fromEntries(Object.entries(run.slideStatus).map(([id, status]) => [id, status === 'queued' || status === 'writing' ? (error ? 'failed' : 'cancelled') : status])),
     }));
+  }, [store, workspaceId]);
+
+  /**
+   * Records one undo step for `before`: streaming runs apply every slide with
+   * `skipHistory`, so without this Undo would do nothing even though the toast
+   * promises one Undo takes it all back. Callers that compose several edits
+   * (plan + drawings) pass `deferHistory` to `drawSlides` and push once here.
+   */
+  const pushHistoryStep = useCallback((before: YzDeck | null): void => {
+    if (!before) return;
+    store().update(workspaceId, (session) => {
+      if (!session.deck || session.deck === before) return {};
+      if (session.past[session.past.length - 1] === before) return {};
+      return { past: [...session.past.slice(-(HISTORY_LIMIT - 1)), before], future: [] };
+    });
   }, [store, workspaceId]);
 
   const seesImages = (engine: EngineChoice): boolean => SEES_IMAGES.has(engine.engine);
@@ -342,9 +359,11 @@ export function useDesignGenerator(workspaceId: string) {
    * Pass 2: draws the given pages. The cover goes first, alone, so the other
    * pages can match its look; the rest run a few calls at a time.
    * `fresh` ignores the existing pages as a style reference (after a redesign).
+   * `deferHistory` leaves the undo entry to the caller (plan + drawings share one).
    */
-  const drawSlides = useCallback(async (ids: string[], options: { fresh?: boolean } = {}): Promise<void> => {
-    const deck = deckOf(workspaceId);
+  const drawSlides = useCallback(async (ids: string[], options: { fresh?: boolean; deferHistory?: boolean } = {}): Promise<void> => {
+    const before = deckOf(workspaceId);
+    const deck = before;
     if (!deck?.design || ids.length === 0) return;
     const order = deck.design.slides.map((slide) => slide.id).filter((id) => ids.includes(id));
     startRun('slides', Object.fromEntries(order.map((id) => [id, 'queued' as const])));
@@ -374,7 +393,8 @@ export function useDesignGenerator(workspaceId: string) {
     };
     if (!cancelled.current) await Promise.all(Array.from({ length: Math.min(PARALLEL_CALLS, batches.length) }, worker));
     endRun(failure);
-  }, [drawBatch, endRun, startRun, workspaceId]);
+    if (!options.deferHistory) pushHistoryStep(before);
+  }, [drawBatch, endRun, pushHistoryStep, startRun, workspaceId]);
 
   /**
    * Finds a photo per entry (each lists wordings, most specific first) and copies
@@ -498,8 +518,8 @@ export function useDesignGenerator(workspaceId: string) {
     startRun('action', { [slideId]: 'queued' });
     store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [slideId]: 'writing' } }));
     const result = await refineSlide(slideId, instruction, label, options);
-    store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [slideId]: 'done' } }));
-    endRun(null);
+    store().updateRun(workspaceId, (run) => ({ slideStatus: { ...run.slideStatus, [slideId]: result.ok ? 'done' : result.cancelled ? 'cancelled' : 'failed' } }));
+    endRun(result.ok || result.cancelled ? null : result.error);
     return result;
   }, [endRun, refineSlide, startRun, store, workspaceId]);
 
@@ -553,14 +573,16 @@ export function useDesignGenerator(workspaceId: string) {
     });
     const result = await runAi(deck.brief.engine, 'Designing a new slide', system, prompt);
     const proposal = result.ok ? toProposal(extractSlideBlocks(result.text, true)[0], deck.size, undefined, !animationsOn(deck)) : null;
-    endRun(null);
+    const error = result.cancelled || proposal ? null : result.ok ? 'The AI did not return a usable slide. Try again.' : result.error ?? 'The AI run failed.';
+    endRun(error);
     if (proposal) return { ok: true, proposal };
-    return { ok: false, cancelled: result.cancelled, error: result.ok ? 'The AI did not return a usable slide. Try again.' : result.cancelled ? 'Stopped.' : result.error ?? 'The AI run failed.' };
+    return { ok: false, cancelled: result.cancelled, error: error ?? 'Stopped.' };
   }, [endRun, runAi, startRun, workspaceId]);
 
   /** A new look for the whole deck: same pages, new design system, every page redrawn. */
   const redesign = useCallback(async (instruction: string): Promise<boolean> => {
-    const deck = deckOf(workspaceId);
+    const before = deckOf(workspaceId);
+    const deck = before;
     const design = deck?.design;
     if (!deck || !design) return false;
     startRun('outline');
@@ -582,10 +604,11 @@ export function useDesignGenerator(workspaceId: string) {
       store().updateRun(workspaceId, { phase: result.cancelled ? 'cancelled' : 'failed', endedAt: Date.now(), error: result.cancelled ? null : result.ok ? 'The AI did not return a usable design. Try again.' : result.error });
       return false;
     }
-    store().edit(workspaceId, (current) => (current.design ? { ...current, design: { ...current.design, system: direction.system } } : current));
-    await drawSlides(design.slides.map((slide) => slide.id), { fresh: true });
+    store().edit(workspaceId, (current) => (current.design ? { ...current, design: { ...current.design, system: direction.system } } : current), { skipHistory: true });
+    await drawSlides(design.slides.map((slide) => slide.id), { fresh: true, deferHistory: true });
+    pushHistoryStep(before);
     return true;
-  }, [drawSlides, runAi, showDeckPictures, startRun, store, workspaceId]);
+  }, [drawSlides, pushHistoryStep, runAi, showDeckPictures, startRun, store, workspaceId]);
 
   /**
    * Puts the deck's pictures on its slides: the AI picks the pages and
@@ -593,7 +616,8 @@ export function useDesignGenerator(workspaceId: string) {
    * Resolves to the number of pages that got pictures, or null on failure.
    */
   const placePictures = useCallback(async (): Promise<number | null> => {
-    const deck = deckOf(workspaceId);
+    const before = deckOf(workspaceId);
+    const deck = before;
     const design = deck?.design;
     if (!deck || !design) return null;
     const known = placeablePictures(design.attachments).map((entry) => entry.path);
@@ -616,10 +640,11 @@ export function useDesignGenerator(workspaceId: string) {
       });
       const attachments = current.design.attachments.map((entry) => (plan.notes[entry.path] ? { ...entry, caption: plan.notes[entry.path] } : entry));
       return { ...current, design: { ...current.design, slides, attachments } };
-    });
-    await drawSlides(ids);
+    }, { skipHistory: true });
+    await drawSlides(ids, { deferHistory: true });
+    pushHistoryStep(before);
     return ids.length;
-  }, [drawSlides, runAi, showDeckPictures, startRun, store, workspaceId]);
+  }, [drawSlides, pushHistoryStep, runAi, showDeckPictures, startRun, store, workspaceId]);
 
   /**
    * Brings real photos from the web into a finished deck: the AI picks the
@@ -628,7 +653,8 @@ export function useDesignGenerator(workspaceId: string) {
    * Resolves to `{ placed, missed }`, or null when the run failed (the run state says why).
    */
   const addWebPhotos = useCallback(async (): Promise<{ placed: number; missed: number } | null> => {
-    const deck = deckOf(workspaceId);
+    const before = deckOf(workspaceId);
+    const deck = before;
     const design = deck?.design;
     if (!deck || !design) return null;
     const fail = (error: string): null => {
@@ -673,10 +699,11 @@ export function useDesignGenerator(workspaceId: string) {
       const known = new Set(current.design.attachments.map((entry) => entry.path));
       const attachments = [...current.design.attachments, ...[...byId.values()].map((hit) => hit.attachment).filter((entry) => !known.has(entry.path))];
       return { ...current, design: { ...current.design, slides, attachments } };
-    });
-    await drawSlides([...byId.keys()]);
+    }, { skipHistory: true });
+    await drawSlides([...byId.keys()], { deferHistory: true });
+    pushHistoryStep(before);
     return { placed: photos.length, missed: entries.length - photos.length };
-  }, [drawSlides, fetchPhotos, runAi, startRun, store, workspaceId]);
+  }, [drawSlides, fetchPhotos, pushHistoryStep, runAi, startRun, store, workspaceId]);
 
   /**
    * Designs the animation of drawn pages without touching their drawing: one
@@ -729,7 +756,7 @@ export function useDesignGenerator(workspaceId: string) {
       }
     };
     await Promise.all(Array.from({ length: Math.min(REFINE_PARALLEL, order.length) }, worker));
-    endRun(null);
+    endRun(cancelled.current ? null : error);
 
     const now = deckOf(workspaceId)?.design?.slides ?? [];
     const apply = [...results].filter(([id, found]) => now.find((slide) => slide.id === id)?.svg === found.base);

@@ -1,6 +1,6 @@
 /*
- * Studio chrome, shared by the Writing and Presentation studios: the top bar
- * and the inspector (tabs, sections, fields, prompt box, action list).
+ * Studio chrome, shared by the Writing, Presentation and Sheets studios: the
+ * top bar and the inspector (tabs, sections, fields, prompt box, action list).
  * Theme tokens only. One ink colour for primary actions, the app accent for
  * focus and selection, state colours for state. Every label is sentence case;
  * the grid is 4px, controls are 28px, bars are 52px and tabs 44px.
@@ -148,6 +148,19 @@
   font-variant-numeric: tabular-nums;
 }
 
+.sx-bar__save[data-state="unsaved"] {
+  color: var(--sx-ink-soft);
+}
+
+.sx-bar__save[data-state="saving"] {
+  color: var(--sx-ink-faint);
+  animation: sx-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes sx-blink {
+  50% { opacity: 0.45; }
+}
+
 .sx-bar__save[data-state="error"] {
   max-width: 280px;
   overflow: hidden;
@@ -229,7 +242,7 @@
   transition: width 400ms ease;
 }
 
-.sx-bar__progress[data-indeterminate] > span {
+.sx-bar__progress[data-indeterminate="true"] > span {
   width: 28%;
   animation: sx-sweep 1.6s ease-in-out infinite;
 }
@@ -1061,8 +1074,30 @@ select.sx-input option {
   transition: none;
 }
 
+/* Motion off covers every studio transition/animation, not just meters. */
+.animations-disabled .sx-bar *,
+.animations-disabled .sx-inspector *,
+.animations-disabled .sx-run__label,
+.animations-disabled .sx-bar__save {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* UI density scales the shared chrome (default = comfortable). */
+.density-compact .sx-bar { height: 44px; gap: 12px; padding: 0 8px; }
+.density-compact .sx-tabs,
+.density-compact .sx-head { height: 38px; }
+.density-compact .sx-inspector { width: 288px; }
+.density-compact .sx-btn { height: 24px; font-size: 12px; }
+.density-spacious .sx-bar { height: 60px; gap: 20px; padding: 0 16px; }
+.density-spacious .sx-tabs,
+.density-spacious .sx-head { height: 50px; }
+.density-spacious .sx-inspector { width: 360px; }
+.density-spacious .sx-btn { height: 32px; font-size: 13px; }
+.density-spacious .sx-action { height: 34px; }
+
 @media (prefers-reduced-motion: reduce) {
-  .sx-bar__progress[data-indeterminate] > span {
+  .sx-bar__progress[data-indeterminate="true"] > span {
     width: 100%;
     animation: none;
     opacity: 0.35;

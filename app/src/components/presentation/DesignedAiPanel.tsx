@@ -42,6 +42,8 @@ interface DesignedAiPanelProps {
   onValue: (value: string) => void;
   /** A run is in flight: sending is off and Stop shows. */
   busy: boolean;
+  /** The run's error, if the last run failed (shown even when idle). */
+  error?: string | null;
   /** The current slide has no drawing yet. */
   blank: boolean;
   engine: string;
@@ -60,7 +62,7 @@ const SCOPES: Array<{ id: AiScope; label: string }> = [
 
 /** The AI tab: who the change is for, what to change, and quick actions. */
 export const DesignedAiPanel: React.FC<DesignedAiPanelProps> = ({
-  scope, onScope, slides, total, currentNumber, pickedCount, canvas, resolveHref, targets, onClearTargets, value, onValue, busy, blank, engine, imported,
+  scope, onScope, slides, total, currentNumber, pickedCount, canvas, resolveHref, targets, onClearTargets, value, onValue, busy, blank, error, engine, imported,
   onSend, onStop, onPickSlides, children,
 }) => {
   const input = useRef<HTMLTextAreaElement>(null);
@@ -187,6 +189,9 @@ export const DesignedAiPanel: React.FC<DesignedAiPanelProps> = ({
         <span className="pd-compose__engine" title="The AI engine for this deck (change it below)">
           <Sparkle size={11} weight="fill" /> {engine}
         </span>
+        {error && !busy && (
+          <p className="pr-error" role="alert">{error}</p>
+        )}
         {many && count > 0 && <p className="pr-hint">One AI call per slide. Nothing changes until you keep it, and one Undo takes it all back.</p>}
         {imported && !many && <p className="pr-hint">Every AI change is a proposal: Keep it, or Discard to leave the slide exactly as it came from PowerPoint.</p>}
       </section>

@@ -84,11 +84,11 @@ function ColorGrid({ palette, value, onPick, none }: { palette: string[]; value:
     <div className="pf-colors">
       <span className="pf-colors__label">Deck colours</span>
       <div className="pf-colors__row">
-        {palette.map((color) => <button key={`p${color}`} type="button" className="pf-swatch" style={{ background: color }} title={color} data-active={value?.toUpperCase() === color.toUpperCase() || undefined} onClick={() => onPick(color)} />)}
+        {palette.map((color) => <button key={`p${color}`} type="button" className="pf-swatch" style={{ background: color }} title={color} aria-label={`Deck colour ${color}`} data-active={value?.toUpperCase() === color.toUpperCase() || undefined} onClick={() => onPick(color)} />)}
       </div>
       <span className="pf-colors__label">Standard</span>
       <div className="pf-colors__row">
-        {STANDARD.map((color) => <button key={`s${color}`} type="button" className="pf-swatch" style={{ background: color }} title={color} data-active={value?.toUpperCase() === color || undefined} onClick={() => onPick(color)} />)}
+        {STANDARD.map((color) => <button key={`s${color}`} type="button" className="pf-swatch" style={{ background: color }} title={color} aria-label={`Standard colour ${color}`} data-active={value?.toUpperCase() === color || undefined} onClick={() => onPick(color)} />)}
       </div>
       <div className="pf-colors__foot">
         {none && <button type="button" className="pf-link" onClick={() => onPick(null)}>{none}</button>}

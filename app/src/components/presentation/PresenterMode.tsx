@@ -73,6 +73,8 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
   const [notesSize, setNotesSize] = useState(20);
   const [controls, setControls] = useState(true);
   const typed = useRef('');
+  /** When the last digit was typed: number-jump buffers expire after 3 seconds. */
+  const typedAt = useRef(0);
   const hideTimer = useRef<number | null>(null);
   const wasFullscreen = useRef<boolean | null>(null);
   const viewport = useViewport();
@@ -133,12 +135,15 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
   // Fullscreen for the whole window while presenting; restored on exit.
   useEffect(() => {
     const window_ = getCurrentWindow();
+    // Record synchronously so the cleanup below never sees a null first value
+    // (the async read only corrects this when the window was already fullscreen).
+    wasFullscreen.current = false;
     let alive = true;
     void window_.isFullscreen().then((value) => {
       if (!alive) return;
       wasFullscreen.current = value;
-      if (!value) void window_.setFullscreen(true).catch(() => undefined);
     }).catch(() => undefined);
+    void window_.setFullscreen(true).catch(() => undefined);
     return () => {
       alive = false;
       if (wasFullscreen.current === false) void window_.setFullscreen(false).catch(() => undefined);
@@ -187,20 +192,21 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
   }, [stopTts]);
 
   // Optional per-slide autoplay (default off, persisted). The go() stop above
-  // halts the previous slide; this speaks the new one. Cleanup stops when the
-  // slide changes again or autoplay is toggled off mid-synthesis.
+  // halts the previous slide; this speaks the new one. Debounced so flipping
+  // quickly through slides does not synthesize every one passed through.
+  // Cleanup stops when the slide changes again or autoplay is toggled off mid-synthesis.
   useEffect(() => {
     if (!autoplayInPresenter) return;
     if (!current || current.notes.trim().length === 0) return;
     setTtsInlineError(null);
-    void speak(current.notes, { slideId: current.id });
-    return () => stopTts();
+    const timer = window.setTimeout(() => {
+      void speak(current.notes, { slideId: current.id });
+    }, 600);
+    return () => { window.clearTimeout(timer); stopTts(); };
   }, [autoplayInPresenter, current, speak, stopTts]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      // The slideshow owns the keyboard while it is open.
-      event.stopPropagation();
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       const { key } = event;
       const target = event.target as HTMLElement | null;
@@ -211,11 +217,15 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
       // (play button, speed select, model list, autoplay checkbox).
       if (inTtsUi && (key === ' ' || key === 'Enter' || key.startsWith('Arrow'))) return;
       if (/^[0-9]$/.test(key)) {
-        typed.current = `${typed.current}${key}`.slice(-3);
+        // Only handled keys are stopped: anything else stays for the app.
+        event.stopPropagation();
+        typed.current = Date.now() - typedAt.current < 3000 ? `${typed.current}${key}`.slice(-3) : key;
+        typedAt.current = Date.now();
         event.preventDefault();
         return;
       }
       if (key === 'Enter' && typed.current) {
+        event.stopPropagation();
         event.preventDefault();
         go(Number(typed.current) - 1);
         typed.current = '';
@@ -223,19 +233,20 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
       }
       typed.current = '';
       if (key === 'Escape') {
+        event.stopPropagation();
         if (modelsOpen) { event.preventDefault(); setModelsOpen(false); }
         else { event.preventDefault(); exit(); }
       }
-      else if (key === 'r' || key === 'R') { event.preventDefault(); toggleNarration(); }
-      else if (NEXT_KEYS.has(key)) { event.preventDefault(); if (blank) setBlank(null); else advance(); }
-      else if (PREV_KEYS.has(key)) { event.preventDefault(); if (blank) setBlank(null); else back(); }
-      else if (key === 'Home') { event.preventDefault(); go(0); }
-      else if (key === 'End') { event.preventDefault(); go(visible.length - 1); }
-      else if (key === 'b' || key === 'B' || key === '.') { event.preventDefault(); setBlank((value) => (value === 'black' ? null : 'black')); }
-      else if (key === 'w' || key === 'W' || key === ',') { event.preventDefault(); setBlank((value) => (value === 'white' ? null : 'white')); }
-      else if (key === 's' || key === 'S') { event.preventDefault(); setPresenter((value) => !value); }
-      else if (key === 't' || key === 'T') { event.preventDefault(); setStartedAt(Date.now()); setPausedAt(null); }
-      else if (key === 'F5') event.preventDefault();
+      else if (key === 'r' || key === 'R') { event.stopPropagation(); event.preventDefault(); toggleNarration(); }
+      else if (NEXT_KEYS.has(key)) { event.stopPropagation(); event.preventDefault(); if (blank) setBlank(null); else advance(); }
+      else if (PREV_KEYS.has(key)) { event.stopPropagation(); event.preventDefault(); if (blank) setBlank(null); else back(); }
+      else if (key === 'Home') { event.stopPropagation(); event.preventDefault(); go(0); }
+      else if (key === 'End') { event.stopPropagation(); event.preventDefault(); go(visible.length - 1); }
+      else if (key === 'b' || key === 'B' || key === '.') { event.stopPropagation(); event.preventDefault(); setBlank((value) => (value === 'black' ? null : 'black')); }
+      else if (key === 'w' || key === 'W' || key === ',') { event.stopPropagation(); event.preventDefault(); setBlank((value) => (value === 'white' ? null : 'white')); }
+      else if (key === 's' || key === 'S') { event.stopPropagation(); event.preventDefault(); setPresenter((value) => !value); }
+      else if (key === 't' || key === 'T') { event.stopPropagation(); event.preventDefault(); setStartedAt(Date.now()); setPausedAt(null); }
+      else if (key === 'F5') { event.stopPropagation(); event.preventDefault(); }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -278,6 +289,20 @@ export function PresenterMode<T extends PresentableSlide>({ slides, aspect, tran
   );
 
   const audienceWidth = Math.min(viewport.width, (viewport.height * naturalWidth) / naturalHeight);
+
+  // Nothing to show: every slide is hidden. Navigation is blocked until one is shown again.
+  if (visible.length === 0) {
+    return createPortal(
+      <div className="pr-show" role="dialog" aria-label="Slideshow">
+        <div className="pr-show__end">
+          <strong>All slides are hidden</strong>
+          <p>Show at least one slide to present.</p>
+          <button type="button" className="pr-show__btn" onClick={exit}>End</button>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return createPortal(
     <div

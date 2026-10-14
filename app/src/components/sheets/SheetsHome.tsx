@@ -160,7 +160,11 @@ export const SheetsHome: React.FC<SheetsHomeProps> = ({ workspaceName, attachmen
           </div>
         )}
 
-        {workbooks.length > 0 && (
+        {workbooks.length === 0 ? (
+          <section className="sh-home__section">
+            <p className="sh-note">No workbooks yet — import or describe one above to get started.</p>
+          </section>
+        ) : (
           <section className="sh-home__section">
             <h2 className="sh-home__heading">Recent</h2>
             <div className="sh-books">

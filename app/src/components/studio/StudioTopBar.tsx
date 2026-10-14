@@ -69,7 +69,7 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({ backLabel, onBack, t
 
     {run && (
       <div className="sx-run" role="status">
-        <span className="sx-run__label"><strong>{run.label}</strong>{run.detail ? ` · ${run.detail}` : ''}</span>
+        <span className="sx-run__label" title={run.detail ? `${run.label} · ${run.detail}` : run.label}><strong>{run.label}</strong>{run.detail ? ` · ${run.detail}` : ''}</span>
         {run.elapsed && <span className="sx-run__time">{run.elapsed}</span>}
         <button type="button" className="sx-btn sx-btn--sm sx-btn--quiet" onClick={run.onStop}><Stop size={11} weight="fill" /> Stop</button>
       </div>
@@ -77,11 +77,16 @@ export const StudioTopBar: React.FC<StudioTopBarProps> = ({ backLabel, onBack, t
 
     <div className="sx-bar__tail">{children}</div>
 
-    {run && (
-      <div className="sx-bar__progress" data-indeterminate={run.progress === null || undefined} aria-hidden="true">
-        <span style={run.progress === null ? undefined : { width: `${Math.round(Math.max(0.02, Math.min(1, run.progress)) * 100)}%` }} />
-      </div>
-    )}
+    {run && (() => {
+      const progress: number | null = run.progress;
+      const indeterminate = progress == null;
+      const pct = progress == null ? 0 : Math.max(0, Math.min(1, progress));
+      return (
+        <div className="sx-bar__progress" data-indeterminate={indeterminate ? true : undefined} aria-hidden="true">
+          <span style={indeterminate ? undefined : { width: pct <= 0 ? '0%' : `${Math.round(Math.max(0.02, pct) * 100)}%` }} />
+        </div>
+      );
+    })()}
   </header>
 );
 
