@@ -13,7 +13,7 @@ const DISCORD_LOGO_URL: &str =
 /// Discord only fetches http(s) images, so repo icons go through wsrv.nl, which also rasterizes SVG.
 const SMALL_IMAGE_PROXY_BASE: &str =
     "https://wsrv.nl/?url=cdn.jsdelivr.net/gh/wolfenazz/YzPzCode@main";
-const PROJECT_URL: &str = "https://github.com/wolfenazz/YzPzCode";
+const WEBSITE_URL: &str = "https://www.yzpzcode.site/";
 const RELEASES_URL: &str = "https://github.com/wolfenazz/YzPzCode/releases/latest";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -206,9 +206,10 @@ impl DiscordPresenceManager {
         self.send_activity(activity)
     }
 
+    /// Discord allows at most two buttons per activity, so the website takes the first slot.
     fn activity_buttons() -> Vec<Button<'static>> {
         vec![
-            Button::new("View on GitHub", PROJECT_URL),
+            Button::new("Visit website", WEBSITE_URL),
             Button::new("Download YzPzCode", RELEASES_URL),
         ]
     }
