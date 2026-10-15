@@ -3,6 +3,7 @@ import { PX_PER_IN, SLIDE_HEIGHT, slideWidth } from '../../utils/presentation/la
 import type { PlanContext } from '../../utils/presentation/render';
 import type { RichPara, Slide } from '../../utils/presentation/types';
 import { SlideRenderer } from './SlideRenderer';
+import { GenerationAura } from '../studio/GenerationAura';
 
 interface SlideCanvasProps {
   context: PlanContext;
@@ -78,6 +79,7 @@ export const SlideCanvas: React.FC<SlideCanvasProps> = ({
       <div className="pr-canvas__inner">
         {slide ? (
           <div className="pr-canvas__slide" data-busy={busy || undefined}>
+            <GenerationAura key={slide.id} radius={3} active={busy} />
             <SlideRenderer
               context={context}
               slide={slide}

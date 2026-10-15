@@ -45,6 +45,8 @@ import { TtsModelPicker } from '../tts/TtsModelPicker';
 import { NarrationChip, NarrationSlideList } from '../tts/NarrationProgress';
 import { useTtsStore } from '../../stores/ttsStore';
 import type { ProposalResult, SlideProposal, useDesignGenerator } from './useDesignGenerator';
+import { LiquidSlider } from '../common/LiquidSlider';
+import { GenerationAura } from '../studio/GenerationAura';
 
 type Generator = ReturnType<typeof useDesignGenerator>;
 type Command = 'duplicate' | 'delete' | 'hide' | 'up' | 'down' | 'redraw';
@@ -1098,6 +1100,12 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
             }}
           >
             <div className="pd-stage__frame" ref={frameRef} data-review={reviewing || (inserting && review?.status === 'ready') || undefined}>
+              <GenerationAura
+                key={slide?.id ?? 'none'}
+                radius={4}
+                active={Boolean(slide && status[slide.id] === 'writing') || (review?.status === 'running' && (review.kind === 'insert' || review.slideId === slide?.id))}
+                failed={Boolean(slide && (status[slide.id] === 'failed' || status[slide.id] === 'cancelled')) || review?.status === 'failed'}
+              />
               {slide && (stageEditable || undrawn) ? (
                 <SlideStage
                   svg={slide.svg}
@@ -1298,7 +1306,7 @@ export const DesignedEditor: React.FC<DesignedEditorProps> = ({ workspaceId, wor
                           </div>
                           <label className="ps-slider">
                             <span>Transparency</span>
-                            <input type="range" min={0} max={90} step={5} value={Math.round((1 - (singleModel.alpha ?? 1)) * 100)} onChange={(event) => changeModels((model) => (model.k === 'pic' ? { ...model, alpha: 1 - Number(event.target.value) / 100 || undefined } : model), `alpha:${single.id}`)} />
+                            <LiquidSlider min={0} max={90} step={5} value={Math.round((1 - (singleModel.alpha ?? 1)) * 100)} onChange={(event) => changeModels((model) => (model.k === 'pic' ? { ...model, alpha: 1 - Number(event.target.value) / 100 || undefined } : model), `alpha:${single.id}`)} />
                             <em>{Math.round((1 - (singleModel.alpha ?? 1)) * 100)}%</em>
                           </label>
                         </section>

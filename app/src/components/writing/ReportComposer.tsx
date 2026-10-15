@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { ArrowLeft, ArrowRight, BookBookmark, FileText, Paperclip, Plus, SlidersHorizontal, Stop, X } from '@phosphor-icons/react';
+import { ArrowLeft, BookBookmark, FileText, Plus, SlidersHorizontal, X } from '@phosphor-icons/react';
 import { briefForNewReport, useWritingStore } from '../../stores/writingStore';
 import { writeFileBytes } from '../../utils/presentation/assets';
 import { parseReferenceList } from '../../utils/writing/citations';
@@ -10,7 +10,8 @@ import { isRtlLanguage, languageFor } from '../../utils/writing/rtl';
 import { rtlStyle } from '../../utils/writing/stylePresets';
 import { SOURCE_EXTENSIONS } from '../../utils/writing/sources';
 import type { EngineChoice, Reference, ReportBrief, ReportDetails } from '../../utils/writing/types';
-import { EngineFields, formatElapsed, WebPhotosToggle } from './ui';
+import { StudioPromptBar } from '../composer/StudioPromptBar';
+import { formatElapsed, WebPhotosToggle } from './ui';
 import { ReportIcon } from './wizard/reportIcons';
 
 const LANGUAGES = ['English', 'Arabic', 'Persian', 'Urdu', 'Hebrew', 'French', 'Spanish', 'German', 'Italian', 'Portuguese', 'Turkish', 'Dutch', 'Russian', 'Hindi', 'Indonesian', 'Chinese (Simplified)', 'Japanese'];
@@ -49,7 +50,6 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
-  const textarea = useRef<HTMLTextAreaElement>(null);
   const dragDepth = useRef(0);
 
   const { details } = brief;
@@ -65,14 +65,6 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
     const timer = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(timer);
   }, [busy]);
-
-  // The box grows with the description.
-  useEffect(() => {
-    const element = textarea.current;
-    if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${Math.min(360, Math.max(140, element.scrollHeight))}px`;
-  }, [details.brief]);
 
   // Typing the description in a right-to-left script switches the language to it, until the user picks one.
   const languagePicked = useRef(false);
@@ -148,12 +140,15 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
     setReferenceDraft('');
   };
 
-  const submit = (): void => {
-    if (!ready) return;
+  const submit = (draft = details.brief): void => {
+    if (!ready) {
+      if (!busy && draft.trim().length < 8 && !material && !details.title.trim()) setFileError('Describe the document a little more before writing.');
+      return;
+    }
     const pending = referenceDraft.trim() ? parseReferenceList(referenceDraft, bibliography) : [];
     // A description in Arabic is answered in Arabic even when the language was left on English; a
     // right-to-left report gets faces that draw its letters.
-    const language = languageFor(`${details.title} ${details.brief} ${details.sourceNotes}`, details.language);
+    const language = languageFor(`${details.title} ${draft} ${details.sourceNotes}`, details.language);
     const final = isRtlLanguage(language)
       ? { ...brief, details: { ...brief.details, language }, style: rtlStyle(brief.style) }
       : language === details.language ? brief : { ...brief, details: { ...brief.details, language } };
@@ -161,12 +156,9 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
   };
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
-    // Typing in the composer never reaches the workspace shortcuts.
+    // Typing in the composer never reaches the workspace shortcuts. Enter is
+    // the bar's own: it sends, or opens the picker it is part of.
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.stopPropagation();
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      submit();
-    }
   };
 
   const pages = wordsToPages(details.targetWords);
@@ -200,14 +192,18 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
         <h1 className="wr-composer__ask">{copy.ask}</h1>
 
         <div className="wr-composer" data-busy={busy || undefined}>
-          <textarea
-            ref={textarea}
-            dir="auto"
-            className="wr-composer__input"
-            value={details.brief}
-            disabled={busy}
+          <StudioPromptBar
+            engine={brief.engine}
+            onEngineChange={setEngine}
             placeholder={copy.placeholder}
-            onChange={(event) => setDetails({ brief: event.target.value })}
+            inputLabel={copy.ask}
+            busy={busy}
+            canSend={details.brief.trim().length > 0 || material || details.title.trim().length > 0}
+            draft={details.brief}
+            onDraftChange={(text) => setDetails({ brief: text })}
+            onSend={submit}
+            onStop={onCancel}
+            onAttach={() => void attach()}
             onPaste={(event) => {
               const pasted = Array.from(event.clipboardData.files);
               if (pasted.length > 0) {
@@ -215,7 +211,21 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
                 void addFiles(pasted);
               }
             }}
-            aria-label={copy.ask}
+            extras={
+              <div className="wr-composer__opts">
+                <button type="button" className={`wr-btn wr-btn--ghost${showReferences ? ' is-on' : ''}`} disabled={busy} aria-expanded={showReferences} onClick={() => setShowReferences((value) => !value)}>
+                  <BookBookmark size={14} /> References
+                </button>
+                <button type="button" className={`wr-btn wr-btn--ghost${showOptions ? ' is-on' : ''}`} disabled={busy} aria-expanded={showOptions} onClick={() => setShowOptions((value) => !value)}>
+                  <SlidersHorizontal size={14} /> {pages} {pages === 1 ? 'page' : 'pages'} · {details.language}
+                </button>
+              </div>
+            }
+            background="var(--bg-primary)"
+            color="var(--wr-ink)"
+            menuBackground="color-mix(in oklab, var(--bg-primary) 92%, var(--text-primary))"
+            sparkColor="var(--accent)"
+            width="100%"
             autoFocus
           />
 
@@ -274,29 +284,8 @@ export const ReportComposer: React.FC<ReportComposerProps> = ({ typeId, workspac
                 </label>
               )}
               <WebPhotosToggle value={brief.pictures !== 'none'} onChange={(on) => setBrief((current) => ({ ...current, pictures: on ? 'web' : 'none' }))} />
-              <EngineFields value={brief.engine} onChange={setEngine} />
             </div>
           )}
-
-          <div className="wr-composer__bar">
-            <button type="button" className="wr-btn wr-btn--ghost" disabled={busy || details.sourceFiles.length >= MAX_FILES} onClick={() => void attach()} title="Notes, data, papers or earlier drafts: the writer takes its facts from them">
-              <Paperclip size={14} /> Attach
-            </button>
-            <button type="button" className={`wr-btn wr-btn--ghost${showReferences ? ' is-on' : ''}`} disabled={busy} aria-expanded={showReferences} onClick={() => setShowReferences((value) => !value)}>
-              <BookBookmark size={14} /> References
-            </button>
-            <button type="button" className={`wr-btn wr-btn--ghost${showOptions ? ' is-on' : ''}`} disabled={busy} aria-expanded={showOptions} onClick={() => setShowOptions((value) => !value)}>
-              <SlidersHorizontal size={14} /> {pages} {pages === 1 ? 'page' : 'pages'} · {details.language}
-            </button>
-            <span className="wr-spacer" />
-            {busy ? (
-              <button type="button" className="wr-btn" onClick={onCancel}><Stop size={12} weight="fill" /> Stop</button>
-            ) : (
-              <button type="button" className="wr-btn wr-btn--primary" disabled={!ready} onClick={submit} title="Ctrl+Enter">
-                Write {type.id === 'custom' ? 'document' : 'report'} <ArrowRight size={13} weight="bold" />
-              </button>
-            )}
-          </div>
 
           {busy && (
             <div className="wr-composer__status" role="status" aria-live="polite">

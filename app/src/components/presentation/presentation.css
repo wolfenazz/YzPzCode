@@ -305,7 +305,7 @@ textarea.pr-input {
 .pr-input:focus,
 .pr-select:focus {
   border-color: color-mix(in oklab, var(--pr-accent) 70%, transparent);
-  box-shadow: 0 0 0 3px var(--pr-accent-soft);
+  
 }
 
 .pr-input::placeholder {
@@ -330,7 +330,6 @@ textarea.pr-input {
 
 .pr-range {
   width: 100%;
-  accent-color: var(--pr-accent);
 }
 
 .pr-color {
@@ -952,10 +951,6 @@ textarea.pr-input {
   background: color-mix(in oklab, var(--bg-primary) 35%, transparent);
 }
 
-.pr-thumb[data-status="writing"] .pr-thumb__frame {
-  box-shadow: 0 0 0 2px var(--pr-accent), 0 0 18px -2px color-mix(in oklab, var(--pr-accent) 60%, transparent);
-}
-
 .pr-thumb[data-status="failed"] .pr-thumb__frame {
   box-shadow: 0 0 0 2px var(--pr-danger);
 }
@@ -1015,6 +1010,8 @@ textarea.pr-input {
 
 .pr-canvas__slide {
   position: relative;
+  /* The generation aura sits behind the slide. */
+  isolation: isolate;
   border-radius: 3px;
   box-shadow: var(--pr-slide-shadow);
 }
@@ -1026,16 +1023,6 @@ textarea.pr-input {
 
 .pr-canvas__slide > .pr-slide > .pr-slide__stage {
   overflow: visible;
-}
-
-.pr-canvas__slide[data-busy]::after {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 6px;
-  box-shadow: 0 0 0 2px var(--pr-accent);
-  animation: pr-pulse 1.4s ease-in-out infinite;
-  pointer-events: none;
 }
 
 @keyframes pr-pulse {

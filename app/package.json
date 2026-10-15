@@ -1,7 +1,7 @@
 {
   "name": "yzpzcode",
   "private": true,
-  "version": "5.40.0",
+  "version": "5.41.0",
   "type": "module",
   "scripts": {
     "dev": "node scripts/ensure-drawio.mjs && vite --configLoader runner",
@@ -22,6 +22,7 @@
     "test:writing": "node --test scripts/writing.test.mjs",
     "test:presentation": "node --test scripts/presentation.test.mjs",
     "test:sheets": "node --test scripts/sheets.test.mjs",
+    "test:design": "node --test scripts/design.test.mjs",
     "test:discord-presence": "node --test scripts/discord-presence.test.mjs",
     "preview": "vite preview",
     "fetch:drawio": "node scripts/fetch-drawio.mjs",

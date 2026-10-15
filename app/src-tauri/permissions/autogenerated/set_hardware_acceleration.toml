@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-hardware-acceleration"
+description = "Enables the set_hardware_acceleration command without any pre-configured scope."
+commands.allow = ["set_hardware_acceleration"]
+
+[[permission]]
+identifier = "deny-set-hardware-acceleration"
+description = "Denies the set_hardware_acceleration command without any pre-configured scope."
+commands.deny = ["set_hardware_acceleration"]

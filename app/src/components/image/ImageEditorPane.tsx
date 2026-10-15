@@ -13,6 +13,7 @@ import { LayersPanel } from './panels/LayersPanel';
 import { PropertiesPanel } from './panels/PropertiesPanel';
 import { ImgIcon } from './icons';
 import './ImageEditor.css';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const extOf = (p: string): string => {
@@ -348,17 +349,17 @@ export const ImageEditorPane: React.FC<ImageEditorPaneProps> = ({ workspaceId })
         <div className="flex shrink-0 items-center gap-4 border-b border-[var(--border-primary)] bg-[var(--bg-secondary)] px-3 py-1.5">
           <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
             Size
-            <input type="range" min={1} max={200} value={brushSize} onChange={(e) => useImageEditorStore.getState().setBrushSize(Number(e.target.value))} className="w-32 cursor-pointer" />
+            <LiquidSlider size="sm" min={1} max={200} value={brushSize} onChange={(e) => useImageEditorStore.getState().setBrushSize(Number(e.target.value))} className="w-32" />
             <span className="w-7 text-[var(--text-primary)]">{brushSize}</span>
           </label>
           <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
             Opacity
-            <input type="range" min={1} max={100} value={Math.round(brushOpacity * 100)} onChange={(e) => useImageEditorStore.getState().setBrushOpacity(Number(e.target.value) / 100)} className="w-24 cursor-pointer" />
+            <LiquidSlider size="sm" min={1} max={100} value={Math.round(brushOpacity * 100)} onChange={(e) => useImageEditorStore.getState().setBrushOpacity(Number(e.target.value) / 100)} className="w-24" />
             <span className="w-7 text-[var(--text-primary)]">{Math.round(brushOpacity * 100)}%</span>
           </label>
           <label className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-widest text-[var(--text-secondary)]">
             Hard
-            <input type="range" min={0} max={100} value={Math.round(brushHardness * 100)} onChange={(e) => useImageEditorStore.getState().setBrushHardness(Number(e.target.value) / 100)} className="w-24 cursor-pointer" />
+            <LiquidSlider size="sm" min={0} max={100} value={Math.round(brushHardness * 100)} onChange={(e) => useImageEditorStore.getState().setBrushHardness(Number(e.target.value) / 100)} className="w-24" />
             <span className="w-7 text-[var(--text-primary)]">{Math.round(brushHardness * 100)}%</span>
           </label>
         </div>

@@ -1,9 +1,5 @@
 /* ─── Image Editor — component styles ───────────────────────────────────── */
 
-.image-editor input[type='range'] {
-  accent-color: var(--accent);
-}
-
 .image-editor select option {
   background-color: #303030;
   color: #faf8f1;

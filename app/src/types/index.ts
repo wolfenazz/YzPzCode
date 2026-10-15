@@ -3,9 +3,9 @@ export type AgentType = "claude" | "codex" | "antigravity" | "opencode" | "curso
 export type ToolCliType = "gh" | "stripe" | "supabase" | "valyu" | "posthog" | "elevenlabs" | "ramp" | "gws" | "agentmail" | "vercel";
 
 export type CliType = AgentType | ToolCliType;
-export type WorkspaceView = "terminal" | "extensions" | "editor" | "browser" | "writing" | "presentation" | "sheets";
+export type WorkspaceView = "terminal" | "extensions" | "editor" | "browser" | "writing" | "presentation" | "sheets" | "design";
 /** What a workspace is for. Undefined on older saved workspaces, which are coding ones. */
-export type WorkspaceKind = "coding" | "writing" | "presentation" | "sheets";
+export type WorkspaceKind = "coding" | "writing" | "presentation" | "sheets" | "design";
 export type ThemeMode = "light" | "dark" | "claude" | "yzpz" | "system" | "custom";
 
 export type CursorStyleId =
@@ -125,6 +125,17 @@ export interface WorkspaceLightRaysSettings {
 
 export interface ImageEditorWorkspaceState {
   path: string | null;
+}
+
+/** Renderer state behind the Hardware acceleration toggle in Appearance settings. */
+export interface HardwareAccelerationState {
+  /** The stored preference; it applies on the next launch. */
+  enabled: boolean;
+  /** What the running session renders with. */
+  active: boolean;
+  /** Whether the platform can turn the GPU renderer on or off. */
+  supported: boolean;
+  requiresRestart: boolean;
 }
 
 export type AgentTaskStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
@@ -898,4 +909,101 @@ export interface DeviceSkin {
   background: string | null;
   mask: string | null;
   overlay: string | null;
+}
+
+// ── Skills market (mirrors app/src-tauri/src/skills/types.rs, camelCase) ────
+
+export interface SkillSummary {
+  id: string;
+  slug: string;
+  name: string;
+  source: string;
+  installs: number;
+  stars?: number | null;
+  sourceType: string;
+  installUrl: string | null;
+  url: string;
+  isDuplicate?: boolean | null;
+}
+
+export interface SkillListPagination {
+  page: number;
+  perPage: number;
+  total: number;
+  hasMore: boolean;
+}
+
+export interface SkillListResponse {
+  data: SkillSummary[];
+  pagination: SkillListPagination;
+}
+
+export interface SkillSearchResponse {
+  data: SkillSummary[];
+  query: string;
+  searchType: string;
+  count: number;
+}
+
+export interface SkillFile {
+  path: string;
+  contents: string;
+}
+
+export interface SkillDetail {
+  id: string;
+  source: string;
+  slug: string;
+  installs: number;
+  stars?: number | null;
+  hash: string | null;
+  files: SkillFile[] | null;
+}
+
+export interface SkillAuditEntry {
+  provider: string;
+  slug: string;
+  status: string;
+  summary: string;
+  auditedAt: string;
+  riskLevel: string | null;
+  categories: string[] | null;
+}
+
+export interface SkillAuditResponse {
+  id: string;
+  source: string;
+  slug: string;
+  audits: SkillAuditEntry[];
+}
+
+export interface InstalledSkill {
+  name: string;
+  agent: string;
+  scope: string;
+  path: string;
+}
+
+export interface InstalledSkillsResponse {
+  project: InstalledSkill[];
+  global: InstalledSkill[];
+}
+
+export interface InstallSkillRequest {
+  source: string;
+  skill?: string | null;
+  agents: string[];
+  scope: string;
+  workspacePath?: string | null;
+  useCopy: boolean;
+}
+
+export type SkillInstallStage = 'queued' | 'downloading' | 'verifying' | 'completed' | 'failed';
+
+export interface SkillInstallProgress {
+  skillId: string;
+  source: string;
+  stage: SkillInstallStage;
+  message: string;
+  percent?: number | null;
 }

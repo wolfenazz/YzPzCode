@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { relaunch } from '@tauri-apps/plugin-process';
 import {
+  ArrowClockwise,
   ArrowsOutLineHorizontal,
   Check,
+  Cpu,
   CursorClick,
   Desktop,
   DiscordLogo,
   ImageSquare,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
+  Drop,
   Moon,
   Palette,
   Rows,
@@ -24,7 +28,7 @@ import { SettingsSetupBackground } from './SettingsSetupBackground';
 import { SettingsCustomThemes } from './SettingsCustomThemes';
 import { ThemeEditor } from '../theme/ThemeEditor';
 import { createCustomTheme, uniqueThemeName } from '../../../utils/customTheme';
-import type { CursorSize, CursorStyleId, CustomTheme, ThemeMode } from '../../../types';
+import type { CursorSize, CursorStyleId, CustomTheme, HardwareAccelerationState, ThemeMode } from '../../../types';
 import { CursorPreview } from '../../common/cursor/CursorPreview';
 import { CURSOR_STYLES } from '../../common/cursor/cursorStyles';
 import claudeLogo from '../../../assets/claude.png';
@@ -154,6 +158,8 @@ export const SettingsAppearance: React.FC = () => {
     setAppZoom,
     animationsEnabled,
     setAnimationsEnabled,
+    liquidGlass,
+    setLiquidGlass,
     themeMode,
     setThemeMode,
     customThemes,
@@ -171,6 +177,13 @@ export const SettingsAppearance: React.FC = () => {
   const [tab, setTab] = useState<AppearanceTab>('theme');
   const [editor, setEditor] = useState<ThemeEditorState | null>(null);
   const [discordError, setDiscordError] = useState<string | null>(null);
+  const [acceleration, setAcceleration] = useState<HardwareAccelerationState>({
+    enabled: true,
+    active: true,
+    supported: true,
+    requiresRestart: false,
+  });
+  const [accelerationBusy, setAccelerationBusy] = useState(false);
 
   const changeAppZoom = (delta: number): void => {
     setAppZoom(Math.min(APP_ZOOM_MAX, Math.max(APP_ZOOM_MIN, appZoom + delta)));
@@ -207,6 +220,29 @@ export const SettingsAppearance: React.FC = () => {
       invoke('disable_discord_presence').catch(() => {});
     }
   }, [discordRichPresence]);
+
+  useEffect(() => {
+    invoke<HardwareAccelerationState>('get_hardware_acceleration')
+      .then(setAcceleration)
+      .catch(() => undefined);
+  }, []);
+
+  /** Discord-style: the choice is saved now and the renderer changes on restart. */
+  const changeHardwareAcceleration = async (value: boolean): Promise<void> => {
+    setAccelerationBusy(true);
+    try {
+      await invoke('set_hardware_acceleration', { enabled: value });
+      setAcceleration((current) => ({
+        ...current,
+        enabled: value,
+        requiresRestart: value !== current.active,
+      }));
+    } catch {
+      // Leave the switch where it was; the preference file could not be written.
+    } finally {
+      setAccelerationBusy(false);
+    }
+  };
 
   const chooseCursorStyle = (style: CursorStyleId): void => {
     setCursorStyle(style);
@@ -368,6 +404,13 @@ export const SettingsAppearance: React.FC = () => {
 
           <SettingsGroup title="Motion and pointer">
             <ToggleRow
+              checked={liquidGlass}
+              description="Frosted, translucent buttons, menus, dialogs and bars with a light that follows the pointer."
+              icon={<Drop size={16} aria-hidden="true" />}
+              label="Liquid glass"
+              onChange={setLiquidGlass}
+            />
+            <ToggleRow
               checked={animationsEnabled}
               description="Transitions and animated effects throughout the app."
               icon={<Sparkle size={16} aria-hidden="true" />}
@@ -381,6 +424,49 @@ export const SettingsAppearance: React.FC = () => {
               label="Custom cursor"
               onChange={setCustomCursor}
             />
+          </SettingsGroup>
+
+          <SettingsGroup title="Performance">
+            {acceleration.supported ? (
+              <>
+                <ToggleRow
+                  checked={acceleration.enabled}
+                  description="Draw the interface with the GPU for smoother scrolling, animations and effects. Turn it off if you see visual glitches or flickering."
+                  disabled={accelerationBusy}
+                  icon={<Cpu size={16} aria-hidden="true" />}
+                  label="Hardware acceleration"
+                  onChange={(value) => void changeHardwareAcceleration(value)}
+                />
+                {acceleration.requiresRestart && (
+                  <SettingsBlock>
+                    <Notice
+                      action={
+                        <Button
+                          icon={ArrowClockwise}
+                          onClick={() => {
+                            relaunch().catch(() => undefined);
+                          }}
+                          variant="primary"
+                        >
+                          Restart now
+                        </Button>
+                      }
+                      tone="warning"
+                    >
+                      Hardware acceleration will be {acceleration.enabled ? 'enabled' : 'disabled'} after a restart.
+                    </Notice>
+                  </SettingsBlock>
+                )}
+              </>
+            ) : (
+              <SettingsRow
+                description="This build renders with the system default; the GPU toggle is available on Windows."
+                icon={<Cpu size={16} aria-hidden="true" />}
+                label="Hardware acceleration"
+              >
+                <Badge>Windows only</Badge>
+              </SettingsRow>
+            )}
           </SettingsGroup>
 
           <SettingsGroup title="Cursor style" description="Pick a pointer. Choosing one turns the custom cursor on; hover a card to see how it reacts to buttons.">

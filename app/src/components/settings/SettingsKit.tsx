@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import type { ButtonHTMLAttributes, CSSProperties, ElementType, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ElementType, ReactNode } from 'react';
 import {
   CaretDown,
   CheckCircle,
@@ -9,6 +9,7 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import './settings.css';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'accent';
 
@@ -221,10 +222,9 @@ interface SliderProps {
 }
 
 export const Slider = ({ value, min, max, step = 1, onChange, format, label, disabled }: SliderProps) => {
-  const fill = max > min ? ((value - min) / (max - min)) * 100 : 0;
   return (
     <div className="st-slider">
-      <input
+      <LiquidSlider
         aria-label={label}
         className="st-slider__input"
         disabled={disabled}
@@ -232,8 +232,6 @@ export const Slider = ({ value, min, max, step = 1, onChange, format, label, dis
         min={min}
         onChange={(event) => onChange(Number(event.target.value))}
         step={step}
-        style={{ '--st-fill': `${fill}%` } as CSSProperties}
-        type="range"
         value={value}
       />
       <output className="st-slider__value">{format ? format(value) : value}</output>

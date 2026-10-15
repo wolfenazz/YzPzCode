@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import { ArrowUp, CaretRight, CaretUpDown, Stop } from '@phosphor-icons/react';
 import './studio.css';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 interface InspectorProps {
   label: string;
@@ -155,7 +156,7 @@ export const Toggle: React.FC<{ label: string; hint?: string; checked: boolean; 
 export const Slider: React.FC<{ label: string; value: number; display?: string; min?: number; max?: number; step?: number; onChange: (value: number) => void }> = ({ label, value, display, min = 0, max = 100, step = 1, onChange }) => (
   <label className="sx-range">
     <span className="sx-range__head"><span>{label}</span>{display && <span className="sx-range__value">{display}</span>}</span>
-    <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
+    <LiquidSlider min={min} max={max} step={step} value={value} onChange={(event) => onChange(Number(event.target.value))} />
   </label>
 );
 

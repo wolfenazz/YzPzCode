@@ -428,7 +428,10 @@ export const SlideStage: React.FC<SlideStageProps> = ({ svg, canvas, width, reso
     committed.current = false;
     const editor = editorRef.current;
     if (!editor || !editing) return;
-    editor.focus();
+    // preventScroll: focusing inside the clipped stage must not scroll it and shift the editor off the text.
+    editor.focus({ preventScroll: true });
+    const stageEl = editor.closest('.ps-stage');
+    if (stageEl) { stageEl.scrollTop = 0; stageEl.scrollLeft = 0; }
     const range = document.createRange();
     range.selectNodeContents(editor);
     if (editing.kind === 'model' && editTarget && !editTarget.model.tx) range.collapse(false);

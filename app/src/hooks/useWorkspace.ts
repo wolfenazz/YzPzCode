@@ -304,7 +304,7 @@ export const useWorkspace = () => {
     }
     openWorkspace(workspace);
     if (studio) {
-      useAppStore.getState().setActiveView(workspaceKind === 'presentation' ? 'presentation' : workspaceKind === 'sheets' ? 'sheets' : 'writing');
+      useAppStore.getState().setActiveView(workspaceKind === 'presentation' ? 'presentation' : workspaceKind === 'sheets' ? 'sheets' : workspaceKind === 'design' ? 'design' : 'writing');
     } else if (selectedExtensionIds.length > 0) {
       useAppStore.getState().setActiveView('extensions');
     } else if (selectedLayout.sessions === 0) {

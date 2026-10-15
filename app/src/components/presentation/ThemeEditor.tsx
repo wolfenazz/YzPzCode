@@ -13,6 +13,7 @@ import { FontOptions } from '../studio/FontOptions';
 import type { DeckSize, DeckTheme, ThemePalette } from '../../utils/presentation/types';
 import { slugify } from '../../utils/writing/document';
 import { SlideRenderer } from './SlideRenderer';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 interface ThemeEditorProps {
   theme: DeckTheme;
@@ -153,11 +154,11 @@ export const ThemeEditor: React.FC<ThemeEditorProps> = ({ theme, size, canApply,
           <div className="pr-grid-2">
             <label className="pr-field">
               <span className="pr-field__label">Title size · {draft.titleSize} pt</span>
-              <input type="range" className="pr-range" min={24} max={48} value={draft.titleSize} onChange={(event) => setDraft({ ...draft, titleSize: Number(event.target.value) })} />
+              <LiquidSlider className="pr-range" min={24} max={48} value={draft.titleSize} onChange={(event) => setDraft({ ...draft, titleSize: Number(event.target.value) })} />
             </label>
             <label className="pr-field">
               <span className="pr-field__label">Body size · {draft.bodySize} pt</span>
-              <input type="range" className="pr-range" min={14} max={28} value={draft.bodySize} onChange={(event) => setDraft({ ...draft, bodySize: Number(event.target.value) })} />
+              <LiquidSlider className="pr-range" min={14} max={28} value={draft.bodySize} onChange={(event) => setDraft({ ...draft, bodySize: Number(event.target.value) })} />
             </label>
           </div>
           <div className="pr-field">

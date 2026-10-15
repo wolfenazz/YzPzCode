@@ -154,7 +154,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({ isWindows, onDocsClick
       <AppChrome
         center={(
           <nav className="chrome-tabs" aria-label="Workspaces">
-            <div className="chrome-tabs__scroll" role="tablist">
+            <div className="chrome-tabs__scroll" role="tablist" data-glass-reorder="workspaces">
               {openWorkspaces.map((workspace) => (
                 <WorkspaceTab
                   key={workspace.id}

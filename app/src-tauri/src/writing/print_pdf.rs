@@ -129,23 +129,27 @@ async fn print_job(app: &AppHandle, job: &str, output_path: &str) -> Result<bool
         "localhost".to_string()
     };
 
-    let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::CustomProtocol(job_url(job)?))
-        .title("Exporting PDF")
-        .visible(false)
-        .skip_taskbar(true)
-        .focused(false)
-        .decorations(false)
-        .inner_size(900.0, 1200.0)
-        .on_navigation(move |url| url.host_str() == Some(expected_host.as_str()))
-        .on_page_load(move |_window, payload| {
-            if payload.event() == PageLoadEvent::Finished {
-                if let Some(tx) = loaded_tx.lock().ok().and_then(|mut slot| slot.take()) {
-                    let _ = tx.send(());
-                }
+    let window = crate::hardware_acceleration::apply_to_webview_window(WebviewWindowBuilder::new(
+        app,
+        &label,
+        WebviewUrl::CustomProtocol(job_url(job)?),
+    ))
+    .title("Exporting PDF")
+    .visible(false)
+    .skip_taskbar(true)
+    .focused(false)
+    .decorations(false)
+    .inner_size(900.0, 1200.0)
+    .on_navigation(move |url| url.host_str() == Some(expected_host.as_str()))
+    .on_page_load(move |_window, payload| {
+        if payload.event() == PageLoadEvent::Finished {
+            if let Some(tx) = loaded_tx.lock().ok().and_then(|mut slot| slot.take()) {
+                let _ = tx.send(());
             }
-        })
-        .build()
-        .map_err(|e| format!("Could not open the print view: {e}"))?;
+        }
+    })
+    .build()
+    .map_err(|e| format!("Could not open the print view: {e}"))?;
 
     let outcome = async {
         tokio::time::timeout(LOAD_TIMEOUT, loaded_rx)

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
-import { ArrowRight, FileArrowUp, FileText, FolderSimple, Paperclip, SlidersHorizontal, Stop, Trash, X } from '@phosphor-icons/react';
+import { FileArrowUp, FileText, FolderSimple, SlidersHorizontal, Trash, X } from '@phosphor-icons/react';
 import type { DeckRun } from '../../stores/presentationSessionStore';
 import type { FileEntry } from '../../types';
 import { localFileUrl } from '../../utils/mediaFiles';
@@ -13,8 +13,8 @@ import { fileName, joinPath, parentPath } from '../../utils/writing/document';
 import { SOURCE_EXTENSIONS } from '../../utils/writing/sources';
 import type { EngineChoice } from '../../utils/writing/types';
 import { relativeTime } from '../writing/ui';
+import { StudioPromptBar } from '../composer/StudioPromptBar';
 import { IMAGE_EXTENSIONS, saveDroppedFile, scanFolderPictures } from './designAssets';
-import { EnginePicker } from './EnginePicker';
 import { SvgSlide } from './SvgSlide';
 import type { DeckListing } from './useDeckDocument';
 
@@ -144,13 +144,11 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
-  const textarea = useRef<HTMLTextAreaElement>(null);
   const dragDepth = useRef(0);
   /** Paths already looked up on disk: what each one is. */
   const lookedUp = useRef(new Map<string, 'folder' | 'file' | 'none'>());
   /** Folders the user removed after they were found in the description. */
   const dismissed = useRef(new Set<string>());
-  const ready = prompt.trim().length >= 8 && !busy;
   const pictureCount = files.filter((file) => file.kind === 'image').length + folders.reduce((sum, folder) => sum + folder.pictures.length, 0);
 
   useEffect(() => {
@@ -158,14 +156,6 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
     const timer = window.setInterval(() => setNow(Date.now()), 500);
     return () => window.clearInterval(timer);
   }, [busy]);
-
-  // The box grows with the description.
-  useEffect(() => {
-    const element = textarea.current;
-    if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${Math.min(320, Math.max(132, element.scrollHeight))}px`;
-  }, [prompt]);
 
   const addPaths = useCallback(async (paths: string[]): Promise<void> => {
     const fresh = paths.filter((path) => !files.some((file) => file.path === path)).slice(0, Math.max(0, MAX_FILES - files.length));
@@ -265,20 +255,22 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
     }
   };
 
-  const submit = (): void => {
-    if (!ready) return;
+  const submit = (draft = prompt): void => {
+    const value = draft.trim();
+    if (busy) return;
+    if (value.length < 8) {
+      setFileError('Describe it a little more before designing.');
+      return;
+    }
     const fromFolders = folders.flatMap((folder) => folder.pictures.map((path): ComposerFile => ({ path, name: fileName(path), kind: 'image', use: folder.use })));
     const all = [...files, ...fromFolders.filter((file) => !files.some((entry) => entry.path.toLowerCase() === file.path.toLowerCase()))];
-    onCreate({ prompt: prompt.trim(), files: all, slideCount, size, language: language.trim(), animate });
+    onCreate({ prompt: value, files: all, slideCount, size, language: language.trim(), animate });
   };
 
   const onKeyDown = (event: React.KeyboardEvent): void => {
-    // Typing in the composer never reaches the workspace shortcuts.
+    // Typing in the composer never reaches the workspace shortcuts. Enter is
+    // the bar's own: it sends, or opens the picker it is part of.
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) event.stopPropagation();
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      submit();
-    }
   };
 
   const designing = busy || run?.phase === 'outline';
@@ -313,16 +305,19 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
           </button>
         </header>
 
-        <label className="pd-home__ask" htmlFor="pd-composer-input">What is it for, and who will see it?</label>
+        <span className="pd-home__ask">What is it for, and who will see it?</span>
         <div className="pd-composer" data-busy={designing || undefined}>
-          <textarea dir="auto"
-            id="pd-composer-input"
-            ref={textarea}
-            className="pd-composer__input"
-            value={prompt}
-            disabled={designing}
+          <StudioPromptBar
+            engine={engine}
+            onEngineChange={onEngine}
             placeholder="A 10-minute talk for new hires about how our support team works: the three tiers, response times, and the tools they will use on day one. Friendly and clear."
-            onChange={(event) => setPrompt(event.target.value)}
+            inputLabel="What is it for, and who will see it?"
+            busy={designing}
+            draft={prompt}
+            onDraftChange={setPrompt}
+            onSend={submit}
+            onStop={onCancel}
+            onAttach={() => void pick()}
             onPaste={(event) => {
               const pasted = Array.from(event.clipboardData.files);
               if (pasted.length > 0) {
@@ -330,6 +325,21 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                 void addFiles(pasted);
               }
             }}
+            extras={
+              <div className="pd-composer__opts">
+                <button type="button" className="pd-btn pd-btn--ghost" disabled={designing || pictureCount >= MAX_DECK_PICTURES} onClick={() => void pickFolder()} title="Use the pictures in a folder (its subfolders too). You can also write a folder path in the description.">
+                  <FolderSimple size={14} /> Add folder
+                </button>
+                <button type="button" className={`pd-btn pd-btn--ghost${showOptions ? ' is-on' : ''}`} aria-expanded={showOptions} disabled={designing} onClick={() => setShowOptions((value) => !value)}>
+                  <SlidersHorizontal size={14} /> {summary}
+                </button>
+              </div>
+            }
+            background="var(--pr-panel)"
+            color="var(--pr-ink)"
+            menuBackground="color-mix(in oklab, var(--pr-panel) 90%, var(--pr-ink))"
+            sparkColor="var(--pr-accent)"
+            width="100%"
             autoFocus
           />
 
@@ -395,31 +405,8 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
                 <span>Language</span>
                 <input dir="auto" className="pd-control" value={language} placeholder="Same as the description" onChange={(event) => setLanguage(event.target.value)} />
               </label>
-              <div className="pd-options__engine">
-                <EnginePicker value={engine} onChange={onEngine} />
-              </div>
             </div>
           )}
-
-          <div className="pd-composer__bar">
-            <button type="button" className="pd-btn pd-btn--ghost" disabled={designing || files.length >= MAX_FILES} onClick={() => void pick()} title="Documents become the content; pictures can go on slides or set the look">
-              <Paperclip size={14} /> Add files
-            </button>
-            <button type="button" className="pd-btn pd-btn--ghost" disabled={designing || pictureCount >= MAX_DECK_PICTURES} onClick={() => void pickFolder()} title="Use the pictures in a folder (its subfolders too). You can also write a folder path in the description.">
-              <FolderSimple size={14} /> Add folder
-            </button>
-            <button type="button" className={`pd-btn pd-btn--ghost${showOptions ? ' is-on' : ''}`} aria-expanded={showOptions} disabled={designing} onClick={() => setShowOptions((value) => !value)}>
-              <SlidersHorizontal size={14} /> {summary}
-            </button>
-            <span className="pd-composer__spacer" />
-            {designing ? (
-              <button type="button" className="pd-btn" onClick={onCancel}><Stop size={12} weight="fill" /> Stop</button>
-            ) : (
-              <button type="button" className="pd-btn pd-btn--primary" disabled={!ready} onClick={submit} title="Ctrl+Enter">
-                Design deck <ArrowRight size={13} weight="bold" />
-              </button>
-            )}
-          </div>
 
           {designing && (
             <div className="pd-composer__status" role="status" aria-live="polite">
@@ -439,7 +426,7 @@ export const DesignComposer: React.FC<DesignComposerProps> = ({ workspaceName, w
               <span className="pd-examples">
                 <span className="pd-examples__label">Try</span>
                 {EXAMPLES.map((example) => (
-                  <button key={example.label} type="button" className="pd-examples__item" title={example.prompt} onClick={() => { setPrompt(example.prompt); textarea.current?.focus(); }}>
+                  <button key={example.label} type="button" className="pd-examples__item" title={example.prompt} onClick={() => setPrompt(example.prompt)}>
                     {example.label}
                   </button>
                 ))}

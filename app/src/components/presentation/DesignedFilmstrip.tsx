@@ -6,6 +6,7 @@ import { Check, EyeSlash, ListChecks, Plus, Sparkle } from '@phosphor-icons/reac
 import type { DesignedSlide } from '../../utils/presentation/designTypes';
 import type { SlideRunStatus } from '../../utils/presentation/types';
 import { SvgSlide } from './SvgSlide';
+import { GenerationAura } from '../studio/GenerationAura';
 
 const THUMB = 168;
 
@@ -71,6 +72,7 @@ interface ThumbProps {
       <div className="pr-thumb__frame">
         <SvgSlide svg={slide.svg} width={THUMB} canvas={canvas} resolveHref={resolveHref} placeholder={{ title: slide.title, busy, failed: status === 'failed' }} />
         {busy && slide.svg && <span className="pr-thumb__veil" />}
+        <GenerationAura inside compact radius={5} active={status === 'writing'} failed={status === 'failed' || status === 'cancelled'} />
         {slide.hidden && <span className="pr-thumb__badge" title="Hidden in the slideshow"><EyeSlash size={11} /></span>}
         <button
           type="button"

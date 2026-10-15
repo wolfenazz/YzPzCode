@@ -2471,21 +2471,24 @@ impl BrowserManager {
             let manager = self.clone();
             let manager_for_popup = self.clone();
 
-            let builder = WebviewBuilder::new(label.clone(), WebviewUrl::External(parsed_url))
-                .initialization_script(BROWSER_INIT_SCRIPT)
-                .accept_first_mouse(true)
-                .on_new_window(move |url, _| {
-                    manager_for_popup.open_in_new_tab(&workspace_for_popup, &url);
-                    tauri::webview::NewWindowResponse::Deny
-                })
-                .on_page_load(move |webview, payload| {
-                    let _ = manager.handle_page_load(
-                        workspace_id_owned.clone(),
-                        webview,
-                        payload.url().to_string(),
-                        payload.event(),
-                    );
-                });
+            let builder = crate::hardware_acceleration::apply_to_webview(WebviewBuilder::new(
+                label.clone(),
+                WebviewUrl::External(parsed_url),
+            ))
+            .initialization_script(BROWSER_INIT_SCRIPT)
+            .accept_first_mouse(true)
+            .on_new_window(move |url, _| {
+                manager_for_popup.open_in_new_tab(&workspace_for_popup, &url);
+                tauri::webview::NewWindowResponse::Deny
+            })
+            .on_page_load(move |webview, payload| {
+                let _ = manager.handle_page_load(
+                    workspace_id_owned.clone(),
+                    webview,
+                    payload.url().to_string(),
+                    payload.event(),
+                );
+            });
 
             let webview = window.add_child(
                 builder,
@@ -2674,31 +2677,32 @@ impl BrowserManager {
             let manager_for_popup = self.clone();
             let workspace_for_popup = workspace_id.to_string();
 
-            let window = WebviewWindowBuilder::new(
-                &app,
-                popout_label.clone(),
-                WebviewUrl::External(parsed_url),
-            )
-            .title("YzPzCode Browser")
-            .inner_size(1280.0, 820.0)
-            .min_inner_size(480.0, 360.0)
-            .resizable(true)
-            .decorations(true)
-            .accept_first_mouse(true)
-            .initialization_script(BROWSER_INIT_SCRIPT)
-            .on_new_window(move |url, _| {
-                manager_for_popup.open_in_new_tab(&workspace_for_popup, &url);
-                tauri::webview::NewWindowResponse::Deny
-            })
-            .on_page_load(move |window, payload| {
-                let _ = manager_for_load.handle_page_load(
-                    workspace_for_load.clone(),
-                    window.as_ref().clone(),
-                    payload.url().to_string(),
-                    payload.event(),
-                );
-            })
-            .build()?;
+            let window =
+                crate::hardware_acceleration::apply_to_webview_window(WebviewWindowBuilder::new(
+                    &app,
+                    popout_label.clone(),
+                    WebviewUrl::External(parsed_url),
+                ))
+                .title("YzPzCode Browser")
+                .inner_size(1280.0, 820.0)
+                .min_inner_size(480.0, 360.0)
+                .resizable(true)
+                .decorations(true)
+                .accept_first_mouse(true)
+                .initialization_script(BROWSER_INIT_SCRIPT)
+                .on_new_window(move |url, _| {
+                    manager_for_popup.open_in_new_tab(&workspace_for_popup, &url);
+                    tauri::webview::NewWindowResponse::Deny
+                })
+                .on_page_load(move |window, payload| {
+                    let _ = manager_for_load.handle_page_load(
+                        workspace_for_load.clone(),
+                        window.as_ref().clone(),
+                        payload.url().to_string(),
+                        payload.event(),
+                    );
+                })
+                .build()?;
 
             window.set_zoom(zoom_factor)?;
             window.on_window_event(move |event| {

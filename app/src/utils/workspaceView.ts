@@ -5,11 +5,11 @@ import type { WorkspaceConfig, WorkspaceView } from '../types';
 
 type KindOnly = Pick<WorkspaceConfig, 'kind'> | null | undefined;
 
-const isStudio = (workspace: KindOnly): boolean => workspace?.kind === 'writing' || workspace?.kind === 'presentation' || workspace?.kind === 'sheets';
+const isStudio = (workspace: KindOnly): boolean => workspace?.kind === 'writing' || workspace?.kind === 'presentation' || workspace?.kind === 'sheets' || workspace?.kind === 'design';
 
 /** The view a workspace falls back to when it has nothing else to show. */
 export const homeViewFor = (workspace: KindOnly): WorkspaceView =>
-  workspace?.kind === 'writing' ? 'writing' : workspace?.kind === 'presentation' ? 'presentation' : workspace?.kind === 'sheets' ? 'sheets' : 'terminal';
+  workspace?.kind === 'writing' ? 'writing' : workspace?.kind === 'presentation' ? 'presentation' : workspace?.kind === 'sheets' ? 'sheets' : workspace?.kind === 'design' ? 'design' : 'terminal';
 
 /**
  * The view a workspace reopens on: the one it was left on, when that view still

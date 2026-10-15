@@ -1577,16 +1577,18 @@ impl ExtensionHostManager {
                 .get_window("main")
                 .context("Main window is unavailable")?;
             let popup_app = app.clone();
-            let builder = tauri::webview::WebviewBuilder::new(&label, WebviewUrl::External(url))
-                .data_directory(browser_data)
-                .accept_first_mouse(true)
-                .on_new_window(move |url, _| {
-                    if matches!(url.scheme(), "http" | "https") {
-                        use tauri_plugin_opener::OpenerExt;
-                        let _ = popup_app.opener().open_url(url.as_str(), None::<&str>);
-                    }
-                    tauri::webview::NewWindowResponse::Deny
-                });
+            let builder = crate::hardware_acceleration::apply_to_webview(
+                tauri::webview::WebviewBuilder::new(&label, WebviewUrl::External(url)),
+            )
+            .data_directory(browser_data)
+            .accept_first_mouse(true)
+            .on_new_window(move |url, _| {
+                if matches!(url.scheme(), "http" | "https") {
+                    use tauri_plugin_opener::OpenerExt;
+                    let _ = popup_app.opener().open_url(url.as_str(), None::<&str>);
+                }
+                tauri::webview::NewWindowResponse::Deny
+            });
             window.add_child(
                 builder,
                 LogicalPosition::new(bounds.x, bounds.y),

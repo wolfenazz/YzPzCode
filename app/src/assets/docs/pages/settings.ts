@@ -4,7 +4,7 @@ Open Settings with \`Ctrl+,\` or from the settings button in the workspace heade
 
 | Group | Section | What You Configure |
 |-------|---------|-------------------|
-| **General** | **Appearance** | Theme, accent color, density, animations, cursor, custom themes |
+| **General** | **Appearance** | Theme, accent color, density, animations, cursor, custom themes, hardware acceleration |
 | **General** | **Terminal** | Font, colors, cursor, scrollback, behavior |
 | **General** | **Editor** | Font, tab size, formatting, display options |
 | **General** | **Workspace** | Auto-save, minimap, defaults, IDE launch |
@@ -29,6 +29,7 @@ Open Settings with \`Ctrl+,\` or from the settings button in the workspace heade
 - **UI density**: Compact, Comfortable, or Spacious
 - **Animations**: Turn all animations on or off (accessibility)
 - **Custom cursor**: Toggle the animated cursor
+- **Hardware acceleration**: Draw the interface with the GPU (Windows). Turn it off if you see visual glitches or flickering; the app restarts to apply it
 
 ## Terminal
 

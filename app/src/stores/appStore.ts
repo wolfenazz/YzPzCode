@@ -215,6 +215,8 @@ interface AppState {
   /** Global UI scale for the app chrome and workspace surfaces, stored as a percentage. */
   appZoom: number;
   animationsEnabled: boolean;
+  /** iOS 26 style glass on buttons, menus, dialogs and bars. */
+  liquidGlass: boolean;
   workspaceBackground: WorkspaceBackground;
   workspaceLightRays: WorkspaceLightRaysSettings;
   workspaceAuroraPalette: WorkspaceAuroraPalette;
@@ -261,6 +263,7 @@ interface AppState {
   defaultLayoutTemplate: string;
   defaultWorkspaceDirectory: string;
   agentTimeout: number;
+  skillsApiKey: string;
   launchIdeOnWorkspaceCreation: boolean;
   autoCheckUpdates: boolean;
   autoDownloadUpdates: boolean;
@@ -287,6 +290,7 @@ interface AppState {
   updateAgentAllocation: (agent: AgentType, count: number) => void;
   markWorkspaceOpened: (workspaceId: string) => void;
   reorderSessions: (fromIndex: number, toIndex: number) => void;
+  reorderOpenWorkspaces: (fromIndex: number, toIndex: number) => void;
   clearCurrentWorkspace: () => void;
   setAutoSave: (enabled: boolean) => void;
   setAutoSaveDelay: (delay: number) => void;
@@ -298,6 +302,7 @@ interface AppState {
   setUiDensity: (density: "compact" | "comfortable" | "spacious") => void;
   setAppZoom: (zoom: number) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
+  setLiquidGlass: (enabled: boolean) => void;
   setWorkspaceBackground: (background: WorkspaceBackground) => void;
   setWorkspaceLightRays: (settings: Partial<WorkspaceLightRaysSettings>) => void;
   setWorkspaceAuroraPalette: (palette: WorkspaceAuroraPalette) => void;
@@ -347,6 +352,7 @@ interface AppState {
   setDefaultLayoutTemplate: (template: string) => void;
   setDefaultWorkspaceDirectory: (path: string) => void;
   setAgentTimeout: (timeout: number) => void;
+  setSkillsApiKey: (key: string) => void;
   setLaunchIdeOnWorkspaceCreation: (enabled: boolean) => void;
   setAutoCheckUpdates: (enabled: boolean) => void;
   setAutoDownloadUpdates: (enabled: boolean) => void;
@@ -551,6 +557,7 @@ export const useAppStore = create<AppState>()(
       uiDensity: "comfortable",
       appZoom: 100,
       animationsEnabled: true,
+      liquidGlass: true,
       workspaceBackground: 'aurora',
       workspaceLightRays: { ...DEFAULT_LIGHT_RAYS },
       workspaceAuroraPalette: 'gemini',
@@ -594,6 +601,7 @@ export const useAppStore = create<AppState>()(
       defaultLayoutTemplate: "custom",
       defaultWorkspaceDirectory: "",
       agentTimeout: 300,
+      skillsApiKey: "",
       launchIdeOnWorkspaceCreation: true,
       autoCheckUpdates: true,
       autoDownloadUpdates: false,
@@ -738,6 +746,15 @@ export const useAppStore = create<AppState>()(
               : w
           ),
         })),
+      reorderOpenWorkspaces: (fromIndex, toIndex) =>
+        set((state) => {
+          const list = state.openWorkspaces;
+          if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= list.length || toIndex < 0 || toIndex >= list.length) return state;
+          const next = [...list];
+          const [moved] = next.splice(fromIndex, 1);
+          next.splice(toIndex, 0, moved);
+          return { openWorkspaces: next };
+        }),
       reorderSessions: (fromIndex, toIndex) =>
         set((state) => {
           const wsId = state.activeWorkspaceId;
@@ -778,6 +795,7 @@ export const useAppStore = create<AppState>()(
       setUiDensity: (density) => set({ uiDensity: density }),
       setAppZoom: (zoom) => set({ appZoom: Math.min(140, Math.max(80, Math.round(zoom / 10) * 10)) }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
+      setLiquidGlass: (enabled) => set({ liquidGlass: enabled }),
       setWorkspaceBackground: (background) => set({ workspaceBackground: background }),
       setWorkspaceLightRays: (settings) => set((state) => ({
         workspaceLightRays: normalizeLightRays({ ...state.workspaceLightRays, ...settings }),
@@ -871,6 +889,7 @@ export const useAppStore = create<AppState>()(
       setDefaultLayoutTemplate: (template) => set({ defaultLayoutTemplate: template }),
       setDefaultWorkspaceDirectory: (path) => set({ defaultWorkspaceDirectory: path }),
       setAgentTimeout: (timeout) => set({ agentTimeout: timeout }),
+      setSkillsApiKey: (key) => set({ skillsApiKey: key }),
       setLaunchIdeOnWorkspaceCreation: (enabled) => set({ launchIdeOnWorkspaceCreation: enabled }),
       setAutoCheckUpdates: (enabled) => set({ autoCheckUpdates: enabled }),
       setAutoDownloadUpdates: (enabled) => set({ autoDownloadUpdates: enabled }),
@@ -2013,6 +2032,7 @@ export const useAppStore = create<AppState>()(
           uiDensity: state.uiDensity,
           appZoom: state.appZoom,
           animationsEnabled: state.animationsEnabled,
+          liquidGlass: state.liquidGlass,
           workspaceBackground: state.workspaceBackground,
           workspaceLightRays: state.workspaceLightRays,
           workspaceAuroraPalette: state.workspaceAuroraPalette,
@@ -2059,6 +2079,7 @@ export const useAppStore = create<AppState>()(
           defaultLayoutTemplate: state.defaultLayoutTemplate,
           defaultWorkspaceDirectory: state.defaultWorkspaceDirectory,
           agentTimeout: state.agentTimeout,
+          skillsApiKey: state.skillsApiKey,
           launchIdeOnWorkspaceCreation: state.launchIdeOnWorkspaceCreation,
           autoCheckUpdates: state.autoCheckUpdates,
           autoDownloadUpdates: state.autoDownloadUpdates,

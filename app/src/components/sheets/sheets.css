@@ -570,7 +570,7 @@
 .sh-status strong { color: var(--sx-ink); font-weight: 600; }
 .sh-status__note { overflow: hidden; text-overflow: ellipsis; }
 .sh-status__zoom { display: inline-flex; align-items: center; gap: 6px; }
-.sh-status__zoom input[type='range'] { width: 110px; accent-color: var(--accent); }
+.sh-status__zoom .lq-slider { width: 110px; }
 .sh-status__zoom button { display: inline-flex; align-items: center; border: 0; background: transparent; color: var(--sx-ink-soft); cursor: pointer; padding: 2px; border-radius: 4px; }
 .sh-status__zoom button:hover { background: var(--sx-fill-hover); color: var(--sx-ink); }
 .sh-status__percent { min-width: 40px; justify-content: center; font-size: 11.5px; }

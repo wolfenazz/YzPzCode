@@ -174,6 +174,16 @@
   border-top: 1px solid var(--pr-hairline);
 }
 
+/* The studio bar, inside the card. */
+.pd-composer .prompt-bar textarea {
+  min-height: 64px;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+/* Add folder and the options summary, sitting in the bar row. */
+.pd-composer__opts { display: flex; align-items: center; gap: 2px; }
+
 .pd-composer__spacer {
   flex: 1;
 }
@@ -891,6 +901,8 @@
 
 .pd-stage__frame {
   position: relative;
+  /* The generation aura sits behind the slide. */
+  isolation: isolate;
   border-radius: 4px;
   box-shadow: var(--pr-slide-shadow);
 }
@@ -3125,9 +3137,12 @@
   cursor: pointer;
 }
 
-.ps-check input,
-.ps-slider input {
+.ps-check input {
   accent-color: var(--pr-accent);
+}
+
+.ps-slider .lq-slider {
+  width: 100%;
 }
 
 .ps-slider {

@@ -7,6 +7,7 @@ import {
   Code,
   Database,
   Feather,
+  PenNib,
   PresentationChart,
   Table,
   Flask,
@@ -38,6 +39,7 @@ import { SettingsRuns } from './sections/SettingsRuns';
 import { SettingsWriting } from './sections/SettingsWriting';
 import { SettingsPresentation } from './sections/SettingsPresentation';
 import { SettingsSheets } from './sections/SettingsSheets';
+import { SettingsDesign } from './sections/SettingsDesign';
 import './settings.css';
 
 type SettingsSection =
@@ -50,6 +52,7 @@ type SettingsSection =
   | 'writing'
   | 'presentation'
   | 'sheets'
+  | 'design'
   | 'narration'
   | 'ide'
   | 'quickPrompts'
@@ -146,6 +149,13 @@ const GROUPS: SettingsNavGroup[] = [
         description: 'Workbook engines, the assistant language and saving.',
         icon: Table,
         render: () => <SettingsSheets />,
+      },
+      {
+        id: 'design',
+        label: 'Design',
+        description: 'Design engines, the language and saving.',
+        icon: PenNib,
+        render: () => <SettingsDesign />,
       },
       {
         id: 'narration',

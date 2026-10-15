@@ -497,6 +497,7 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
                   onReady={onReady}
                   onChange={documents.scheduleSave}
                   onDispose={documents.saveOnDispose}
+                  sectionOutcomes={session.run?.sectionStatus}
                 />
               </div>
             </div>

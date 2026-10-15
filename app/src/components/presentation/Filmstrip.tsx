@@ -8,6 +8,7 @@ import type { PlanContext } from '../../utils/presentation/render';
 import type { LayoutId, Slide, SlideRunStatus } from '../../utils/presentation/types';
 import { LayoutGrid, Popover } from './LayoutPicker';
 import { SlideRenderer } from './SlideRenderer';
+import { GenerationAura } from '../studio/GenerationAura';
 
 export type SlideCommand = 'duplicate' | 'delete' | 'hide' | 'up' | 'down';
 
@@ -82,6 +83,7 @@ const Thumb = memo(function Thumb({ slide, index, context, selected, status, war
       <div className="pr-thumb__frame">
         <SlideRenderer context={context} slide={slide} index={index} width={THUMB_WIDTH} resolveImage={resolveImage} onMeasure={onMeasure} />
         {(status === 'queued' || status === 'writing') && <span className="pr-thumb__veil" />}
+        <GenerationAura inside compact radius={5} active={status === 'writing'} failed={status === 'failed' || status === 'cancelled'} />
         {slide.hidden && <span className="pr-thumb__badge" title="Hidden in the slideshow"><EyeSlash size={11} /></span>}
         {warned && <span className="pr-thumb__badge pr-thumb__badge--warn" title="Text does not fit"><Warning size={11} weight="fill" /></span>}
       </div>

@@ -356,7 +356,7 @@
   outline: none;
   border-color: var(--ws-strong-line);
   background: var(--bg-secondary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--text-primary) 7%, transparent);
+  
 }
 .ws-input[aria-invalid='true'] { border-color: color-mix(in srgb, var(--ws-danger) 55%, transparent); }
 
@@ -1770,3 +1770,44 @@
 }
 
 .ws-sheet__chart span:nth-child(2n) { opacity: 0.5; }
+
+/* Design studio mock -------------------------------------------------------- */
+
+.ws-design {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.625rem;
+  background-color: var(--ws-sunken);
+  background-image: radial-gradient(color-mix(in oklab, var(--text-primary) 16%, transparent) 1px, transparent 1px);
+  background-size: 12px 12px;
+  border-radius: 0.5rem;
+  min-height: 9rem;
+}
+
+.ws-design__name {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.ws-design__boards {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 0.625rem;
+}
+
+.ws-design__board {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  border: 1px solid color-mix(in oklab, var(--text-primary) 16%, transparent);
+  border-radius: 0.25rem;
+  background: var(--bg-primary);
+}
+
+.ws-design__board--phone { width: 3rem; height: 5.6rem; }
+.ws-design__board--wide { flex: 1; height: 4rem; }
+.ws-design__board--banner { width: 5rem; height: 2rem; }

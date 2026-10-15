@@ -141,6 +141,34 @@ function SheetMock({ title, motionEnabled }: { title: string; motionEnabled: boo
   );
 }
 
+/** A canvas with three artboards being drawn: a phone screen, a wide page and a banner. */
+function DesignMock({ title, motionEnabled }: { title: string; motionEnabled: boolean }): React.JSX.Element {
+  const loop = (delay: number) => ({ duration: 0.45, ease: SETUP_EASE, delay: motionEnabled ? delay : 0, repeat: motionEnabled ? Infinity : 0, repeatDelay: 3.4 });
+  const boards = [
+    { className: 'ws-design__board ws-design__board--phone', lines: [70, 40, 55, 30] },
+    { className: 'ws-design__board ws-design__board--wide', lines: [50, 80, 35] },
+    { className: 'ws-design__board ws-design__board--banner', lines: [60, 30] },
+  ];
+  return (
+    <div className="ws-canvas ws-design" aria-hidden="true">
+      <span className="ws-design__name">{title}</span>
+      <div className="ws-design__boards">
+        {boards.map((board, index) => (
+          <motion.div
+            key={board.className}
+            className={board.className}
+            initial={motionEnabled ? { opacity: 0, y: 6 } : false}
+            animate={{ opacity: 1, y: 0 }}
+            transition={loop(0.15 + index * 0.35)}
+          >
+            {board.lines.map((width, line) => <span key={line} className="ws-bar" style={{ width: `${width}%` }} />)}
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const SHELL_HINTS = ['git status', 'npm run dev', 'ls', 'npm test', 'cargo check', 'git log --oneline', 'docker ps', 'code .'];
 
 function Pane({ cli, index, compact, folderName }: { cli: CliType | null; index: number; compact: boolean; folderName: string }): React.JSX.Element {
@@ -205,6 +233,7 @@ export function WorkspacePreview({ title, folderName, sessions, agentFleet, exte
   const writing = kind === 'writing';
   const presenting = kind === 'presentation';
   const sheeting = kind === 'sheets';
+  const designing = kind === 'design';
   const spring = motionEnabled ? { type: 'spring' as const, stiffness: 420, damping: 38 } : { duration: 0 };
 
   return (
@@ -212,12 +241,16 @@ export function WorkspacePreview({ title, folderName, sessions, agentFleet, exte
       <div className="ws-window__bar">
         <span className="ws-window__lights" aria-hidden="true"><span /><span /><span /></span>
         <DecryptedText text={title} className="ws-window__title" disabled={!motionEnabled} />
-        <span className="ws-window__tag">{writing ? 'writing' : presenting ? 'slides' : sheeting ? 'sheets' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
+        <span className="ws-window__tag">{writing ? 'writing' : presenting ? 'slides' : sheeting ? 'sheets' : designing ? 'design' : sessions === 0 ? 'editor' : external ? 'external' : `${cols}×${rows}`}</span>
       </div>
       <AnimatePresence mode="wait" initial={false}>
         {writing ? (
           <motion.div key="writing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
             <WritingMock title={title} motionEnabled={motionEnabled} />
+          </motion.div>
+        ) : designing ? (
+          <motion.div key="design" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>
+            <DesignMock title={title} motionEnabled={motionEnabled} />
           </motion.div>
         ) : sheeting ? (
           <motion.div key="sheets" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: motionEnabled ? 0.25 : 0 }}>

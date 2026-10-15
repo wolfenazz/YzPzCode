@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
 import { Icon } from '@iconify/react';
 import {
@@ -9,6 +10,7 @@ import {
   Plus,
   PuzzlePiece,
   SidebarSimple,
+  Sparkle,
   X,
 } from '@phosphor-icons/react';
 import type { WorkspaceConfig, WorkspaceKind, WorkspaceView } from '../../types';
@@ -37,6 +39,8 @@ interface WorkspaceHeaderProps {
   onExplorerClick: () => void;
   onExtensionsClick: () => void;
   extensionsOpen: boolean;
+  skillsOpen?: boolean;
+  onSkillsClick?: () => void;
   onSourceControlClick: () => void;
   explorerOpen: boolean;
   sourceControlOpen: boolean;
@@ -47,7 +51,7 @@ interface WorkspaceHeaderProps {
 
 const SHORTCUTS = [
   { category: 'Terminal', items: [{ keys: ['Ctrl', 'C'], action: 'Copy selection' }, { keys: ['Ctrl', 'V'], action: 'Paste' }, { keys: ['Ctrl', 'F'], action: 'Search in terminal' }, { keys: ['Ctrl', 'L'], action: 'Clear terminal' }, { keys: ['Enter'], action: 'Find next match' }, { keys: ['Shift', 'Enter'], action: 'Find previous match' }, { keys: ['Esc'], action: 'Close search' }] },
-  { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'Shift', 'E'], action: 'Export the report, presentation or workbook' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
+  { category: 'Navigation', items: [{ keys: ['Ctrl', 'P'], action: 'Command palette' }, { keys: ['Ctrl', 'Tab'], action: 'Switch workspace tab' }, { keys: ['Ctrl', 'B'], action: 'Toggle sidebar' }, { keys: ['Ctrl', 'E'], action: 'Toggle view' }, { keys: ['Ctrl', 'Shift', 'E'], action: 'Export the report, presentation or workbook' }, { keys: ['Ctrl', 'Shift', 'S'], action: 'Toggle skills market' }, { keys: ['Ctrl', 'W'], action: 'Close tab' }] },
   { category: 'Device', items: [{ keys: ['Ctrl', 'Alt', 'M'], action: 'Show or hide the device (Android emulator / iOS simulator)' }] },
   { category: 'Window', items: [{ keys: ['F11'], action: 'Toggle fullscreen' }] },
 ];
@@ -111,9 +115,9 @@ const CODING_VIEWS: ViewOption[] = [
 
 /** Studio workspaces (writing, presentation, sheets) only show a terminal once one has been opened in them. */
 export const getViewOptions = (kind: WorkspaceKind | undefined, sessionCount: number): ViewOption[] => {
-  if (kind !== 'writing' && kind !== 'presentation' && kind !== 'sheets') return CODING_VIEWS;
+  if (kind !== 'writing' && kind !== 'presentation' && kind !== 'sheets' && kind !== 'design') return CODING_VIEWS;
   const views: ViewOption[] = [
-    kind === 'presentation' ? { view: 'presentation', label: 'Slides' } : kind === 'sheets' ? { view: 'sheets', label: 'Sheets' } : { view: 'writing', label: 'Write' },
+    kind === 'presentation' ? { view: 'presentation', label: 'Slides' } : kind === 'sheets' ? { view: 'sheets', label: 'Sheets' } : kind === 'design' ? { view: 'design', label: 'Canvas' } : { view: 'writing', label: 'Write' },
     { view: 'editor', label: 'Files' },
     { view: 'browser', label: 'Research' },
   ];
@@ -205,6 +209,8 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   onExplorerClick,
   onExtensionsClick,
   extensionsOpen,
+  skillsOpen,
+  onSkillsClick,
   onSourceControlClick,
   explorerOpen,
   sourceControlOpen,
@@ -213,7 +219,65 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
   activeView,
 }) => {
   const [isShortcutOpen, setIsShortcutOpen] = useState(false);
+  const [extensionsMenuOpen, setExtensionsMenuOpen] = useState(false);
+  const [extensionsMenuPos, setExtensionsMenuPos] = useState<{ left: number; top: number } | null>(null);
+  const extensionsAnchorRef = useRef<HTMLDivElement>(null);
+  const extensionsMenuRef = useRef<HTMLDivElement>(null);
   const titlebarRef = useTitlebarDrag<HTMLElement>();
+
+  const toggleExtensionsMenu = (): void => {
+    if (extensionsMenuOpen) {
+      setExtensionsMenuOpen(false);
+      return;
+    }
+    // Measure the toggle button so the portaled menu opens directly beneath
+    // it. The menu lives on document.body (position: fixed), so no header
+    // ancestor can clip it or trap its stacking order.
+    const rect = extensionsAnchorRef.current?.getBoundingClientRect();
+    const menuWidth = 192; // min-w-48
+    if (rect) {
+      setExtensionsMenuPos({
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - menuWidth - 8)),
+        top: Math.max(8, Math.min(rect.bottom + 6, window.innerHeight - 120)),
+      });
+    } else {
+      setExtensionsMenuPos({ left: 8, top: 46 });
+    }
+    setExtensionsMenuOpen(true);
+  };
+
+  const closeExtensionsMenu = (): void => setExtensionsMenuOpen(false);
+
+  // Dismiss the Extensions/Skills menu on outside press, Escape, or resize.
+  useEffect(() => {
+    if (!extensionsMenuOpen) return;
+    const isInside = (target: EventTarget | null): boolean => {
+      if (!(target instanceof Node)) return false;
+      return (
+        extensionsAnchorRef.current?.contains(target) ||
+        extensionsMenuRef.current?.contains(target) ||
+        false
+      );
+    };
+    const onPointerDown = (event: PointerEvent) => {
+      if (!isInside(event.target)) setExtensionsMenuOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExtensionsMenuOpen(false);
+        extensionsAnchorRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+      }
+    };
+    const onResize = (): void => setExtensionsMenuOpen(false);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    document.addEventListener('keydown', onKeyDown);
+    window.addEventListener('resize', onResize);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown, true);
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [extensionsMenuOpen]);
 
   const changeLabel = `${sourceControlChangeCount} changed file${sourceControlChangeCount === 1 ? '' : 's'}`;
 
@@ -236,14 +300,68 @@ export const WorkspaceHeader: React.FC<WorkspaceHeaderProps> = ({
             >
               <GitBranch size={16} aria-hidden="true" />
             </ChromeButton>
-            <ChromeButton label="Extensions" title="Extensions (Ctrl+Shift+X)" pressed={extensionsOpen} onClick={onExtensionsClick}>
-              <PuzzlePiece size={16} aria-hidden="true" />
-            </ChromeButton>
+            <div ref={extensionsAnchorRef} className="relative">
+              <ChromeButton
+                label="Extensions and skills"
+                title="Extensions and skills (Ctrl+Shift+X)"
+                pressed={extensionsOpen || skillsOpen || extensionsMenuOpen}
+                aria-haspopup="menu"
+                aria-expanded={extensionsMenuOpen}
+                aria-controls="extensions-skills-menu"
+                onClick={toggleExtensionsMenu}
+              >
+                <PuzzlePiece size={16} aria-hidden="true" />
+              </ChromeButton>
+            </div>
+            {extensionsMenuOpen && extensionsMenuPos && createPortal(
+              <div
+                ref={extensionsMenuRef}
+                id="extensions-skills-menu"
+                role="menu"
+                aria-label="Extensions and skills"
+                style={{ left: extensionsMenuPos.left, top: extensionsMenuPos.top }}
+                className="app-surface app-surface--raised fixed z-[9000] flex min-w-48 flex-col overflow-hidden whitespace-nowrap py-1"
+                onKeyDown={(event) => {
+                  if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+                  event.preventDefault();
+                  const items = Array.from(
+                    event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]'),
+                  );
+                  if (items.length === 0) return;
+                  const index = items.findIndex((item) => item === document.activeElement);
+                  const next = event.key === 'ArrowDown'
+                    ? items[(index + 1) % items.length]
+                    : items[(index - 1 + items.length) % items.length];
+                  next?.focus();
+                }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  autoFocus
+                  className="flex items-center gap-2 px-3 py-2 text-left text-xs text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--ring)]"
+                  onClick={() => { closeExtensionsMenu(); onExtensionsClick(); }}
+                >
+                  <PuzzlePiece size={14} aria-hidden="true" />
+                  Extensions
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="flex items-center gap-2 px-3 py-2 text-left text-xs text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] focus-visible:outline-2 focus-visible:outline-[var(--ring)]"
+                  onClick={() => { closeExtensionsMenu(); onSkillsClick?.(); }}
+                >
+                  <Sparkle size={14} aria-hidden="true" />
+                  Skills Market
+                </button>
+              </div>,
+              document.body,
+            )}
           </div>
         </div>
 
         <nav className="chrome-tabs" aria-label="Workspaces">
-          <div className="chrome-tabs__scroll" role="tablist">
+          <div className="chrome-tabs__scroll" role="tablist" data-glass-reorder="workspaces">
             {workspaces.map((workspace) => (
               <WorkspaceTab
                 key={workspace.id}

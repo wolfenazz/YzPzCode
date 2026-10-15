@@ -548,7 +548,7 @@ body {
 
 .app-input:focus {
   border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 16%, transparent);
+  
 }
 
 .app-sidebar {
@@ -1729,7 +1729,7 @@ body {
 
 .setup-config__section input[type="text"]:focus {
   border-color: color-mix(in srgb, var(--text-secondary) 60%, transparent) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 10%, transparent), inset 0 1px rgba(255, 255, 255, 0.025);
+  
 }
 
 .setup-config__divider {

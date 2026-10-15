@@ -1,0 +1,327 @@
+/*
+ * Generation aura: a soft Gemini-colored ring (with a blurred glow behind it)
+ * that travels around content while the AI is drawing or writing it, then an
+ * emerald finish: the ring ripples outward, a comet runs once around it and a
+ * small check badge pops in with sparkles.
+ *
+ * Shared by the design canvas boards, the presentation stage and filmstrip,
+ * and the Writing editor (GenerationAura.tsx). Everything is sized by
+ * --ga-k, so a zoomed canvas passes 1 / zoom and the ring keeps its screen
+ * size. The ring turns on `rotate` of an oversized conic square clipped to a
+ * thin band, so the compositor animates it without repainting.
+ *
+ * Outside mode (default): the ring sits just outside the host and *behind*
+ * its content (the host needs `isolation: isolate`). Inside mode draws over
+ * the host's edge, for hosts that clip.
+ */
+
+.sx-gen {
+  --ga-blue: #4f8df7;
+  --ga-violet: #9b72cb;
+  --ga-rose: #d96570;
+  --ga-amber: #f5b11a;
+  --ga-green: #3dbe6a;
+  --ga-cyan: #22b8cf;
+  --ga-done: #34d399;
+  --ga-done-deep: #10b981;
+  --ga-done-soft: #a7f3d0;
+  --ga-k: 1;
+  --ga-r: 6px;
+  --ga-band: calc(2px * var(--ga-k));
+  --ga-glow-band: calc(5px * var(--ga-k));
+  --ga-out: calc(var(--ga-band) + 1px * var(--ga-k));
+  --ga-badge: calc(24px * var(--ga-k));
+  position: absolute;
+  inset: 0;
+  border-radius: var(--ga-r);
+  pointer-events: none;
+}
+
+.sx-gen[data-compact] {
+  --ga-band: calc(1.5px * var(--ga-k));
+  --ga-glow-band: calc(4px * var(--ga-k));
+  --ga-badge: calc(16px * var(--ga-k));
+}
+
+/* ── Layers ─────────────────────────────────────────────────────────────── */
+
+.sx-gen__glow,
+.sx-gen__band,
+.sx-gen__burst {
+  position: absolute;
+  inset: calc(var(--ga-out) * -1);
+  z-index: -1;
+  border-radius: calc(var(--ga-r) + var(--ga-out));
+}
+
+.sx-gen[data-inside] .sx-gen__glow,
+.sx-gen[data-inside] .sx-gen__band,
+.sx-gen[data-inside] .sx-gen__burst {
+  inset: 0;
+  z-index: 2;
+  border-radius: var(--ga-r);
+}
+
+.sx-gen__band {
+  --band: var(--ga-band);
+  overflow: hidden;
+  padding: var(--band);
+  container-type: size;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+
+.sx-gen__glow {
+  opacity: 0.5;
+  filter: blur(calc(9px * var(--ga-k)));
+  transition: opacity 600ms ease;
+}
+
+.sx-gen__band--glow {
+  --band: var(--ga-glow-band);
+  inset: 0;
+  border-radius: inherit;
+  animation: sx-gen-breathe 3.2s ease-in-out infinite;
+}
+
+.sx-gen__spin,
+.sx-gen__comet {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  /* Must cover the host's diagonal at every angle. */
+  width: 150cqmax;
+  height: 150cqmax;
+  width: hypot(100cqw, 100cqh);
+  height: hypot(100cqw, 100cqh);
+  translate: -50% -50%;
+}
+
+.sx-gen__spin {
+  background: conic-gradient(
+    from 0deg,
+    var(--ga-blue),
+    var(--ga-violet) 18%,
+    var(--ga-rose) 34%,
+    var(--ga-amber) 50%,
+    var(--ga-green) 66%,
+    var(--ga-cyan) 82%,
+    var(--ga-blue)
+  );
+  animation: sx-gen-spin 4.2s linear infinite;
+}
+
+.sx-gen__band--ring {
+  opacity: 1;
+  transition: opacity 600ms ease;
+}
+
+@starting-style {
+  .sx-gen__band--ring,
+  .sx-gen__glow { opacity: 0; }
+}
+
+.sx-gen:not([data-phase="busy"]) .sx-gen__band--ring,
+.sx-gen:not([data-phase="busy"]) .sx-gen__glow {
+  opacity: 0;
+}
+
+/* ── Finish ─────────────────────────────────────────────────────────────── */
+
+.sx-gen__band--done {
+  background: linear-gradient(135deg, var(--ga-done), var(--ga-done-soft) 50%, var(--ga-done-deep));
+  animation: sx-gen-done-ring 2.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sx-gen__comet {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0turn 0.6turn,
+    rgba(236, 253, 245, 0.2) 0.68turn,
+    #ffffff 0.79turn,
+    transparent 0.8turn
+  );
+  animation: sx-gen-comet 1.1s cubic-bezier(0.45, 0, 0.2, 1) 60ms both;
+}
+
+.sx-gen__burst {
+  animation: sx-gen-burst 1.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.sx-gen__badge {
+  position: absolute;
+  z-index: 3;
+  top: calc(var(--ga-badge) * -0.45);
+  inset-inline-end: calc(var(--ga-badge) * -0.45);
+  width: var(--ga-badge);
+  height: var(--ga-badge);
+  filter: drop-shadow(0 calc(2px * var(--ga-k)) calc(6px * var(--ga-k)) rgba(16, 185, 129, 0.45));
+  transform-origin: 50% 50%;
+  animation: sx-gen-badge 2.3s linear both;
+}
+
+.sx-gen[data-inside] .sx-gen__badge {
+  top: calc(6px * var(--ga-k));
+  inset-inline-end: calc(6px * var(--ga-k));
+}
+
+.sx-gen__check {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.sx-gen__check-disc {
+  fill: var(--ga-done-deep);
+  stroke: #fff;
+  stroke-width: 1.6;
+}
+
+.sx-gen__check path {
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: sx-gen-draw 360ms cubic-bezier(0.65, 0, 0.35, 1) 330ms forwards;
+}
+
+/* Four sparkles fly out of the badge as it lands. */
+.sx-gen__spark {
+  --a: 0deg;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: calc(8px * var(--ga-k));
+  height: calc(8px * var(--ga-k));
+  margin: calc(-4px * var(--ga-k)) 0 0 calc(-4px * var(--ga-k));
+  background: var(--ga-done-soft);
+  clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%);
+  opacity: 0;
+  animation: sx-gen-spark 900ms cubic-bezier(0.22, 1, 0.36, 1) 160ms both;
+}
+
+.sx-gen__spark--1 { --a: -40deg; }
+.sx-gen__spark--2 { --a: 25deg; background: #fde68a; }
+.sx-gen__spark--3 { --a: 150deg; }
+.sx-gen__spark--4 { --a: 215deg; background: #fbcfe8; }
+
+/* ── Keyframes ──────────────────────────────────────────────────────────── */
+
+@keyframes sx-gen-spin {
+  to { rotate: 360deg; }
+}
+
+@keyframes sx-gen-breathe {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.95; }
+}
+
+@keyframes sx-gen-done-ring {
+  0% { opacity: 0; }
+  10% { opacity: 1; }
+  62% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes sx-gen-comet {
+  0% { rotate: -100deg; opacity: 0; }
+  12% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { rotate: 260deg; opacity: 0; }
+}
+
+@keyframes sx-gen-burst {
+  0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55), 0 0 0 0 rgba(52, 211, 153, 0.25); }
+  100% {
+    box-shadow:
+      0 0 0 calc(18px * var(--ga-k)) rgba(52, 211, 153, 0),
+      0 0 calc(34px * var(--ga-k)) calc(10px * var(--ga-k)) rgba(52, 211, 153, 0);
+  }
+}
+
+/* Spring in, hold, then sink away. */
+@keyframes sx-gen-badge {
+  0% { opacity: 0; transform: scale(0) rotate(-35deg); }
+  12% { opacity: 1; transform: scale(1.3) rotate(8deg); }
+  20% { transform: scale(0.92) rotate(-3deg); }
+  28% { transform: scale(1) rotate(0deg); }
+  78% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.8) translateY(calc(-4px * var(--ga-k))); }
+}
+
+@keyframes sx-gen-spark {
+  0% { opacity: 0; transform: rotate(var(--a)) translateY(0) scale(0.2); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--a)) translateY(calc(-26px * var(--ga-k))) scale(1); }
+}
+
+@keyframes sx-gen-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+/* Keep the colors (the state is still visible), drop the movement. */
+
+html.animations-disabled .sx-gen__spin,
+html.animations-disabled .sx-gen__band--glow,
+html.animations-disabled .sx-gen__comet,
+html.animations-disabled .sx-gen__burst,
+html.animations-disabled .sx-gen__spark {
+  animation: none !important;
+}
+
+html.animations-disabled .sx-gen__comet,
+html.animations-disabled .sx-gen__burst,
+html.animations-disabled .sx-gen__spark {
+  display: none;
+}
+
+html.animations-disabled .sx-gen__badge {
+  animation: none;
+  opacity: 1;
+}
+
+html.animations-disabled .sx-gen__check path {
+  animation: none;
+  stroke-dashoffset: 0;
+}
+
+html.animations-disabled .sx-gen__band--done {
+  animation: none;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sx-gen__spin,
+  .sx-gen__band--glow,
+  .sx-gen__comet,
+  .sx-gen__burst,
+  .sx-gen__spark {
+    animation: none !important;
+  }
+
+  .sx-gen__comet,
+  .sx-gen__burst,
+  .sx-gen__spark {
+    display: none;
+  }
+
+  .sx-gen__badge {
+    animation: none;
+    opacity: 1;
+  }
+
+  .sx-gen__check path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+
+  .sx-gen__band--done {
+    animation: none;
+    opacity: 1;
+  }
+}

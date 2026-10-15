@@ -4,6 +4,7 @@ import { openPath } from '@tauri-apps/plugin-opener';
 import { ArrowSquareOut, ClockClockwise, ClockCounterClockwise, MusicNotes, Pause, Play, Repeat, SpeakerHigh, SpeakerLow, SpeakerSlash, WarningCircle } from '@phosphor-icons/react';
 import { EditorActionButton } from './EditorActionButton';
 import { formatBytes, formatDuration, localFileUrl, type MediaKind } from '../../utils/mediaFiles';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 interface MediaPreviewProps {
   filePath: string;
@@ -337,9 +338,9 @@ const MediaPreviewInner: React.FC<MediaPreviewProps> = ({ filePath, fileName, ki
             </div>
             <div className="flex items-center gap-2">
               <EditorActionButton label={muted ? 'Unmute (M)' : 'Mute (M)'} onClick={() => setMuted(!muted)}><VolumeIcon size={16} /></EditorActionButton>
-              <input type="range" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label="Volume"
+              <LiquidSlider size="sm" min={0} max={1} step={0.01} value={muted ? 0 : volume} aria-label="Volume"
                 onChange={(event) => { setMuted(false); setVolume(Number(event.target.value)); }}
-                className="w-28 cursor-pointer accent-[var(--accent)]" />
+                className="w-28" />
             </div>
           </div>
         </div>

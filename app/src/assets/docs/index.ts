@@ -9,6 +9,7 @@ import { browserDesignContent } from './pages/browser-design';
 import { writingStudioContent } from './pages/writing-studio';
 import { presentationStudioContent } from './pages/presentation-studio';
 import { sheetsStudioContent } from './pages/sheets-studio';
+import { designStudioContent } from './pages/design-studio';
 import { settingsContent } from './pages/settings';
 import { integrationsContent } from './pages/integrations';
 import { shortcutsHelpContent } from './pages/shortcuts-help';
@@ -98,6 +99,13 @@ const docPages: DocPage[] = [
     category: 'Studios',
     description: 'Spreadsheets with a ribbon, formulas, charts, pivot tables, and the assistant',
     content: sheetsStudioContent,
+  },
+  {
+    id: 'design-studio',
+    title: 'Design Studio',
+    category: 'Studios',
+    description: 'AI-designed app screens, web pages and graphics on one canvas, with export',
+    content: designStudioContent,
   },
   {
     id: 'settings',

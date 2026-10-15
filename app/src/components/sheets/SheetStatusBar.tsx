@@ -5,6 +5,7 @@ import { generalText } from '../../utils/sheets/formula/values';
 import { formatValue } from '../../utils/sheets/numberFormat';
 import type { Workbook } from '../../utils/sheets/types';
 import type { GridSelection } from '../../stores/sheetsSessionStore';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 interface SheetStatusBarProps {
   wb: Workbook;
@@ -67,7 +68,7 @@ export const SheetStatusBar: React.FC<SheetStatusBarProps> = ({ wb, sheetIndex, 
       </div>
       <div className="sh-status__zoom">
         <button type="button" aria-label="Zoom out" onClick={() => onZoom(Math.max(25, Math.round((zoom * 100 - 10) / 5) * 5))}><Minus size={11} /></button>
-        <input type="range" min={25} max={300} step={5} value={Math.round(zoom * 100)} aria-label="Zoom" onChange={(event) => onZoom(Number(event.target.value))} />
+        <LiquidSlider size="sm" min={25} max={300} step={5} value={Math.round(zoom * 100)} aria-label="Zoom" onChange={(event) => onZoom(Number(event.target.value))} />
         <button type="button" aria-label="Zoom in" onClick={() => onZoom(Math.min(300, Math.round((zoom * 100 + 10) / 5) * 5))}><Plus size={11} /></button>
         <button type="button" className="sh-status__percent" onClick={() => onZoom(100)} title="Reset zoom">{Math.round(zoom * 100)}%</button>
       </div>

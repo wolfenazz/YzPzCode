@@ -17,6 +17,7 @@ const coding = { kind: 'coding' };
 const writing = { kind: 'writing' };
 const presentation = { kind: 'presentation' };
 const sheets = { kind: 'sheets' };
+const design = { kind: 'design' };
 
 test('every kind of workspace has its own home view', () => {
   assert.equal(homeViewFor(coding), 'terminal');
@@ -24,12 +25,14 @@ test('every kind of workspace has its own home view', () => {
   assert.equal(homeViewFor(writing), 'writing');
   assert.equal(homeViewFor(presentation), 'presentation');
   assert.equal(homeViewFor(sheets), 'sheets');
+  assert.equal(homeViewFor(design), 'design');
 });
 
 test('a new studio workspace opens in its studio', () => {
   assert.equal(resolveWorkspaceView(undefined, writing, 0), 'writing');
   assert.equal(resolveWorkspaceView(undefined, presentation, 0), 'presentation');
   assert.equal(resolveWorkspaceView(undefined, sheets, 0), 'sheets');
+  assert.equal(resolveWorkspaceView(undefined, design, 0), 'design');
 });
 
 test('a studio that was saved on the terminal (older start-up) goes back to the studio when it has no terminal', () => {
@@ -53,6 +56,9 @@ test("a studio never lands on the other studio's view", () => {
   assert.equal(resolveWorkspaceView('presentation', sheets, 0), 'sheets');
   assert.equal(resolveWorkspaceView('terminal', sheets, 0), 'sheets');
   assert.equal(resolveWorkspaceView('terminal', sheets, 1), 'terminal');
+  assert.equal(resolveWorkspaceView('sheets', design, 0), 'design');
+  assert.equal(resolveWorkspaceView('terminal', design, 0), 'design');
+  assert.equal(resolveWorkspaceView('editor', design, 0), 'editor');
 });
 
 test('coding workspaces keep the view they were left on', () => {

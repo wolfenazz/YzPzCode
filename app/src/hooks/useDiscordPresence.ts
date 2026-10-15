@@ -40,6 +40,7 @@ const VIEW_DETAILS: Record<WorkspaceView, string> = {
   writing: 'Writing a report',
   presentation: 'Building a presentation',
   sheets: 'Building a spreadsheet',
+  design: 'Designing screens and graphics',
 };
 
 function getFileName(path: string): string {

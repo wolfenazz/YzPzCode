@@ -10,6 +10,8 @@ const INTERACTIVE_SELECTOR = [
   'label',
   '[role="button"]',
   '[role="tab"]',
+  '[role="menu"]',
+  '[role="menuitem"]',
   '[contenteditable="true"]',
 ].join(', ');
 
@@ -30,7 +32,9 @@ export const useTitlebarDrag = <T extends HTMLElement>() => {
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 0) return;
       const target = e.target;
-      if (!(target instanceof HTMLElement)) return;
+      // Element (not just HTMLElement): icon clicks land on <svg>/<path>,
+      // which are SVGElements — closest() still finds their enclosing button.
+      if (!(target instanceof Element)) return;
       // Only drag from inert areas — let interactive controls receive the click.
       if (target.closest(INTERACTIVE_SELECTOR)) return;
       void getCurrentWindow().startDragging();

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remove-skill"
+description = "Enables the remove_skill command without any pre-configured scope."
+commands.allow = ["remove_skill"]
+
+[[permission]]
+identifier = "deny-remove-skill"
+description = "Denies the remove_skill command without any pre-configured scope."
+commands.deny = ["remove_skill"]

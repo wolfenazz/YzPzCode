@@ -11,6 +11,7 @@ import { getReportType } from '../../../utils/writing/reportTypes';
 import { localFileUrl } from '../../../utils/mediaFiles';
 import type { Reference, ReportBrief } from '../../../utils/writing/types';
 import { pageOfElement } from './pageGeometry';
+import { LiquidSlider } from '../../common/LiquidSlider';
 
 const useWorkspaceId = (editor: NodeViewProps['editor']): string => editor.storage.writingContext?.workspaceId ?? '';
 
@@ -148,8 +149,8 @@ export const FigureView: React.FC<NodeViewProps> = ({ node, updateAttributes, de
         )}
         <div className="wr-figure__tools">
           <button type="button" className="wr-icon-btn" title="Replace image" onClick={() => void chooseImage()}><ImageSquare size={14} weight="light" /></button>
-          <input
-            type="range"
+          <LiquidSlider
+            size="sm"
             min={30}
             max={100}
             step={5}

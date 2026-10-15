@@ -6,6 +6,7 @@ import { BLEND_MODES } from '../types';
 import { getLayerCanvas, drawLayerOnto, newRasterLayer } from '../editor/model';
 import { useImageEditorStore } from '../../../stores/imageEditorStore';
 import { ImgIcon } from '../icons';
+import { LiquidSlider } from '../../common/LiquidSlider';
 
 const THUMB = 28;
 
@@ -104,13 +105,13 @@ export const LayersPanel: React.FC<{ workspaceId: string }> = ({ workspaceId }) 
               <option key={m} value={m}>{m}</option>
             ))}
           </select>
-          <input
-            type="range"
+          <LiquidSlider
+            size="sm"
             min={0}
             max={100}
             value={Math.round(active.opacity * 100)}
             onChange={(e) => updateLayer(workspaceId, active.id, { opacity: Number(e.target.value) / 100 })}
-            className="w-14 cursor-pointer"
+            className="w-14"
             title="Opacity"
           />
           <span className="w-7 text-right font-mono text-[9px] text-[var(--text-secondary)]">{Math.round(active.opacity * 100)}%</span>

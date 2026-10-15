@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-trending-skills"
+description = "Enables the list_trending_skills command without any pre-configured scope."
+commands.allow = ["list_trending_skills"]
+
+[[permission]]
+identifier = "deny-list-trending-skills"
+description = "Denies the list_trending_skills command without any pre-configured scope."
+commands.deny = ["list_trending_skills"]

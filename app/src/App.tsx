@@ -15,6 +15,10 @@ import { useApplyCustomTheme } from './hooks/useCustomTheme';
 import { useDesktopFileOpen } from './hooks/useDesktopFileOpen';
 import { initWindowPlatform } from './utils/window';
 import { minimizeWindow, maximizeWindow, closeWindow } from './utils/window';
+import { trackGlassPointer } from './utils/liquidGlass';
+import { trackGlassPress } from './utils/glassPress';
+import { trackGlassSwitch } from './utils/glassSwitch';
+import { trackGlassSelect } from './utils/glassMenu';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -40,6 +44,7 @@ function App() {
     uiDensity,
     appZoom,
     animationsEnabled,
+    liquidGlass,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
     openWorkspaces,
@@ -98,6 +103,29 @@ function App() {
   }, [animationsEnabled]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('liquid-glass', liquidGlass);
+    if (!liquidGlass) return undefined;
+    const stopPointer = trackGlassPointer();
+    const stopPress = trackGlassPress();
+    const stopSwitch = trackGlassSwitch();
+    const stopSelect = trackGlassSelect();
+    const onReorder = (event: Event) => {
+      const { group, from, to } = (event as CustomEvent<{ group?: string; from: number; to: number }>).detail;
+      if (group === 'workspaces') useAppStore.getState().reorderOpenWorkspaces(from, to);
+    };
+    document.addEventListener('glass-reorder', onReorder);
+    return () => {
+      stopPointer();
+      stopPress();
+      stopSwitch();
+      stopSelect();
+      document.removeEventListener('glass-reorder', onReorder);
+      root.classList.remove('liquid-glass');
+    };
+  }, [liquidGlass]);
+
+  useEffect(() => {
     initWindowPlatform().then(setIsWindows).catch((err) => {
       console.error('Failed to initialize window platform:', err);
     });
@@ -121,7 +149,7 @@ function App() {
         state.switchWorkspace(targetId);
         // A studio reopens in its own view; the terminal grid is the start of a coding workspace.
         const target = state.openWorkspaces.find((workspace) => workspace.id === targetId);
-        state.setActiveView(target?.kind === 'writing' || target?.kind === 'presentation' || target?.kind === 'sheets'
+        state.setActiveView(target?.kind === 'writing' || target?.kind === 'presentation' || target?.kind === 'sheets' || target?.kind === 'design'
           ? resolveWorkspaceView(state.activeViewByWorkspace[targetId], target, 0)
           : 'terminal');
         state.setView('workspace');

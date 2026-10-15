@@ -9,10 +9,12 @@ import React, {
   useRef,
   useState,
   type CSSProperties,
+  type ClipboardEvent,
   type KeyboardEvent,
   type PointerEvent,
   type ReactNode
 } from 'react';
+import { createPortal } from 'react-dom';
 import { animate, useMotionValue, useMotionValueEvent, useReducedMotion } from 'motion/react';
 import { HugeiconsIcon, type IconSvgElement } from './icons';
 import {
@@ -66,6 +68,8 @@ export interface PromptBarProps {
   defaultEffort?: string;
   onEffortChange?: (effort: string) => void;
   busy?: boolean;
+  /** The studio decides when there is enough to send (a template's details, attached material). */
+  canSend?: boolean;
   onSend?: (text: string, detail: PromptBarSendDetail) => void;
   onStop?: () => void;
   onAttach?: () => string | string[] | void | Promise<string | string[] | void>;
@@ -75,7 +79,7 @@ export interface PromptBarProps {
   menuBackground?: string;
   sparkColor?: string;
   sparkBoost?: number;
-  width?: number;
+  width?: number | string;
   radius?: number;
   maxRows?: number;
   morphDuration?: number;
@@ -83,6 +87,19 @@ export interface PromptBarProps {
   tilt?: number;
   pressScale?: number;
   className?: string;
+  /** Studio controls (size, style, options…) shown in the bar row, before the send tile. */
+  extras?: ReactNode;
+  /** Focus the field when it appears. */
+  autoFocus?: boolean;
+  /** Controlled draft: the field shows it and reports every change through `onDraftChange`. */
+  draft?: string;
+  onDraftChange?: (text: string) => void;
+  /** The field's label for screen readers. */
+  inputLabel?: string;
+  /** A model row was picked: the key of the row. */
+  onModelChange?: (key: string) => void;
+  /** Pasted content in the field (files dropped on the clipboard, for instance). */
+  onPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
 }
 
 type Row = {
@@ -94,7 +111,7 @@ type Row = {
   attach?: boolean;
 };
 type Token = { kind: 'at' | 'slash'; query: string; start: number };
-type Latest = Pick<PromptBarProps, 'onSend' | 'onStop' | 'onAttach' | 'onDictate' | 'onEffortChange'>;
+type Latest = Pick<PromptBarProps, 'onSend' | 'onStop' | 'onAttach' | 'onDictate' | 'onEffortChange' | 'onDraftChange' | 'onModelChange'>;
 type Spark = {
   x: number;
   y: number;
@@ -140,6 +157,11 @@ const DEFAULT_COMMANDS: PromptBarCommand[] = [
   { key: 'explain', name: '/explain', description: 'A plain-language walkthrough' },
   { key: 'tasks', name: '/tasks', description: 'Turn this into a to-do list' }
 ];
+/** Gap between a menu and the bar, the menu's largest height, and the room kept clear above it (the title bar is 2.5rem). */
+const MENU_GAP = 8;
+const MENU_MAX = 320;
+const MENU_TOP = 48;
+
 const DEFAULT_MODELS: PromptBarModel[] = [
   { key: 'nova-3', name: 'Nova 3', tag: 'Flagship' },
   { key: 'nova-mini', name: 'Nova Mini', tag: 'Fast' },
@@ -209,6 +231,11 @@ function SendGlyph({ busy, morphDuration, squash, tilt }: SendGlyphProps) {
   );
 }
 
+/** The model and effort menus are drawn in the body, below their button: nothing above the bar can clip or cover them. */
+const MENU_DOWN_MAX = 360;
+const PopLayer: React.FC<{ portal: boolean; children: ReactNode }> = ({ portal, children }) =>
+  portal ? createPortal(children, document.body) : <>{children}</>;
+
 const STYLE = `
 @keyframes prompt-bar-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } }
 @keyframes prompt-bar-eq { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
@@ -223,7 +250,10 @@ const PromptBar: React.FC<PromptBarProps> = ({
   efforts = DEFAULT_EFFORTS,
   defaultEffort = '',
   onEffortChange,
+  onDraftChange,
+  onModelChange,
   busy = false,
+  canSend: canSendProp,
   onSend,
   onStop,
   onAttach,
@@ -240,7 +270,12 @@ const PromptBar: React.FC<PromptBarProps> = ({
   squash = 0.12,
   tilt = 8,
   pressScale = 0.96,
-  className = ''
+  className = '',
+  extras,
+  autoFocus = false,
+  onPaste,
+  inputLabel = 'Prompt',
+  draft: draftProp
 }) => {
   const reduce = useReducedMotion();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -254,9 +289,17 @@ const PromptBar: React.FC<PromptBarProps> = ({
   const lastOpen = useRef<string | null>(null);
   const dictation = useRef(0);
   const latest = useRef<Latest>({});
-  latest.current = { onSend, onStop, onAttach, onDictate, onEffortChange };
+  latest.current = { onSend, onStop, onAttach, onDictate, onEffortChange, onDraftChange, onModelChange };
 
-  const [draft, setDraft] = useState('');
+  const [draftState, setDraftState] = useState('');
+  const controlled = draftProp !== undefined;
+  const draft = controlled ? draftProp : draftState;
+  /** One setter for both modes; every change also reaches `onDraftChange`. */
+  const setDraft = (next: string | ((current: string) => string)): void => {
+    const value = typeof next === 'function' ? next(draft) : next;
+    if (!controlled) setDraftState(value);
+    latest.current.onDraftChange?.(value);
+  };
   const [attachments, setAttachments] = useState<string[]>([]);
   const [modelKey, setModelKey] = useState(defaultModel);
   const [plusOpen, setPlusOpen] = useState(false);
@@ -270,20 +313,38 @@ const PromptBar: React.FC<PromptBarProps> = ({
   const [active, setActive] = useState(0);
   const [listening, setListening] = useState(false);
   const [pressed, setPressed] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuRoom, setMenuRoom] = useState(MENU_MAX);
+  /** Placement of the model and effort menus (below their button, or above when there is no room). */
+  const [popPlace, setPopPlace] = useState<CSSProperties>({});
+  /** The model menu's search. */
+  const [modelQuery, setModelQuery] = useState('');
+  const modelButtonRef = useRef<HTMLButtonElement>(null);
+  const effortButtonRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const model = models.find(m => m.key === modelKey) ?? models[0];
   const token = dismissed ? null : parseToken(draft);
-  const open = plusOpen ? 'at' : (token?.kind ?? (modelOpen ? 'model' : effortOpen ? 'effort' : null));
-  const query = plusOpen ? '' : (token?.query ?? '');
+  // A slash with no commands to offer never opens a menu.
+  const tokenKind = token && (token.kind !== 'slash' || commands.length > 0) ? token.kind : null;
+  const open = plusOpen ? 'at' : (tokenKind ?? (modelOpen ? 'model' : effortOpen ? 'effort' : null));
+  const query = plusOpen ? '' : tokenKind ? (token?.query ?? '') : '';
   const list = useMemo<Row[]>(() => {
     if (open === 'at') return sources.filter(s => s.name.toLowerCase().includes(query));
     if (open === 'slash') return commands.filter(c => c.name.replace(/^\//, '').toLowerCase().startsWith(query));
-    if (open === 'model') return models;
+    if (open === 'model') {
+      // Every word of the search must appear in the model's name or engine.
+      const words = modelQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      return models.filter(m => {
+        const text = `${m.name} ${m.tag ?? ''}`.toLowerCase();
+        return words.every(w => text.includes(w));
+      });
+    }
     return [];
-  }, [open, query, sources, commands, models]);
+  }, [open, query, sources, commands, models, modelQuery]);
   const cursor = Math.min(active, Math.max(0, list.length - 1));
-  const canSend = draft.trim().length > 0 || attachments.length > 0;
-  const armed = busy || canSend;
+  const sendable = canSendProp ?? (draft.trim().length > 0 || attachments.length > 0);
+  const armed = busy || sendable;
   const level = efforts[effortIndex] ?? '';
   const maxed = efforts.length > 1 && effortIndex === efforts.length - 1;
 
@@ -292,7 +353,60 @@ const PromptBar: React.FC<PromptBarProps> = ({
     setPlusOpen(false);
     setModelOpen(false);
     setEffortOpen(false);
+    setModelQuery('');
   }, []);
+
+  // The model and effort menus sit below their button (above it when the room below is short), inside the window.
+  useLayoutEffect(() => {
+    const anchor = open === 'model' ? modelButtonRef.current : open === 'effort' ? effortButtonRef.current : null;
+    if (!anchor) return undefined;
+    const width = open === 'model' ? 224 : 248;
+    // The menu leaves the bar, so the tokens the bar was given (which may be scoped to its studio) are read off the bar here.
+    const scope = rootRef.current ? getComputedStyle(rootRef.current) : null;
+    const tone = {
+      '--pb-menu': scope?.getPropertyValue('--pb-menu') || menuBackground,
+      '--pb-ink': scope?.getPropertyValue('--pb-ink') || color,
+      '--pb-spark': scope?.getPropertyValue('--pb-spark') || sparkColor
+    } as CSSProperties;
+    const position = (): void => {
+      const rect = anchor.getBoundingClientRect();
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8));
+      const room = window.innerHeight - rect.bottom - 16;
+      const above = rect.top - 16;
+      setPopPlace(
+        room >= 200 || room >= above
+          ? { ...tone, top: rect.bottom + 6, bottom: 'auto', left, width, maxHeight: Math.min(MENU_DOWN_MAX, room) }
+          : { ...tone, top: 'auto', bottom: window.innerHeight - rect.top + 6, left, width, maxHeight: Math.min(MENU_DOWN_MAX, above) }
+      );
+    };
+    position();
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+    return () => {
+      window.removeEventListener('resize', position);
+      window.removeEventListener('scroll', position, true);
+    };
+  }, [open, menuBackground, color, sparkColor]);
+
+  // The search has the focus while the model menu is open.
+  useEffect(() => {
+    if (open === 'model') searchRef.current?.focus({ preventScroll: true });
+  }, [open]);
+
+  // The model can also change outside the bar (a studio's own menu, a profile).
+  useEffect(() => {
+    setModelKey(current => (current === defaultModel ? current : defaultModel));
+  }, [defaultModel]);
+
+  // Same for the effort step.
+  useEffect(() => {
+    const index = efforts.indexOf(defaultEffort);
+    if (index >= 0) setEffortIndex(index);
+  }, [defaultEffort, efforts]);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus({ preventScroll: true });
+  }, [autoFocus]);
 
   useLayoutEffect(() => {
     const glow = glowRef.current;
@@ -312,15 +426,35 @@ const PromptBar: React.FC<PromptBarProps> = ({
       void glow.offsetHeight;
       glow.style.transition = '';
     }
+    // Keep the active row in view (under the search, if there is one); a long list opens on the current model.
+    const menu = menuRef.current;
+    if (menu) {
+      const head = menu.querySelector<HTMLElement>('[data-pb-head]')?.offsetHeight ?? 0;
+      const top = row.offsetTop - head;
+      const bottom = row.offsetTop + row.offsetHeight;
+      if (fresh && open === 'model') menu.scrollTop = Math.max(0, top - (menu.clientHeight - row.offsetHeight) / 2);
+      else if (top < menu.scrollTop) menu.scrollTop = Math.max(0, top);
+      else if (bottom > menu.scrollTop + menu.clientHeight) menu.scrollTop = bottom - menu.clientHeight;
+    }
   }, [open, cursor, list]);
   useEffect(() => {
     if (!open) lastOpen.current = null;
   }, [open]);
 
+  // Menus open above the bar, as they always have. Only the height is clamped to
+  // the room above it (never under the title bar); a longer list scrolls inside.
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!open || !root) return;
+    const above = root.getBoundingClientRect().top - MENU_GAP - MENU_TOP;
+    setMenuRoom(Math.max(Math.min(above, MENU_MAX), 120));
+  }, [open]);
+
   useEffect(() => {
     if (!plusOpen && !modelOpen && !effortOpen) return undefined;
     const onDown = (e: globalThis.PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) closeMenus();
+      const target = e.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) closeMenus();
     };
     document.addEventListener('pointerdown', onDown);
     return () => document.removeEventListener('pointerdown', onDown);
@@ -473,7 +607,8 @@ const PromptBar: React.FC<PromptBarProps> = ({
   const pick = (row: Row) => {
     if (open === 'model') {
       setModelKey(row.key);
-      setModelOpen(false);
+      latest.current.onModelChange?.(row.key);
+      closeMenus();
       focusInput();
       return;
     }
@@ -494,8 +629,23 @@ const PromptBar: React.FC<PromptBarProps> = ({
     focusInput();
   };
 
+  /** Keys in the model search: move through the list, pick, or close. */
+  const onSearchKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (list.length) setActive((cursor + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (list[cursor]) pick(list[cursor]);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closeMenus();
+      focusInput();
+    }
+  };
+
   const send = () => {
-    if (!canSend || busy) return;
+    if (!sendable || busy) return;
     latest.current.onSend?.(draft.trim(), { attachments, model, effort: level });
     setDraft('');
     setAttachments([]);
@@ -561,7 +711,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
   return (
     <div
       ref={rootRef}
-      className={`group relative text-[14px] leading-[22px] [width:min(var(--pb-w),100%)] [color:var(--pb-ink)]${className ? ` ${className}` : ''}`}
+      className={`prompt-bar group relative text-[14px] leading-[22px] [width:min(var(--pb-w),100%)] [color:var(--pb-ink)]${className ? ` ${className}` : ''}`}
       data-busy={busy ? '' : undefined}
       data-max={maxed ? '' : undefined}
       style={
@@ -569,7 +719,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
           '--pb-bg': background,
           '--pb-ink': color,
           '--pb-menu': menuBackground,
-          '--pb-w': `${width}px`,
+          '--pb-w': typeof width === 'number' ? `${width}px` : width,
           '--pb-radius': `${radius}px`,
           '--pb-spark': sparkColor,
           '--pb-press': pressScale
@@ -577,14 +727,22 @@ const PromptBar: React.FC<PromptBarProps> = ({
       }
     >
       <style>{STYLE}</style>
+      <PopLayer portal={open === 'model' || open === 'effort'}>
       {open ? (
         <div
-          className="absolute inset-x-0 bottom-[calc(100%+8px)] z-[2] origin-bottom rounded-xl p-1 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.08)] [animation:prompt-bar-pop_180ms_cubic-bezier(0.23,1,0.32,1)_both] [background:var(--pb-menu)] data-[kind=model]:right-auto data-[kind=model]:w-[200px] data-[kind=model]:origin-bottom-left data-[kind=effort]:right-auto data-[kind=effort]:w-[248px] data-[kind=effort]:origin-bottom-left data-[kind=effort]:px-3.5 data-[kind=effort]:pt-3 data-[kind=effort]:pb-3.5 motion-reduce:[animation:none]"
+          ref={menuRef}
+          className="group absolute inset-x-0 bottom-[calc(100%+8px)] z-[2] origin-bottom overflow-x-hidden overflow-y-auto rounded-xl p-1 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.08)] [animation:prompt-bar-pop_180ms_cubic-bezier(0.23,1,0.32,1)_both] [background:var(--pb-menu)] data-[kind=model]:right-auto data-[kind=model]:w-[224px] data-[kind=model]:origin-bottom-left data-[kind=effort]:right-auto data-[kind=effort]:w-[248px] data-[kind=effort]:origin-bottom-left data-[kind=effort]:px-3.5 data-[kind=effort]:pt-3 data-[kind=effort]:pb-3.5 motion-reduce:[animation:none]"
+          style={
+            open === 'model' || open === 'effort'
+              ? ({ ...popPlace, position: 'fixed', zIndex: 1000, right: 'auto' } as CSSProperties)
+              : { maxHeight: menuRoom }
+          }
           role={open === 'effort' ? 'dialog' : 'listbox'}
           aria-label={
             open === 'at' ? 'Sources' : open === 'slash' ? 'Commands' : open === 'model' ? 'Models' : 'Effort'
           }
           data-kind={open}
+          data-max={maxed ? '' : undefined}
         >
           {open === 'effort' ? (
             <>
@@ -640,6 +798,24 @@ const PromptBar: React.FC<PromptBarProps> = ({
             </>
           ) : (
             <>
+              {open === 'model' ? (
+                <div data-pb-head="" className="sticky top-0 z-[3] pb-1 [background:var(--pb-menu)]">
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    aria-label="Search models"
+                    aria-autocomplete="list"
+                    placeholder="Search models"
+                    value={modelQuery}
+                    className="block h-8 w-full rounded-lg border-0 px-2.5 text-[13px] outline-none [background:color-mix(in_srgb,var(--pb-ink)_8%,transparent)] [color:inherit] [font:inherit] placeholder:[color:color-mix(in_srgb,var(--pb-ink)_45%,transparent)]"
+                    onChange={e => {
+                      setModelQuery(e.target.value);
+                      setActive(0);
+                    }}
+                    onKeyDown={onSearchKey}
+                  />
+                </div>
+              ) : null}
               <span
                 ref={glowRef}
                 className="pointer-events-none absolute inset-x-1 rounded-lg opacity-0 [background:color-mix(in_srgb,var(--pb-ink)_8%,transparent)] [transition:top_220ms_cubic-bezier(0.23,1,0.32,1),height_220ms_cubic-bezier(0.23,1,0.32,1),opacity_150ms_ease] motion-reduce:[transition:opacity_150ms_ease]"
@@ -654,7 +830,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
                   type="button"
                   role="option"
                   aria-selected={i === cursor}
-                  className="relative z-[1] flex h-9 w-full cursor-pointer items-center gap-2.5 rounded-lg border-0 bg-transparent px-2 text-left text-inherit outline-none [font:inherit] [-webkit-tap-highlight-color:transparent]"
+                  className="relative z-[1] flex h-9 w-full min-w-0 cursor-pointer items-center gap-2.5 rounded-lg border-0 bg-transparent px-2 text-left text-inherit outline-none [font:inherit] [-webkit-tap-highlight-color:transparent]"
                   onMouseDown={e => e.preventDefault()}
                   onPointerEnter={() => setActive(i)}
                   onClick={() => pick(row)}
@@ -664,7 +840,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
                       {renderIcon(row.icon, 15)}
                     </span>
                   ) : null}
-                  <span className="flex-none text-[13px] font-medium">{row.name}</span>
+                  <span className="min-w-0 truncate text-[13px] font-medium">{row.name}</span>
                   {row.description ? (
                     <span className="min-w-0 flex-auto truncate text-[12px] [color:color-mix(in_srgb,var(--pb-ink)_55%,transparent)]">
                       {row.description}
@@ -672,7 +848,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
                   ) : null}
                   {open === 'model' ? (
                     <>
-                      <span className="ml-auto flex-none text-[11px] [color:color-mix(in_srgb,var(--pb-ink)_55%,transparent)]">
+                      <span className="ml-auto flex-none whitespace-nowrap text-[11px] [color:color-mix(in_srgb,var(--pb-ink)_55%,transparent)]">
                         {row.tag}
                       </span>
                       <span
@@ -687,13 +863,14 @@ const PromptBar: React.FC<PromptBarProps> = ({
               ))}
               {list.length === 0 ? (
                 <div className="flex h-9 items-center px-2 text-[12px] [color:color-mix(in_srgb,var(--pb-ink)_55%,transparent)]">
-                  No matches for “{query}”
+                  No matches for “{open === 'model' ? modelQuery : query}”
                 </div>
               ) : null}
             </>
           )}
         </div>
       ) : null}
+      </PopLayer>
 
       <div
         className="relative isolate flex cursor-text flex-col gap-2 p-3 [background:var(--pb-bg)] [border-radius:var(--pb-radius)] before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:rounded-[inherit] before:opacity-0 before:content-[''] before:[background:radial-gradient(140%_120%_at_0%_100%,color-mix(in_srgb,var(--pb-spark)_26%,transparent),transparent_62%)] before:[transition:opacity_500ms_ease] data-[max]:before:opacity-100"
@@ -737,7 +914,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
           rows={1}
           value={draft}
           placeholder={listening ? 'Listening…' : placeholder}
-          aria-label="Prompt"
+          aria-label={inputLabel}
           onChange={e => {
             setDraft(e.target.value);
             typing.current.energy = Math.min(1.6, typing.current.energy + 0.22);
@@ -748,6 +925,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
           }}
           onFocus={closeMenus}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
         />
 
         <div className="flex items-center gap-1">
@@ -759,11 +937,11 @@ const PromptBar: React.FC<PromptBarProps> = ({
             data-on={plusOpen ? '' : undefined}
             onMouseDown={e => e.preventDefault()}
             onClick={() => {
+              focusInput();
               setModelOpen(false);
               setEffortOpen(false);
               setActive(0);
               setPlusOpen(v => !v);
-              focusInput();
             }}
           >
             <HugeiconsIcon icon={PlusSignIcon} size={16} strokeWidth={2} />
@@ -772,16 +950,23 @@ const PromptBar: React.FC<PromptBarProps> = ({
             <button
               type="button"
               className="inline-flex h-7 flex-none cursor-pointer touch-manipulation items-center gap-1 rounded-lg border-0 bg-transparent px-2 text-[12px] font-medium outline-none select-none [color:color-mix(in_srgb,var(--pb-ink)_70%,transparent)] [font:inherit] [-webkit-tap-highlight-color:transparent] [transition:background-color_150ms_ease,color_150ms_ease] data-[on]:[background:color-mix(in_srgb,var(--pb-ink)_8%,transparent)] data-[on]:[color:var(--pb-ink)] [@media(hover:hover)_and_(pointer:fine)]:hover:[background:color-mix(in_srgb,var(--pb-ink)_8%,transparent)] [@media(hover:hover)_and_(pointer:fine)]:hover:[color:var(--pb-ink)] data-[max]:[color:var(--pb-spark)]! "
+              ref={modelButtonRef}
               aria-label="Choose model"
               aria-expanded={modelOpen}
               data-on={modelOpen ? '' : undefined}
               onMouseDown={e => e.preventDefault()}
               onClick={() => {
+                // Focusing the field closes the menus, so a press on an open button only closes it.
+                if (modelOpen) {
+                  closeMenus();
+                  focusInput();
+                  return;
+                }
+                focusInput();
                 setPlusOpen(false);
                 setEffortOpen(false);
                 setActive(Math.max(0, models.indexOf(model)));
-                setModelOpen(v => !v);
-                focusInput();
+                setModelOpen(true);
               }}
             >
               <span>{model.name}</span>
@@ -792,22 +977,29 @@ const PromptBar: React.FC<PromptBarProps> = ({
             <button
               type="button"
               className="inline-flex h-7 flex-none cursor-pointer touch-manipulation items-center gap-1 rounded-lg border-0 bg-transparent px-2 text-[12px] font-medium outline-none select-none [color:color-mix(in_srgb,var(--pb-ink)_70%,transparent)] [font:inherit] [-webkit-tap-highlight-color:transparent] [transition:background-color_150ms_ease,color_150ms_ease] data-[on]:[background:color-mix(in_srgb,var(--pb-ink)_8%,transparent)] data-[on]:[color:var(--pb-ink)] [@media(hover:hover)_and_(pointer:fine)]:hover:[background:color-mix(in_srgb,var(--pb-ink)_8%,transparent)] [@media(hover:hover)_and_(pointer:fine)]:hover:[color:var(--pb-ink)] data-[max]:[color:var(--pb-spark)]! "
+              ref={effortButtonRef}
               aria-label="Choose effort"
               aria-expanded={effortOpen}
               data-on={effortOpen ? '' : undefined}
               data-max={maxed ? '' : undefined}
               onMouseDown={e => e.preventDefault()}
               onClick={() => {
+                if (effortOpen) {
+                  closeMenus();
+                  focusInput();
+                  return;
+                }
+                focusInput();
                 setPlusOpen(false);
                 setModelOpen(false);
-                setEffortOpen(v => !v);
-                focusInput();
+                setEffortOpen(true);
               }}
             >
               <HugeiconsIcon icon={SparklesIcon} size={13} strokeWidth={2} />
               <span>{level}</span>
             </button>
           ) : null}
+          {extras}
           <span className="flex-auto" />
           {onDictate ? (
             <button

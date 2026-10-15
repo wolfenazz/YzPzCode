@@ -1,5 +1,6 @@
 import { memo, useMemo, useState } from 'react';
 import { ArrowCounterClockwise, CaretDown } from '@phosphor-icons/react';
+import { LiquidSlider } from '../common/LiquidSlider';
 
 interface InspectorStyleEditorProps {
   values: Record<string, string>;
@@ -433,14 +434,14 @@ export const InspectorStyleEditor = memo(function InspectorStyleEditor({
             <span>Opacity</span>
             <span className="font-mono text-[9px] text-[var(--text-primary)]">{opacity}%</span>
           </div>
-          <input
-            type="range"
+          <LiquidSlider
+            size="sm"
             min="0"
             max="100"
             step="1"
             value={opacity}
             onChange={(event) => onChange('opacity', String(Number(event.target.value) / 100))}
-            className="h-1.5 w-full cursor-pointer accent-[var(--accent)]"
+            className="w-full"
           />
         </label>
       </div>

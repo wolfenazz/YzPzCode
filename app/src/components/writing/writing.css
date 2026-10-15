@@ -220,7 +220,7 @@
 .wr-textarea:focus,
 .wr-select:focus {
   border-color: color-mix(in oklab, var(--wr-gold) 60%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--wr-gold) 16%, transparent);
+  
   background: color-mix(in oklab, var(--wr-ink) 5%, transparent);
 }
 
@@ -1806,6 +1806,16 @@ select.wr-control option {
   border-top: 1px solid var(--wr-hairline);
 }
 
+/* The studio bar, inside the card. */
+.wr-composer .prompt-bar textarea {
+  min-height: 72px;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+/* References and the options summary, sitting in the bar row. */
+.wr-composer__opts { display: flex; align-items: center; gap: 2px; }
+
 .wr-composer__status {
   display: flex;
   align-items: center;
@@ -2035,6 +2045,19 @@ select.wr-control option {
 
 .wr-editor {
   --wr-zoom: 1;
+  position: relative;
+}
+
+/* The Gemini aura around the section being written (editor/StreamAura.tsx). */
+.wr-aura-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.wr-aura-box {
+  position: absolute;
 }
 
 .wr-editor__zoom {
@@ -2428,9 +2451,8 @@ select.wr-control option {
   color: #e8e8ee;
 }
 
-.wr-figure__tools input[type="range"] {
+.wr-figure__tools .lq-slider {
   width: 70px;
-  accent-color: #e4c27c;
 }
 
 .wr-figure:hover .wr-figure__tools,

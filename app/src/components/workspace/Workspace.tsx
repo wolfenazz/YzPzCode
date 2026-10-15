@@ -4,6 +4,7 @@ import { TerminalGrid } from './TerminalGrid';
 import { WorkspaceBackground } from './WorkspaceBackground';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { ExtensionsPanel } from './ExtensionsPanel';
+import { SkillsMarketPanel } from './SkillsMarketPanel';
 import { ExtensionDock } from './ExtensionDock';
 import { EditorTerminalPanel } from './EditorTerminalPanel';
 import { useEditorTerminalStore } from '../../stores/editorTerminalStore';
@@ -21,9 +22,10 @@ import { useCliLauncher } from '../../hooks/useCliLauncher';
 import { useBrowser } from '../../hooks/useBrowser';
 import { useAppStore } from '../../stores/appStore';
 import { useExtensionStore } from '../../stores/extensionStore';
+import { useSkillStore } from '../../stores/skillStore';
 import { useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { resolveWorkspaceView } from '../../utils/workspaceView';
-import type { ExtensionInfo, ExtensionInstallProgress } from '../../types';
+import type { ExtensionInfo, ExtensionInstallProgress, SkillInstallProgress } from '../../types';
 import { minimizeWindow, maximizeWindow, closeWindow } from '../../utils/window';
 import { getTerminalForTarget } from '../../utils/terminalRegistry';
 import { DevicePanel } from './device/DevicePanel';
@@ -31,6 +33,7 @@ import { useDeviceStore } from '../../stores/deviceStore';
 import { useWritingSessionStore } from '../../stores/writingSessionStore';
 import { usePresentationSessionStore } from '../../stores/presentationSessionStore';
 import { useSheetsSessionStore } from '../../stores/sheetsSessionStore';
+import { useDesignSessionStore } from '../../stores/designSessionStore';
 import { FileEntry, WorkspaceView } from '../../types';
 
 interface WorkspaceProps {
@@ -50,6 +53,8 @@ const WritingWorkspace = lazy(() => import('../writing/WritingWorkspace'));
 const PresentationWorkspace = lazy(() => import('../presentation/PresentationWorkspace'));
 // The sheets studio pulls in the grid, the formula engine and the xlsx reader/writer.
 const SheetsWorkspace = lazy(() => import('../sheets/SheetsWorkspace'));
+// The design studio's canvas, boards and exports.
+const DesignWorkspace = lazy(() => import('../design/DesignWorkspace'));
 
 export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, onSettingsClick }) => {
   const {
@@ -98,6 +103,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const [isResizing, setIsResizing] = useState(false);
   const [showQuickOpen, setShowQuickOpen] = useState(false);
   const [extensionsOpen, setExtensionsOpen] = useState(false);
+  const [skillsOpen, setSkillsOpen] = useState(false);
   const [editorMounted, setEditorMounted] = useState(activeView === 'editor');
   // Writing layers stay mounted once visited, so a report keeps writing while you look elsewhere.
   const [writingMounted, setWritingMounted] = useState<Record<string, boolean>>({});
@@ -105,6 +111,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
   const [presentationMounted, setPresentationMounted] = useState<Record<string, boolean>>({});
   // And sheets, so a workbook keeps its AI run and unsaved edits while you look elsewhere.
   const [sheetsMounted, setSheetsMounted] = useState<Record<string, boolean>>({});
+  // And design, so a project keeps drawing while you look elsewhere.
+  const [designMounted, setDesignMounted] = useState<Record<string, boolean>>({});
   const isDragging = useRef(false);
 
   useEffect(() => {
@@ -117,6 +125,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     }
     if (activeView === 'sheets' && activeWorkspaceId) {
       setSheetsMounted((mounted) => (mounted[activeWorkspaceId] ? mounted : { ...mounted, [activeWorkspaceId]: true }));
+    }
+    if (activeView === 'design' && activeWorkspaceId) {
+      setDesignMounted((mounted) => (mounted[activeWorkspaceId] ? mounted : { ...mounted, [activeWorkspaceId]: true }));
     }
   }, [activeView, activeWorkspaceId]);
   const rafIdRef = useRef<number | null>(null);
@@ -131,6 +142,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     }).then((stop) => {
       if (disposed) stop(); else unlisten = stop;
     }).catch((error: unknown) => console.error('Could not subscribe to extension installation:', error));
+    return () => { disposed = true; unlisten?.(); };
+  }, []);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void listen<SkillInstallProgress>('skill-install-progress', (event) => {
+      useSkillStore.getState().setProgress(event.payload);
+    }).then((stop) => {
+      if (disposed) stop(); else unlisten = stop;
+    }).catch((error: unknown) => console.error('Could not subscribe to skill installation:', error));
     return () => { disposed = true; unlisten?.(); };
   }, []);
 
@@ -152,13 +174,27 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
 
   const handleExplorerClick = useCallback((): void => {
     setExtensionsOpen(false);
+    setSkillsOpen(false);
     toggleExplorer();
   }, [toggleExplorer]);
 
   const handleSourceControlClick = useCallback((): void => {
     setExtensionsOpen(false);
+    setSkillsOpen(false);
     toggleSourceControl();
   }, [toggleSourceControl]);
+
+  // The header menu picks a panel explicitly (open, never toggle): picking the
+  // already-open panel must keep it open. Keyboard shortcuts below toggle.
+  const handleExtensionsClick = useCallback((): void => {
+    setSkillsOpen(false);
+    setExtensionsOpen(true);
+  }, []);
+
+  const handleSkillsClick = useCallback((): void => {
+    setExtensionsOpen(false);
+    setSkillsOpen(true);
+  }, []);
 
   useEffect(() => {
     if (view !== 'workspace') return;
@@ -291,7 +327,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       if (e.ctrlKey || e.metaKey) {
         if (e.shiftKey && e.key.toLowerCase() === 'x') {
           e.preventDefault();
+          setSkillsOpen(false);
           setExtensionsOpen((open) => !open);
+        } else if (e.shiftKey && e.key.toLowerCase() === 's') {
+          e.preventDefault();
+          setExtensionsOpen(false);
+          setSkillsOpen((open) => !open);
         } else if (e.ctrlKey && !e.altKey && e.code === 'Backquote') {
           // Ctrl+` toggles the editor's terminal panel; Ctrl+Shift+` opens a new shell (VS Code).
           e.preventDefault();
@@ -327,6 +368,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         } else if (e.key === 'b') {
           e.preventDefault();
           setExtensionsOpen(false);
+          setSkillsOpen(false);
           toggleExplorer();
         } else if (e.key === 'e' && !e.shiftKey) {
           e.preventDefault();
@@ -337,6 +379,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
             setActiveView(activeView === 'presentation' ? 'editor' : 'presentation');
           } else if (kind === 'sheets') {
             setActiveView(activeView === 'sheets' ? 'editor' : 'sheets');
+          } else if (kind === 'design') {
+            setActiveView(activeView === 'design' ? 'editor' : 'design');
           } else {
             setActiveView(activeView === 'terminal' ? 'editor' : 'terminal');
           }
@@ -416,6 +460,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       return next;
     });
     window.setTimeout(() => useSheetsSessionStore.getState().closeWorkspace(workspaceId), 0);
+    // Unmounting the design layer saves the open project.
+    setDesignMounted((mounted) => {
+      const next = { ...mounted };
+      delete next[workspaceId];
+      return next;
+    });
+    window.setTimeout(() => useDesignSessionStore.getState().closeWorkspace(workspaceId), 0);
     delete hasInitialized.current[workspaceId];
     closeBrowserView(workspaceId).catch((err) => {
       console.error('Error closing browser view:', err);
@@ -480,11 +531,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         onMaximizeWindow={maximizeWindow}
         onCloseWindow={closeWindow}
         onExplorerClick={handleExplorerClick}
-        onExtensionsClick={() => setExtensionsOpen((open) => !open)}
+        onExtensionsClick={handleExtensionsClick}
         extensionsOpen={extensionsOpen}
+        skillsOpen={skillsOpen}
+        onSkillsClick={handleSkillsClick}
         onSourceControlClick={handleSourceControlClick}
-        explorerOpen={explorerOpen && !extensionsOpen}
-        sourceControlOpen={sourceControlOpen && !extensionsOpen}
+        explorerOpen={explorerOpen && !extensionsOpen && !skillsOpen}
+        sourceControlOpen={sourceControlOpen && !extensionsOpen && !skillsOpen}
         sourceControlChangeCount={gitStatuses.length}
         onViewChange={handleViewChange}
         activeView={activeView}
@@ -533,7 +586,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
         {currentWorkspace ? (
           <div className="workspace-stage h-full flex items-stretch">
             <AnimatePresence initial={false}>
-              {(extensionsOpen || explorerOpen || sourceControlOpen) && (
+              {(extensionsOpen || skillsOpen || explorerOpen || sourceControlOpen) && (
                 <motion.div
                   key="sidebar"
                   initial={{ width: 0, opacity: 0 }}
@@ -546,7 +599,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                     style={{ width: `${sidebarWidth}px`, minWidth: '180px' }}
                     className="workspace-sidebar__content h-full shrink-0 overflow-hidden"
                   >
-                    {extensionsOpen ? (
+                    {skillsOpen ? (
+                      <SkillsMarketPanel
+                        workspaceId={currentWorkspace.id}
+                        workspacePath={currentWorkspace.path}
+                        onClose={() => setSkillsOpen(false)}
+                      />
+                    ) : extensionsOpen ? (
                       <ExtensionsPanel
                         workspaceId={currentWorkspace.id}
                         onOpen={handleOpenExtension}
@@ -683,6 +742,22 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
                   >
                     <Suspense fallback={<div className="h-full w-full bg-[var(--bg-primary)]" />}>
                       <SheetsWorkspace workspace={workspace} visible={isVisible && view === 'workspace'} />
+                    </Suspense>
+                  </div>
+                );
+              })}
+
+              {openWorkspaces.map((workspace) => {
+                if (workspace.kind !== 'design' || !designMounted[workspace.id]) return null;
+                const isVisible = workspace.id === activeWorkspaceId && activeView === 'design';
+                return (
+                  <div
+                    key={`design:${workspace.id}`}
+                    className={isVisible ? 'absolute inset-0' : 'hidden'}
+                    aria-hidden={!isVisible}
+                  >
+                    <Suspense fallback={<div className="h-full w-full bg-[var(--bg-primary)]" />}>
+                      <DesignWorkspace workspace={workspace} visible={isVisible && view === 'workspace'} />
                     </Suspense>
                   </div>
                 );

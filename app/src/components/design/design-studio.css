@@ -1,0 +1,1505 @@
+/*
+ * Design studio (`.dz-*`): the describe-it home and the canvas. Theme tokens
+ * use hairlines, one ink colour for primary actions, and the app accent for
+ * focus and selection. The edge beam is a focused discovery cue for the
+ * hidden panel.
+ */
+
+/* The menus of the composer are drawn in the body (`.dz-menu-layer`), outside
+   `.dz-root`, so they carry the same tokens. */
+.dz-root,
+.dz-menu-layer {
+  --dz-surface: var(--bg-primary);
+  --dz-panel: color-mix(in oklab, var(--bg-primary) 96%, var(--text-primary));
+  --dz-line: color-mix(in oklab, var(--text-primary) 9%, transparent);
+  --dz-line-strong: color-mix(in oklab, var(--text-primary) 18%, transparent);
+  --dz-fill: color-mix(in oklab, var(--text-primary) 5%, transparent);
+  --dz-fill-hover: color-mix(in oklab, var(--text-primary) 9%, transparent);
+  --dz-ink: var(--text-primary);
+  --dz-ink-soft: var(--text-secondary);
+  --dz-ink-faint: color-mix(in oklab, var(--text-secondary) 70%, transparent);
+  --dz-focus: color-mix(in oklab, var(--accent) 65%, transparent);
+  --dz-danger: #e5484d;
+}
+
+.dz-root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--dz-surface);
+  color: var(--dz-ink);
+  font-family: var(--font-ui);
+}
+
+.dz-root button,
+.dz-root input,
+.dz-root textarea,
+.dz-root select {
+  font: inherit;
+}
+
+.dz-root :focus-visible {
+  outline: 2px solid var(--dz-focus);
+  outline-offset: 1px;
+}
+
+/* Buttons -------------------------------------------------------------------- */
+
+.dz-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dz-btn:hover:not(:disabled) { background: var(--dz-fill-hover); }
+.dz-btn:disabled { opacity: 0.45; cursor: default; }
+
+.dz-btn--ghost { border-color: transparent; color: var(--dz-ink-soft); }
+.dz-btn--ghost:hover:not(:disabled) { color: var(--dz-ink); }
+.dz-btn--ghost.is-on { background: var(--dz-fill); color: var(--dz-ink); }
+
+.dz-btn--primary {
+  border-color: var(--dz-ink);
+  background: var(--dz-ink);
+  color: var(--dz-surface);
+}
+
+.dz-btn--primary:hover:not(:disabled) { background: var(--dz-ink); opacity: 0.88; }
+.dz-btn--icon { width: 28px; padding: 0; justify-content: center; }
+.dz-btn--danger { border-color: var(--dz-danger); color: var(--dz-danger); }
+.dz-btn--sm { height: 24px; padding: 0 8px; font-size: 12px; }
+
+/* Home ------------------------------------------------------------------------ */
+
+.dz-home {
+  position: relative;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--dz-surface);
+  isolation: isolate;
+}
+
+/* The canvas the designs land on: a dot grid behind the hero that fades out. */
+.dz-home::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: -1;
+  height: 620px;
+  background-image: radial-gradient(color-mix(in oklab, var(--dz-ink) 16%, transparent) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  background-position: center top;
+  -webkit-mask-image: radial-gradient(ellipse 70% 85% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 80%);
+  mask-image: radial-gradient(ellipse 70% 85% at 50% 0%, #000 0%, rgba(0, 0, 0, 0.55) 45%, transparent 80%);
+  pointer-events: none;
+}
+
+.dz-home__inner {
+  width: min(880px, 100%);
+  margin: 0 auto;
+  padding: clamp(56px, 11vh, 120px) 32px 72px;
+}
+
+.dz-hero { margin-bottom: 32px; }
+
+.dz-home__workspace {
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--dz-ink-faint);
+}
+
+.dz-home__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(40px, 5.6vw, 64px);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.dz-composer {
+  --dz-card-bg: color-mix(in oklab, var(--dz-surface) 92%, var(--dz-ink));
+  position: relative;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 18px;
+  background: var(--dz-card-bg);
+  box-shadow:
+    0 1px 0 color-mix(in oklab, var(--dz-ink) 6%, transparent) inset,
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 24px 64px -24px rgba(0, 0, 0, 0.45);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.dz-composer:focus-within {
+  border-color: color-mix(in oklab, var(--dz-ink) 14%, transparent);
+}
+
+.dz-composer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px 0 8px;
+  border-bottom: 1px solid var(--dz-line);
+}
+
+.dz-kinds { display: flex; }
+
+.dz-kind {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 46px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--dz-ink-faint);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 150ms ease;
+}
+
+.dz-kind::after {
+  content: '';
+  position: absolute;
+  inset: auto 12px -1px 12px;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--dz-ink);
+  transform: scaleX(0);
+  transition: transform 200ms ease;
+}
+
+.dz-kind:hover:not(:disabled) { color: var(--dz-ink-soft); }
+.dz-kind[aria-checked='true'] { color: var(--dz-ink); }
+.dz-kind[aria-checked='true']::after { transform: scaleX(1); }
+
+.dz-composer__mode {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--dz-ink-faint);
+}
+
+.dz-composer__input {
+  display: block;
+  width: 100%;
+  min-height: 132px;
+  max-height: 300px;
+  padding: 20px 22px 12px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 17px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+}
+
+.dz-composer__input::placeholder { color: var(--dz-ink-faint); }
+.dz-root .dz-composer__input:focus-visible { outline: none; }
+
+.dz-composer__bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 10px 10px 12px;
+  flex-wrap: wrap;
+}
+
+.dz-composer__spacer { flex: 1; }
+
+.dz-composer__rule { width: 1px; height: 18px; margin: 0 6px; background: var(--dz-line-strong); }
+
+.dz-composer__kbd {
+  margin-inline-end: 10px;
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+  color: var(--dz-ink-faint);
+  white-space: nowrap;
+}
+
+/* The studio bar, inside the card: the hero keeps its larger voice. */
+.dz-composer .prompt-bar textarea {
+  min-height: 72px;
+  font-size: 16.5px;
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+}
+
+/* Size and Style, sitting in the bar row beside the model picker. */
+.dz-composer__opts { display: flex; align-items: center; gap: 2px; }
+
+/* An option: quiet label, the value in ink. */
+.dz-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  max-width: 280px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 150ms ease;
+}
+
+.dz-opt:hover:not(:disabled),
+.dz-opt.is-on { background: var(--dz-fill-hover); }
+.dz-opt:disabled { opacity: 0.45; cursor: default; }
+.dz-opt--icon { width: 32px; padding: 0; justify-content: center; color: var(--dz-ink-soft); }
+.dz-opt__label { color: var(--dz-ink-faint); }
+.dz-opt__value { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.dz-opt__caret { flex-shrink: 0; color: var(--dz-ink-faint); transition: transform 150ms ease; }
+.dz-opt.is-on .dz-opt__caret { transform: rotate(180deg); }
+
+.dz-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--dz-ink);
+  color: var(--dz-surface);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 150ms ease, transform 120ms ease;
+}
+
+.dz-send:hover:not(:disabled) { opacity: 0.9; }
+.dz-send:active:not(:disabled) { transform: translateY(1px); }
+.dz-send:disabled { background: var(--dz-fill-hover); color: var(--dz-ink-faint); cursor: default; }
+.dz-send__arrow { transition: transform 180ms ease; }
+.dz-send:hover:not(:disabled) .dz-send__arrow { transform: translateX(2px); }
+.dz-send--stop { padding: 0 16px; background: transparent; color: var(--dz-ink); box-shadow: inset 0 0 0 1px var(--dz-line-strong); }
+
+.dz-segmented--sm { height: 26px; }
+.dz-segmented--sm button { padding: 0 9px; font-size: 12px; }
+
+.dz-segmented {
+  display: inline-flex;
+  height: 28px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--dz-fill);
+}
+
+.dz-segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dz-ink-soft);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.dz-segmented button[aria-checked='true'] {
+  background: var(--dz-surface);
+  color: var(--dz-ink);
+  box-shadow: 0 0 0 1px var(--dz-line);
+}
+
+.dz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 20px 8px;
+}
+
+.dz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  max-width: 240px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--dz-line);
+  border-radius: 6px;
+  background: var(--dz-surface);
+  font-size: 12px;
+}
+
+.dz-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-chip__thumb { width: 18px; height: 18px; border-radius: 3px; object-fit: cover; }
+
+.dz-chip__remove {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--dz-ink-soft);
+  cursor: pointer;
+}
+
+.dz-chip__remove:hover { background: var(--dz-fill-hover); color: var(--dz-ink); }
+
+/* Menus (size, style, engine) --------------------------------------------------- */
+
+.dz-menu-anchor { position: relative; }
+
+.dz-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  inset-inline-start: 0;
+  z-index: 30;
+  min-width: 220px;
+  max-height: 320px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 10px;
+  background: var(--dz-surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.dz-menu--below { bottom: auto; top: calc(100% + 6px); }
+
+/* A menu drawn in the body, placed by `FloatingMenu` from its button. Nothing
+   above it in the composer can clip it or cover it. */
+.dz-menu--float {
+  position: fixed;
+  z-index: 1000;
+  bottom: auto;
+  inset-inline-start: auto;
+  min-width: 240px;
+  max-width: calc(100vw - 16px);
+  font-family: var(--font-ui);
+  color: var(--dz-ink);
+}
+
+.dz-menu-layer button,
+.dz-menu-layer input {
+  font: inherit;
+}
+
+.dz-menu__group {
+  padding: 8px 8px 4px;
+  font-size: 11px;
+  color: var(--dz-ink-faint);
+}
+
+.dz-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 12.5px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.dz-menu__item:hover { background: var(--dz-fill-hover); }
+.dz-menu__item[aria-checked='true'] { background: var(--dz-fill); }
+.dz-menu__meta { color: var(--dz-ink-faint); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+/* A size row: the name gives way, the pixels and the tick keep their place. */
+.dz-menu__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-menu__item .dz-menu__meta { flex: none; white-space: nowrap; }
+.dz-menu__tick { display: inline-grid; flex: none; place-items: center; width: 14px; color: var(--dz-ink); }
+.dz-menu__item[aria-disabled='true'] { opacity: 0.5; cursor: default; }
+
+/* The canvas count of the chosen size: [−] n [+]. */
+.dz-menu__count {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 8px 6px;
+  margin-top: 6px;
+  border-top: 1px solid var(--dz-line);
+  font-size: 12.5px;
+  color: var(--dz-ink-soft);
+}
+
+.dz-stepper { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 8px; background: var(--dz-fill); }
+
+.dz-stepper button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dz-ink);
+  cursor: pointer;
+}
+
+.dz-stepper button:hover:not(:disabled) { background: var(--dz-fill-hover); }
+.dz-stepper button:disabled { opacity: 0.35; cursor: default; }
+
+.dz-stepper output {
+  min-width: 28px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--dz-ink);
+}
+
+.dz-menu__custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-top: 1px solid var(--dz-line);
+  margin-top: 6px;
+}
+
+.dz-input {
+  width: 64px;
+  height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dz-select {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 12.5px;
+  max-width: 160px;
+}
+
+/* Suggestions, recent ----------------------------------------------------------- */
+
+.dz-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 16px;
+  padding-inline: 4px;
+  font-size: 13px;
+}
+
+.dz-hints__lead { margin-inline-end: 4px; color: var(--dz-ink-faint); }
+
+.dz-hints__item {
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--dz-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--dz-ink-soft);
+  cursor: pointer;
+  transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
+}
+
+.dz-hints__item:hover { color: var(--dz-ink); border-color: var(--dz-line-strong); background: var(--dz-fill); }
+
+.dz-error { margin: 14px 4px 0; font-size: 13px; color: var(--dz-danger); }
+
+.dz-section { margin-top: 72px; }
+.dz-section__heading { margin: 0 0 18px; font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -0.015em; color: var(--dz-ink); }
+
+.dz-projects {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.dz-project { position: relative; }
+
+.dz-project__open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.dz-project__cover {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 16 / 10;
+  border: 1px solid var(--dz-line);
+  border-radius: 12px;
+  background-color: color-mix(in oklab, var(--dz-surface) 94%, var(--dz-ink));
+  transition: border-color 180ms ease, transform 220ms ease;
+  background-image: radial-gradient(var(--dz-line-strong) 1px, transparent 1px);
+  background-size: 14px 14px;
+  overflow: hidden;
+}
+
+.dz-project__open:hover .dz-project__cover { border-color: var(--dz-line-strong); transform: translateY(-2px); }
+
+.dz-project__boards { display: flex; align-items: flex-end; gap: 6px; }
+.dz-project__board { border: 1px solid var(--dz-line-strong); border-radius: 2px; background: var(--dz-surface); }
+
+.dz-project__name { margin-top: 8px; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.dz-project__meta { margin-top: 2px; font-size: 11.5px; color: var(--dz-ink-faint); }
+
+.dz-project__delete {
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  display: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--dz-line);
+  border-radius: 6px;
+  background: var(--dz-surface);
+  color: var(--dz-ink-soft);
+  cursor: pointer;
+}
+
+.dz-project:hover .dz-project__delete,
+.dz-project:focus-within .dz-project__delete { display: grid; }
+
+.dz-project__confirm {
+  position: absolute;
+  inset: 0 0 auto 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--dz-surface) 92%, transparent);
+}
+
+.dz-drop {
+  position: absolute;
+  inset: 12px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--dz-line-strong);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--dz-surface) 88%, transparent);
+  color: var(--dz-ink-soft);
+  font-size: 13px;
+  pointer-events: none;
+}
+
+/* Studio: canvas ---------------------------------------------------------------- */
+
+.dz-studio { position: relative; display: flex; flex: 1; min-height: 0; }
+
+/* The panel opens for a selection, while hovered, or while pinned. */
+.dz-side {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: 300px;
+  border-inline-end: 1px solid var(--dz-line);
+  background: var(--dz-surface);
+  box-shadow: 10px 0 28px rgba(0, 0, 0, 0);
+  transform: translateX(-100%);
+  transition: transform 190ms cubic-bezier(0.2, 0.7, 0.3, 1), box-shadow 190ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.dz-side[data-open] {
+  box-shadow: 10px 0 28px rgba(0, 0, 0, 0.12);
+  transform: none;
+}
+
+/* A persistent handle marks the hidden panel; its beam sweeps only on approach. */
+.dz-side-edge {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
+  z-index: 39;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 58px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--dz-line-strong);
+  border-inline-start: 0;
+  border-radius: 0 10px 10px 0;
+  background: color-mix(in oklab, var(--dz-surface) 92%, var(--accent) 8%);
+  color: var(--accent);
+  transform: translateY(-50%);
+  opacity: 0.92;
+  cursor: pointer;
+  box-shadow: 2px 0 12px color-mix(in oklab, var(--accent) 18%, transparent);
+  transition: opacity 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.dz-side-edge::before {
+  position: absolute;
+  inset-block: 8px;
+  inset-inline-end: 0;
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, transparent, var(--accent), transparent);
+  opacity: 0.7;
+  content: '';
+}
+
+.dz-side-edge::after {
+  position: absolute;
+  inset-inline: 0;
+  top: -45%;
+  height: 42%;
+  background: linear-gradient(180deg, transparent, color-mix(in oklab, var(--accent) 54%, white), transparent);
+  opacity: 0;
+  content: '';
+  pointer-events: none;
+}
+
+.dz-side-edge svg { position: relative; z-index: 1; }
+.dz-side-edge:hover, .dz-side-edge[data-near] { opacity: 1; background: color-mix(in oklab, var(--dz-surface) 84%, var(--accent) 16%); }
+.dz-side-edge:focus-visible { z-index: 41; outline: 2px solid var(--accent); outline-offset: 2px; }
+.dz-side-edge:hover::after, .dz-side-edge[data-near]::after { animation: dz-side-beam 900ms ease-out 1; }
+@keyframes dz-side-beam {
+  0% { top: -45%; opacity: 0; }
+  28% { opacity: 0.8; }
+  100% { top: 110%; opacity: 0; }
+}
+
+.dz-side__head {
+  padding: 14px 16px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  border-bottom: 1px solid var(--dz-line);
+}
+
+.dz-side__body { flex: 1; overflow-y: auto; padding: 14px 16px; font-size: 13px; line-height: 1.5; }
+
+.dz-prompt {
+  padding: 10px 12px;
+  border: 1px solid var(--dz-line);
+  border-radius: 8px;
+  background: var(--dz-panel);
+  color: var(--dz-ink-soft);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dz-note { margin: 12px 0 0; font-size: 12.5px; color: var(--dz-ink-faint); }
+
+.dz-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background-color: var(--dz-panel);
+  background-image: radial-gradient(color-mix(in oklab, var(--dz-ink) 18%, transparent) 1px, transparent 1px);
+  touch-action: none;
+}
+
+.dz-canvas[data-tool='hand'] { cursor: grab; }
+.dz-canvas[data-panning='true'] { cursor: grabbing; }
+
+.dz-world { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+
+/* isolation: the generation aura sits behind the board's own content. */
+.dz-board { position: absolute; isolation: isolate; }
+
+.dz-board__label {
+  position: absolute;
+  bottom: 100%;
+  inset-inline-start: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  font-size: 12px;
+  color: var(--dz-ink-soft);
+  white-space: nowrap;
+  transform-origin: 0 100%;
+}
+
+.dz-board__size { color: var(--dz-ink-faint); font-variant-numeric: tabular-nums; }
+.dz-board__name { cursor: text; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.dz-board__rename {
+  min-width: 120px;
+  padding: 1px 4px;
+  font: inherit;
+  color: var(--dz-ink);
+  background: var(--dz-surface);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  outline: none;
+}
+.dz-board__dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dz-line-strong); flex-shrink: 0; }
+.dz-board__dot[data-status='done'] { background: #3fa66b; }
+.dz-board__dot[data-status='drawing'] { background: var(--accent); animation: dz-pulse 1.1s ease-in-out infinite; }
+.dz-board__dot[data-status='failed'] { background: #d9534f; }
+@keyframes dz-pulse { 50% { opacity: 0.3; } }
+
+.dz-skeleton { display: flex; flex-direction: column; gap: 14px; align-items: center; width: 70%; margin-bottom: 18px; }
+.dz-skeleton span { height: 12px; border-radius: 6px; opacity: 0.14; animation: dz-shimmer 1.4s ease-in-out infinite; }
+.dz-skeleton .dz-skeleton__block { width: 100%; height: 34%; min-height: 60px; border-radius: 12px; }
+@keyframes dz-shimmer { 50% { opacity: 0.07; } }
+.animations-disabled .dz-skeleton span, .animations-disabled .dz-board__dot { animation: none; }
+@media (prefers-reduced-motion: reduce) { .dz-skeleton span, .dz-board__dot { animation: none; } }
+
+.dz-board__surface {
+  width: 100%;
+  height: 100%;
+  border: 1px solid var(--dz-line-strong);
+  background: var(--dz-surface);
+  box-sizing: border-box;
+}
+
+.dz-board[data-selected='true'] .dz-board__surface { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.dz-board__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 100%;
+  padding: 24px;
+  color: var(--dz-ink-faint);
+  font-size: 14px;
+  text-align: center;
+}
+
+.dz-system { padding: 28px; }
+.dz-system__swatches { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+.dz-system__swatch { width: 72px; display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.dz-system__chip { height: 56px; border-radius: 8px; border: 1px solid var(--dz-line); display: grid; place-items: center; font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+.dz-system__title { margin-top: 24px; margin-bottom: 8px; letter-spacing: 0.01em; }
+.dz-system__ramp { display: flex; flex-direction: column; }
+.dz-system__row { display: flex; align-items: baseline; gap: 16px; padding: 8px 0; border-bottom: 1px solid; }
+.dz-system__row:last-child { border-bottom: 0; }
+.dz-system__controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.dz-system__button, .dz-system__input, .dz-system__card { display: inline-flex; align-items: center; justify-content: center; height: 40px; padding: 0 18px; font-size: 14px; font-weight: 500; }
+.dz-system__input { min-width: 140px; justify-content: flex-start; font-weight: 400; }
+.dz-system__card { min-width: 96px; height: 56px; }
+.dz-system__swatch span { display: block; margin-top: 6px; font-size: 11px; color: var(--dz-ink-faint); }
+
+.dz-rail {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--dz-line);
+  border-radius: 10px;
+  background: var(--dz-surface);
+  transform: translateY(-50%);
+}
+
+.dz-rail .dz-btn--icon[aria-pressed='true'] { background: var(--dz-ink); color: var(--dz-surface); border-color: var(--dz-ink); }
+
+.dz-zoom {
+  position: absolute;
+  bottom: 16px;
+  inset-inline-end: 16px;
+  display: flex;
+  gap: 6px;
+}
+
+.dz-zoom .dz-btn { background: var(--dz-surface); }
+
+.dz-stage {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.dz-canvas[data-tool='pick'] { cursor: crosshair; }
+
+.dz-hover {
+  position: absolute;
+  z-index: 2;
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  background: color-mix(in oklab, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+
+.dz-picked-tag {
+  position: absolute;
+  top: 100%;
+  inset-inline-start: 0;
+  margin-top: 8px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+
+/* Side panel tabs and fields ------------------------------------------------------ */
+
+.dz-tabs {
+  display: flex;
+  height: 44px;
+  border-bottom: 1px solid var(--dz-line);
+}
+
+.dz-tab {
+  flex: 1;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--dz-ink-soft);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.dz-tab[aria-selected='true'] { color: var(--dz-ink); border-bottom-color: var(--dz-ink); }
+
+/* The tabs and the pin that keeps the panel open share one row. */
+.dz-side__tabs { display: flex; align-items: center; gap: 4px; padding-inline-end: 8px; border-bottom: 1px solid var(--dz-line); }
+.dz-side__tabs .dz-tabs { flex: 1; border-bottom: 0; }
+
+.dz-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 32px;
+  font-size: 12.5px;
+  color: var(--dz-ink-soft);
+}
+
+.dz-field .dz-select { max-width: 170px; }
+.dz-field .lq-slider { width: 150px; }
+.dz-input--wide { width: 170px; }
+
+.dz-sizepicker { display: flex; flex-direction: column; gap: 8px; min-width: 230px; padding: 4px 2px; }
+.dz-sizepicker__row { display: flex; gap: 8px; }
+.dz-sizepicker__row .dz-field { flex: 1; }
+.dz-sizepicker__row .dz-input { width: 72px; box-sizing: border-box; }
+.dz-sizepicker .dz-note { margin: 0; font-variant-numeric: tabular-nums; }
+
+.dz-color {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.dz-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+
+.dz-code {
+  width: 100%;
+  height: 220px;
+  padding: 8px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 8px;
+  background: var(--dz-panel);
+  color: var(--dz-ink);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  line-height: 1.5;
+  resize: vertical;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Prompt bar ------------------------------------------------------------------------ */
+
+.dz-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 10;
+  width: min(640px, max(280px, calc(100% - 600px)));
+  padding: 8px 10px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 12px;
+  background: var(--dz-surface);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  transform: translateX(-50%);
+}
+
+.dz-bar[role='region'][aria-label='Review the change'] { display: flex; align-items: center; gap: 6px; }
+
+.dz-bar__top { display: flex; align-items: center; gap: 8px; padding: 0 2px 6px; font-size: 11.5px; color: var(--dz-ink-soft); }
+
+.dz-bar__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--dz-fill);
+  color: var(--dz-ink);
+}
+
+.dz-bar__picked { overflow: hidden; max-width: 260px; text-overflow: ellipsis; white-space: nowrap; }
+.dz-bar__status { font-size: 12px; color: var(--dz-ink-soft); }
+.dz-bar__row { display: flex; align-items: flex-end; gap: 6px; }
+
+.dz-bar__input {
+  flex: 1;
+  min-height: 32px;
+  max-height: 120px;
+  padding: 6px 4px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--dz-ink);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+.dz-bar__quick { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 2px 0; font-size: 12px; }
+
+/* Export dialog ----------------------------------------------------------------------- */
+
+.dz-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--dz-surface) 60%, transparent);
+}
+
+.dz-modal__panel {
+  width: min(460px, calc(100% - 32px));
+  padding: 16px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 12px;
+  background: var(--dz-surface);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+}
+
+.dz-modal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.dz-modal__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 40px; font-size: 12.5px; color: var(--dz-ink-soft); }
+.dz-modal__done { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12.5px; }
+.dz-modal__foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dz-composer, .dz-kind::after, .dz-send, .dz-send__arrow, .dz-tpl__thumb, .dz-project__cover, .dz-side, .dz-side-edge { transition: none; }
+  .dz-side-edge::after { animation: none !important; }
+}
+.animations-disabled .dz-composer,
+.animations-disabled .dz-kind::after,
+.animations-disabled .dz-send__arrow,
+.animations-disabled .dz-tpl__thumb,
+.animations-disabled .dz-project__cover { transition: none; }
+.animations-disabled .dz-side-edge::after { animation: none !important; }
+
+.dz-textedit {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 12;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  width: min(480px, calc(100% - 160px));
+  padding: 8px 10px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 12px;
+  background: var(--dz-surface);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  transform: translateX(-50%);
+}
+
+.dz-boardlist { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.dz-boardlist__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--dz-ink);
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.dz-boardlist__row:hover { background: var(--dz-hover, rgba(127, 127, 127, 0.1)); }
+.dz-boardlist__row[data-hidden='true'] { opacity: 0.5; }
+.dz-boardlist__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Layers */
+.dz-layers { display: flex; flex-direction: column; gap: 2px; }
+.dz-layers__board .dz-boardlist__row { padding: 0 4px 0 0; }
+.dz-boardlist__row { display: flex; align-items: center; }
+.dz-boardlist__row[data-selected='true'] { background: color-mix(in oklab, var(--accent) 12%, transparent); }
+.dz-boardlist__main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 7px 8px; background: transparent; border: 0; color: inherit; font: inherit; font-size: 13px; text-align: start; cursor: pointer; }
+.dz-layers__caret { transition: transform 0.12s ease; flex-shrink: 0; color: var(--dz-ink-faint); }
+.dz-layers__caret[data-open='true'] { transform: rotate(90deg); }
+.dz-layers__tree { display: flex; flex-direction: column; margin: 2px 0 8px; border-inline-start: 1px solid var(--dz-line); margin-inline-start: 14px; }
+.dz-layer { display: flex; align-items: baseline; gap: 8px; padding: 4px 8px; font: inherit; font-size: 12.5px; color: var(--dz-ink-soft); text-align: start; background: transparent; border: 0; border-radius: 5px; cursor: pointer; min-width: 0; }
+.dz-layer:hover { background: var(--dz-hover, rgba(127, 127, 127, 0.1)); color: var(--dz-ink); }
+.dz-layer[data-active='true'] { background: color-mix(in oklab, var(--accent) 16%, transparent); color: var(--dz-ink); }
+.dz-layer__tag { font-family: ui-monospace, Consolas, monospace; font-size: 10.5px; color: var(--dz-ink-faint); min-width: 30px; }
+.dz-layer__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Element inspector */
+.dz-inspector { display: flex; flex-direction: column; width: 288px; flex-shrink: 0; min-height: 0; border-inline-start: 1px solid var(--dz-line); background: var(--dz-surface); }
+.dz-inspector__head { display: flex; align-items: center; gap: 6px; padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--dz-line); }
+.dz-inspector__body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 14px 24px; }
+.dz-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; flex: 1; min-width: 0; font-size: 12px; }
+.dz-crumbs__item { padding: 2px 4px; font: inherit; color: var(--dz-ink-soft); background: transparent; border: 0; border-radius: 4px; cursor: pointer; max-width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-crumbs__item:hover { color: var(--dz-ink); background: var(--dz-hover, rgba(127, 127, 127, 0.1)); }
+.dz-crumbs__item[data-current='true'] { color: var(--dz-ink); font-weight: 600; }
+.dz-crumbs__sep { color: var(--dz-ink-faint); }
+.dz-insp__section { padding: 14px 0 12px; border-bottom: 1px solid var(--dz-line); display: flex; flex-direction: column; gap: 10px; }
+.dz-insp__section:last-child { border-bottom: 0; }
+.dz-insp__section .dz-section__heading { margin: 0; }
+.dz-insp__label { font-size: 11.5px; color: var(--dz-ink-faint); }
+.dz-num-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dz-num-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.dz-num { display: flex; flex-direction: column; gap: 3px; font-size: 11px; color: var(--dz-ink-faint); min-width: 0; }
+.dz-num .dz-input, .dz-num .dz-select { width: 100%; max-width: none; box-sizing: border-box; }
+.dz-code--short { min-height: 64px; max-height: 160px; resize: vertical; }
+.dz-seg { display: flex; gap: 2px; }
+.dz-seg .dz-btn[aria-pressed='true'] { background: color-mix(in oklab, var(--accent) 18%, transparent); }
+.dz-colorfield { display: flex; flex-direction: column; gap: 6px; }
+.dz-colorfield__head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; color: var(--dz-ink-soft); min-height: 22px; }
+.dz-colorfield__row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.dz-token { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--dz-line-strong); cursor: pointer; }
+.dz-token[aria-pressed='true'] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.dz-picked-box { position: absolute; z-index: 2; outline: 2px solid var(--accent); outline-offset: 0; pointer-events: none; }
+
+/* Canvas: guides, marquee, arrange bar, board menu */
+.dz-guide { position: absolute; z-index: 3; background: #e5457b; pointer-events: none; }
+.dz-marquee { position: absolute; z-index: 4; pointer-events: none; border: 1px solid var(--accent); background: color-mix(in oklab, var(--accent) 10%, transparent); }
+.dz-arrange {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--dz-line-strong);
+  border-radius: 10px;
+  background: var(--dz-surface);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+}
+.dz-arrange__sep { width: 1px; height: 18px; margin: 0 4px; background: var(--dz-line-strong); }
+.dz-menu-scrim { position: absolute; inset: 0; z-index: 29; }
+.dz-menu--context { bottom: auto; min-width: 200px; max-height: none; overflow: visible; }
+.dz-menu__rule { height: 1px; margin: 4px 2px; background: var(--dz-line); }
+.dz-menu__item[data-danger='true'] { color: #d9534f; }
+.dz-menu__item:disabled { opacity: 0.45; cursor: default; }
+
+/* Frames, width handle, minimap */
+.dz-board__surface[data-frame='phone'] { border-radius: 40px; overflow: hidden; }
+.dz-frame { position: absolute; z-index: 1; pointer-events: none; }
+.dz-frame--phone { inset: -14px; border: 14px solid #151517; border-radius: 54px; box-shadow: 0 0 0 2px #3a3a3e, 0 16px 40px rgba(0, 0, 0, 0.25); box-sizing: border-box; }
+.dz-frame__notch { position: absolute; top: -2px; left: 50%; width: 96px; height: 22px; margin-left: -48px; border-radius: 0 0 14px 14px; background: #151517; }
+.dz-frame--browser { left: 0; right: 0; bottom: 100%; height: 36px; display: flex; align-items: center; gap: 12px; padding: 0 12px; background: #e8e8ec; border: 1px solid var(--dz-line-strong); border-bottom: 0; border-radius: 10px 10px 0 0; box-sizing: border-box; }
+.dz-frame__dots { display: flex; gap: 6px; }
+.dz-frame__dots i { width: 10px; height: 10px; border-radius: 50%; background: #c4c4cc; }
+.dz-frame__url { flex: 1; max-width: 420px; padding: 3px 12px; border-radius: 999px; background: #fff; color: #6b6b73; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.dz-resize { position: absolute; z-index: 5; top: 50%; left: 100%; width: 12px; height: 56px; margin-left: 6px; border-radius: 6px; background: var(--accent); cursor: ew-resize; transform-origin: 0 50%; touch-action: none; opacity: 0.85; }
+.dz-resize:hover { opacity: 1; }
+.dz-resize__label { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); padding: 3px 8px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* The overview map lives with the zoom cluster at the bottom right: the left side panel overlays the
+   canvas edge to edge, and the prompt bar is clamped away from this corner, so nothing ever covers it. */
+.dz-minimap { position: absolute; inset-inline-end: 16px; bottom: 54px; z-index: 6; border: 1px solid var(--dz-line-strong); border-radius: 8px; background: color-mix(in oklab, var(--dz-surface) 92%, transparent); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); cursor: crosshair; touch-action: none; }
+.dz-minimap__board { fill: color-mix(in oklab, var(--dz-ink) 22%, transparent); }
+.dz-minimap__board[data-system='true'] { fill: color-mix(in oklab, var(--dz-ink) 10%, transparent); }
+.dz-minimap__selected { fill: color-mix(in oklab, var(--accent) 45%, transparent); }
+.dz-minimap__view { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+
+/* Shortcut sheet */
+.dz-modal-scrim { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); }
+.dz-shortcuts { width: min(760px, calc(100% - 48px)); max-height: calc(100% - 48px); overflow-y: auto; border: 1px solid var(--dz-line-strong); border-radius: 12px; background: var(--dz-surface); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.3); }
+.dz-shortcuts__head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 12px 18px; border-bottom: 1px solid var(--dz-line); font-weight: 600; font-size: 14px; }
+.dz-shortcuts__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; padding: 18px; }
+.dz-shortcuts h3 { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--dz-ink-soft); }
+.dz-shortcuts dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; font-size: 13px; }
+.dz-shortcuts dt { color: var(--dz-ink); }
+.dz-shortcuts dd { margin: 0; color: var(--dz-ink-faint); text-align: end; }
+
+/* Directions */
+.dz-directions { position: absolute; inset: 0 0 0 0; z-index: 8; display: flex; flex-direction: column; gap: 18px; padding: 28px; overflow-y: auto; background: color-mix(in oklab, var(--dz-surface) 94%, transparent); }
+.dz-directions__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.dz-directions__title { font-size: 18px; font-weight: 600; }
+.dz-directions__sub { margin-top: 4px; font-size: 13px; color: var(--dz-ink-soft); max-width: 560px; }
+.dz-directions__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; align-items: stretch; }
+.dz-direction { display: flex; flex-direction: column; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid var(--dz-line-strong); }
+.dz-direction__chips { display: flex; gap: 6px; margin-top: 16px; }
+.dz-direction__chips span { width: 22px; height: 22px; border-radius: 50%; border: 1px solid; }
+.dz-direction__row { display: flex; gap: 8px; align-items: center; margin-top: 16px; }
+.dz-direction__button { display: inline-flex; align-items: center; height: 32px; padding: 0 14px; font-size: 13px; font-weight: 500; }
+.dz-direction__card { width: 44px; height: 32px; border: 1px solid; }
+.dz-direction__use { align-self: flex-start; }
+
+/* Design system panel */
+/* .dz-sysdoc: see the Design tab block at the end of the file. */
+.dz-kitsave { display: flex; gap: 8px; }
+.dz-kit { display: flex; align-items: center; gap: 8px; min-height: 30px; font-size: 13px; }
+.dz-kit__chips { display: flex; flex-shrink: 0; }
+.dz-kit__chips i { width: 14px; height: 14px; margin-inline-end: -4px; border-radius: 50%; border: 1px solid var(--dz-line-strong); }
+.dz-kit__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-checks { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.dz-check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dz-ink-soft); }
+.dz-check svg { color: #3f9f75; flex-shrink: 0; }
+.dz-check[data-fail='true'] svg { color: #d9971f; }
+.dz-check__ratio { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+.dz-ideas { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.dz-idea { display: flex; align-items: center; gap: 10px; padding: 6px; font-size: 12.5px; color: var(--dz-ink); background: transparent; border: 1px solid var(--dz-line); border-radius: 8px; cursor: pointer; text-align: start; }
+.dz-idea:hover { background: var(--dz-fill); }
+.dz-idea__strip { display: flex; border-radius: 4px; overflow: hidden; border: 1px solid var(--dz-line-strong); }
+.dz-idea__strip i { width: 16px; height: 18px; }
+
+/* Start from: templates and examples */
+.dz-gallery { margin-top: 80px; }
+.dz-gallery__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.dz-gallery__title { margin: 0; font-family: var(--font-display); font-size: 20px; font-weight: 600; letter-spacing: -0.015em; color: var(--dz-ink); }
+.dz-gallery__cats { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 20px -10px; }
+.dz-gallery__cats .dz-hints__item { border-color: transparent; height: 28px; padding: 0 10px; color: var(--dz-ink-faint); }
+.dz-gallery__cats .dz-hints__item:hover { background: var(--dz-fill); color: var(--dz-ink); }
+.dz-gallery__cats .dz-hints__item[aria-pressed='true'] { background: var(--dz-fill-hover); color: var(--dz-ink); }
+.dz-gallery__head .dz-segmented button[aria-selected='true'] { background: var(--dz-surface); color: var(--dz-ink); box-shadow: 0 0 0 1px var(--dz-line); }
+.dz-gallery__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 28px 18px; }
+.dz-tpl { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 0; text-align: start; font: inherit; color: var(--dz-ink); background: transparent; border: 0; cursor: pointer; }
+.dz-tpl__thumb { box-sizing: border-box; width: 100%; height: auto; aspect-ratio: 72 / 44; padding: 16px 20px; margin-bottom: 10px; border-radius: 12px; background: color-mix(in oklab, var(--dz-surface) 94%, var(--dz-ink)); box-shadow: inset 0 0 0 1px var(--dz-line); transition: background-color 180ms ease, box-shadow 180ms ease, transform 220ms ease; }
+.dz-tpl:hover:not(:disabled) .dz-tpl__thumb { background: color-mix(in oklab, var(--dz-surface) 89%, var(--dz-ink)); box-shadow: inset 0 0 0 1px var(--dz-line-strong); transform: translateY(-2px); }
+.dz-tpl[aria-pressed='true'] .dz-tpl__thumb { box-shadow: inset 0 0 0 2px var(--dz-ink); }
+.dz-tpl__board { fill: var(--dz-surface); stroke: var(--dz-line-strong); stroke-width: 0.4; }
+.dz-tpl__line { fill: var(--dz-ink-soft); }
+.dz-tpl__line--faint { fill: var(--dz-ink-faint); opacity: 0.6; }
+.dz-tpl__accent { fill: var(--dz-ink); opacity: 0.85; }
+.dz-tpl__name { padding-inline: 2px; font-size: 13.5px; font-weight: 500; }
+.dz-tpl__meta { padding-inline: 2px; font-size: 12px; color: var(--dz-ink-faint); }
+.dz-tpl__check { position: absolute; top: 10px; inset-inline-end: 10px; }
+.dz-gallery__examples { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 32px; }
+.dz-example { display: flex; flex-direction: column; gap: 6px; padding: 18px 0; text-align: start; font: inherit; color: var(--dz-ink); background: transparent; border: 0; border-top: 1px solid var(--dz-line); cursor: pointer; }
+.dz-example:hover:not(:disabled) .dz-example__title { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--dz-line-strong); }
+.dz-example__title { font-size: 14px; font-weight: 600; }
+.dz-example__text { font-size: 13px; line-height: 1.55; color: var(--dz-ink-soft); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+.dz-template-banner { display: flex; flex-direction: column; gap: 10px; padding: 0 20px 12px; }
+.dz-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 12px; }
+.dz-details__field { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--dz-ink-faint); }
+.dz-details__field .dz-input { width: 100%; box-sizing: border-box; }
+
+/* Tweaks */
+.dz-tweaks { margin: 14px 0 8px; padding-top: 12px; border-top: 1px solid var(--dz-line); }
+.dz-tweaks .dz-field input[type='checkbox'] { width: 16px; height: 16px; }
+
+/* Flow arrows */
+.dz-flow { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 2; }
+.dz-flow__path { fill: none; stroke: var(--accent); stroke-width: 2.5; opacity: 0.85; vector-effect: non-scaling-stroke; }
+.dz-flow__head { fill: var(--accent); }
+.dz-flow__count { fill: var(--accent); font-weight: 600; text-anchor: middle; }
+.dz-versions { margin: 14px 0 8px; padding-top: 12px; border-top: 1px solid var(--dz-line); }
+.dz-versions .dz-insp__label { margin: 10px 0 6px; font-size: 11.5px; color: var(--dz-ink-faint); }
+
+/* Preview */
+.dz-pv {
+  --dz-surface: var(--bg-primary);
+  --dz-line: color-mix(in oklab, var(--text-primary) 9%, transparent);
+  --dz-line-strong: color-mix(in oklab, var(--text-primary) 18%, transparent);
+  --dz-fill: color-mix(in oklab, var(--text-primary) 5%, transparent);
+  --dz-fill-hover: color-mix(in oklab, var(--text-primary) 9%, transparent);
+  --dz-ink: var(--text-primary);
+  --dz-ink-soft: var(--text-secondary);
+  --dz-ink-faint: color-mix(in oklab, var(--text-secondary) 70%, transparent);
+  --dz-focus: color-mix(in oklab, var(--accent) 65%, transparent);
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in oklab, var(--bg-primary) 94%, var(--text-primary));
+  color: var(--dz-ink);
+  font-family: var(--font-ui);
+}
+.dz-pv button { font: inherit; }
+.dz-pv__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--dz-line); background: var(--dz-surface); }
+.dz-pv__title { display: flex; align-items: baseline; gap: 10px; font-size: 14px; font-weight: 600; min-width: 0; }
+.dz-pv__title span { font-size: 12px; font-weight: 400; color: var(--dz-ink-faint); font-variant-numeric: tabular-nums; }
+.dz-pv__actions { display: flex; align-items: center; gap: 4px; }
+.dz-pv__actions .dz-btn[aria-pressed='true'] { background: color-mix(in oklab, var(--accent) 16%, transparent); }
+.dz-pv__stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 16px; overflow: hidden; }
+.dz-pv__device { position: relative; overflow: hidden; background: #fff; animation: dz-pv-in 0.16s ease; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28); }
+.dz-pv__device[data-device='phone'] { border: 12px solid #151517; border-radius: 44px; box-sizing: content-box; }
+.dz-pv__device[data-device='browser'], .dz-pv__device[data-device='plain'] { border-radius: 10px; border: 1px solid var(--dz-line-strong); box-sizing: content-box; }
+.dz-pv__device iframe { display: block; }
+@keyframes dz-pv-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.animations-disabled .dz-pv__device { animation: none; }
+@media (prefers-reduced-motion: reduce) { .dz-pv__device { animation: none; } }
+.dz-pv__strip { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--dz-line); background: var(--dz-surface); overflow-x: auto; }
+.dz-pv__chip { flex-shrink: 0; padding: 5px 12px; font-size: 12.5px; color: var(--dz-ink-soft); background: transparent; border: 1px solid var(--dz-line-strong); border-radius: 999px; cursor: pointer; }
+.dz-pv__chip[aria-current='true'] { color: var(--dz-ink); border-color: var(--dz-ink); }
+
+.dz-feed { width: min(460px, 100%); padding: 14px; border: 1px solid var(--dz-line-strong); border-radius: 12px; background: var(--dz-surface); display: flex; flex-direction: column; gap: 12px; align-items: stretch; }
+.dz-feed__head { display: flex; align-items: center; gap: 10px; }
+.dz-feed__avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--dz-fill-hover); }
+.dz-feed__lines { display: flex; flex-direction: column; gap: 5px; }
+.dz-feed i { display: block; height: 8px; width: 120px; border-radius: 4px; background: var(--dz-fill-hover); }
+.dz-feed__lines i:last-child { width: 70px; }
+.dz-feed__picture { display: grid; place-items: center; overflow: hidden; border-radius: 6px; background: var(--dz-fill); }
+.dz-feed__actions { display: flex; gap: 10px; }
+.dz-feed__actions i { width: 22px; height: 22px; border-radius: 6px; }
+.dz-feed__caption { display: flex; flex-direction: column; gap: 6px; }
+.dz-feed__caption i { width: 90%; }
+.dz-feed__caption i:last-child { width: 55%; }
+
+/* Layout editing, spacing overlays, groups, extra pick */
+.dz-stage-layer {
+  position: absolute;
+  z-index: 7;
+  touch-action: none;
+  /* The presentation stage inside is styled with these (they are defined on its own studio root). */
+  --pr-accent: var(--accent);
+  --pr-accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+  --pr-ink: var(--text-primary);
+  --pr-ink-soft: var(--text-secondary);
+  --pr-ink-faint: color-mix(in oklab, var(--text-secondary) 65%, transparent);
+  --pr-raised: var(--bg-secondary);
+  --pr-panel: var(--bg-secondary);
+  --pr-hairline: color-mix(in oklab, var(--text-primary) 9%, transparent);
+  --pr-hairline-strong: color-mix(in oklab, var(--text-primary) 16%, transparent);
+  --pr-danger: #e5484d;
+  --pr-warning: #e5a50a;
+  --pr-success: #4fb286;
+}
+.dz-stage-layer .ps-stage { position: relative; overflow: hidden; }
+/* The layout editor's bars hang below the canvas toolbar (12px + ~44px) and stack: actions, then text format. */
+.dz-stagebar { position: absolute; top: 64px; left: 50%; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--dz-line-strong); border-radius: 10px; background: var(--dz-surface); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14); max-width: calc(100% - 24px); overflow-x: auto; scrollbar-width: none; }
+.dz-stagebar .dz-btn { flex: none; white-space: nowrap; }
+.dz-stagebar__hint { padding: 0 8px; font-size: 12.5px; color: var(--dz-ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
+.dz-space { position: absolute; z-index: 1; pointer-events: none; }
+.dz-space--margin { background: rgba(246, 178, 107, 0.45); }
+.dz-space--padding { background: rgba(147, 196, 125, 0.45); }
+.dz-picked-box--also { outline-style: dashed; }
+.dz-crumbs__count { padding: 2px 8px; font-size: 11.5px; border-radius: 999px; background: color-mix(in oklab, var(--accent) 16%, transparent); color: var(--dz-ink); white-space: nowrap; }
+.dz-group { position: absolute; z-index: 0; border: 1.5px dashed var(--dz-line-strong); border-radius: 18px; pointer-events: none; }
+.dz-group__label { position: absolute; top: 100%; inset-inline-start: 0; margin-top: 6px; font-size: 12px; color: var(--dz-ink-faint); white-space: nowrap; transform-origin: 0 0; }
+.dz-flow__spot { fill: color-mix(in oklab, var(--accent) 18%, transparent); stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+
+.dz-pv__device[data-transition='slide'] { animation: dz-pv-slide 0.22s ease; }
+.dz-pv__device[data-transition='none'] { animation: none; }
+@keyframes dz-pv-slide { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+.dz-pv__actions .dz-select { height: 28px; }
+
+/* Previews of far-away boards, graphic format bar */
+.dz-board__preview { display: block; width: 100%; height: 100%; object-fit: fill; user-select: none; -webkit-user-drag: none; }
+.dz-formatbar { position: absolute; top: 114px; left: 50%; transform: translateX(-50%); z-index: 8; display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--dz-line-strong); border-radius: 10px; background: var(--dz-surface); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14); max-width: calc(100% - 24px); }
+.dz-formatbar .dz-select { max-width: 180px; }
+.dz-formatbar .dz-input { width: 64px; }
+.dz-formatbar .dz-btn[aria-pressed='true'] { background: color-mix(in oklab, var(--accent) 18%, transparent); }
+
+/* Light theme: the composer and thumbnails sit above the page, not below it. */
+.light-theme .dz-composer { --dz-card-bg: color-mix(in oklab, var(--dz-surface) 40%, #fff); background: var(--dz-card-bg); box-shadow: 0 1px 2px rgba(20, 20, 30, 0.05), 0 24px 56px -28px rgba(20, 20, 30, 0.22); }
+.light-theme .dz-tpl__thumb,
+.light-theme .dz-project__cover { background: color-mix(in oklab, var(--dz-surface) 50%, #fff); }
+.light-theme .dz-tpl:hover:not(:disabled) .dz-tpl__thumb { background: #fff; }
+.light-theme .dz-tpl__board { fill: color-mix(in oklab, var(--dz-ink) 4%, #fff); }
+
+/* Canvas header bar: tools, graphic actions, history */
+.dz-topbar {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 24px);
+  padding: 4px;
+  border: 1px solid var(--dz-line);
+  border-radius: 12px;
+  background: var(--dz-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.dz-topbar__group { display: flex; align-items: center; gap: 2px; }
+.dz-topbar__group + .dz-topbar__group { padding-inline-start: 6px; margin-inline-start: 4px; border-inline-start: 1px solid var(--dz-line); }
+.dz-topbar .dz-btn--icon[aria-pressed='true'] { background: var(--dz-ink); color: var(--dz-surface); border-color: var(--dz-ink); }
+.dz-topbar .dz-btn { white-space: nowrap; }
+
+/* Dragging on the canvas or in the layout editor never selects the text underneath */
+.dz-canvas, .dz-stage-layer, .dz-stage-layer * , .dz-board__surface, .dz-board__surface * { user-select: none; -webkit-user-select: none; }
+.dz-stage-layer .ps-editor, .dz-stage-layer .ps-editor * { user-select: text; -webkit-user-select: text; }
+
+/* Which shape of a stacked frame holds a picture */
+.dz-picturechoice { position: absolute; inset-inline-start: 50%; bottom: 150px; transform: translateX(-50%); z-index: 12; width: min(360px, calc(100% - 24px)); padding: 12px; border: 1px solid var(--dz-line-strong); border-radius: 12px; background: var(--dz-surface); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22); display: flex; flex-direction: column; gap: 10px; }
+.dz-picturechoice__title { font-size: 13px; font-weight: 600; color: var(--dz-ink); }
+.dz-picturechoice__list { display: flex; flex-direction: column; gap: 4px; }
+.dz-picturechoice__item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--dz-line); border-radius: 8px; font-size: 12.5px; cursor: pointer; color: var(--dz-ink); }
+.dz-picturechoice__item[data-active] { border-color: var(--dz-ink); }
+.dz-picturechoice__meta { margin-inline-start: auto; font-size: 11.5px; color: var(--dz-ink-faint); font-variant-numeric: tabular-nums; }
+.dz-picturechoice__inset { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--dz-ink); }
+.dz-picturechoice__inset .lq-slider { flex: 1; }
+.dz-picturechoice__inset > span:first-child { flex: none; min-width: 7.5em; }
+.dz-picturechoice__inset .dz-picturechoice__meta { min-width: 3.2em; text-align: end; }
+.dz-picturechoice__section { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--dz-line); }
+.dz-picturechoice__head { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 600; color: var(--dz-ink); }
+.dz-picturechoice__fit { display: inline-flex; gap: 2px; }
+.dz-picturechoice__actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.dz-picturechoice__spacer { flex: 1; }
+
+
+/* Picture panel: placing and adjusting a picture inside a drawn shape (right side) ------------ */
+/* The picture panel is a right-hand rail beside the stage, like the element inspector (not the left-edge side panel). */
+.dz-picpanel {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 320px;
+  min-height: 0;
+  border-inline-start: 1px solid var(--dz-line);
+  background: var(--dz-surface);
+  animation: dz-picpanel-in 160ms ease-out;
+}
+@keyframes dz-picpanel-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+.animations-disabled .dz-picpanel { animation: none; }
+.dz-picpanel__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }
+.dz-picpanel__title { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--dz-ink); }
+.dz-picpanel__file { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 14px 6px; padding: 5px 6px 5px 10px; border: 1px solid var(--dz-line); border-radius: 8px; font-size: 12px; color: var(--dz-ink-soft); }
+.dz-picpanel__file > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-picpanel__body { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 14px 14px; }
+.dz-picpanel__looks { display: flex; flex-wrap: wrap; gap: 6px; }
+.dz-picpanel__looks .dz-btn[data-active] { border-color: var(--dz-ink); }
+.dz-picpanel__row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.dz-picpanel__row .dz-btn[aria-pressed='true'] { border-color: var(--dz-ink); background: var(--dz-fill); }
+.dz-picpanel__focus { display: grid; grid-template-columns: repeat(3, 22px); gap: 4px; padding: 4px; border: 1px solid var(--dz-line); border-radius: 8px; width: max-content; }
+.dz-picpanel__focus button { width: 22px; height: 22px; padding: 0; border: 1px solid var(--dz-line); border-radius: 5px; background: transparent; cursor: pointer; }
+.dz-picpanel__focus button[aria-checked='true'] { background: var(--dz-ink); border-color: var(--dz-ink); }
+.dz-picpanel__focus button:disabled { opacity: 0.35; cursor: default; }
+.dz-picpanel__foot { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--dz-line); }
+
+/* Side panel: scrolling and the Design tab ------------------------------------------------------
+   The body only ever scrolls vertically. The Design tab runs edge to edge: its sections carry
+   their own 16px gutters, so nothing is padded twice and nothing is wider than the panel. */
+.dz-side { min-width: 0; }
+.dz-side__body { overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--dz-line-strong) transparent; }
+.dz-side__body--flush { padding: 0; }
+
+.dz-side .dz-sysdoc {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  --dz-gutter: 16px;
+}
+
+.dz-sysdoc .sx-section { border-bottom: 1px solid var(--dz-line); }
+.dz-sysdoc .sx-section:last-child { border-bottom: 0; }
+.dz-sysdoc .sx-section__head { min-height: 46px; padding: 0 var(--dz-gutter); }
+.dz-sysdoc .sx-section__title { font-size: 13px; font-weight: 600; letter-spacing: 0; }
+.dz-sysdoc .sx-section__body { gap: 14px; padding: 0 var(--dz-gutter) 18px; }
+.dz-sysdoc .sx-section__body > .sx-hint:first-child { margin-top: 0; }
+.dz-sysdoc .sx-hint { font-size: 12px; line-height: 1.5; }
+
+/* Fields: a fixed label column, controls aligned on one edge. */
+.dz-sysdoc .sx-field { grid-template-columns: 92px minmax(0, 1fr); gap: 10px; min-height: 34px; }
+.dz-sysdoc .sx-field > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-sysdoc .sx-field--stack { display: flex; }
+.dz-sysdoc .sx-color,
+.dz-sysdoc .sx-select select { height: 32px; border-radius: 8px; }
+.dz-sysdoc .sx-color { padding: 0 10px 0 6px; gap: 10px; }
+.dz-sysdoc .sx-color input[type='color'] { width: 22px; height: 22px; }
+.dz-sysdoc .sx-color code { font-size: 12px; letter-spacing: 0.02em; }
+.dz-sysdoc .sx-select select { padding-inline: 10px 28px; }
+.dz-sysdoc .sx-range { gap: 8px; }
+.dz-sysdoc .sx-range__head { align-items: baseline; }
+.dz-sysdoc .sx-range__value { font-variant-numeric: tabular-nums; }
+.dz-sysdoc .sx-segmented { padding: 3px; border-radius: 10px; }
+.dz-sysdoc .sx-segmented > button { height: 26px; }
+.dz-sysdoc .sx-toggle { align-items: flex-start; }
+
+/* Restyle with AI */
+.dz-sysdoc .dz-code--short {
+  min-height: 84px;
+  max-height: 160px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-x: hidden;
+  resize: none;
+}
+.dz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.dz-chips .dz-btn { height: 26px; padding: 0 10px; border-radius: 999px; }
+.dz-btn--block { width: 100%; justify-content: center; height: 34px; }
+
+/* Rows of actions share the width equally. */
+.dz-sysdoc .dz-actions { margin: 0; gap: 8px; }
+.dz-sysdoc .dz-actions--pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dz-sysdoc .dz-actions--pair .dz-btn { justify-content: center; min-width: 0; height: 30px; }
+.dz-sysdoc .dz-actions:not(.dz-actions--pair) .dz-btn { height: 28px; }
+
+/* Contrast checks: one quiet card */
+.dz-sysdoc .dz-checks { gap: 0; margin: 0; padding: 4px 12px; border: 1px solid var(--dz-line); border-radius: 10px; background: var(--dz-fill); }
+.dz-sysdoc .dz-check { gap: 8px; min-height: 30px; font-size: 12.5px; }
+.dz-sysdoc .dz-check + .dz-check { border-top: 1px solid var(--dz-line); }
+.dz-sysdoc .dz-check span:nth-of-type(1) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dz-sysdoc .dz-check__ratio { margin-inline-start: auto; color: var(--dz-ink); font-variant-numeric: tabular-nums; }
+
+/* Kits */
+.dz-sysdoc .dz-kitsave { gap: 8px; }
+.dz-sysdoc .dz-kitsave .dz-input--wide { flex: 1; width: auto; min-width: 0; height: 32px; }
+.dz-sysdoc .dz-kitsave .dz-btn { height: 32px; flex-shrink: 0; }
+.dz-sysdoc .dz-kit { min-height: 36px; padding: 0 4px 0 10px; border: 1px solid var(--dz-line); border-radius: 10px; }
+.dz-sysdoc .dz-ideas { margin-top: 0; gap: 6px; }
+.dz-sysdoc .dz-idea { padding: 8px 10px; border-radius: 10px; }

@@ -4,6 +4,8 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import {
   ArrowsClockwise,
   DownloadSimple,
+  Eye,
+  EyeSlash,
   Hourglass,
   PlugsConnected,
   Robot,
@@ -28,6 +30,7 @@ import { ADDITIONAL_AGENT_LOGOS } from '../../../data/additionalAgents';
 import {
   Badge,
   Button,
+  Field,
   SettingsEmpty,
   SettingsGroup,
   SettingsRow,
@@ -101,9 +104,10 @@ export const SettingsAgents: React.FC = () => {
     getToolInstallCommand,
     loading: toolLoading,
   } = useToolCli();
-  const { agentTimeout, setAgentTimeout } = useAppStore();
+  const { agentTimeout, setAgentTimeout, skillsApiKey, setSkillsApiKey } = useAppStore();
 
   const [tab, setTab] = useState<CliTab>('agents');
+  const [showApiKey, setShowApiKey] = useState(false);
 
   useEffect(() => {
     detectAllClis();
@@ -214,6 +218,67 @@ export const SettingsAgents: React.FC = () => {
               step={30}
               value={agentTimeout}
             />
+          </SettingsGroup>
+
+          <SettingsGroup
+            title="Skills Market"
+            description="Search and install agent skills from skills.sh. Search and installs from a source work with no key; the Trending / Hot / All-time charts and audit badges need an API key."
+          >
+            <Field label="skills.sh API key" hint="Request one at skills.sh/contact, then paste it here. Stored on this computer only. You can also set the SKILLS_API_KEY environment variable instead.">
+              {(id) => (
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center', width: '100%' }}>
+                  <input
+                    id={id}
+                    className="st-input st-input--mono"
+                    type={showApiKey ? 'text' : 'password'}
+                    value={skillsApiKey}
+                    placeholder="sk_live_…"
+                    style={{ paddingRight: skillsApiKey ? '2.25rem' : undefined }}
+                    onChange={(event) => setSkillsApiKey(event.target.value)}
+                    spellCheck={false}
+                    autoCapitalize="off"
+                    autoComplete="off"
+                    autoCorrect="off"
+                  />
+                  {skillsApiKey ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey((prev) => !prev)}
+                      title={showApiKey ? 'Hide API key' : 'Show API key'}
+                      aria-label={showApiKey ? 'Hide API key' : 'Show API key'}
+                      style={{
+                        position: 'absolute',
+                        right: '0.5rem',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '0.25rem',
+                        borderRadius: '0.25rem',
+                      }}
+                    >
+                      {showApiKey ? <EyeSlash size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </Field>
+            <SettingsRow
+              label="Catalog status"
+              description={skillsApiKey.trim() !== '' ? 'Key saved — leaderboard, full previews and audits are unlocked.' : 'No key — search and installs from a source still work.'}
+            >
+              <span style={{ display: 'inline-flex', gap: 4 }}>
+                <Button size="sm" onClick={() => void openUrl('https://skills.sh/docs/api')}>
+                  API docs
+                </Button>
+                <Button size="sm" onClick={() => void openUrl('https://skills.sh/contact')}>
+                  Request a key
+                </Button>
+              </span>
+            </SettingsRow>
           </SettingsGroup>
         </SettingsStack>
       )}

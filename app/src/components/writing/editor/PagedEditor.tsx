@@ -35,6 +35,7 @@ import {
 } from './extensions';
 import { ScrollKeeper } from './scrollKeeper';
 import { TextDirection } from './textDirection';
+import { StreamAura } from './StreamAura';
 
 export interface PageGeometry {
   pageWidth: number;
@@ -117,6 +118,8 @@ export interface PagedEditorProps {
   onChange: () => void;
   /** Receives the final content just before the editor is destroyed. */
   onDispose?: (content: DocNode) => void;
+  /** Run status per section id; a failed or stopped section gets no finish animation. */
+  sectionOutcomes?: Record<string, string>;
 }
 
 export const PagedEditor: React.FC<PagedEditorProps> = ({
@@ -133,7 +136,9 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
   onReady,
   onChange,
   onDispose,
+  sectionOutcomes,
 }) => {
+  const hostRef = useRef<HTMLDivElement>(null);
   const geometry = useMemo(() => geometryFor(style), [style]);
   const running = useMemo(() => runningContent(style, title), [style, title]);
   const onChangeRef = useRef(onChange);
@@ -297,12 +302,14 @@ export const PagedEditor: React.FC<PagedEditorProps> = ({
 
   return (
     <div
+      ref={hostRef}
       className={`wr-editor is-numbering-${style.headingNumbering}${editable ? '' : ' is-readonly'}${rtl ? ' is-rtl' : ''}`}
       style={cssVars}
     >
       <div className="wr-editor__zoom">
         <EditorContent editor={editor} />
       </div>
+      <StreamAura editor={editor} host={hostRef} outcomes={sectionOutcomes} />
     </div>
   );
 };

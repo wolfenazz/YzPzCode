@@ -13,15 +13,15 @@ pub async fn path_exists(path: String) -> Result<bool, String> {
     Ok(std::path::Path::new(&path).is_dir())
 }
 
-/// Folder inside the user's Documents that holds every writing and presentation file.
+/// Folder inside the user's Documents that holds every studio file (reports, decks, workbooks, designs).
 const STUDIO_FOLDER_NAME: &str = "YzPzCode";
 
 fn studio_root_in(base: &std::path::Path) -> std::path::PathBuf {
     base.join(STUDIO_FOLDER_NAME)
 }
 
-/// The folder the Writing and Presentation studios save into (`Reports/` and
-/// `Presentations/` live inside it). It sits in the user's Documents, outside
+/// The folder the studios save into (`Reports/`, `Presentations/`, `Sheets/` and
+/// `Designs/` live inside it). It sits in the user's Documents, outside
 /// the app's install and data directories, so uninstalling or reinstalling the
 /// app leaves it in place. Created on first use.
 #[tauri::command]

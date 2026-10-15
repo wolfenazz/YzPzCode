@@ -749,10 +749,8 @@ select.sx-input option {
   color: var(--sx-ink-faint);
 }
 
-.sx-range input {
+.sx-range .lq-slider {
   width: 100%;
-  margin: 0;
-  accent-color: var(--sx-ink);
 }
 
 /* Equal-width choices in one pill-less track. */

@@ -7,9 +7,11 @@ mod discord_presence;
 mod extension_host;
 mod external_links;
 mod filesystem;
+mod hardware_acceleration;
 mod ide;
 mod ios;
 mod open_files;
+mod skills;
 mod terminal;
 mod tts;
 mod types;
@@ -162,6 +164,10 @@ pub fn run() {
         .manage(print_jobs)
         .manage(tts_manager.clone())
         .setup(move |app| {
+            // Decides the browser arguments for every webview (see the module
+            // docs); it must run before the first webview is created.
+            hardware_acceleration::load(app.handle());
+
             terminal_manager.set_app_handle(app.handle().clone());
             agent_executor.set_app_handle(app.handle().clone());
             cli_installer.set_app_handle(app.handle().clone());
@@ -195,6 +201,8 @@ pub fn run() {
                         .disable_drag_drop_handler()
                 }
             };
+            let main_window_builder =
+                hardware_acceleration::apply_to_webview_window(main_window_builder);
             let main_window = main_window_builder
                 .on_navigation(external_links::navigation_handler(app.handle().clone()))
                 .on_new_window(external_links::new_window_handler(app.handle().clone()))
@@ -293,6 +301,14 @@ pub fn run() {
                 commands::reset_extension_panel_host,
                 commands::send_extension_panel_prompt,
                 commands::close_workspace_extension_panels,
+                commands::list_trending_skills,
+                commands::search_skills,
+                commands::get_skill_detail,
+                commands::get_skill_audit,
+                commands::list_installed_skills,
+                commands::install_skill,
+                commands::remove_skill,
+                commands::update_skills,
                 commands::create_terminal_sessions,
                 commands::create_single_terminal_session,
                 commands::write_to_terminal,
@@ -370,6 +386,8 @@ pub fn run() {
                 commands::detect_all_ides_cmd,
                 commands::launch_ide_cmd,
                 commands::get_os_version,
+                commands::get_hardware_acceleration,
+                commands::set_hardware_acceleration,
                 commands::launch_external_terminals,
                 commands::launch_external_command,
                 commands::path_exists,
