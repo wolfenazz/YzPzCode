@@ -1,11 +1,28 @@
-import { useEffect, useState } from 'react';
-import { ArrowClockwise, ArrowSquareOut, CaretDown, CaretUp, DownloadSimple, GearSix, MagnifyingGlass, Sparkle, Star, Trash, X } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ArrowClockwise,
+  ArrowSquareOut,
+  CaretDown,
+  CaretRight,
+  Check,
+  DownloadSimple,
+  GearSix,
+  MagnifyingGlass,
+  Plus,
+  Sparkle,
+  Star,
+  Trash,
+  Warning,
+  X,
+} from '@phosphor-icons/react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { useAppStore } from '../../stores/appStore';
 import { isSkillsKeyError, stripSkillsKeyPrefix, useSkillStore } from '../../stores/skillStore';
 import type { SkillTrendingView } from '../../stores/skillStore';
-import type { SkillSummary } from '../../types';
+import type { InstalledSkill, SkillSummary } from '../../types';
 import { SkillInstallDialog } from './SkillInstallDialog';
+import { SkillMarkdownPreview } from './SkillMarkdownPreview';
+import './SkillsMarket.css';
 
 interface SkillsMarketPanelProps {
   workspaceId: string;
@@ -22,16 +39,13 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'installed', label: 'Installed' },
 ];
 
-function formatInstalls(installs: number): string {
-  if (installs >= 1_000_000) return `${(installs / 1_000_000).toFixed(1)}M`;
-  if (installs >= 1_000) return `${(installs / 1_000).toFixed(1)}K`;
-  return `${installs}`;
-}
-
 /** Compact "1.2K / 3.4M" formatting shared by stars and installs. */
 function formatCount(value: number): string {
   if (!Number.isFinite(value) || value < 0) return '0';
-  return formatInstalls(Math.floor(value));
+  const n = Math.floor(value);
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
 }
 
 /** Backend detail id: "owner/repo/slug". */
@@ -44,8 +58,63 @@ function progressKeyFor(skill: SkillSummary): string {
   return skill.slug.trim() !== '' ? skill.slug : skill.source;
 }
 
+/** Stable hue (0-359) from the repository owner, so a publisher keeps its colour. */
+function hueFor(source: string): number {
+  const owner = source.split('/')[0] || source;
+  let hash = 0;
+  for (let i = 0; i < owner.length; i += 1) hash = (hash * 31 + owner.charCodeAt(i)) % 360;
+  return hash;
+}
+
+function auditTone(level: string): string {
+  const value = level.toLowerCase();
+  if (/(high|critical|fail|unsafe)/.test(value)) return 'sk-badge--bad';
+  if (/(medium|moderate|warn)/.test(value)) return 'sk-badge--warn';
+  if (/(low|safe|pass|ok|none)/.test(value)) return 'sk-badge--ok';
+  return '';
+}
+
 /** One-tap searches shown when the leaderboard is unavailable without a key. */
 const SUGGESTED_QUERIES = ['react', 'design', 'python', 'nextjs', 'testing', 'productivity'];
+
+interface InstalledGroup {
+  key: string;
+  name: string;
+  global: boolean;
+  agents: InstalledSkill[];
+}
+
+function groupInstalled(project: InstalledSkill[], global: InstalledSkill[]): InstalledGroup[] {
+  const groups = new Map<string, InstalledGroup>();
+  const add = (items: InstalledSkill[], isGlobal: boolean): void => {
+    for (const item of items) {
+      const key = `${isGlobal ? 'global' : 'project'}:${item.name}`;
+      const existing = groups.get(key);
+      if (existing) existing.agents.push(item);
+      else groups.set(key, { key, name: item.name, global: isGlobal, agents: [item] });
+    }
+  };
+  add(project, false);
+  add(global, true);
+  return [...groups.values()];
+}
+
+function SkeletonRows({ count = 5 }: { count?: number }): React.JSX.Element {
+  return (
+    <div className="sk-list" aria-hidden="true">
+      {Array.from({ length: count }, (_, index) => (
+        <div key={index} className="sk-skel">
+          <i style={{ width: 32, height: 32, borderRadius: 8, flex: 'none' }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <i style={{ height: 12, width: `${55 + ((index * 13) % 30)}%` }} />
+            <i style={{ height: 9, width: '38%' }} />
+            <i style={{ height: 9, width: '62%' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: SkillsMarketPanelProps): React.JSX.Element {
   const trending = useSkillStore((state) => state.trending);
@@ -72,8 +141,11 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
   const [activeTab, setActiveTab] = useState<Tab>('trending');
   const [searchInput, setSearchInput] = useState('');
   const [customInput, setCustomInput] = useState('');
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [dialogTarget, setDialogTarget] = useState<{ skill: SkillSummary | null; source: string } | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // The leaderboard is key-gated (skills.sh removed anonymous access after
@@ -83,30 +155,49 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
     void refreshInstalled(workspacePath);
   }, [loadTrending, refreshInstalled, workspacePath, hasSkillsKey]);
 
+  const onInstalledTab = activeTab === 'installed';
+  const query = searchInput.trim();
+
   useEffect(() => {
-    const trimmed = searchInput.trim();
-    if (trimmed.length === 0) {
+    if (query.length === 0 || onInstalledTab) {
       clearSearch();
       return;
     }
-    if (trimmed.length < 2) return;
-    const timer = window.setTimeout(() => { void search(trimmed); }, 300);
+    if (query.length < 2) return;
+    const timer = window.setTimeout(() => { void search(query); }, 300);
     return () => window.clearTimeout(timer);
-  }, [searchInput, search, clearSearch]);
+  }, [query, onInstalledTab, search, clearSearch]);
 
-  const searching = searchInput.trim().length >= 2;
+  // A pending "are you sure?" must not outlive a click elsewhere.
+  useEffect(() => {
+    if (confirmRemove === null) return;
+    const timer = window.setTimeout(() => setConfirmRemove(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [confirmRemove]);
+
+  const searching = !onInstalledTab && query.length >= 2;
   const list = searching ? searchResults : trending;
+
+  const groups = useMemo(() => groupInstalled(installed.project, installed.global), [installed]);
+  const installedNames = useMemo(() => new Set(groups.map((group) => group.name.toLowerCase())), [groups]);
+  const visibleGroups = useMemo(() => {
+    if (!onInstalledTab || query === '') return groups;
+    const needle = query.toLowerCase();
+    return groups.filter((group) => group.name.toLowerCase().includes(needle) || group.agents.some((agent) => agent.agent.toLowerCase().includes(needle)));
+  }, [groups, onInstalledTab, query]);
 
   const handleTab = (tab: Tab): void => {
     setActiveTab(tab);
     setExpandedId(null);
+    setConfirmRemove(null);
     if (tab === 'installed') void refreshInstalled(workspacePath);
     // Without a key the leaderboard tabs render the key gate; no request.
     else if (hasSkillsKey) void loadTrending(tab);
   };
 
   const handleRefresh = (): void => {
-    if (activeTab === 'installed') void refreshInstalled(workspacePath);
+    if (onInstalledTab) void refreshInstalled(workspacePath);
+    else if (searching) void search(query);
     else if (hasSkillsKey) void loadTrending(activeTab);
   };
 
@@ -132,196 +223,307 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
     setDialogTarget({ skill: null, source: trimmed });
   };
 
-  const installedCount = installed.project.length + installed.global.length;
+  const handleRemoveGroup = async (group: InstalledGroup): Promise<void> => {
+    setConfirmRemove(null);
+    for (const item of group.agents) {
+      await remove(item.name, item.agent, workspacePath, group.global);
+    }
+  };
+
+  const installedCount = groups.length;
 
   // Leaderboard tabs without any key: the backend would only return the
   // key-required marker, so render the gate (with key-free search shortcuts).
-  const showGate = !searching && activeTab !== 'installed' && (isSkillsKeyError(error) || !hasSkillsKey);
+  const showGate = !searching && !onInstalledTab && (isSkillsKeyError(error) || !hasSkillsKey);
+  const showError = error != null && !isSkillsKeyError(error);
+  const subtitle = onInstalledTab
+    ? `${installedCount} installed`
+    : searching
+      ? `${list.length} result${list.length === 1 ? '' : 's'} for “${query}”`
+      : 'Discover and install agent skills';
 
-  return (
-    <section className="flex h-full min-w-0 flex-col bg-[var(--bg-secondary)]" aria-label="Skills Market">
-      <div className="flex items-center gap-2 border-b border-[var(--border-primary)] px-3 py-3">
-        <Sparkle size={16} aria-hidden="true" />
-        <h2 className="flex-1 text-xs font-medium">Skills Market</h2>
-        <button type="button" className="app-icon-button app-icon-button--compact" onClick={handleRefresh} disabled={loading} title="Refresh skills" aria-label="Refresh skills"><ArrowClockwise size={14} /></button>
-        <button type="button" className="app-icon-button app-icon-button--compact" onClick={onClose} title="Close skills market" aria-label="Close skills market"><X size={14} /></button>
-      </div>
-
-      <div className="space-y-3 p-3">
-        <label className="flex items-center gap-2 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 py-2 focus-within:border-[var(--accent)]">
-          <MagnifyingGlass size={14} className="shrink-0 text-[var(--text-secondary)]" />
-          <input id={`skills-search-${workspaceId}`} value={searchInput} onChange={(event) => setSearchInput(event.target.value)} className="w-full min-w-0 bg-transparent text-xs outline-none" placeholder="Search skills (min 2 chars)" aria-label="Search skills" />
-        </label>
-        <div className="flex items-center gap-1" role="tablist" aria-label="Skills views">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              onClick={() => handleTab(tab.id)}
-              className={`rounded px-2 py-1 text-[11px] ${activeTab === tab.id ? 'bg-[var(--accent)] text-white' : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'}`}
-            >
-              {tab.label}{tab.id === 'installed' && installedCount > 0 ? ` (${installedCount})` : ''}
-            </button>
-          ))}
+  const renderInstalled = (): React.JSX.Element => {
+    if (loading && groups.length === 0) return <SkeletonRows count={3} />;
+    if (visibleGroups.length === 0) {
+      return (
+        <div className="sk-empty">
+          <div className="sk-empty__icon"><Sparkle size={18} aria-hidden="true" /></div>
+          {query !== '' ? (
+            <><strong>No installed skill matches “{query}”</strong><span>Clear the search to see everything installed.</span></>
+          ) : (
+            <><strong>Nothing installed yet</strong><span>Browse the market and install a skill, or add one from a repository.</span>
+              <button type="button" className="sk-btn sk-btn--primary" style={{ marginTop: 8 }} onClick={() => handleTab('trending')}>Browse skills</button></>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <input id={`skills-custom-${workspaceId}`} value={customInput} onChange={(event) => setCustomInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') handleAddCustom(); }} className="w-full min-w-0 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] px-2.5 py-1.5 text-xs outline-none focus:border-[var(--accent)]" placeholder="owner/repo or skill URL" aria-label="Custom skill source" />
-          <button type="button" className="app-button h-7 min-h-0 shrink-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={customInput.trim() === ''} onClick={handleAddCustom}>Add</button>
+      );
+    }
+    return (
+      <>
+        <div className="sk-section-label">
+          <span>{visibleGroups.length} skill{visibleGroups.length === 1 ? '' : 's'}</span>
+          <button type="button" className="sk-btn sk-btn--ghost" disabled={loading || installedCount === 0} onClick={() => void update(undefined)} title="Update every installed skill">
+            <ArrowClockwise size={12} aria-hidden="true" /> Update all
+          </button>
         </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto" aria-busy={loading}>
-        {error && !isSkillsKeyError(error) && <div role="alert" className="m-3 space-y-2 text-xs text-rose-500"><p className="break-words">{stripSkillsKeyPrefix(error)}</p><button type="button" className="app-button" onClick={handleRefresh}>Retry</button></div>}
-        {loading && list.length === 0 && activeTab !== 'installed' && !showGate && <p className="px-3 py-4 text-xs text-[var(--text-secondary)]">Loading skills…</p>}
-
-        {activeTab === 'installed' ? (
-          <div>
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-[11px] text-[var(--text-secondary)]">{installedCount} installed</span>
-              <button type="button" className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60" disabled={loading || installedCount === 0} onClick={() => void update(undefined)} title="Update all skills">
-                <ArrowClockwise size={13} /> Update all
-              </button>
-            </div>
-            {installedCount === 0 && !loading && <p className="px-3 py-4 text-xs text-[var(--text-secondary)]">No skills installed yet. Install one from Trending, Hot or All-time.</p>}
-            {[...installed.project.map((item) => ({ ...item, scopeLabel: 'project' as const })), ...installed.global.map((item) => ({ ...item, scopeLabel: 'global' as const }))].map((item) => (
-              <article key={`${item.scopeLabel}:${item.agent}:${item.name}`} className="border-t border-[var(--border-primary)] px-3 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-medium">{item.name}</h3>
-                    <p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">{item.agent} · {item.scopeLabel} · {item.path}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <button type="button" disabled={loading} onClick={() => void update([item.name], item.scopeLabel === 'global')} className="app-icon-button app-icon-button--compact h-7 w-7 disabled:cursor-not-allowed disabled:opacity-60" title={`Update ${item.name}`} aria-label={`Update ${item.name}`}>
-                      <ArrowClockwise size={13} />
-                    </button>
-                    <button type="button" disabled={loading} onClick={() => void remove(item.name, item.agent, workspacePath, item.scopeLabel === 'global')} className="app-icon-button app-icon-button--compact h-7 w-7 disabled:cursor-not-allowed disabled:opacity-60" title={`Remove ${item.name}`} aria-label={`Remove ${item.name}`}>
-                      <Trash size={13} />
-                    </button>
+        <div className="sk-list">
+          {visibleGroups.map((group) => {
+            const confirming = confirmRemove === group.key;
+            return (
+              <article key={group.key} className="sk-card">
+                <div className="sk-card__main">
+                  <div className="sk-avatar" style={{ ['--sk-hue' as string]: hueFor(group.name) }} aria-hidden="true">{group.name.charAt(0) || '?'}</div>
+                  <div className="sk-card__body">
+                    <div className="sk-card__top">
+                      <h3 className="sk-name">{group.name}</h3>
+                      <span className="sk-badge">{group.global ? 'Global' : 'Project'}</span>
+                    </div>
+                    <div className="sk-meta" aria-label="Installed for">
+                      {group.agents.map((item) => <span key={item.agent} className="sk-badge" title={item.path}>{item.agent}</span>)}
+                    </div>
+                    <div className="sk-actions">
+                      <span className="sk-spacer" />
+                      {confirming ? (
+                        <>
+                          <button type="button" className="sk-btn sk-btn--ghost" onClick={() => setConfirmRemove(null)}>Cancel</button>
+                          <button type="button" className="sk-btn sk-btn--danger" disabled={loading} onClick={() => void handleRemoveGroup(group)}><Trash size={12} aria-hidden="true" /> Remove</button>
+                        </>
+                      ) : (
+                        <>
+                          <button type="button" className="sk-btn" disabled={loading} onClick={() => void update([group.name], group.global)} title={`Update ${group.name}`}><ArrowClockwise size={12} aria-hidden="true" /> Update</button>
+                          <button type="button" className="sk-btn sk-btn--ghost sk-btn--icon" disabled={loading} onClick={() => setConfirmRemove(group.key)} title={`Remove ${group.name}`} aria-label={`Remove ${group.name}`}><Trash size={13} /></button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </article>
-            ))}
-          </div>
-        ) : showGate ? (
-          <div className="m-3 space-y-3 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] p-3">
-            <h3 className="text-xs font-medium">Trending needs an API key</h3>
-            <p className="text-[11px] leading-4 text-[var(--text-secondary)]">
-              skills.sh switched off anonymous catalog access, so the leaderboard charts need a key.
-              Search uses the same public endpoint as the terminal&apos;s <span className="font-mono">npx skills find</span>,
-              and installing from a source never touches the catalog — both work with no key.
-            </p>
-            <div className="flex flex-wrap gap-1.5" aria-label="Suggested searches">
-              {SUGGESTED_QUERIES.map((suggestion) => (
-                <button key={suggestion} type="button" className="app-button h-7 min-h-0 px-2.5 text-xs" onClick={() => setSearchInput(suggestion)}>
-                  {suggestion}
+            );
+          })}
+        </div>
+      </>
+    );
+  };
+
+  const renderGate = (): React.JSX.Element => (
+    <div className="sk-gate">
+      <h3>Leaderboards need an API key</h3>
+      <p>
+        skills.sh turned off anonymous catalog access. Search and installing from a repository work without a key, the same as
+        {' '}<span style={{ fontFamily: 'var(--font-mono, monospace)' }}>npx skills find</span>.
+      </p>
+      <div className="sk-chips" aria-label="Suggested searches" style={{ marginTop: 10 }}>
+        {SUGGESTED_QUERIES.map((suggestion) => (
+          <button key={suggestion} type="button" className="sk-chip" onClick={() => { setSearchInput(suggestion); searchRef.current?.focus(); }}>{suggestion}</button>
+        ))}
+      </div>
+      <ol>
+        <li>Request a key at skills.sh/contact.</li>
+        <li>Paste it in Settings → Agents → Skills Market.</li>
+        <li>Come back and refresh.</li>
+      </ol>
+      <div className="sk-chips">
+        <button type="button" className="sk-btn sk-btn--primary" onClick={openSettings}><GearSix size={12} aria-hidden="true" /> Open Settings</button>
+        <button type="button" className="sk-btn" onClick={() => void openUrl('https://skills.sh/contact')}>Request a key</button>
+        <button type="button" className="sk-btn sk-btn--ghost" onClick={() => void openUrl('https://skills.sh/docs/api')}>API docs</button>
+      </div>
+    </div>
+  );
+
+  const renderSkill = (skill: SkillSummary, index: number): React.JSX.Element => {
+    const id = detailIdFor(skill);
+    const key = progressKeyFor(skill);
+    const busy = installing.includes(key);
+    const status = progress[key];
+    const expanded = expandedId === id;
+    const isInstalled = installedNames.has(skill.slug.toLowerCase()) || installedNames.has(skill.name.toLowerCase());
+    const files = detail?.files ?? null;
+    const showingDetail = expanded && detail && (detail.id === id || detail.id === skill.slug);
+    const previewFile = files?.find((file) => file.path.toUpperCase().endsWith('SKILL.MD')) ?? files?.[0] ?? null;
+    const audits = audit && audit.id !== '' && (audit.id === id || audit.slug === skill.slug) ? audit.audits : [];
+    const title = skill.name || skill.slug;
+    return (
+      <article key={id} className="sk-card" data-open={expanded} style={{ animationDelay: `${Math.min(index, 8) * 24}ms` }}>
+        <div className="sk-card__main">
+          <div className="sk-avatar" style={{ ['--sk-hue' as string]: hueFor(skill.source) }} aria-hidden="true">{title.charAt(0) || '?'}</div>
+          <div className="sk-card__body">
+            <div className="sk-card__top">
+              <div style={{ minWidth: 0 }}>
+                <h3 className="sk-name">{title}</h3>
+                <p className="sk-source-line" title={skill.source}>{skill.source}{skill.isDuplicate ? ' · duplicate' : ''}</p>
+              </div>
+              {skill.url.trim() !== '' && (
+                <button type="button" className="sk-btn sk-btn--ghost sk-btn--icon" onClick={() => void openUrl(skill.url)} title={`Open ${title} in browser`} aria-label={`Open ${title} in browser`}>
+                  <ArrowSquareOut size={13} />
                 </button>
-              ))}
+              )}
             </div>
-            <ol className="list-decimal space-y-1 pl-4 text-[11px] leading-4 text-[var(--text-secondary)]">
-              <li>Request a key at skills.sh/contact (issued from a queue).</li>
-              <li>Paste it in Settings → Agents → Skills Market.</li>
-              <li>Come back and refresh.</li>
-            </ol>
-            <div className="flex flex-wrap gap-1.5">
-              <button type="button" className="app-button h-7 min-h-0 px-2.5 text-xs" onClick={openSettings}>
-                <GearSix size={13} /> Open Settings
+            <div className="sk-meta">
+              {skill.stars != null && (
+                <span title={`${skill.stars.toLocaleString()} GitHub stars`}>
+                  <Star size={11} weight="fill" style={{ color: '#fbbf24' }} aria-hidden="true" />
+                  <span aria-label={`${skill.stars.toLocaleString()} stars`}>{formatCount(skill.stars)}</span>
+                </span>
+              )}
+              <span title={`${skill.installs.toLocaleString()} installs`}>
+                <DownloadSimple size={11} aria-hidden="true" />
+                <span aria-label={`${skill.installs.toLocaleString()} installs`}>{formatCount(skill.installs)}</span>
+              </span>
+              {skill.sourceType && <span className="sk-badge">{skill.sourceType}</span>}
+              {isInstalled && <span className="sk-badge sk-badge--ok"><Check size={10} weight="bold" aria-hidden="true" /> Installed</span>}
+            </div>
+            <div className="sk-actions">
+              <button type="button" className="sk-btn sk-btn--ghost" onClick={() => handleToggleDetail(skill)} aria-expanded={expanded}>
+                {expanded ? <CaretDown size={12} aria-hidden="true" /> : <CaretRight size={12} aria-hidden="true" />} Preview
               </button>
-              <button type="button" className="app-button h-7 min-h-0 px-2.5 text-xs" onClick={() => void openUrl('https://skills.sh/docs/api')}>
-                API docs
-              </button>
-              <button type="button" className="app-button h-7 min-h-0 px-2.5 text-xs" onClick={() => void openUrl('https://skills.sh/contact')}>
-                Request a key
+              <span className="sk-spacer" />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setDialogTarget({ skill, source: skill.source })}
+                className={`sk-btn ${isInstalled ? '' : 'sk-btn--primary'}`}
+              >
+                {!busy && <DownloadSimple size={12} aria-hidden="true" />}
+                {busy ? 'Installing…' : status?.stage === 'failed' ? 'Retry' : isInstalled ? 'Reinstall' : 'Install'}
               </button>
             </div>
+            {busy && (
+              <div role="status">
+                {status && <p className="sk-note sk-note--muted">{status.message}{status.percent != null ? ` · ${status.percent}%` : ''}</p>}
+                <div className={`sk-bar ${status?.percent == null ? 'sk-bar--indeterminate' : ''}`}><i style={status?.percent != null ? { width: `${status.percent}%` } : undefined} /></div>
+              </div>
+            )}
+            {!busy && status?.stage === 'failed' && <p role="alert" className="sk-note sk-note--error">{status.message}</p>}
           </div>
-        ) : (
-          <div>
-            {!loading && list.length === 0 && <p className="px-3 py-4 text-xs text-[var(--text-secondary)]">{searching ? `No skills match “${searchInput.trim()}”.` : 'No skills found.'}</p>}
-            {list.map((skill) => {
-              const id = detailIdFor(skill);
-              const key = progressKeyFor(skill);
-              const busy = installing.includes(key);
-              const status = progress[key];
-              const expanded = expandedId === id;
-              const files = detail?.files ?? null;
-              const showingDetail = expanded && detail && (detail.id === id || detail.id === skill.slug);
-              const previewFile = files?.find((file) => file.path.toUpperCase().endsWith('SKILL.MD')) ?? files?.[0] ?? null;
-              return (
-                <article key={id} className="border-t border-[var(--border-primary)] px-3 py-4">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-sm font-medium">{skill.name || skill.slug}</h3>
-                      <p className="mt-0.5 truncate text-[10px] text-[var(--text-secondary)]">{skill.source}{skill.isDuplicate ? ' · duplicate' : ''}</p>
-                    </div>
-                    {skill.url.trim() !== '' && (
-                      <button type="button" className="app-icon-button app-icon-button--compact shrink-0" onClick={() => void openUrl(skill.url)} title={`Open ${skill.name}`} aria-label={`Open ${skill.name}`}>
-                        <ArrowSquareOut size={13} />
-                      </button>
-                    )}
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-2">
-                    <span className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-[var(--text-secondary)]">
-                      {skill.stars != null && (
-                        <span className="inline-flex items-center gap-1" title={`${skill.stars.toLocaleString()} GitHub stars on ${skill.source}`}>
-                          <Star size={11} weight="fill" className="text-amber-400" aria-hidden="true" />
-                          <span aria-label={`${skill.stars.toLocaleString()} stars`}>{formatCount(skill.stars)}</span>
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1" title={`${skill.installs.toLocaleString()} installs`}>
-                        <DownloadSimple size={11} aria-hidden="true" />
-                        <span aria-label={`${skill.installs.toLocaleString()} installs`}>{formatCount(skill.installs)} installs</span>
-                      </span>
-                      <span className="truncate">{skill.sourceType || 'skill'}</span>
+        </div>
+        {expanded && (
+          <div className="sk-detail">
+            {audits.length > 0 && (
+              <div className="sk-audits" aria-label="Security audits">
+                {audits.map((entry) => {
+                  const level = entry.riskLevel ?? entry.status;
+                  return (
+                    <span key={`${entry.provider}:${entry.slug}`} className={`sk-badge ${auditTone(level)}`} title={entry.summary}>
+                      {auditTone(level) === 'sk-badge--bad' || auditTone(level) === 'sk-badge--warn' ? <Warning size={10} aria-hidden="true" /> : <Check size={10} weight="bold" aria-hidden="true" />}
+                      {entry.provider}: {level}
                     </span>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <button type="button" onClick={() => handleToggleDetail(skill)} className="app-button h-7 min-h-0 px-2.5 text-xs" aria-expanded={expanded}>
-                        {expanded ? <CaretUp size={13} /> : <CaretDown size={13} />}{expanded ? 'Hide' : 'Detail'}
-                      </button>
-                      <button type="button" disabled={busy} onClick={() => setDialogTarget({ skill, source: skill.source })} className="app-button h-7 min-h-0 px-2.5 text-xs disabled:cursor-not-allowed disabled:opacity-60">
-                        {!busy && <DownloadSimple size={13} />}{busy ? 'Installing…' : status?.stage === 'failed' ? 'Retry install' : 'Install'}
-                      </button>
-                    </div>
-                  </div>
-                  {busy && status && <p className="mt-2 text-[10px] leading-4 text-[var(--text-secondary)]" role="status">{status.message}{status.percent != null ? ` ${status.percent}%` : ''}</p>}
-                  {!busy && status?.stage === 'failed' && <p role="alert" className="mt-2 break-words text-[11px] leading-4 text-rose-500">{status.message}</p>}
-                  {expanded && (
-                    <div className="mt-3 space-y-2 rounded border border-[var(--border-primary)] bg-[var(--bg-primary)] p-2.5">
-                      {audit && audit.id !== '' && (audit.id === id || audit.slug === skill.slug) && audit.audits.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {audit.audits.map((entry) => (
-                            <span key={`${entry.provider}:${entry.slug}`} className="rounded border border-[var(--border-primary)] px-1.5 py-0.5 text-[10px] text-[var(--text-secondary)]" title={entry.summary}>
-                              {entry.provider}: {entry.riskLevel ?? entry.status}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {!hasSkillsKey && (
-                        <p className="text-[10px] text-[var(--text-secondary)]">Security audits need a skills.sh API key — previews above come straight from the public repo.</p>
-                      )}
-                      {!showingDetail || !previewFile ? (
-                        <p className="text-[11px] text-[var(--text-secondary)]">Loading SKILL.md preview…</p>
-                      ) : (
-                        <div>
-                          <p className="mb-1 truncate text-[10px] text-[var(--text-secondary)]">{previewFile.path}</p>
-                          <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words text-[11px] leading-4 text-[var(--text-primary)]">{previewFile.contents.slice(0, 2000)}</pre>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-            {!searching && hasMore && (
-              <div className="p-3">
-                <button type="button" className="app-button w-full" disabled={loading} onClick={() => void loadTrending(activeTab, true)}>
-                  {loading ? 'Loading…' : 'Load more'}
-                </button>
+                  );
+                })}
+              </div>
+            )}
+            {!hasSkillsKey && <p className="sk-note sk-note--muted" style={{ marginTop: 0 }}>Security audits need a skills.sh API key. The preview below comes straight from the public repository.</p>}
+            {!showingDetail || !previewFile ? (
+              loading ? <SkeletonRows count={1} /> : <p className="sk-note sk-note--muted" style={{ marginTop: 0 }}>No SKILL.md preview available for this skill.</p>
+            ) : (
+              <div className="sk-preview">
+                <div className="sk-preview__path" title={previewFile.path}>{previewFile.path}</div>
+                <div className="sk-preview__scroll">
+                  <SkillMarkdownPreview text={previewFile.contents.slice(0, 12000)} />
+                  {previewFile.contents.length > 12000 && <p className="sk-note sk-note--muted">Preview truncated. Open the skill in the browser for the rest.</p>}
+                </div>
               </div>
             )}
           </div>
         )}
+      </article>
+    );
+  };
+
+  const renderBrowse = (): React.JSX.Element => {
+    if (loading && list.length === 0) return <SkeletonRows />;
+    if (list.length === 0) {
+      return (
+        <div className="sk-empty">
+          <div className="sk-empty__icon"><MagnifyingGlass size={18} aria-hidden="true" /></div>
+          <strong>{searching ? `No skills match “${query}”` : 'No skills found'}</strong>
+          <span>{searching ? 'Try a broader keyword, or add a repository directly.' : 'Pull to refresh, or search for something specific.'}</span>
+          <div className="sk-chips">
+            {searching && <button type="button" className="sk-chip" onClick={() => setSearchInput('')}>Clear search</button>}
+            {!searching && <button type="button" className="sk-chip" onClick={handleRefresh}>Refresh</button>}
+          </div>
+        </div>
+      );
+    }
+    return (
+      <>
+        <div className="sk-list">{list.map(renderSkill)}</div>
+        {!searching && hasMore && (
+          <button type="button" className="sk-btn sk-more" disabled={loading} onClick={() => void loadTrending(activeTab as SkillTrendingView, true)}>
+            {loading ? 'Loading…' : 'Load more'}
+          </button>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <section className="sk" aria-label="Skills Market">
+      <div className="sk-head">
+        <Sparkle size={16} weight="fill" style={{ color: 'var(--accent)' }} aria-hidden="true" />
+        <div className="sk-head__title">
+          <h2>Skills Market</h2>
+          <p>{subtitle}</p>
+        </div>
+        <button type="button" className="sk-btn sk-btn--ghost sk-btn--icon" onClick={handleRefresh} disabled={loading} title="Refresh" aria-label="Refresh skills">
+          <ArrowClockwise size={14} className={loading ? 'sk-spin' : undefined} />
+        </button>
+        <button type="button" className="sk-btn sk-btn--ghost sk-btn--icon" onClick={onClose} title="Close" aria-label="Close skills market"><X size={14} /></button>
+      </div>
+
+      <div className="sk-controls">
+        <label className="sk-search">
+          <MagnifyingGlass size={14} aria-hidden="true" />
+          <input
+            ref={searchRef}
+            id={`skills-search-${workspaceId}`}
+            value={searchInput}
+            onChange={(event) => setSearchInput(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Escape' && searchInput !== '') { event.preventDefault(); event.stopPropagation(); setSearchInput(''); } }}
+            placeholder={onInstalledTab ? 'Filter installed skills' : 'Search skills'}
+            aria-label={onInstalledTab ? 'Filter installed skills' : 'Search skills'}
+          />
+          {searchInput !== '' && (
+            <button type="button" className="sk-clear" onClick={() => { setSearchInput(''); searchRef.current?.focus(); }} title="Clear search" aria-label="Clear search"><X size={11} /></button>
+          )}
+        </label>
+
+        <div className="sk-tabs" role="tablist" aria-label="Skills views">
+          {TABS.map((tab) => (
+            <button key={tab.id} type="button" role="tab" className="sk-tab" aria-selected={activeTab === tab.id} onClick={() => handleTab(tab.id)}>
+              {tab.label}
+              {tab.id === 'installed' && installedCount > 0 && <span className="sk-count">{installedCount}</span>}
+            </button>
+          ))}
+        </div>
+
+        <div className="sk-source">
+          <button type="button" className="sk-source__toggle" aria-expanded={sourceOpen} onClick={() => setSourceOpen((open) => !open)}>
+            <Plus size={12} aria-hidden="true" /> Add from a repository or URL
+          </button>
+          {sourceOpen && (
+            <div className="sk-source__body">
+              <input
+                id={`skills-custom-${workspaceId}`}
+                value={customInput}
+                onChange={(event) => setCustomInput(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') handleAddCustom(); }}
+                placeholder="owner/repo or skill URL"
+                aria-label="Custom skill source"
+                autoFocus
+              />
+              <button type="button" className="sk-btn sk-btn--primary" disabled={customInput.trim() === ''} onClick={handleAddCustom}>Add</button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="sk-scroll" aria-busy={loading}>
+        {showError && (
+          <div role="alert" className="sk-alert">
+            <span>{stripSkillsKeyPrefix(error)}</span>
+            <button type="button" className="sk-btn" onClick={handleRefresh}>Try again</button>
+          </div>
+        )}
+        {onInstalledTab ? renderInstalled() : showGate ? renderGate() : renderBrowse()}
       </div>
 
       {dialogTarget && (

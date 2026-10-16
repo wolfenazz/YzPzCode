@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle, DownloadSimple, WarningCircle, X } from '@phosphor-icons/react';
+import { CheckCircle, DownloadSimple, Star, WarningCircle, X } from '@phosphor-icons/react';
 import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from '../../stores/appStore';
 import { useSkillStore } from '../../stores/skillStore';
 import { AGENT_TO_SKILLS_SLUG, skillsSlugForAgent } from '../../data/skillsAgents';
 import type { AgentType, SkillInstallProgress, SkillSummary } from '../../types';
+import './SkillsMarket.css';
 
 interface SkillInstallDialogProps {
   skill: SkillSummary | null;
@@ -61,6 +62,17 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
   const failed = status?.stage === 'failed';
   const completed = status?.stage === 'completed';
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [onClose]);
+
+  const allSlugs = mappedAgents.map(skillsSlugForAgent);
+  const allSelected = allSlugs.length > 0 && allSlugs.every((slug) => selectedAgents.includes(slug));
+
   const handleInstall = async (): Promise<void> => {
     setError(null);
     const output = await install({ skill: skillSlug, source, workspacePath });
@@ -72,87 +84,92 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onClick={onClose}>
-      <section role="dialog" aria-modal="true" aria-label={skill ? `Install ${skill.name}` : 'Install skill from source'} className="app-surface app-surface--raised flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden" onClick={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between border-b border-[var(--border-primary)] px-5 py-4">
-          <div>
-            <h2 className="text-sm">{skill ? `Install ${skill.name}` : 'Install skill'}</h2>
-            <p className="mt-0.5 break-words text-xs text-[var(--text-secondary)]">{source}{skillSlug ? ` · ${skillSlug}` : ''}</p>
+    <div className="sk-dialog-scrim" onClick={onClose}>
+      <section role="dialog" aria-modal="true" aria-label={skill ? `Install ${skill.name}` : 'Install skill from source'} className="sk-dialog" onClick={(event) => event.stopPropagation()}>
+        <div className="sk-dialog__head">
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h2>{skill ? `Install ${skill.name}` : 'Install from source'}</h2>
+            <p>{source}{skillSlug ? ` · ${skillSlug}` : ''}</p>
             {skill && (skill.stars != null || skill.installs > 0) && (
-              <p className="mt-1 text-[11px] text-[var(--text-secondary)]">
-                {skill.stars != null && `★ ${skill.stars.toLocaleString()} stars`}
-                {skill.stars != null && skill.installs > 0 && ' · '}
-                {skill.installs > 0 && `${skill.installs.toLocaleString()} installs`}
-              </p>
+              <div className="sk-meta">
+                {skill.stars != null && <span><Star size={11} weight="fill" style={{ color: '#fbbf24' }} aria-hidden="true" />{skill.stars.toLocaleString()} stars</span>}
+                {skill.installs > 0 && <span><DownloadSimple size={11} aria-hidden="true" />{skill.installs.toLocaleString()} installs</span>}
+              </div>
             )}
           </div>
-          <button type="button" className="app-icon-button" onClick={onClose} title="Close"><X size={16} aria-hidden="true" /><span className="sr-only">Close</span></button>
+          <button type="button" className="sk-btn sk-btn--ghost sk-btn--icon" onClick={onClose} title="Close (Esc)" aria-label="Close"><X size={15} aria-hidden="true" /></button>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
-          <fieldset>
-            <legend className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Scope</legend>
-            <div className="space-y-2">
-              <label className="flex cursor-pointer items-center gap-2 text-xs">
-                <input type="radio" name="skill-scope" checked={scope === 'global'} onChange={() => setScope('global')} className="accent-[var(--accent)]" />
-                Global (all projects)
+        <div className="sk-dialog__body">
+          <fieldset className="sk-field">
+            <legend>Where to install</legend>
+            <div className="sk-segment">
+              <label>
+                <input type="radio" name="skill-scope" checked={scope === 'global'} onChange={() => setScope('global')} />
+                Global<small>Every project</small>
               </label>
-              <label className="flex cursor-pointer items-center gap-2 text-xs">
-                <input type="radio" name="skill-scope" checked={scope === 'project'} onChange={() => setScope('project')} className="accent-[var(--accent)]" />
-                Project only
+              <label>
+                <input type="radio" name="skill-scope" checked={scope === 'project'} onChange={() => setScope('project')} />
+                This project<small>Only this workspace</small>
               </label>
-              {scope === 'project' && <p className="break-words text-[11px] leading-4 text-[var(--text-secondary)]">{workspacePath}</p>}
             </div>
+            {scope === 'project' && <p className="sk-note sk-note--muted">{workspacePath}</p>}
           </fieldset>
 
-          <fieldset>
-            <legend className="mb-2 text-xs font-medium text-[var(--text-secondary)]">Agents ({selectedAgents.length} selected)</legend>
-            <div className="grid grid-cols-2 gap-1.5">
+          <fieldset className="sk-field">
+            <legend>
+              <span>Agents · {selectedAgents.length} selected</span>
+              <button type="button" className="sk-btn sk-btn--ghost" style={{ height: '1.4rem' }} onClick={() => setSelectedAgents(allSelected ? [] : allSlugs)}>{allSelected ? 'Clear' : 'Select all'}</button>
+            </legend>
+            <div className="sk-agents">
               {mappedAgents.map((agent) => {
                 const slug = skillsSlugForAgent(agent);
                 const info = cliStatuses[agent];
                 return (
-                  <label key={agent} className="flex cursor-pointer items-center gap-2 rounded border border-[var(--border-primary)] px-2 py-1.5 text-xs" title={info?.displayName ?? agent}>
-                    <input type="checkbox" checked={selectedAgents.includes(slug)} onChange={() => toggleAgent(slug)} className="accent-[var(--accent)]" />
-                    <span className="min-w-0 flex-1 truncate">{info?.displayName ?? agent}</span>
-                    {info?.status === 'Installed' && <span className="shrink-0 text-[10px] text-emerald-500">●</span>}
+                  <label key={agent} className="sk-agent" title={info?.displayName ?? agent}>
+                    <input type="checkbox" checked={selectedAgents.includes(slug)} onChange={() => toggleAgent(slug)} />
+                    <span>{info?.displayName ?? agent}</span>
+                    {info?.status === 'Installed' && <i className="sk-dot" title="Installed on this machine" />}
                   </label>
                 );
               })}
             </div>
           </fieldset>
 
-          <label className="flex cursor-pointer items-start gap-2 text-xs">
-            <input type="checkbox" checked={useCopy} onChange={(event) => setUseCopy(event.target.checked)} className="mt-0.5 accent-[var(--accent)]" />
-            <span>Copy files instead of symlink<span className="block text-[11px] text-[var(--text-secondary)]">Default installs symlink the skill; enable to copy.</span></span>
+          <label className="sk-linkrow">
+            <span>Copy files instead of linking<small>By default the skill is symlinked so updates apply everywhere.</small></span>
+            <input type="checkbox" checked={useCopy} onChange={(event) => setUseCopy(event.target.checked)} />
           </label>
 
           {status && (
-            <div className="space-y-1.5" role="status">
-              <p className="flex items-center gap-1.5 text-[11px] leading-4 text-[var(--text-secondary)]">
-                {completed && <CheckCircle size={13} className="shrink-0 text-emerald-500" aria-hidden="true" />}
-                {failed && <WarningCircle size={13} className="shrink-0 text-rose-500" aria-hidden="true" />}
-                <span>{status.stage}: {status.message}{status.percent != null ? ` ${status.percent}%` : ''}</span>
+            <div className="sk-status" role="status">
+              <p>
+                {completed && <CheckCircle size={14} weight="fill" style={{ color: '#10b981', flex: 'none' }} aria-hidden="true" />}
+                {failed && <WarningCircle size={14} weight="fill" style={{ color: '#f43f5e', flex: 'none' }} aria-hidden="true" />}
+                <span>{status.message}{status.percent != null ? ` · ${status.percent}%` : ''}</span>
               </p>
-              {status.percent != null && <progress max={100} value={status.percent} className="h-1 w-full accent-[var(--accent)]" aria-label="Skill install progress" />}
+              {!completed && !failed && (
+                <div className={`sk-bar ${status.percent == null ? 'sk-bar--indeterminate' : ''}`} aria-hidden="true"><i style={status.percent != null ? { width: `${status.percent}%` } : undefined} /></div>
+              )}
             </div>
           )}
           {(error ?? (failed && !busy ? status?.message : null)) && (
-            <p role="alert" className="break-words text-[11px] leading-4 text-rose-500">{error ?? status?.message}</p>
+            <p role="alert" className="sk-note sk-note--error" style={{ marginTop: 0 }}>{error ?? status?.message}</p>
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-[var(--border-primary)] px-5 py-3">
-          <button type="button" className="app-button" onClick={onClose}>{completed ? 'Close' : 'Cancel'}</button>
-          {failed && !busy ? (
-            <button type="button" className="app-button app-button--primary" onClick={() => void handleInstall()}>
-              <DownloadSimple size={13} aria-hidden="true" /> Retry
-            </button>
-          ) : (
-            <button type="button" className="app-button app-button--primary" disabled={busy || selectedAgents.length === 0} onClick={() => void handleInstall()}>
-              {!busy && <DownloadSimple size={13} aria-hidden="true" />}{busy ? 'Installing…' : completed ? 'Install again' : 'Install'}
-            </button>
-          )}
+        <div className="sk-dialog__foot">
+          <button type="button" className="sk-btn" style={{ height: '2rem' }} onClick={onClose}>{completed ? 'Done' : 'Cancel'}</button>
+          <button
+            type="button"
+            className="sk-btn sk-btn--primary"
+            style={{ height: '2rem' }}
+            disabled={busy || selectedAgents.length === 0}
+            onClick={() => void handleInstall()}
+          >
+            {!busy && <DownloadSimple size={13} aria-hidden="true" />}
+            {busy ? 'Installing…' : failed ? 'Retry' : completed ? 'Install again' : 'Install'}
+          </button>
         </div>
       </section>
     </div>

@@ -24,6 +24,7 @@
     "test:sheets": "node --test scripts/sheets.test.mjs",
     "test:design": "node --test scripts/design.test.mjs",
     "test:discord-presence": "node --test scripts/discord-presence.test.mjs",
+    "test:skills": "node --test scripts/skills-preview.test.mjs",
     "preview": "vite preview",
     "fetch:drawio": "node scripts/fetch-drawio.mjs",
     "postinstall": "node scripts/ensure-drawio.mjs",
