@@ -518,6 +518,7 @@ const SheetsWorkspace: React.FC<SheetsWorkspaceProps> = ({ workspace, visible })
           attachmentsFolder={attachmentsFolder}
           workbooks={doc.workbooks}
           engine={prefs.defaultEngine}
+          onEngineChange={onEngine}
           busy={homeBusy}
           error={homeError ?? session.error}
           onCreate={(prompt, files) => void createFromPrompt(prompt, files)}

@@ -1,0 +1,53 @@
+/* GlassSegmented: layout and a flat fallback look. Under liquid glass the groove,
+   the thumb and the press / slide behaviour come from liquid-glass.css and
+   utils/glassPress.ts, which list .gs and .gs__item with the other switchers. */
+
+.gs {
+  --gs-h: 36px;
+  --gs-font: 13px;
+  --gs-pad: 14px;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 7%, transparent);
+  vertical-align: middle;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.gs--sm { --gs-h: 28px; --gs-font: 12px; --gs-pad: 10px; }
+.gs--lg { --gs-h: 44px; --gs-font: 14px; --gs-pad: 18px; }
+
+.gs[data-equal] { grid-auto-columns: minmax(0, 1fr); }
+.gs[aria-disabled='true'] { opacity: 0.5; pointer-events: none; }
+
+.gs__item {
+  display: inline-flex;
+  min-width: 44px;
+  height: calc(var(--gs-h) - 6px);
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  padding: 0 var(--gs-pad);
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--gs-font);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+  transition: color 140ms ease, background-color 160ms ease;
+}
+
+.gs__item:hover:not([aria-checked='true']) { color: var(--text-primary); }
+.gs__item[aria-checked='true'] { background: var(--text-primary); color: var(--bg-primary); cursor: default; }
+.gs__item:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }

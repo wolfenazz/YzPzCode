@@ -792,71 +792,21 @@ select.sx-input option {
   box-shadow: 0 0 0 1px var(--sx-line), 0 1px 2px rgba(0, 0, 0, 0.12);
 }
 
-/* Ask the AI: a text box with its send button inside. */
-.sx-prompt {
-  display: flex;
-  flex-direction: column;
+/* Ask the AI: the React Bits prompt bar (PromptBox), framed like the panel's fields. */
+.sx-prompt { display: block; min-width: 0; }
+
+.sx-prompt .prompt-bar > div[role='presentation'] {
   border: 1px solid var(--sx-line-strong);
-  border-radius: 10px;
-  background: var(--sx-surface);
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 
-.sx-prompt:focus-within {
+.sx-prompt:focus-within .prompt-bar > div[role='presentation'] {
   border-color: var(--sx-focus);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 14%, transparent);
 }
 
-.sx-prompt__input {
-  display: block;
-  width: 100%;
-  min-height: 64px;
-  max-height: 200px;
-  padding: 10px 12px 4px;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--sx-ink);
-  font-size: 12.5px;
-  line-height: 1.5;
-  resize: none;
-}
-
-.sx-prompt__input::placeholder {
-  color: var(--sx-ink-faint);
-}
-
-.sx-prompt__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 4px 6px 6px 12px;
-}
-
-.sx-prompt__keys {
-  color: var(--sx-ink-faint);
-  font-size: 11.5px;
-}
-
-.sx-prompt__send {
-  display: inline-flex;
-  width: 26px;
-  height: 26px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: 6px;
-  background: var(--sx-ink);
-  color: var(--bg-primary);
-  cursor: pointer;
-  transition: opacity 120ms ease;
-}
-
-.sx-prompt__send:disabled {
-  opacity: 0.25;
-  cursor: default;
-}
+/* A panel keeps its attachments in its own rows, so the bar's "+" sources row is hidden. */
+.sx-prompt [aria-label='Add files and sources'] { display: none; }
 
 /* What the AI will act on. */
 .sx-target {

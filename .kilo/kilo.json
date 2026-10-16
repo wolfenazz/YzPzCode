@@ -1,0 +1,17 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "snapshot": false,
+  "mcp": {
+    "shadcn": {
+      "type": "local",
+      "command": "node",
+      "args": [
+        "scripts/shadcn-mcp.js"
+      ],
+      "enabled": true
+    }
+  },
+  "plugin": [
+    "file:///C:/Users/nasee/Desktop/files/CODING/yzpzcode/.kilo/plugins/graphify.js"
+  ]
+}

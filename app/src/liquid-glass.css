@@ -133,7 +133,7 @@ html.liquid-glass :where(.bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn, .chrome-ta
 }
 
 /* Primary: tinted glass that carries its own colour as a soft glow. */
-html.liquid-glass :where(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary) {
+html.liquid-glass :where(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .ws-launch) {
   border-color: transparent;
   background-color: color-mix(in srgb, var(--text-primary) 88%, transparent);
   background-image: linear-gradient(180deg, rgb(255 255 255 / 0.32), rgb(255 255 255 / 0.04) 55%, rgb(255 255 255 / 0));
@@ -165,7 +165,7 @@ html.liquid-glass .st-btn--danger-solid {
     0 8px 18px -8px color-mix(in srgb, var(--destructive) 70%, transparent);
 }
 
-html.liquid-glass :where(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid):hover:not(:disabled) {
+html.liquid-glass :where(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid, .ws-launch):hover:not(:disabled) {
   background-image: var(--lg-light), linear-gradient(180deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.05) 55%, rgb(255 255 255 / 0));
 }
 
@@ -182,7 +182,7 @@ html.liquid-glass :where(:focus-visible):is(.st-btn, .sx-btn, .dz-btn, .pr-btn, 
 /* ── Segmented controls ──────────────────────────────────────────────
    A recessed glass groove with a raised glass thumb. */
 
-html.liquid-glass :where(.st-segmented, .sx-segmented, .view-switch) {
+html.liquid-glass :where(.st-segmented, .sx-segmented, .view-switch, .gs, .dz-segmented, .pd-segmented, .pd-scope) {
   border-color: transparent;
   border-radius: 999px;
   background-color: var(--lg-groove);
@@ -190,7 +190,7 @@ html.liquid-glass :where(.st-segmented, .sx-segmented, .view-switch) {
   box-shadow: var(--lg-groove-shadow);
 }
 
-html.liquid-glass :where(.st-segmented__item, .sx-segmented > button, .view-switch__item) {
+html.liquid-glass :where(.st-segmented__item, .sx-segmented > button, .view-switch__item, .ws-steps__item, .gs__item, .dz-segmented > button, .pd-segmented > button, .pd-scope > button) {
   border-radius: 999px;
   transition:
     transform 460ms var(--lg-spring),
@@ -201,10 +201,159 @@ html.liquid-glass :where(.st-segmented__item, .sx-segmented > button, .view-swit
 
 html.liquid-glass .st-segmented__item[aria-pressed="true"],
 html.liquid-glass .sx-segmented > button[aria-checked="true"],
+html.liquid-glass .gs__item[aria-checked="true"],
+html.liquid-glass .dz-segmented > button[aria-checked="true"],
+html.liquid-glass .pd-segmented > button[aria-checked="true"],
+html.liquid-glass .pd-scope > button[aria-checked="true"],
 html.liquid-glass .view-switch__pill {
   background-color: var(--lg-thumb);
   background-image: var(--lg-sheen);
   box-shadow: var(--lg-rim), var(--lg-spec-top), var(--lg-spec-bottom), var(--lg-drop-sm);
+}
+
+/* These switchers drew a solid chosen state with its own text colour; on the glass
+   thumb the label is plain ink. */
+html.liquid-glass .gs__item[aria-checked="true"],
+html.liquid-glass .dz-segmented > button[aria-checked="true"],
+html.liquid-glass .pd-segmented > button[aria-checked="true"],
+html.liquid-glass .pd-scope > button[aria-checked="true"] {
+  color: var(--text-primary);
+}
+
+/* While the lens travels, only the item it is over reads as chosen. */
+html.liquid-glass :is(.gs, .dz-segmented, .pd-segmented, .pd-scope)[data-glass-sliding] > button:not([data-glass-target]) {
+  color: var(--text-secondary);
+}
+
+/* ── Tab bars ────────────────────────────────────────────────────────
+   Underline tabs (settings, studio panels, setup, design kinds) are navigation
+   too: no underline, a raised glass thumb under the chosen tab. */
+
+html.liquid-glass :where(.st-tab, .sx-tab, .ws-tab, .dz-kind) {
+  border-radius: 999px;
+  transition:
+    color 140ms ease,
+    background-color 160ms ease,
+    box-shadow 220ms var(--lg-ease);
+}
+
+html.liquid-glass :where(.st-tab, .sx-tab, .ws-tab, .dz-kind):hover:not([aria-selected="true"]):not([aria-checked="true"]) {
+  background-color: var(--lg-fill);
+}
+
+html.liquid-glass .st-tab[aria-selected="true"],
+html.liquid-glass .sx-tab[aria-selected="true"],
+html.liquid-glass .ws-tab[aria-selected="true"],
+html.liquid-glass .dz-kind[aria-checked="true"] {
+  background-color: var(--lg-thumb);
+  background-image: var(--lg-sheen);
+  box-shadow: var(--lg-rim), var(--lg-spec-top), var(--lg-spec-bottom), var(--lg-drop-sm);
+}
+
+html.liquid-glass :is(.st-tab, .sx-tab, .dz-kind)::after,
+html.liquid-glass .ws-tab__line {
+  display: none;
+}
+
+/* The thumb needs room above and below the label. */
+html.liquid-glass .st-tabs { gap: 2px; }
+html.liquid-glass .st-tab { margin-bottom: 0.375rem; }
+html.liquid-glass .sx-tab { margin: 6px 2px; }
+html.liquid-glass .dz-kind { height: 32px; margin: 7px 0; }
+html.liquid-glass .ws-tabs { gap: 4px; }
+html.liquid-glass .ws-tab { padding: 0.375rem 0.875rem; margin-bottom: 0.5rem; }
+
+/* Setup page: the preview panel and the step switcher are glass, the fields are
+   recessed grooves, and the launch button is glass primary (see below). */
+html.liquid-glass .ws-panel {
+  border-color: transparent;
+  background-color: var(--lg-surface);
+  background-image: var(--lg-sheen-soft);
+  backdrop-filter: var(--lg-blur);
+  -webkit-backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-rim), var(--lg-spec-top), var(--lg-spec-bottom), var(--lg-drop-lg);
+}
+
+/* The step switcher is a glass navigation like the workspace view switcher:
+   a recessed groove, a raised thumb under the chosen step, and the same press,
+   drag and slide (utils/glassPress.ts lists .ws-steps with the switchers). */
+html.liquid-glass .ws-steps {
+  gap: 2px;
+  padding: 3px;
+  border-color: transparent;
+  border-radius: 999px;
+  background-color: var(--lg-groove);
+  box-shadow: var(--lg-groove-shadow);
+}
+
+html.liquid-glass .ws-steps__pill {
+  border-color: transparent;
+  background-color: var(--lg-thumb);
+  background-image: var(--lg-sheen);
+  box-shadow: var(--lg-rim), var(--lg-spec-top), var(--lg-spec-bottom), var(--lg-drop-sm);
+}
+
+/* The number is a small chip; on the chosen step it is inverted. */
+html.liquid-glass .ws-steps__num {
+  background-color: var(--lg-fill-hover);
+  box-shadow: var(--lg-rim);
+  transition: background-color 160ms ease, color 160ms ease;
+}
+
+html.liquid-glass .ws-steps__item[aria-current='step'] .ws-steps__num,
+html.liquid-glass .ws-steps[data-glass-sliding] .ws-steps__item[data-glass-target] .ws-steps__num {
+  background-color: var(--text-primary);
+  color: var(--bg-primary);
+  box-shadow: none;
+}
+
+/* While the lens travels, the step it is over reads as chosen. */
+html.liquid-glass .ws-steps[data-glass-sliding] .ws-steps__item {
+  color: var(--text-secondary);
+}
+
+html.liquid-glass .ws-steps[data-glass-sliding] .ws-steps__item[data-glass-target] {
+  color: var(--text-primary);
+}
+
+html.liquid-glass .ws-steps[data-glass-sliding] .ws-steps__item[aria-current='step']:not([data-glass-target]) .ws-steps__num {
+  background-color: var(--lg-fill-hover);
+  color: inherit;
+  box-shadow: var(--lg-rim);
+}
+
+html.liquid-glass .ws-input {
+  border-color: transparent;
+  background-color: var(--lg-groove);
+  box-shadow: var(--lg-groove-shadow);
+}
+
+html.liquid-glass .ws-input:focus {
+  background-color: var(--lg-fill-hover);
+}
+
+html.liquid-glass .ws-callout {
+  border-color: var(--lg-ring);
+  background-color: var(--lg-fill);
+}
+
+/* The small parts: key caps and counts are glass chips; the agent list and the
+   preset chips sit on a light glass fill (:where keeps their hover states). */
+html.liquid-glass .ws-kbd {
+  border-color: transparent;
+  background-color: var(--lg-fill);
+  box-shadow: var(--lg-rim), var(--lg-spec-top);
+}
+
+html.liquid-glass .ws-count {
+  background-color: var(--lg-thumb);
+  box-shadow: var(--lg-rim), var(--lg-spec-top);
+}
+
+html.liquid-glass :where(.ws-list, .ws-chip) {
+  border-color: transparent;
+  background-color: var(--lg-fill);
+  box-shadow: var(--lg-rim), var(--lg-spec-top);
 }
 
 
@@ -525,7 +674,7 @@ html.liquid-glass [data-glass-handoff] * {
 }
 
 /* The labels stay above the moving thumb. */
-html.liquid-glass [data-glass-sliding] :is(.st-segmented__item, .sx-segmented > button, .view-switch__item) {
+html.liquid-glass [data-glass-sliding] :is(.st-segmented__item, .sx-segmented > button, .view-switch__item, .ws-steps__item, .gs__item, .dz-segmented > button, .pd-segmented > button, .pd-scope > button) {
   position: relative;
   z-index: 1;
 }
@@ -540,11 +689,11 @@ html.liquid-glass .glass-clone.is-active {
   background-image: var(--lg-sheen);
 }
 
-html.liquid-glass [data-glass-sliding] .view-switch__pill {
+html.liquid-glass [data-glass-sliding] :is(.view-switch__pill, .ws-steps__pill) {
   opacity: 0 !important;
 }
 
-html.liquid-glass [data-glass-sliding] :is(.st-segmented__item, .sx-segmented > button, .view-switch__item) {
+html.liquid-glass [data-glass-sliding] :is(.st-segmented__item, .sx-segmented > button, .view-switch__item, .ws-steps__item, .gs__item, .dz-segmented > button, .pd-segmented > button, .pd-scope > button) {
   background-color: transparent !important;
   background-image: none !important;
   box-shadow: none !important;

@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { ArrowUp, Check, Image as ImageIcon, Plus, Stack, Stop, X } from '@phosphor-icons/react';
+import React, { useMemo, useState } from 'react';
+import { Check, Image as ImageIcon, Plus, Stack, X } from '@phosphor-icons/react';
 import type { PickedElement } from '../../stores/designSessionStore';
 import { quickActionsFor, scopeLabel } from '../../utils/design/quickActions';
 import type { DesignKind } from '../../utils/design/types';
+import type { EngineChoice } from '../../utils/writing/types';
+import { StudioPromptBar } from '../composer/StudioPromptBar';
+import type { PromptBarSource } from '../reactbits/PromptBar';
 import { BoardSizePicker } from './BoardSizePicker';
 
 interface DesignPromptBarProps {
@@ -14,6 +17,9 @@ interface DesignPromptBarProps {
   /** A finished change waiting for Keep or Discard. */
   reviewing: boolean;
   status: string | null;
+  /** The engine that draws this project (its own choice, else the studio default). */
+  engine: EngineChoice;
+  onEngineChange: (engine: EngineChoice) => void;
   onSend: (instruction: string) => void;
   /** A new board described in the box, drawn by the AI at the chosen size. */
   onAddDrawn: (brief: string, format: string) => void;
@@ -36,8 +42,12 @@ interface DesignPromptBarProps {
   onAdjustPicture?: () => void;
 }
 
-/** The floating bar under the canvas: tell the AI what to change, add boards, or review what it changed. */
-export const DesignPromptBar: React.FC<DesignPromptBarProps> = ({ kind, boardCount, selectedCount, picked, busy, reviewing, status, onSend, onAddDrawn, onAddBlank, onVersions, onStop, onKeep, onDiscard, onClearPicked, onHoldBefore, pictures = [], onPutPicture, onRemovePicture, onAdjustPicture }) => {
+/**
+ * The dock under the canvas: a scope row (what the box changes), the React Bits
+ * prompt bar with the AI engine and model in it, and suggestions beneath.
+ * A finished change swaps the dock for the Keep / Discard row.
+ */
+export const DesignPromptBar: React.FC<DesignPromptBarProps> = ({ kind, boardCount, selectedCount, picked, busy, reviewing, status, engine, onEngineChange, onSend, onAddDrawn, onAddBlank, onVersions, onStop, onKeep, onDiscard, onClearPicked, onHoldBefore, pictures = [], onPutPicture, onRemovePicture, onAdjustPicture }) => {
   const [text, setText] = useState('');
   const [pictureMenu, setPictureMenu] = useState(false);
   const [newMenu, setNewMenu] = useState(false);
@@ -46,7 +56,16 @@ export const DesignPromptBar: React.FC<DesignPromptBarProps> = ({ kind, boardCou
   const scope = scopeLabel({ picked: Boolean(picked), selected: selectedCount, total: boardCount });
   const quick = quickActionsFor(kind, picked ? 'element' : selectedCount > 0 ? 'boards' : 'all');
 
-  const send = (instruction = text): void => {
+  /** The "+" row: a picture for the picked element (the file chooser), or nothing to attach otherwise. */
+  const sources = useMemo<PromptBarSource[]>(() => [{
+    key: 'picture',
+    name: 'Choose picture…',
+    description: picked ? 'Put it inside the picked element' : 'Pick an element on a board first',
+    icon: <ImageIcon size={15} />,
+    attach: true,
+  }], [picked]);
+
+  const send = (instruction: string): void => {
     const value = instruction.trim();
     if (!value || busy || boardCount === 0) return;
     onSend(value);
@@ -71,8 +90,9 @@ export const DesignPromptBar: React.FC<DesignPromptBarProps> = ({ kind, boardCou
   }
 
   return (
-    <div className="dz-bar" role="region" aria-label="Ask the AI">
-      <div className="dz-bar__top">
+    // Keys typed in the dock belong to the dock, not to the canvas shortcuts (P, Delete, arrows…).
+    <div className="dz-dock" role="region" aria-label="Ask the AI" onKeyDown={(event) => event.stopPropagation()}>
+      <div className="dz-dock__context">
         <span className="dz-bar__scope">
           {scope}
           {picked && <button type="button" className="dz-chip__remove" aria-label="Clear the picked element" onClick={onClearPicked}><X size={11} /></button>}
@@ -99,61 +119,62 @@ export const DesignPromptBar: React.FC<DesignPromptBarProps> = ({ kind, boardCou
         <span className="dz-composer__spacer" />
         {status && <span className="dz-bar__status">{status}</span>}
       </div>
-      <div className="dz-bar__row">
-        <textarea
-          dir="auto"
-          className="dz-bar__input"
-          rows={1}
-          value={text}
-          disabled={busy}
-          aria-label="Ask the AI to change the design"
-          placeholder={picked ? 'What should change about this element?' : 'What should change? e.g. “make the header darker” — or “make 3 versions”, “another image at 1200×628”'}
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === 'Enter' && !event.shiftKey) {
-              event.preventDefault();
-              send();
-            }
-          }}
-        />
-        <span className="dz-menu-anchor">
-          <button type="button" className="dz-btn dz-btn--ghost" aria-haspopup="menu" aria-expanded={newMenu} title="Add another board: an empty canvas, or one drawn from the description in the box" onClick={() => { setNewMenu((value) => !value); setNewMode(null); }}>
-            <Plus size={13} /> New
-          </button>
-          {newMenu && !newMode && (
-            <div className="dz-menu" role="menu">
-              <button type="button" role="menuitem" className="dz-menu__item" onClick={() => setNewMode('blank')}><span>Blank board…</span></button>
-              <button type="button" role="menuitem" className="dz-menu__item" disabled={text.trim().length < 4} onClick={() => setNewMode('drawn')}><span>Draw from the description…</span></button>
-            </div>
-          )}
-          {newMenu && newMode && (
-            <div className="dz-menu" role="dialog" aria-label={newMode === 'blank' ? 'Blank board' : 'Draw a new board'}>
-              <div className="dz-menu__group">{newMode === 'blank' ? 'Blank board' : 'Draw from the description'}</div>
-              <BoardSizePicker
-                kind={kind}
-                label={newMode === 'blank' ? 'Add blank board' : 'Draw new board'}
-                disabled={busy || (newMode === 'drawn' && text.trim().length < 4)}
-                onCancel={closeNew}
-                onCreate={(format) => {
-                  if (newMode === 'drawn') onAddDrawn(text.trim(), format);
-                  else onAddBlank(format);
-                  setText('');
-                  closeNew();
-                }}
-              />
-            </div>
-          )}
-        </span>
-        <button type="button" className="dz-btn dz-btn--ghost" disabled={busy || boardCount === 0} title="Make three alternatives of the board in scope" onClick={onVersions}>
-          <Stack size={13} /> Versions
-        </button>
-        {busy ? (
-          <button type="button" className="dz-btn" onClick={onStop}><Stop size={12} weight="fill" /> Stop</button>
-        ) : (
-          <button type="button" className="dz-btn dz-btn--primary dz-btn--icon" aria-label="Send" disabled={!text.trim() || boardCount === 0} onClick={() => send()}><ArrowUp size={14} weight="bold" /></button>
+
+      <StudioPromptBar
+        engine={engine}
+        onEngineChange={onEngineChange}
+        placeholder={picked ? 'What should change about this element?' : 'What should change? e.g. “make the header darker” — or “make 3 versions”'}
+        inputLabel="Ask the AI to change the design"
+        busy={busy}
+        canSend={boardCount > 0 && text.trim().length > 0}
+        draft={text}
+        onDraftChange={setText}
+        onSend={send}
+        onStop={onStop}
+        onAttach={picked && onPutPicture ? () => onPutPicture(null) : undefined}
+        sources={sources}
+        width="100%"
+        background="var(--dz-surface)"
+        color="var(--dz-ink)"
+        menuBackground="var(--dz-panel)"
+        sparkColor="var(--dz-focus)"
+        extras={(
+          <>
+            <span className="dz-menu-anchor">
+              <button type="button" className="dz-btn dz-btn--ghost dz-btn--sm" aria-haspopup="menu" aria-expanded={newMenu} title="Add another board: an empty canvas, or one drawn from the description in the box" onClick={() => { setNewMenu((value) => !value); setNewMode(null); }}>
+                <Plus size={13} /> New
+              </button>
+              {newMenu && !newMode && (
+                <div className="dz-menu" role="menu">
+                  <button type="button" role="menuitem" className="dz-menu__item" onClick={() => setNewMode('blank')}><span>Blank board…</span></button>
+                  <button type="button" role="menuitem" className="dz-menu__item" disabled={text.trim().length < 4} onClick={() => setNewMode('drawn')}><span>Draw from the description…</span></button>
+                </div>
+              )}
+              {newMenu && newMode && (
+                <div className="dz-menu" role="dialog" aria-label={newMode === 'blank' ? 'Blank board' : 'Draw a new board'}>
+                  <div className="dz-menu__group">{newMode === 'blank' ? 'Blank board' : 'Draw from the description'}</div>
+                  <BoardSizePicker
+                    kind={kind}
+                    label={newMode === 'blank' ? 'Add blank board' : 'Draw new board'}
+                    disabled={busy || (newMode === 'drawn' && text.trim().length < 4)}
+                    onCancel={closeNew}
+                    onCreate={(format) => {
+                      if (newMode === 'drawn') onAddDrawn(text.trim(), format);
+                      else onAddBlank(format);
+                      setText('');
+                      closeNew();
+                    }}
+                  />
+                </div>
+              )}
+            </span>
+            <button type="button" className="dz-btn dz-btn--ghost dz-btn--sm" disabled={busy || boardCount === 0} title="Make three alternatives of the board in scope" onClick={onVersions}>
+              <Stack size={13} /> Versions
+            </button>
+          </>
         )}
-      </div>
+      />
+
       {!busy && (
         <div className="dz-bar__quick">
           {quick.map((entry) => <button key={entry.label} type="button" className="dz-hints__item" onClick={() => send(entry.instruction)}>{entry.label}</button>)}

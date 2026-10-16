@@ -3,9 +3,10 @@
 // quiet action list. Everything is a plain element with an `sx-*` class, so a
 // panel reads as markup rather than as a pile of one-off styles.
 import React, { useState } from 'react';
-import { ArrowUp, CaretRight, CaretUpDown, Stop } from '@phosphor-icons/react';
+import { CaretRight, CaretUpDown } from '@phosphor-icons/react';
 import './studio.css';
 import { LiquidSlider } from '../common/LiquidSlider';
+import PromptBar, { type PromptBarSource } from '../reactbits/PromptBar';
 
 interface InspectorProps {
   label: string;
@@ -186,32 +187,38 @@ interface PromptBoxProps {
   rows?: number;
 }
 
-/** Ask the AI for a change: Enter sends, Shift+Enter breaks the line. */
-export const PromptBox: React.FC<PromptBoxProps> = ({ value, onChange, onSubmit, placeholder, disabled, blocked, running, onStop, rows = 3 }) => (
-  <div className="sx-prompt">
-    <textarea dir="auto"
-      className="sx-prompt__input"
-      rows={rows}
-      value={value}
-      disabled={disabled}
+/** No "+" sources in a panel: its attachments sit in the panel's own rows. */
+const NO_SOURCES: PromptBarSource[] = [];
+
+/**
+ * Ask the AI for a change in a side panel: the React Bits prompt bar, the same
+ * one the studios' home composers use. Enter sends, Shift+Enter breaks the line.
+ * `rows` is kept for callers; the field grows with its text.
+ */
+export const PromptBox: React.FC<PromptBoxProps> = ({ value, onChange, onSubmit, placeholder, disabled, blocked, running, onStop }) => (
+  <div className="sx-prompt" onKeyDown={(event) => event.stopPropagation()}>
+    <PromptBar
       placeholder={placeholder}
-      onChange={(event) => onChange(event.target.value)}
-      onKeyDown={(event) => {
-        event.stopPropagation();
-        if (event.key === 'Enter' && !event.shiftKey) {
-          event.preventDefault();
-          if (value.trim() && !disabled && !blocked) onSubmit();
-        }
-      }}
+      inputLabel={placeholder}
+      sources={NO_SOURCES}
+      commands={[]}
+      models={[]}
+      efforts={[]}
+      draft={value}
+      onDraftChange={onChange}
+      busy={running}
+      disabled={disabled}
+      canSend={!disabled && !blocked && value.trim().length > 0}
+      onSend={() => onSubmit()}
+      onStop={onStop}
+      width="100%"
+      maxRows={6}
+      radius={10}
+      background="var(--sx-surface)"
+      color="var(--sx-ink)"
+      menuBackground="var(--sx-surface)"
+      sparkColor="var(--accent)"
     />
-    <div className="sx-prompt__foot">
-      <span className="sx-prompt__keys">Enter to send</span>
-      {running ? (
-        <button type="button" className="sx-prompt__send" aria-label="Stop" onClick={onStop}><Stop size={11} weight="fill" /></button>
-      ) : (
-        <button type="button" className="sx-prompt__send" aria-label="Send" disabled={disabled || blocked || !value.trim()} onClick={onSubmit}><ArrowUp size={13} weight="bold" /></button>
-      )}
-    </div>
   </div>
 );
 

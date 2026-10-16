@@ -2874,6 +2874,10 @@
   opacity: 0.6;
 }
 
+/* The bar lives inside this frame: no second border, and no "+" sources row. */
+.pd-compose .prompt-bar > div[role='presentation'] { border: 0; box-shadow: none; }
+.pd-compose [aria-label='Add files and sources'] { display: none; }
+
 .pd-compose__targets {
   display: flex;
   flex-wrap: wrap;

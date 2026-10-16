@@ -17,7 +17,8 @@ import { belowPosition, SCREEN_STATES, versionName } from '../../utils/design/fl
 import { ADD_SVG_TWEAKS_INSTRUCTION, ADD_TWEAKS_INSTRUCTION } from '../../utils/design/quickActions';
 import { planComposerAction } from '../../utils/design/intents';
 import { pasteOrigin } from '../../utils/design/snap';
-import type { Board, DesignKind } from '../../utils/design/types';
+import type { Board, DesignKind, DesignProject } from '../../utils/design/types';
+import type { EngineChoice } from '../../utils/writing/types';
 import { BarSeparator, StudioTopBar, type StudioRun, type StudioSaveState } from '../studio/StudioTopBar';
 import { DesignCanvas, type MovePhase } from './DesignCanvas';
 import { DesignComposer, type ComposerInput } from './DesignComposer';
@@ -67,6 +68,11 @@ function startingBoards(kind: DesignKind, formats: string[], drawAs: 'svg' | 'ht
   return layoutBoards(boards);
 }
 
+/** The engine a project draws with: its own choice, else the studio default (as the generator reads it). */
+function engineOf(project: DesignProject, fallback: EngineChoice): EngineChoice {
+  return project.engine ? { ...fallback, ...(project.engine as EngineChoice) } : fallback;
+}
+
 /** The Design studio: the describe-it home, then the canvas of the open project. */
 const DesignWorkspace: React.FC<DesignWorkspaceProps> = ({ workspace, visible }) => {
   const workspaceId = workspace.id;
@@ -80,6 +86,7 @@ const DesignWorkspace: React.FC<DesignWorkspaceProps> = ({ workspace, visible })
   const redo = useDesignSessionStore((state) => state.redo);
   const keepProposal = useDesignSessionStore((state) => state.keepProposal);
   const discardProposal = useDesignSessionStore((state) => state.discardProposal);
+  const defaultEngine = useDesignStore((state) => state.defaultEngine);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -787,6 +794,11 @@ const DesignWorkspace: React.FC<DesignWorkspaceProps> = ({ workspace, visible })
             busy={running}
             reviewing={reviewing}
             status={status}
+            engine={engineOf(project, defaultEngine)}
+            onEngineChange={(next) => edit(workspaceId, (current) => ({
+              ...current,
+              engine: { engine: next.engine, model: next.model, effort: next.effort || undefined, allowWebResearch: next.allowWebResearch },
+            }), { skipHistory: true })}
             onSend={send}
             onAddDrawn={addDrawn}
             onAddBlank={addBlank}

@@ -998,6 +998,37 @@
 
 .dz-bar__quick { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 6px 2px 0; font-size: 12px; }
 
+/* Composer dock: scope row, the React Bits prompt bar, suggestions. Same place as the old bar. */
+.dz-dock {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  z-index: 10;
+  width: min(640px, max(280px, calc(100% - 600px)));
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transform: translateX(-50%);
+}
+
+.dz-dock__context {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  padding: 0 6px;
+  font-size: 11.5px;
+  color: var(--dz-ink-soft);
+}
+
+/* The prompt bar's own surface gets the studio's hairline and shadow. */
+.dz-dock .prompt-bar > div[role='presentation'] {
+  border: 1px solid var(--dz-line-strong);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
+.dz-dock .dz-bar__quick { padding: 0 6px; }
+
 /* Export dialog ----------------------------------------------------------------------- */
 
 .dz-modal {

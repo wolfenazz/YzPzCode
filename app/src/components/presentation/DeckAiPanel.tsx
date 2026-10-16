@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowRight, CheckCircle, CircleNotch, Clock, Lightning, Stop, Warning, XCircle } from '@phosphor-icons/react';
+import { CheckCircle, CircleNotch, Clock, Lightning, Stop, Warning, XCircle } from '@phosphor-icons/react';
 import type { DeckRun } from '../../stores/presentationSessionStore';
+import { PromptBox } from '../studio/Inspector';
 import { slideTitle } from '../../utils/presentation/deck';
 import { DECK_PASSES, SLIDE_ACTIONS, type DeckPass, type SlideAction } from '../../utils/presentation/prompts';
 import { deckSeconds, formatDuration } from '../../utils/presentation/timing';
@@ -66,18 +67,13 @@ export const DeckAiPanel: React.FC<DeckAiPanelProps> = ({ deck, run, selectedIds
           <label className="pr-check"><input type="checkbox" checked={wholeDeck} onChange={(event) => setWholeDeck(event.target.checked)} /> Whole deck</label>
         </div>
         <div className="pr-ai__prompt">
-          <textarea
-            className="pr-input"
-            rows={3}
+          <PromptBox
             value={instruction}
+            onChange={setInstruction}
+            onSubmit={() => send()}
             placeholder={preserve ? 'e.g. Tighten the wording and make the titles takeaways' : 'e.g. Make this a comparison of in-house vs agency, with costs'}
-            onChange={(event) => setInstruction(event.target.value)}
-            onKeyDown={(event) => {
-              event.stopPropagation();
-              if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); send(); }
-            }}
+            disabled={!canRun}
           />
-          <button type="button" className="pr-btn pr-btn--primary pr-btn--sm" disabled={!instruction.trim() || !canRun} onClick={send} title="Send (Ctrl Enter)">Send <ArrowRight size={12} /></button>
         </div>
         <div className="pr-ai__actions">
           {offered.map((action) => (

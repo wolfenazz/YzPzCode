@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { open } from '@tauri-apps/plugin-dialog';
-import { ArrowRight, FileArrowUp, FileText, Image as ImageIcon, Paperclip, Plus, Trash, X } from '@phosphor-icons/react';
+import { FileArrowUp, FileText, Image as ImageIcon, Plus, Trash, X } from '@phosphor-icons/react';
+import { StudioPromptBar } from '../composer/StudioPromptBar';
 import type { EngineChoice } from '../../utils/writing/types';
 import { relativeTime } from '../writing/ui';
 import { attachmentFromPath, DOCUMENT_EXTENSIONS, IMAGE_EXTENSIONS, MAX_ATTACHMENT_COUNT, saveDropped, type SheetAttachment } from './attachments';
@@ -11,6 +12,7 @@ interface SheetsHomeProps {
   attachmentsFolder: string;
   workbooks: WorkbookListing[];
   engine: EngineChoice;
+  onEngineChange: (engine: EngineChoice) => void;
   busy: boolean;
   error: string | null;
   onCreate: (prompt: string, attachments: SheetAttachment[]) => void;
@@ -30,14 +32,13 @@ const EXAMPLES: Array<{ label: string; prompt: string }> = [
 
 const FILE_FILTERS = [{ name: 'Spreadsheets', extensions: ['xlsx', 'xlsm', 'xls', 'ods', 'csv', 'tsv'] }];
 
-export const SheetsHome: React.FC<SheetsHomeProps> = ({ workspaceName, attachmentsFolder, workbooks, engine, busy, error, onCreate, onBlank, onOpenFile, onOpen, onDelete }) => {
+export const SheetsHome: React.FC<SheetsHomeProps> = ({ workspaceName, attachmentsFolder, workbooks, engine, onEngineChange, busy, error, onCreate, onBlank, onOpenFile, onOpen, onDelete }) => {
   const [prompt, setPrompt] = useState('');
   const [attachments, setAttachments] = useState<SheetAttachment[]>([]);
   const [dragging, setDragging] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const dragDepth = useRef(0);
-  const textarea = useRef<HTMLTextAreaElement>(null);
   const pictures = attachments.filter((a) => a.kind === 'image').length;
   const canSee = engine.engine === 'claude' || engine.engine === 'codex';
   const ready = (prompt.trim() !== '' || attachments.length > 0) && !busy;
@@ -103,26 +104,8 @@ export const SheetsHome: React.FC<SheetsHomeProps> = ({ workspaceName, attachmen
           </div>
         </header>
 
-        <label className="sh-home__ask" htmlFor="sh-composer-input">Describe a workbook, or drop a photo or file</label>
-        <div className="sh-composer" data-busy={busy || undefined}>
-          <textarea
-            id="sh-composer-input"
-            ref={textarea}
-            className="sh-composer__input"
-            dir="auto"
-            value={prompt}
-            disabled={busy}
-            autoFocus
-            placeholder="A weekly timesheet for five people with hours per day, overtime over 40 hours and a total pay column at a rate I can change in one cell."
-            onChange={(event) => setPrompt(event.target.value)}
-            onPaste={(event) => {
-              const pasted = Array.from(event.clipboardData.files);
-              if (pasted.length > 0) {
-                event.preventDefault();
-                void addFiles(pasted);
-              }
-            }}
-          />
+        <span className="sh-home__ask">Describe a workbook, or drop a photo or file</span>
+        <div className="sh-home__bar">
           {attachments.length > 0 && (
             <div className="sh-chips">
               {attachments.map((item) => (
@@ -135,15 +118,30 @@ export const SheetsHome: React.FC<SheetsHomeProps> = ({ workspaceName, attachmen
             </div>
           )}
           {pictures > 0 && !canSee && <p className="sh-home__warn">The chosen engine cannot look at pictures. Switch to Claude Code or Codex in the studio settings.</p>}
-          <div className="sh-composer__bar">
-            <button type="button" className="sx-btn sx-btn--quiet" disabled={busy || attachments.length >= MAX_ATTACHMENT_COUNT} onClick={() => void pick()} title="Photos, PDFs, Word, Excel and CSV files become the content">
-              <Paperclip size={14} /> Add files
-            </button>
-            <span className="sh-composer__spacer" />
-            <button type="button" className="sx-btn sx-btn--primary" disabled={!ready} onClick={submit} title="Ctrl+Enter">
-              Build workbook <ArrowRight size={13} weight="bold" />
-            </button>
-          </div>
+          <StudioPromptBar
+            engine={engine}
+            onEngineChange={onEngineChange}
+            placeholder="A weekly timesheet for five people with hours per day, overtime over 40 hours and a total pay column at a rate I can change in one cell."
+            inputLabel="Describe the workbook"
+            busy={false}
+            canSend={ready}
+            draft={prompt}
+            onDraftChange={setPrompt}
+            onSend={(text) => { if (ready) onCreate(text.trim(), attachments); }}
+            onAttach={() => void pick()}
+            onPaste={(event) => {
+              const pasted = Array.from(event.clipboardData.files);
+              if (pasted.length > 0) {
+                event.preventDefault();
+                void addFiles(pasted);
+              }
+            }}
+            width="100%"
+            background="var(--sx-surface)"
+            color="var(--sx-ink)"
+            menuBackground="var(--sx-surface)"
+            sparkColor="var(--accent)"
+          />
         </div>
         {error && <p className="sh-home__error">{error}</p>}
         {fileError && <p className="sh-home__error">{fileError}</p>}
@@ -153,10 +151,10 @@ export const SheetsHome: React.FC<SheetsHomeProps> = ({ workspaceName, attachmen
             <span className="sh-examples">
               <span className="sh-examples__label">Try</span>
               {EXAMPLES.map((example) => (
-                <button key={example.label} type="button" className="sh-examples__item" title={example.prompt} onClick={() => { setPrompt(example.prompt); textarea.current?.focus(); }}>{example.label}</button>
+                <button key={example.label} type="button" className="sh-examples__item" title={example.prompt} onClick={() => setPrompt(example.prompt)}>{example.label}</button>
               ))}
             </span>
-            <span className="sh-home__keys">Ctrl+Enter to start</span>
+            <span className="sh-home__keys">Enter to start</span>
           </div>
         )}
 

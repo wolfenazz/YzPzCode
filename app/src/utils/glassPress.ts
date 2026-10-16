@@ -8,7 +8,7 @@
  *
  * Two kinds of navigation get a real drag:
  *   - a segmented / view switcher (`.view-switch`, `.st-segmented`,
- *     `.sx-segmented`): the selected thumb follows the pointer left and right
+ *     `.sx-segmented`, the setup page's `.ws-steps`): the selected thumb follows the pointer left and right
  *     inside its track; on release the nearest item is selected;
  *   - a tab strip marked `data-glass-reorder="<name>"` (workspace tabs): the
  *     held tab slides, its neighbours make room, and on release the strip emits
@@ -24,11 +24,12 @@ const PRESSABLE = [
   '.st-btn', '.sx-btn', '.dz-btn', '.pr-btn', '.pd-btn', '.ws-btn', '.dv-btn',
   '.bx-btn', '.pf-btn', '.pr-icon-btn', '.chrome-btn',
   '.chrome-tab:not(.chrome-tab--static)',
-  '.st-segmented__item', '.sx-segmented > button', '.view-switch__item',
+  '.st-segmented__item', '.sx-segmented > button', '.view-switch__item', '.ws-steps__item',
+  '.gs__item', '.dz-segmented > button', '.pd-segmented > button', '.pd-scope > button',
 ].join(',');
 
-const GROUPS = '[data-glass-reorder], .view-switch, .st-segmented, .sx-segmented';
-const SELECTED = '.is-active, [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"]';
+const GROUPS = '[data-glass-reorder], .view-switch, .st-segmented, .sx-segmented, .ws-steps, .gs, .dz-segmented, .pd-segmented, .pd-scope';
+const SELECTED = '.is-active, [aria-selected="true"], [aria-pressed="true"], [aria-checked="true"], [aria-current="step"]';
 
 type Spring = { k: number; zeta: number };
 const PRESS_SPRING: Spring = { k: 520, zeta: 0.5 };
@@ -248,7 +249,7 @@ const swallowNextClick = () => {
  * (`data-glass-sliding` on the group).
  */
 const makeThumb = (group: HTMLElement, active: HTMLElement, items: HTMLElement[]): Body => {
-  const source = active.querySelector<HTMLElement>('.view-switch__pill') ?? active;
+  const source = active.querySelector<HTMLElement>('.view-switch__pill, .ws-steps__pill') ?? active;
   const rect = active.getBoundingClientRect();
   const box = group.getBoundingClientRect();
   const restorePosition = group.style.position;

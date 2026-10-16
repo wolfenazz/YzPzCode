@@ -687,13 +687,8 @@
 .sh-home__actions { display: flex; gap: 8px; }
 .sh-home__ask { display: block; margin-bottom: 8px; color: var(--sx-ink-soft); font-size: 13px; }
 
-.sh-composer { border: 1px solid var(--sx-line-strong); border-radius: 14px; background: var(--sx-fill); padding: 12px; display: grid; gap: 10px; }
-.sh-composer:focus-within { border-color: var(--sx-focus); }
-.sh-composer__input { width: 100%; min-height: 108px; resize: vertical; border: 0; background: transparent; color: var(--sx-ink); font-size: 14.5px; line-height: 1.55; }
-.sh-composer__input:focus { outline: none; }
-.sh-composer__input::placeholder { color: var(--sx-ink-faint); }
-.sh-composer__bar { display: flex; align-items: center; gap: 8px; }
-.sh-composer__spacer { flex: 1; }
+/* The home's describe box is the shared prompt bar; this column only stacks the chips and warning above it. */
+.sh-home__bar { display: grid; gap: 10px; }
 
 .sh-home__warn, .sh-home__error { margin: 8px 2px 0; font-size: 12px; }
 .sh-home__warn { color: var(--sx-ink-soft); }

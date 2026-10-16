@@ -2,6 +2,8 @@
 // https://reactbits.dev/components/rubber-segment (MIT + Commons Clause; see LICENSE.md)
 import React, { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { animate, motion, useMotionValue, useReducedMotion, useTransform, type MotionValue } from 'motion/react';
+import { useAppStore } from '../../stores/appStore';
+import GlassSegmented from '../common/GlassSegmented';
 
 export type RubberSegmentSize = 'sm' | 'md' | 'lg';
 export type RubberSegmentItem = string | { value: string; label: ReactNode; icon?: ReactNode };
@@ -80,7 +82,7 @@ const nearestSlot = (slots: Slot[], x: number) => {
   return best;
 };
 
-const RubberSegment: React.FC<RubberSegmentProps> = ({
+const RubberSegmentFlat: React.FC<RubberSegmentProps> = ({
   items,
   value,
   defaultValue,
@@ -404,6 +406,29 @@ const RubberSegment: React.FC<RubberSegmentProps> = ({
         ))}
       </motion.div>
     </div>
+  );
+};
+
+/**
+ * Under liquid glass every switcher in the app is one navigation: the same groove,
+ * glass thumb and press / slide as the workspace view switcher (GlassSegmented).
+ * With glass off, this keeps its own rubber-band thumb.
+ */
+const RubberSegment: React.FC<RubberSegmentProps> = props => {
+  const liquidGlass = useAppStore(state => state.liquidGlass);
+  if (!liquidGlass) return <RubberSegmentFlat {...props} />;
+  return (
+    <GlassSegmented
+      items={props.items}
+      value={props.value}
+      defaultValue={props.defaultValue}
+      onChange={props.onChange}
+      size={props.size}
+      equalSlots={props.equalSlots}
+      disabled={props.disabled}
+      className={props.className}
+      aria-label={props['aria-label']}
+    />
   );
 };
 

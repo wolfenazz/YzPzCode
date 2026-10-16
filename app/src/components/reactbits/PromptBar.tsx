@@ -68,6 +68,8 @@ export interface PromptBarProps {
   defaultEffort?: string;
   onEffortChange?: (effort: string) => void;
   busy?: boolean;
+  /** The field is locked (a studio holds it while a change is under review). */
+  disabled?: boolean;
   /** The studio decides when there is enough to send (a template's details, attached material). */
   canSend?: boolean;
   onSend?: (text: string, detail: PromptBarSendDetail) => void;
@@ -168,6 +170,8 @@ const DEFAULT_MODELS: PromptBarModel[] = [
   { key: 'nova-2', name: 'Nova 2', tag: 'Legacy' }
 ];
 const DEFAULT_EFFORTS = ['Low', 'Medium', 'High', 'Extra', 'Max'];
+/** Wide enough for engine-prefixed model ids such as `opencode-go/deepseek-v4.1-flash`. */
+const MODEL_MENU_WIDTH = 320;
 
 const mix = (a: number, b: number, t: number) => a + (b - a) * t;
 const pathAt = (a: number[], b: number[], t: number) => {
@@ -253,6 +257,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
   onDraftChange,
   onModelChange,
   busy = false,
+  disabled = false,
   canSend: canSendProp,
   onSend,
   onStop,
@@ -360,7 +365,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
   useLayoutEffect(() => {
     const anchor = open === 'model' ? modelButtonRef.current : open === 'effort' ? effortButtonRef.current : null;
     if (!anchor) return undefined;
-    const width = open === 'model' ? 224 : 248;
+    const width = open === 'model' ? MODEL_MENU_WIDTH : 248;
     // The menu leaves the bar, so the tokens the bar was given (which may be scoped to its studio) are read off the bar here.
     const scope = rootRef.current ? getComputedStyle(rootRef.current) : null;
     const tone = {
@@ -731,7 +736,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
       {open ? (
         <div
           ref={menuRef}
-          className="group absolute inset-x-0 bottom-[calc(100%+8px)] z-[2] origin-bottom overflow-x-hidden overflow-y-auto rounded-xl p-1 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.08)] [animation:prompt-bar-pop_180ms_cubic-bezier(0.23,1,0.32,1)_both] [background:var(--pb-menu)] data-[kind=model]:right-auto data-[kind=model]:w-[224px] data-[kind=model]:origin-bottom-left data-[kind=effort]:right-auto data-[kind=effort]:w-[248px] data-[kind=effort]:origin-bottom-left data-[kind=effort]:px-3.5 data-[kind=effort]:pt-3 data-[kind=effort]:pb-3.5 motion-reduce:[animation:none]"
+          className="group absolute inset-x-0 bottom-[calc(100%+8px)] z-[2] origin-bottom overflow-x-hidden overflow-y-auto rounded-xl p-1 shadow-[0_10px_30px_-10px_rgba(0,0,0,0.35),0_1px_2px_rgba(0,0,0,0.08)] [animation:prompt-bar-pop_180ms_cubic-bezier(0.23,1,0.32,1)_both] [background:var(--pb-menu)] data-[kind=model]:right-auto data-[kind=model]:origin-bottom-left data-[kind=effort]:right-auto data-[kind=effort]:w-[248px] data-[kind=effort]:origin-bottom-left data-[kind=effort]:px-3.5 data-[kind=effort]:pt-3 data-[kind=effort]:pb-3.5 motion-reduce:[animation:none]"
           style={
             open === 'model' || open === 'effort'
               ? ({ ...popPlace, position: 'fixed', zIndex: 1000, right: 'auto' } as CSSProperties)
@@ -840,7 +845,7 @@ const PromptBar: React.FC<PromptBarProps> = ({
                       {renderIcon(row.icon, 15)}
                     </span>
                   ) : null}
-                  <span className="min-w-0 truncate text-[13px] font-medium">{row.name}</span>
+                  <span className="min-w-0 truncate text-[13px] font-medium" title={row.name}>{row.name}</span>
                   {row.description ? (
                     <span className="min-w-0 flex-auto truncate text-[12px] [color:color-mix(in_srgb,var(--pb-ink)_55%,transparent)]">
                       {row.description}
@@ -910,10 +915,12 @@ const PromptBar: React.FC<PromptBarProps> = ({
 
         <textarea
           ref={inputRef}
+          dir="auto"
           className="block w-full resize-none border-0 bg-transparent p-0 text-[14px] leading-[22px] text-inherit outline-none [font:inherit] [overflow-wrap:anywhere] placeholder:[color:color-mix(in_srgb,var(--pb-ink)_45%,transparent)] [@media(pointer:coarse)]:text-[16px]"
           rows={1}
           value={draft}
           placeholder={listening ? 'Listening…' : placeholder}
+          disabled={disabled}
           aria-label={inputLabel}
           onChange={e => {
             setDraft(e.target.value);

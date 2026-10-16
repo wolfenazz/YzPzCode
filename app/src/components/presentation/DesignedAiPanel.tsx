@@ -1,10 +1,14 @@
-import React, { useLayoutEffect, useRef } from 'react';
+import React from 'react';
 import {
-  ArrowUp, ChartBar, Cursor, Globe, ImageSquare, ListPlus, MagicWand, NotePencil, PaintBrush, Play, SquaresFour, Sparkle, Stop, TextAlignLeft, X,
+  ChartBar, Cursor, Globe, ImageSquare, ListPlus, MagicWand, NotePencil, PaintBrush, Play, SquaresFour, Sparkle, TextAlignLeft, X,
 } from '@phosphor-icons/react';
 import { REFINE_ACTIONS } from '../../utils/presentation/designPrompts';
 import type { DesignedSlide } from '../../utils/presentation/designTypes';
+import PromptBar, { type PromptBarSource } from '../reactbits/PromptBar';
 import { SvgSlide } from './SvgSlide';
+
+/** The AI tab's bar has no "+" sources: pictures and files reach the deck through the Design tab. */
+const NO_SOURCES: PromptBarSource[] = [];
 
 /** Which slides an instruction applies to. */
 export type AiScope = 'current' | 'picked' | 'all';
@@ -65,19 +69,10 @@ export const DesignedAiPanel: React.FC<DesignedAiPanelProps> = ({
   scope, onScope, slides, total, currentNumber, pickedCount, canvas, resolveHref, targets, onClearTargets, value, onValue, busy, blank, error, engine, imported,
   onSend, onStop, onPickSlides, children,
 }) => {
-  const input = useRef<HTMLTextAreaElement>(null);
   const count = slides.length;
   const ready = count > 0 && !blank;
   const text = value.trim();
   const many = scope !== 'current';
-
-  // The box grows with what is typed, up to a limit.
-  useLayoutEffect(() => {
-    const element = input.current;
-    if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${Math.min(220, Math.max(76, element.scrollHeight))}px`;
-  }, [value, scope]);
 
   const placeholder = scope === 'current'
     ? `What should change on slide ${currentNumber}? e.g. make the title bigger, add a chart of these numbers…`
@@ -141,7 +136,7 @@ export const DesignedAiPanel: React.FC<DesignedAiPanelProps> = ({
 
       <section className="pd-ai__block">
         <div className="pd-ai__label">Instruction</div>
-        <div className="pd-compose" data-disabled={!ready || undefined}>
+        <div className="pd-compose" data-disabled={!ready || undefined} onKeyDown={(event) => event.stopPropagation()}>
           {scope === 'current' && targets.length > 0 && (
             <div className="pd-compose__targets">
               {targets.slice(0, 3).map((target) => (
@@ -151,40 +146,38 @@ export const DesignedAiPanel: React.FC<DesignedAiPanelProps> = ({
               <button type="button" className="pd-target__clear" aria-label="Stop pointing at these elements" title="Ask about the whole slide instead" onClick={onClearTargets}><X size={11} weight="bold" /></button>
             </div>
           )}
-          <textarea dir="auto"
-            ref={input}
-            className="pd-compose__input"
-            value={value}
-            disabled={!ready || busy}
+          <PromptBar
             placeholder={blank && scope === 'current' ? 'This slide is not drawn yet.' : placeholder}
-            aria-label="Instruction for the AI"
-            rows={3}
-            onChange={(event) => onValue(event.target.value)}
-            onKeyDown={(event) => {
-              event.stopPropagation();
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); }
-            }}
-          />
-          <div className="pd-compose__bar">
-            {scope === 'current' ? (
+            inputLabel="Instruction for the AI"
+            sources={NO_SOURCES}
+            commands={[]}
+            models={[]}
+            efforts={[]}
+            draft={value}
+            onDraftChange={onValue}
+            disabled={!ready || busy}
+            busy={busy}
+            canSend={ready && text.length > 0}
+            onSend={() => send()}
+            onStop={onStop}
+            width="100%"
+            radius={10}
+            background="transparent"
+            color="var(--pr-ink)"
+            menuBackground="var(--pr-raised)"
+            sparkColor="var(--pr-accent)"
+            extras={scope === 'current' ? (
               <button
                 type="button"
                 className="pd-compose__tool"
                 disabled={!ready || busy}
                 title="Ask for a real photo from the web"
-                onClick={() => { onValue(value.trim() ? value : 'Add a picture from the internet of '); input.current?.focus(); }}
+                onClick={() => onValue(value.trim() ? value : 'Add a picture from the internet of ')}
               >
                 <Globe size={13} /> Web photo
               </button>
-            ) : <span />}
-            {busy ? (
-              <button type="button" className="pd-compose__send pd-compose__send--stop" onClick={onStop}><Stop size={12} weight="fill" /> Stop</button>
-            ) : (
-              <button type="button" className="pd-compose__send" disabled={!ready || !text} onClick={() => send()} title="Send (Enter)">
-                {many ? (count > 0 ? `Apply to ${count}` : 'Apply') : 'Send'} <ArrowUp size={13} weight="bold" />
-              </button>
-            )}
-          </div>
+            ) : undefined}
+          />
         </div>
         <span className="pd-compose__engine" title="The AI engine for this deck (change it below)">
           <Sparkle size={11} weight="fill" /> {engine}
