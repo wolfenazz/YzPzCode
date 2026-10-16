@@ -1653,7 +1653,7 @@ body {
   height: 3.25rem;
   padding-inline: 0.875rem;
   border-bottom-color: transparent !important;
-  background: linear-gradient(to bottom, color-mix(in srgb, var(--bg-secondary) 94%, var(--text-primary)), var(--bg-secondary));
+  background: var(--bg-secondary);
 }
 
 .explorer-pane__heading-icon {

@@ -524,12 +524,13 @@ html.liquid-glass .wr-toast {
    Translucent glass with a bright top edge; whatever the window background
    draws shows through, and content that scrolls under a bar blurs. */
 
+/* No sheen or top highlight on the bars: they stay flat, with only the tint and blur. */
 html.liquid-glass :where(.chrome, .statusbar) {
   background-color: var(--lg-bar);
-  background-image: var(--lg-sheen-soft);
+  background-image: none;
   -webkit-backdrop-filter: var(--lg-blur);
   backdrop-filter: var(--lg-blur);
-  box-shadow: var(--lg-spec-top);
+  box-shadow: none;
 }
 
 html.liquid-glass .chrome-tab {
