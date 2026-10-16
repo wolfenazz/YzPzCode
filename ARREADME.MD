@@ -22,7 +22,7 @@
 
 <p align="center">
   <a href="README.md">English</a> &nbsp;|&nbsp;
-  <a href="ARREADME.MD"><b>العربية</b></a> &nbsp;|&nbsp;
+  <b>العربية</b> &nbsp;|&nbsp;
   <a href="DEREADME.MD">Deutsch</a> &nbsp;|&nbsp;
   <a href="ESREADME.MD">Español</a> &nbsp;|&nbsp;
   <a href="FRREADME.MD">Français</a> &nbsp;|&nbsp;
