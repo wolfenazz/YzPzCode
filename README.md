@@ -21,16 +21,26 @@
 </p>
 
 <p align="center">
+  <b>English</b> &nbsp;|&nbsp;
+  <a href="ARREADME.MD">العربية</a> &nbsp;|&nbsp;
+  <a href="DEREADME.MD">Deutsch</a> &nbsp;|&nbsp;
+  <a href="ESREADME.MD">Español</a> &nbsp;|&nbsp;
+  <a href="FRREADME.MD">Français</a> &nbsp;|&nbsp;
+  <a href="PTREADME.MD">Português (BR)</a> &nbsp;|&nbsp;
+  <a href="TRREADME.MD">Türkçe</a>
+</p>
+
+<p align="center">
   <a href="#-why-yzpzcode">Why</a> •
   <a href="#-everything-in-one-window">Overview</a> •
-  <a href="#-supported-ai-coding-clis">Agents</a> •
-  <a href="#-graphical-workspace-extensions">Extensions</a> •
-  <a href="#-writing--presentation-studios">Studios</a> •
-  <a href="#-mobile-device-window">Devices</a> •
-  <a href="#-local-narration">Narration</a> •
-  <a href="#-application-run--build-system">Run &amp; Build</a> •
-  <a href="#-download--installation">Download</a> •
-  <a href="#-contributors">Contributors</a>
+  <a href="#supported-ai-coding-clis">Agents</a> •
+  <a href="#graphical-workspace-extensions">Extensions</a> •
+  <a href="#writing-presentation--sheets-studios">Studios</a> •
+  <a href="#mobile-device-window">Devices</a> •
+  <a href="#local-narration">Narration</a> •
+  <a href="#application-run--build-system">Run &amp; Build</a> •
+  <a href="#download--installation">Download</a> •
+  <a href="#contributors">Contributors</a>
 </p>
 
 </div>
