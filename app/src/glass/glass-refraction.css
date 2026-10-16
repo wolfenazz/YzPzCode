@@ -1,0 +1,246 @@
+/*
+ * Refracting glass (SVG displacement)
+ *
+ * The optics half of Settings → Appearance → Liquid glass. `liquid-glass.css`
+ * paints the *tint* of glass — the fill, the sheen, the rim, the shadow.
+ * This sheet is what changes when a surface is genuinely bending its backdrop:
+ * `utils/…` and `glass/glassRefraction.ts` put a `url(#…)` filter in the
+ * element's `backdrop-filter` and mark it `data-glass-refracting`, and the
+ * rules here pull the painted fill back so the bend is what you see, and
+ * brighten the rim so the edge still reads as a solid piece of glass.
+ *
+ * Everything is keyed on `html.liquid-glass` as well, so with the feature off
+ * the app keeps its flat look exactly as before.
+ *
+ * Where the refraction is unavailable — a non-Chromium webview, or an element
+ * too large to be worth a filter stage — nothing sets the attribute and none
+ * of this applies; the surface keeps its painted glass.
+ */
+
+/* ── A refracting surface ─────────────────────────────────────────────
+   The filter is doing the work, so the paint gets out of its way: less fill
+   (a strong tint swallows the bend), no big soft sheen, and a tighter rim
+   with a bright inner edge where the bezel catches light. */
+
+html.liquid-glass [data-glass-refracting] {
+  --lg-refract-rim: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent);
+  --lg-refract-spec:
+    inset 0 1px 0 rgb(255 255 255 / 0.42),
+    inset 0 -1px 0 rgb(0 0 0 / 0.14),
+    inset 0 0 6px -2px rgb(255 255 255 / 0.22);
+  /* A translucent pale fill for the parts that sit *on* the glass: a tint, not
+     a coat of paint, so what the rim is bending is still what you see. */
+  --lg-thumb-glass: color-mix(in srgb, var(--text-primary) 13%, transparent);
+  box-shadow: var(--lg-refract-rim), var(--lg-refract-spec), var(--lg-drop-sm);
+}
+
+html.liquid-glass.light-theme [data-glass-refracting],
+html.liquid-glass.claude-theme [data-glass-refracting] {
+  --lg-refract-rim: inset 0 0 0 1px rgb(0 0 0 / 0.07);
+  --lg-refract-spec:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 0 rgb(0 0 0 / 0.05),
+    inset 0 0 6px -2px rgb(255 255 255 / 0.7);
+  --lg-thumb-glass: rgb(255 255 255 / 0.72);
+}
+
+/* Buttons and other filled capsules: half the painted fill, because the
+   backdrop is now visible through them. */
+html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn) {
+  background-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  background-image: var(--lg-sheen-soft);
+}
+
+html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--text-primary) 9%, transparent);
+  background-image: var(--lg-light), var(--lg-sheen-soft);
+}
+
+/* The selected thumb of a tab row or switcher: it has to read as the chosen
+   item on any backdrop, so it keeps a *tint* rather than a fill — opaque enough
+   to hold the label, translucent enough that the bend shows through it. */
+html.liquid-glass [data-glass-refracting]:is(.view-switch__pill, .ws-steps__pill, .st-segmented__item[aria-pressed="true"], .gs__item[aria-checked="true"], .dz-segmented > button[aria-checked="true"], .pd-segmented > button[aria-checked="true"], .pd-scope > button[aria-checked="true"], .st-tab[aria-selected="true"], .ws-tab[aria-selected="true"], .dz-kind[aria-checked="true"]) {
+  background-color: var(--lg-thumb-glass);
+  background-image: var(--lg-sheen);
+}
+
+/* Switch tracks: the thumb rides inside, so the track only needs the groove
+   tint, and a translucent one — the track's own colour would otherwise paint
+   over the bend it is paying for. */
+html.liquid-glass [data-glass-refracting]:is(.st-switch, .ws-switch, .sx-switch) {
+  background-color: color-mix(in srgb, var(--sw-track) 55%, transparent);
+  background-image: none;
+  box-shadow:
+    var(--lg-refract-rim),
+    inset 0 1px 3px rgb(0 0 0 / 0.26),
+    inset 0 -1px 0 rgb(255 255 255 / 0.06);
+}
+
+html.liquid-glass.light-theme [data-glass-refracting]:is(.st-switch, .ws-switch, .sx-switch),
+html.liquid-glass.claude-theme [data-glass-refracting]:is(.st-switch, .ws-switch, .sx-switch) {
+  box-shadow:
+    var(--lg-refract-rim),
+    inset 0 1px 2px rgb(0 0 0 / 0.12),
+    inset 0 -1px 0 rgb(255 255 255 / 0.7);
+}
+
+/* Menus, dialogs and toolbars keep a fill over their frost, but lighter. */
+html.liquid-glass [data-glass-refracting]:is(.ctx-menu, .bx-popover, .dz-menu, .pr-popover, .pr-menu, .ws-popover, .sh-menu, .sh-listmenu, .tp-menu, .term-menu, .wr-popover, .premium-menu, .statusbar-popover, .spawn-shell-menu, .lg-menu) {
+  background-color: color-mix(in srgb, var(--popover, var(--bg-secondary)) 66%, transparent);
+}
+
+html.liquid-glass [data-glass-refracting]:is(.dz-modal__panel, .pr-modal__panel, .wr-modal__panel, .sh-dialog__panel, .ws-dialog, .term-dialog, .ws-panel) {
+  background-color: color-mix(in srgb, var(--popover, var(--bg-secondary)) 68%, transparent);
+}
+
+/* Fields are recessed, not raised: no drop shadow, and the bend reads as a
+   thick glass lip around the well. */
+html.liquid-glass [data-glass-refracting]:is(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input) {
+  background-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
+  box-shadow:
+    var(--lg-refract-rim),
+    inset 0 1px 2px rgb(0 0 0 / 0.22);
+}
+
+html.liquid-glass.light-theme [data-glass-refracting]:is(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input),
+html.liquid-glass.claude-theme [data-glass-refracting]:is(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input) {
+  box-shadow:
+    var(--lg-refract-rim),
+    inset 0 1px 2px rgb(0 0 0 / 0.09);
+}
+
+/* ── The held lens ────────────────────────────────────────────────────
+   utils/glassSwitch.ts and utils/glassPress.ts swell a control into a lens on
+   press. It used to refract by drawing its own magnified copy of the track,
+   because an SVG filter in `backdrop-filter` was unreliable; it now bends the
+   real backdrop, so the layers that copied the track are gone and only the
+   glass body, its lit rim and its speculars remain. */
+
+html.liquid-glass .lg-lens[data-glass-refracting] {
+  background-color: transparent;
+  box-shadow:
+    0 0 0 0.5px rgb(255 255 255 / 0.14),
+    0 12px 26px -8px rgb(0 0 0 / 0.5),
+    0 2px 6px rgb(0 0 0 / 0.22);
+}
+
+html.liquid-glass.light-theme .lg-lens[data-glass-refracting],
+html.liquid-glass.claude-theme .lg-lens[data-glass-refracting] {
+  box-shadow:
+    0 0 0 0.5px rgb(0 0 0 / 0.1),
+    0 10px 22px -8px rgb(32 31 29 / 0.28),
+    0 2px 5px rgb(32 31 29 / 0.12);
+}
+
+/* A refracting lens shows the backdrop itself, so the painted rim light has to
+   be a whisper or it whites out the view through it. */
+html.liquid-glass .lg-lens[data-glass-refracting][data-glass-lit]::before {
+  opacity: 0.5;
+}
+
+html.liquid-glass .lg-lens[data-glass-refracting][data-glass-lit]::after {
+  opacity: 0.7;
+}
+
+/* ── Containers: progressive edge blur ────────────────────────────────
+   A large pane that has stopped refracting (`glass/glassRefraction.ts` decides
+   this by area) takes the reference implementation's container recipe instead:
+   content fades into the glass at the rim over a couple of steps rather than
+   stopping at a hard edge.
+
+   Two masked backdrop-filter layers, which is as many as a box can carry:
+   `::before` is the soft outer ramp, `::after` the heavier inner band, and
+   their masks overlap so the two read as one gradient. Both corners are
+   `inherit`ed, so the blur is clipped to the pane's own radius.
+
+   The element itself must carry no `backdrop-filter` — one on a box makes it a
+   backdrop root, and these descendants would then be filtering an empty
+   backdrop instead of the page. The attach layer sets `backdrop-filter: none`
+   inline for exactly that reason, together with `data-glass-edge`. */
+
+html.liquid-glass [data-glass-edge] {
+  position: relative;
+  isolation: auto;
+}
+
+html.liquid-glass [data-glass-edge]::before,
+html.liquid-glass [data-glass-edge]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+html.liquid-glass [data-glass-edge]::before {
+  -webkit-backdrop-filter: blur(3px) saturate(1.35);
+  backdrop-filter: blur(3px) saturate(1.35);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    transparent 14%,
+    transparent 86%,
+    #000 100%
+  );
+  mask-image: linear-gradient(to bottom, #000 0, transparent 14%, transparent 86%, #000 100%);
+}
+
+html.liquid-glass [data-glass-edge]::after {
+  -webkit-backdrop-filter: blur(14px) saturate(1.7);
+  backdrop-filter: blur(14px) saturate(1.7);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 0,
+    transparent 7%,
+    transparent 93%,
+    #000 100%
+  );
+  mask-image: linear-gradient(to bottom, #000 0, transparent 7%, transparent 93%, #000 100%);
+}
+
+/* Content sits above both layers. */
+html.liquid-glass [data-glass-edge] > * {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.liquid-glass [data-glass-edge]::before,
+  html.liquid-glass [data-glass-edge]::after {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+/* ── Opting out ───────────────────────────────────────────────────────
+   Anything that must keep the painted look (a surface whose backdrop is a
+   texture the bend would smear) sets this and the layer skips it. */
+
+html.liquid-glass [data-no-glass-refraction] {
+  backdrop-filter: none;
+}
+
+/* ── Motion and transparency ─────────────────────────────────────────── */
+
+@media (prefers-reduced-transparency: reduce) {
+  html.liquid-glass [data-glass-refracting] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    --lg-refract-rim: inset 0 0 0 1px var(--lg-ring);
+    --lg-refract-spec: inset 0 1px 0 rgb(255 255 255 / 0.2);
+  }
+
+  html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn) {
+    background-color: var(--lg-fill);
+  }
+}
+
+@media (forced-colors: active) {
+  html.liquid-glass [data-glass-refracting] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}

@@ -1,4 +1,58 @@
-# Mission: Studios audit fixes — Writing, Presentation, Sheets + Shared Chrome
+# Mission M-LG: Port vue-web-liquid-glass refraction engine into the app glass layer
+
+Source of truth: https://github.com/mkj0kjay/vue-web-liquid-glass (MIT) + https://kube.io/blog/liquid-glass-css-svg/
+Approach: port the physics engine (surface equations -> Snell ray trace -> SVG displacement map + specular map ->
+`backdrop-filter: url(#filter)`) as framework-agnostic TS + React primitives, and re-point the app's existing
+`html.liquid-glass` optics at it. Gesture engines (utils/glassPress.ts, utils/glassSwitch.ts) keep their event
+architecture; only their optics are replaced.
+Verification: `npx tsc --noEmit` (app/), `npm run build`, plus headless-Chrome visual harness screenshots.
+
+## M-LG1: Refraction engine (port) | status: completed
+### T-LG1.1: Pure math + maps | status: completed
+- [x] S-LG1.1.1: `app/src/glass/surfaceEquations.ts` (convex circle / convex squircle / concave / lip) | verified tsc
+- [x] S-LG1.1.2: `app/src/glass/displacementMap.ts` (bezel ray trace + shape-aware pill/rect/squircle map, buffer cap) | verified tsc + numeric profile check
+- [x] S-LG1.1.3: `app/src/glass/specular.ts` folded into `displacementMap.ts` (rim specular from edge normal vs light angle) | verified tsc + harness render
+- [x] S-LG1.1.4: Numeric check of every profile at real app sizes; added `maxShift` cap (see deviation note) | verified `node check-profiles.mjs`
+
+## M-LG2: Registry + React primitives | status: completed
+### T-LG2.1: Filter graph + surfaces | status: completed
+- [x] S-LG2.1.1: `app/src/glass/filterRegistry.ts` (cached `<filter>` per geometry hash, shared host, refcount + LRU, 8 app presets) | verified harness reports 20 filters for 22 surfaces
+- [x] S-LG2.1.2: `app/src/glass/measure.ts` + `app/src/glass/useGlassRefraction.ts` (React hook, off-render builds, blur fallback) | verified tsc
+- [x] S-LG2.1.3: Container/panel primitive folded into the DOM layer + `glass-refraction.css` instead of a separate component (app has no React glass primitives to replace) | verified harness render
+
+## M-LG3: DOM attach layer for existing markup | status: completed
+- [x] S-LG3.1.1: `app/src/glass/glassRefraction.ts` — 20 look targets (switches, thumbs, tabs, buttons, menus, dialogs, toolbars, panels, fields), one MutationObserver + one ResizeObserver, per-kind `maxArea`, frost suffix, `CSS.supports` guard | verified harness: 22 surfaces / 20 filters / 0 errors
+- [x] S-LG3.1.2: Registered in `App.tsx` beside trackGlassPointer/Press/Switch/Select; CSS imported from `main.tsx` | verified tsc + build
+
+## M-LG4: Re-point the existing glass optics | status: completed
+- [x] S-LG4.1.1: `app/src/glass/glass-refraction.css` + optics sections of `liquid-glass.css` rewritten (lens clone-optics removed) | verified harness
+- [x] S-LG4.1.2: `utils/glassSwitch.ts` lens now refracts the real backdrop via `glassFilter`; gesture physics untouched | verified harness: `lens=1` + visible bend
+- [x] S-LG4.1.3: `utils/liquidLens.ts` deleted; `LiquidSlider.tsx` re-pointed to the new engine | verified tsc
+- Note (deliberate deviation from the reference): the ported trace lets a grazing ray travel the whole glass thickness sideways and reported 122px of shift on an 8px bezel. Added `maxShift` (default 1x bezel width) — a ray that would exit that far never gets out of real glass — which also makes `reach`/`scale` predictable.
+- Note: `preserveAspectRatio="none"` on both `feImage`s. The reference omits it, so any buffer capped below element size is letterboxed and the whole field lands in the wrong place.
+- Note: window chrome (`.chrome`, `.statusbar`) intentionally keeps its frosted glass — full-width, over a flat background, so a bend would show nothing while the frost is the point.
+
+## M-LG5: Verify | status: completed
+- [x] S-LG5.1.1: `npx tsc --noEmit` (app/) clean | verified
+- [x] S-LG5.1.2: `npm run build` passes (1m29s; only the pre-existing chunk-size warning) | verified
+- [x] S-LG5.1.3: Headless-Chrome harness (`app/glass-lab.html`, dev-only) screenshots: held switch lens, held nav thumb, switch tracks, thumbs, panel, menu and toolbar all refracting vs a `data-no-glass-refraction` control column | verified 2 screenshots + DOM report `{supported:true, refracting:22, filters:20, lens:1, thumb:1, errors:[]}`
+- Probe (before building): a minimal `backdrop-filter: url(#filter)` page screenshotted in Chromium, confirming the engine runs the filter — the comment in `utils/glassSwitch.ts` claiming WebView2 renders it milky white did not reproduce; kept a `CSS.supports` guard so a non-Chromium engine falls back to the painted glass.
+
+## M-LG6: Follow-ups from the first pass | status: completed
+### T-LG6.1: Container edges, magnifier, settings | status: completed
+- [x] S-LG6.1.1: Container gradient-blur edges — `glass-refraction.css` `[data-glass-edge]` gives a large pane a two-step progressive blur ramp (3px outer + 14px inner, masked and radius-clipped) instead of refraction. The attach layer picks it by `EDGE_AREA` (120k px²) via `edges: true` on `.ws-panel` and dialog panels. A container cannot refract *and* carry descendant filters: an element with `backdrop-filter` becomes a backdrop root and its children filter an empty backdrop, so the layer sets `backdrop-filter: none` inline for exactly those elements. | verified tsc + build + harness render
+- [x] S-LG6.1.2: `glass/GlassMagnifier.tsx` + `glass-magnifier.css` — the reference's drag-a-lens as a component: spring-followed pointer, round bezel built for the lens box, a centre `magnify` pass on top of the bezel pull, iridescent rim, specular arc, caustic glint, lift on grab, stays on screen, `pointer-events` only on its own ring. Off by default; new persisted `glassMagnifier` setting renders it from `App.tsx` behind the feature flag | verified tsc + build
+- [x] S-LG6.1.3: Settings → Appearance → **Glass optics** group (shown only while Liquid glass is on): bezel-profile `Segmented` (Default/Squircle/Circle/Concave/Lip), refraction-strength `SliderRow` (30–200%), magnifier `ToggleRow`. Store: `glassProfile`, `glassStrength`, `glassMagnifier` (+ setters, defaults, partialize). `glassOptions.ts` holds the preferences; `glassFilter` folds them in (`strength` multiplies every look's own `scaleRatio`, profile replaces it), and `applyGlassPreferences` re-cuts every attached surface in place rather than tearing the layer down | verified tsc + build
+- [x] S-LG6.1.4: `pinProfile` — the switch track, the held lens and the magnifier keep their own profile whatever the setting says, because the lip is what makes a switch read as a switch
+- [x] S-LG6.1.5: Real-window verification: `npm run tauri dev` launched (cargo `Finished dev profile in 1.51s`, `Running target\debug\yzpzcode.exe`), the window captured over the Design Studio and the open model menu — floating toolbar, segmented thumbs (`Auto|Free|Text`, `Templates|Examples`), kind pills, workspace tab, fields and an open frosted dropdown all rendering on WebView2. No follow-up captures attempted; the dev chain this session started was stopped afterwards and the pre-existing app instance left running.
+
+## M-LG7: Remaining | status: pending
+- [ ] S-LG7.1.1: The strength slider and profile picker have no automated test; they are exercised only by hand and by tsc
+- [ ] S-LG7.1.2: `glass-lab.html` verifies the browser path with synthetic pointer events. Pressing a switch or dragging a nav thumb by hand in the real window is still unverified
+
+---
+
+# Mission: Studios audit fixes - Writing, Presentation, Sheets + Shared Chrome
 
 Baseline: docs/studios-audit.md (2026-10-14), 4 parallel audits. Goal: fix bugs + implement enhancements, marking each audit item [done] when verified.
 Verification: `npx tsc --noEmit` (app/) clean except foreign untracked `hooks/useMonacoTheme.ts` (sibling WIP, unimported); `npm run test:sheets` 50/50; `npm run test:writing` 37/37; `npm run test:workspace-setup` 18/18.

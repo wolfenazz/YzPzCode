@@ -717,17 +717,15 @@ html.liquid-glass .view-switch[data-glass-sliding] .view-switch__item[data-glass
 }
 
 /* ── Glass lens ──────────────────────────────────────────────────────
-   The held switch thumb (.lg-lens, utils/glassSwitch.ts) and the lifted
-   navigation thumb (.glass-thumb.lg-lens-layers). Built like Apple's glass,
-   back to front:
-     1. optics: the lens's own copy of the track, magnified and bent at the
-        rim with colour fringes by an SVG filter (set from script);
-     2. body: white unlit (the switch thumb it replaces), a whisper of tint
-        when lit;
-     3. edge light: a thin Fresnel glow just inside the rim;
-     4. iridescent rim: a hairline ring whose colour turns round the edge;
-     5. specular: a small arc upper left, a faint glint low on the right;
-     6. a soft, lifted shadow.
+   utils/glassSwitch.ts swells a held switch thumb into `.lg-lens`, and
+   utils/glassPress.ts swells a held navigation thumb into `.glass-thumb`.
+   Both refract their real backdrop now (`glass/`), so what is left in CSS is
+   the body, the iridescent rim and the speculars:
+      1. body: white while unlit (the switch thumb it replaces), clear once lit;
+      2. edge light: a thin Fresnel glow just inside the rim;
+      3. iridescent rim: a hairline ring whose colour turns round the edge;
+      4. specular: a small arc upper left, a faint glint low on the right;
+      5. a soft, lifted shadow.
    Lighting up and down is a short cross-fade (opacity and colour); the swell
    itself is the compositor-only `scale`. */
 
@@ -739,30 +737,6 @@ html.liquid-glass .view-switch[data-glass-sliding] .view-switch__item[data-glass
   pointer-events: none;
   transform-origin: center;
   will-change: translate, scale;
-}
-
-.lg-lens__optics {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  opacity: 0;
-  transition: opacity 140ms ease;
-}
-
-.lg-lens[data-glass-lit] .lg-lens__optics {
-  opacity: 1;
-}
-
-.lg-lens__zoom {
-  position: absolute;
-  inset: 0;
-  transform-origin: center;
-}
-
-.lg-lens__track {
-  position: absolute;
-  transition: background-color 200ms ease;
 }
 
 html.liquid-glass .lg-lens {
@@ -792,18 +766,11 @@ html.liquid-glass:not(.light-theme):not(.claude-theme) .lg-lens[data-glass-lit] 
 
 /* The refracting edge: real glass bends the light at its curved rim, so the
    rim reads as a bright, slightly frosted band, thicker than a hairline,
-   with the centre clear. Drawn over the optics, under rim and specular. */
-.lg-lens__optics::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
+   with the centre clear. */
+html.liquid-glass .lg-lens[data-glass-lit]::after {
   box-shadow:
-    inset 0 0 0 1.5px rgb(255 255 255 / 0.75),
-    inset 0 0 5px 2px rgb(255 255 255 / 0.55),
-    inset 0 2px 4px rgb(255 255 255 / 0.6),
-    inset 0 -2px 5px rgb(255 255 255 / 0.35);
+    inset 0 0 0 1.5px rgb(255 255 255 / 0.4),
+    inset 0 0 5px 1px rgb(255 255 255 / 0.22);
 }
 
 .lg-lens::before,

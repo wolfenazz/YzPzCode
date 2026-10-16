@@ -19,6 +19,8 @@ import { trackGlassPointer } from './utils/liquidGlass';
 import { trackGlassPress } from './utils/glassPress';
 import { trackGlassSwitch } from './utils/glassSwitch';
 import { trackGlassSelect } from './utils/glassMenu';
+import { trackGlassRefraction, applyGlassPreferences } from './glass/glassRefraction';
+import { GlassMagnifier } from './glass/GlassMagnifier';
 
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -45,6 +47,9 @@ function App() {
     appZoom,
     animationsEnabled,
     liquidGlass,
+    glassProfile,
+    glassStrength,
+    glassMagnifier,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
     openWorkspaces,
@@ -110,6 +115,9 @@ function App() {
     const stopPress = trackGlassPress();
     const stopSwitch = trackGlassSwitch();
     const stopSelect = trackGlassSelect();
+    // Gives every glass surface in the app a real refracting backdrop. Runs
+    // last so the gesture layers' injected elements are there to be picked up.
+    const stopRefraction = trackGlassRefraction();
     const onReorder = (event: Event) => {
       const { group, from, to } = (event as CustomEvent<{ group?: string; from: number; to: number }>).detail;
       if (group === 'workspaces') useAppStore.getState().reorderOpenWorkspaces(from, to);
@@ -120,10 +128,18 @@ function App() {
       stopPress();
       stopSwitch();
       stopSelect();
+      stopRefraction();
       document.removeEventListener('glass-reorder', onReorder);
       root.classList.remove('liquid-glass');
     };
   }, [liquidGlass]);
+
+  // Settings → Appearance → Liquid glass. Kept out of the effect above so
+  // moving the strength slider re-cuts the surfaces in place instead of
+  // tearing down and reinstalling every gesture listener behind them.
+  useEffect(() => {
+    applyGlassPreferences({ profile: glassProfile, strength: glassStrength });
+  }, [glassProfile, glassStrength]);
 
   useEffect(() => {
     initWindowPlatform().then(setIsWindows).catch((err) => {
@@ -265,6 +281,9 @@ function App() {
       </AnimatePresence>
       <UpdateNotification />
       {customCursor && <CustomCursor />}
+      {/* A draggable refracting lens over the whole window. Inert unless the
+          glass itself is on and the setting is enabled. */}
+      {liquidGlass && glassMagnifier && <GlassMagnifier />}
     </div>
     </ContextMenu>
     </TooltipProvider>

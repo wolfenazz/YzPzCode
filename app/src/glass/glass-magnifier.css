@@ -1,0 +1,127 @@
+/*
+ * The draggable magnifier (glass/GlassMagnifier.tsx).
+ *
+ * The refraction is the element's inline `backdrop-filter`, built by
+ * `glassFilter` for the lens's exact box. What is left here is everything that
+ * is thrown by the light rather than bent by the glass: the thick lit rim, the
+ * iridescent hairline, the specular arc, the caustic glint past the rim, and
+ * the shadow that lifts it off the page.
+ *
+ * Same grammar as `.lg-lens` in liquid-glass.css, at the size of a tool rather
+ * than a control — the ring is a band rather than a hairline, because at 168px
+ * a hairline rim reads as a drawn circle instead of a bevel.
+ */
+
+.lg-magnifier {
+  position: fixed;
+  z-index: 9700;
+  top: 0;
+  left: 0;
+  border-radius: 999px;
+  /* The app stays usable underneath: only the ring itself takes the pointer. */
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+  transform-origin: center;
+  will-change: translate;
+  /* A `translate` written every frame by script, so nothing else may own it. */
+  translate: 0 0;
+}
+
+html:not(.liquid-glass) .lg-magnifier {
+  display: none;
+}
+
+.lg-magnifier[data-glass-zoom="held"] {
+  cursor: grabbing;
+}
+
+/* Cast light, not paint: the rim band, the iridescent ring and the speculars.
+   `mix-blend-mode` keeps them from greying out the bent backdrop beneath. */
+.lg-magnifier::before,
+.lg-magnifier::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 1. The thick refracting rim: bright just inside the edge, clear at the
+      centre, with a warm-to-cool turn as it goes round — the same iridescence
+      the held lens wears, widened to match the bezel. */
+html.liquid-glass .lg-magnifier::before {
+  padding: 2px;
+  background: conic-gradient(
+    from 200deg,
+    rgb(255 255 255 / 0.95),
+    rgb(255 168 218 / 0.75) 8%,
+    rgb(150 205 255 / 0.8) 18%,
+    rgb(255 255 255 / 0.3) 31%,
+    rgb(255 255 255 / 0.1) 46%,
+    rgb(255 255 255 / 0.6) 58%,
+    rgb(255 222 150 / 0.7) 66%,
+    rgb(140 255 225 / 0.65) 75%,
+    rgb(190 160 255 / 0.55) 83%,
+    rgb(255 255 255 / 0.3) 91%,
+    rgb(255 255 255 / 0.95)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  opacity: 0.85;
+}
+
+/* 2. Specular arc upper left, caustic glint low right, plus the inner bevel
+      glow that makes the glass look like it has thickness. */
+html.liquid-glass .lg-magnifier::after {
+  background:
+    radial-gradient(42% 22% at 28% 9%, rgb(255 255 255 / 0.85), rgb(255 255 255 / 0) 78%),
+    radial-gradient(26% 14% at 74% 91%, rgb(255 255 255 / 0.45), rgb(255 255 255 / 0) 80%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.18),
+    inset 0 0 22px -6px rgb(255 255 255 / 0.3),
+    inset 0 -14px 26px -18px rgb(0 0 0 / 0.5),
+    0 18px 44px -12px rgb(0 0 0 / 0.55),
+    0 4px 12px -4px rgb(0 0 0 / 0.32);
+  backdrop-filter: brightness(1.06);
+  -webkit-backdrop-filter: brightness(1.06);
+}
+
+/* While held the glass lifts: a tighter, higher shadow and a firmer rim. */
+html.liquid-glass .lg-magnifier[data-glass-zoom="held"]::after {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.26),
+    inset 0 0 26px -6px rgb(255 255 255 / 0.38),
+    0 26px 56px -14px rgb(0 0 0 / 0.6),
+    0 6px 16px -4px rgb(0 0 0 / 0.36);
+}
+
+html.liquid-glass.light-theme .lg-magnifier::after,
+html.liquid-glass.claude-theme .lg-magnifier::after {
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.7),
+    inset 0 0 22px -6px rgb(255 255 255 / 0.85),
+    0 18px 40px -14px rgb(32 31 29 / 0.34),
+    0 4px 10px -4px rgb(32 31 29 / 0.18);
+}
+
+/* Nothing to refract with: a plain frosted disc still reads as a lens. */
+html.liquid-glass .lg-magnifier:not([data-glass-refracting]) {
+  background-color: color-mix(in srgb, var(--bg-secondary) 62%, transparent);
+  backdrop-filter: blur(6px) saturate(1.5);
+  -webkit-backdrop-filter: blur(6px) saturate(1.5);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.liquid-glass .lg-magnifier::after {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-magnifier {
+    transition: none;
+  }
+}

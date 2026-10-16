@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en" class="liquid-glass">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Glass lab</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/liquid-glass.css" />
+    <link rel="stylesheet" href="/src/glass/glass-refraction.css" />
+    <style>
+      /*
+       * Glass lab — a dev-only page (not part of `npm run build`) that mounts
+       * the app's real glass classes over a high-contrast backdrop and runs the
+       * real attach layer (`glass/glassRefraction.ts`), so the refraction can
+       * be seen and compared against the un-refracted control column.
+       *
+       * Only the *shapes* below are written here. The glass paint comes from
+       * liquid-glass.css and glass-refraction.css exactly as the app loads
+       * them, which is the thing under test.
+       */
+      html { --lg-probe-hue: 0deg; }
+      html, body { margin: 0; background: #0b0b10; color: #e9e9ec; }
+      body { font-family: "Segoe UI", system-ui, sans-serif; font-size: 13px; }
+
+      #stage {
+        display: grid; grid-template-columns: 1fr 1fr; min-height: 100vh;
+      }
+      .column { position: relative; padding: 20px 24px 40px; }
+      /*
+       * An app-like backdrop, not a rainbow: the app's glass sits over dark
+       * panes, list rows and text, and refraction needs those edges — a flat
+       * fill shows nothing and a rainbow flatters it. The rows below are the
+       * thing the bezel grabs and pulls.
+       */
+      .column > .field-bg {
+        position: absolute; inset: 0; z-index: 0; pointer-events: none;
+        background-color: #16161c;
+        background-image:
+          repeating-linear-gradient(0deg,
+            rgba(255,255,255,.10) 0 2px, transparent 2px 9px,
+            rgba(255,255,255,.055) 9px 12px, transparent 12px 26px),
+          repeating-linear-gradient(90deg,
+            rgba(255,255,255,.05) 0 1px, transparent 1px 48px),
+          radial-gradient(120% 80% at 8% 0%, rgba(10,132,255,.22), transparent 60%),
+          radial-gradient(90% 70% at 92% 100%, rgba(255,59,48,.18), transparent 60%);
+      }
+      .column > .field-bg::after {
+        content: ""; position: absolute; inset: 0;
+        background-image:
+          linear-gradient(90deg, #ffcc00 0 26%, #34c759 26% 52%, #0a84ff 52% 78%, #af52de 78% 100%);
+        background-repeat: no-repeat;
+        background-size: 100% 8px; background-position: 0 132px;
+        opacity: .85;
+      }
+      .column > * { position: relative; z-index: 1; }
+      .column--control .field-bg { filter: saturate(.5) brightness(.62); }
+
+      h2 { font: 600 11px/1 "Segoe UI", sans-serif; letter-spacing: .16em; text-transform: uppercase;
+           margin: 26px 0 12px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+      h2:first-child { margin-top: 0; }
+      .head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+      .badge { font: 600 10px/1 ui-monospace, monospace; padding: 4px 7px; border-radius: 6px;
+               background: #ffffff1a; }
+      .hint { font-size: 11px; opacity: .72; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.8); }
+      .row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+
+      /* ── Shapes the app's sheets would otherwise supply ─────────────── */
+      .st-switch, .ws-switch, .sx-switch {
+        position: relative; flex: none; width: 50px; height: 22px; padding: 0;
+        border: 0; border-radius: 999px; cursor: pointer;
+      }
+      .sx-switch { appearance: none; -webkit-appearance: none; }
+      .view-switch, .st-segmented, .ws-steps {
+        position: relative; display: inline-flex; align-items: center; gap: 2px; padding: 3px;
+        border-radius: 999px;
+      }
+      .view-switch { padding-right: 100px; }
+      .view-switch__item, .st-segmented__item, .ws-steps__item {
+        position: relative; z-index: 1; border: 0; background: none; color: #fff;
+        font: inherit; padding: 7px 14px; border-radius: 999px; cursor: pointer;
+        text-shadow: 0 1px 2px rgba(0,0,0,.7);
+      }
+      .view-switch__pill, .ws-steps__pill {
+        position: absolute; z-index: 0; border-radius: 999px; pointer-events: none;
+      }
+      .view-switch__pill { left: 3px; top: 3px; bottom: 3px; width: 92px; }
+      .ws-steps__pill { left: 3px; top: 3px; bottom: 3px; width: 96px; opacity: 0; }
+      .ws-steps__num {
+        display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 999px;
+        background: #ffffff2e; font-size: 10px; margin-right: 5px;
+      }
+      .st-btn, .bx-btn, .dz-btn {
+        border: 1px solid #ffffff2e; border-radius: 999px; color: #fff; background: none;
+        font: inherit; padding: 7px 14px; cursor: pointer; text-shadow: 0 1px 2px rgba(0,0,0,.6);
+      }
+      .bx-btn { padding: 5px 11px; }
+      .bx-btn.is-active { font-weight: 600; }
+      .st-input, .st-select {
+        border: 1px solid #ffffff2e; border-radius: 10px; color: #fff; background: none;
+        font: inherit; padding: 8px 10px; width: 150px;
+      }
+      .st-input::placeholder { color: #ffffff8c; }
+      .panel { padding: 16px; border-radius: 16px; width: 100%; }
+      .ctx-menu { padding: 6px; border-radius: 14px; width: 200px; }
+      .ctx-item { padding: 7px 10px; border-radius: 8px; }
+      .float { display: inline-flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 999px; }
+      .st-label { font-size: 12px; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,.7); }
+    </style>
+  </head>
+  <body>
+    <div id="stage">
+      <div class="column">
+        <div class="field-bg"></div>
+        <div class="head"><span class="badge">refracting</span><span class="hint">glass/glassRefraction.ts + SVG displacement</span></div>
+
+        <h2>Switches</h2>
+        <div class="row">
+          <button class="st-switch" role="switch" aria-checked="true" aria-label="on"></button>
+          <button class="st-switch" role="switch" aria-checked="false" aria-label="off"></button>
+          <input type="checkbox" class="sx-switch" checked aria-label="studio" />
+          <button class="ws-switch" role="switch" aria-checked="true" aria-label="setup"></button>
+        </div>
+
+        <h2>Navigation — tabs, segmented, steps</h2>
+        <div class="row">
+          <div class="view-switch">
+            <button class="view-switch__item" aria-selected="true">Terminal</button>
+            <button class="view-switch__item" aria-selected="false">Browser</button>
+            <span class="view-switch__pill" aria-hidden="true"></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="st-segmented">
+            <button class="st-segmented__item" aria-pressed="true">Block</button>
+            <button class="st-segmented__item" aria-pressed="false">Underline</button>
+          </div>
+          <div class="ws-steps">
+            <button class="ws-steps__item" aria-current="step"><span class="ws-steps__num">1</span>Identity</button>
+            <button class="ws-steps__item"><span class="ws-steps__num">2</span>Agents</button>
+            <span class="ws-steps__pill" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <h2>Buttons and fields</h2>
+        <div class="row">
+          <button class="st-btn">Default</button>
+          <button class="st-btn st-btn--primary">Primary</button>
+          <button class="st-btn st-btn--ghost">Ghost</button>
+        </div>
+        <div class="row">
+          <input class="st-input" placeholder="Field" />
+          <select class="st-select"><option>Select</option></select>
+        </div>
+
+        <h2>Panels and surfaces</h2>
+        <div class="row">
+          <div class="panel ws-panel">ws-panel</div>
+        </div>
+        <div class="row">
+          <div class="ctx-menu">
+            <div class="ctx-item">Menu row</div>
+            <div class="ctx-item">Another row</div>
+          </div>
+        </div>
+
+        <h2>Floating toolbar</h2>
+        <div class="row">
+          <div class="float lg-float">
+            <button class="bx-btn">Back</button>
+            <button class="bx-btn">Forward</button>
+            <button class="bx-btn is-active">Inspect</button>
+          </div>
+          <div class="float workspace-dev-server lg-float">
+            <span class="st-label">App running at localhost:5173</span>
+            <button class="bx-btn">Open</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Control: the same markup, excluded from the layer, so the painted
+           glass can be compared against the refracting glass. -->
+      <div class="column column--control" data-no-glass-refraction>
+        <div class="field-bg"></div>
+        <div class="head"><span class="badge">painting only</span><span class="hint">data-no-glass-refraction control</span></div>
+
+        <h2>Switches</h2>
+        <div class="row">
+          <button class="st-switch" role="switch" aria-checked="true" aria-label="on"></button>
+          <button class="st-switch" role="switch" aria-checked="false" aria-label="off"></button>
+          <input type="checkbox" class="sx-switch" checked aria-label="studio" />
+          <button class="ws-switch" role="switch" aria-checked="true" aria-label="setup"></button>
+        </div>
+
+        <h2>Navigation — tabs, segmented, steps</h2>
+        <div class="row">
+          <div class="view-switch">
+            <button class="view-switch__item" aria-selected="true">Terminal</button>
+            <button class="view-switch__item" aria-selected="false">Browser</button>
+            <span class="view-switch__pill" aria-hidden="true"></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="st-segmented">
+            <button class="st-segmented__item" aria-pressed="true">Block</button>
+            <button class="st-segmented__item" aria-pressed="false">Underline</button>
+          </div>
+          <div class="ws-steps">
+            <button class="ws-steps__item" aria-current="step"><span class="ws-steps__num">1</span>Identity</button>
+            <button class="ws-steps__item"><span class="ws-steps__num">2</span>Agents</button>
+            <span class="ws-steps__pill" aria-hidden="true"></span>
+          </div>
+        </div>
+
+        <h2>Buttons and fields</h2>
+        <div class="row">
+          <button class="st-btn">Default</button>
+          <button class="st-btn st-btn--primary">Primary</button>
+          <button class="st-btn st-btn--ghost">Ghost</button>
+        </div>
+        <div class="row">
+          <input class="st-input" placeholder="Field" />
+          <select class="st-select"><option>Select</option></select>
+        </div>
+
+        <h2>Panels and surfaces</h2>
+        <div class="row">
+          <div class="panel ws-panel">ws-panel</div>
+        </div>
+        <div class="row">
+          <div class="ctx-menu">
+            <div class="ctx-item">Menu row</div>
+            <div class="ctx-item">Another row</div>
+          </div>
+        </div>
+
+        <h2>Floating toolbar</h2>
+        <div class="row">
+          <div class="float lg-float">
+            <button class="bx-btn">Back</button>
+            <button class="bx-btn">Forward</button>
+            <button class="bx-btn is-active">Inspect</button>
+          </div>
+          <div class="float workspace-dev-server lg-float">
+            <span class="st-label">App running at localhost:5173</span>
+            <button class="bx-btn">Open</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { trackGlassRefraction } from '/src/glass/glassRefraction.ts';
+      import { glassFilter, GLASS_PRESETS } from '/src/glass/filterRegistry.ts';
+      import { trackGlassSwitch } from '/src/utils/glassSwitch.ts';
+      import { trackGlassPress } from '/src/utils/glassPress.ts';
+      import { trackGlassPointer } from '/src/utils/liquidGlass.ts';
+
+      const errors = [];
+      window.addEventListener('error', (event) => errors.push(`window:${event.message}`));
+
+      let supported = false;
+      try {
+        supported = CSS.supports('backdrop-filter', 'url(#a)');
+      } catch (error) {
+        errors.push(`supports:${error.message}`);
+      }
+
+      let probe = 'skipped';
+      try {
+        const bar = glassFilter({ ...GLASS_PRESETS.bar, width: 420, height: 34, radius: 17, shape: 'pill' });
+        probe = bar ? bar.url : 'null';
+      } catch (error) {
+        probe = `ERR:${error.message}`;
+      }
+
+      let tracking = 'ok';
+      try {
+        // The real gesture layers too, so the held lens and the lifted
+        // navigation thumb can be photographed refracting.
+        trackGlassPointer();
+        trackGlassPress();
+        trackGlassSwitch();
+        trackGlassRefraction();
+      } catch (error) {
+        tracking = `ERR:${error.message}`;
+      }
+
+      /** Drives a real press on `element`, without releasing it. */
+      const hold = (element, clientX, clientY) => {
+        element.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            bubbles: true, cancelable: true, composed: true,
+            button: 0, buttons: 1, isPrimary: true, pointerId: 7,
+            pointerType: 'mouse', clientX, clientY,
+          }),
+        );
+        // A few pixels of travel so the drag branch of the gesture engages.
+        for (let step = 1; step <= 6; step += 1) {
+          window.dispatchEvent(
+            new PointerEvent('pointermove', {
+              bubbles: true, isPrimary: true, pointerId: 7, pointerType: 'mouse',
+              clientX: clientX + step * 5, clientY,
+            }),
+          );
+        }
+      };
+
+      let held = 'no';
+      const pressStates = () => {
+        try {
+          const sw = document.querySelector('.column:not(.column--control) .st-switch[aria-checked="false"]');
+          if (sw) {
+            const box = sw.getBoundingClientRect();
+            hold(sw, box.left + box.width - 9, box.top + box.height / 2);
+            held = 'switch';
+          }
+          const item = document.querySelector('.column:not(.column--control) .view-switch__item[aria-selected="false"]');
+          if (item) {
+            const box = item.getBoundingClientRect();
+            hold(item, box.left + box.width / 2, box.top + box.height / 2);
+            held += '+thumb';
+          }
+        } catch (error) {
+          errors.push(`press:${error.message}`);
+        }
+      };
+
+      const report = () => {
+        document.body.dataset.lab = JSON.stringify({
+          supported,
+          probe,
+          tracking,
+          held,
+          refracting: document.querySelectorAll('[data-glass-refracting]').length,
+          filters: document.querySelectorAll('svg[aria-hidden="true"] > defs > filter').length,
+          lens: document.querySelectorAll('.lg-lens[data-glass-refracting]').length,
+          thumb: document.querySelectorAll('.glass-thumb[data-glass-refracting]').length,
+          errors,
+        });
+      };
+
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          report();
+          pressStates();
+          // Let the press springs settle at full swell before the screenshot.
+          setTimeout(report, 900);
+        }),
+      );
+    </script>
+  </body>
+</html>

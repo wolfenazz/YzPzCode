@@ -12,6 +12,9 @@ import './styles.css';
 import './premium-system.css';
 import './window-chrome.css';
 import './liquid-glass.css';
+// After liquid-glass.css: the refracting glass is the optics half of the same
+// feature and adjusts what that sheet paints.
+import './glass/glass-refraction.css';
 import './workspace-aurora.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 

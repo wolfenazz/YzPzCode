@@ -22,6 +22,8 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useAppStore } from '../../../stores/appStore';
+import type { GlassProfile } from '../../../stores/appStore';
+import { GLASS_STRENGTH } from '../../../glass/glassOptions';
 import { useActiveCustomTheme, useActiveTheme } from '../../../hooks/useCustomTheme';
 import { SettingsWorkspaceBackground } from './SettingsWorkspaceBackground';
 import { SettingsSetupBackground } from './SettingsSetupBackground';
@@ -45,8 +47,22 @@ import {
   SettingsRow,
   SettingsStack,
   SettingsTabs,
+  SliderRow,
   ToggleRow,
 } from '../SettingsKit';
+
+/**
+ * The bezel cross-sections, in the order the article derives them. `default`
+ * is not a profile: it means "leave every surface on the one it was designed
+ * with", which is the right answer for most people.
+ */
+const GLASS_PROFILE_OPTIONS = [
+  { value: 'default' as const, label: 'Default' },
+  { value: 'convex_squircle' as const, label: 'Squircle' },
+  { value: 'convex_circle' as const, label: 'Circle' },
+  { value: 'concave' as const, label: 'Concave' },
+  { value: 'lip' as const, label: 'Lip' },
+];
 
 const ACCENT_COLORS = [
   { name: 'Claude', value: 'default', color: '#c15f3c' },
@@ -160,6 +176,12 @@ export const SettingsAppearance: React.FC = () => {
     setAnimationsEnabled,
     liquidGlass,
     setLiquidGlass,
+    glassProfile,
+    setGlassProfile,
+    glassStrength,
+    setGlassStrength,
+    glassMagnifier,
+    setGlassMagnifier,
     themeMode,
     setThemeMode,
     customThemes,
@@ -425,6 +447,45 @@ export const SettingsAppearance: React.FC = () => {
               onChange={setCustomCursor}
             />
           </SettingsGroup>
+
+          {liquidGlass && (
+            <SettingsGroup
+              description="The glass bends what is behind it: each surface builds an SVG displacement map from a bezel cross-section, traced through Snell's law, and uses it as a backdrop filter. Chromium only; elsewhere the painted glass stands."
+              title="Glass optics"
+            >
+              <SettingsRow
+                description="The shape of the glass rim. The switch and the held lens keep their own lip, which is what makes them read as controls."
+                icon={<Drop size={16} aria-hidden="true" />}
+                label="Bezel profile"
+                top
+              >
+                <Segmented
+                  label="Bezel profile"
+                  onChange={(value) => setGlassProfile(value === 'default' ? null : (value as GlassProfile))}
+                  options={GLASS_PROFILE_OPTIONS}
+                  value={glassProfile ?? 'default'}
+                />
+              </SettingsRow>
+              <SliderRow
+                description="How far the rim pulls the backdrop in, against what the profile traced. 100% is the physical amount."
+                format={(value) => `${Math.round(value * 100)}%`}
+                icon={<Sparkle size={16} aria-hidden="true" />}
+                label="Refraction strength"
+                max={GLASS_STRENGTH.max}
+                min={GLASS_STRENGTH.min}
+                onChange={setGlassStrength}
+                step={GLASS_STRENGTH.step}
+                value={glassStrength}
+              />
+              <ToggleRow
+                checked={glassMagnifier}
+                description="A draggable refracting lens over the window, for inspecting the interface up close."
+                icon={<MagnifyingGlassPlus size={16} aria-hidden="true" />}
+                label="Magnifier"
+                onChange={setGlassMagnifier}
+              />
+            </SettingsGroup>
+          )}
 
           <SettingsGroup title="Performance">
             {acceleration.supported ? (

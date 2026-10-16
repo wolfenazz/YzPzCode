@@ -10,6 +10,10 @@ import { DEFAULT_SETUP_GALAXY, migrateSetupBackground, normalizeSetupBackground,
 import { reconcileFileFromDisk, resolveDiskChange, markSavedContent } from '../utils/fileSync';
 import { BROWSER_NEW_TAB_URL } from '../utils/browserUrl';
 import { homeViewFor, resolveWorkspaceView } from '../utils/workspaceView';
+import type { SurfaceId } from '../glass/surfaceEquations';
+
+/** The glass bezel profiles Settings → Appearance can choose between. */
+export type GlassProfile = SurfaceId;
 
 const DEFAULT_BROWSER_URL = 'https://www.google.com';
 
@@ -217,6 +221,16 @@ interface AppState {
   animationsEnabled: boolean;
   /** iOS 26 style glass on buttons, menus, dialogs and bars. */
   liquidGlass: boolean;
+  /**
+   * Which cross-section the glass bezel is cut to. `null` keeps the profile
+   * each surface was designed with; the switch and the held lens pin theirs
+   * either way, because their lip is what makes them read as controls.
+   */
+  glassProfile: GlassProfile | null;
+  /** Master gain on every traced refraction shift. 1 = physically traced. */
+  glassStrength: number;
+  /** A draggable refracting lens over the whole window, for inspecting UI. */
+  glassMagnifier: boolean;
   workspaceBackground: WorkspaceBackground;
   workspaceLightRays: WorkspaceLightRaysSettings;
   workspaceAuroraPalette: WorkspaceAuroraPalette;
@@ -303,6 +317,9 @@ interface AppState {
   setAppZoom: (zoom: number) => void;
   setAnimationsEnabled: (enabled: boolean) => void;
   setLiquidGlass: (enabled: boolean) => void;
+  setGlassProfile: (profile: GlassProfile | null) => void;
+  setGlassStrength: (strength: number) => void;
+  setGlassMagnifier: (enabled: boolean) => void;
   setWorkspaceBackground: (background: WorkspaceBackground) => void;
   setWorkspaceLightRays: (settings: Partial<WorkspaceLightRaysSettings>) => void;
   setWorkspaceAuroraPalette: (palette: WorkspaceAuroraPalette) => void;
@@ -558,6 +575,9 @@ export const useAppStore = create<AppState>()(
       appZoom: 100,
       animationsEnabled: true,
       liquidGlass: true,
+      glassProfile: null,
+      glassStrength: 1,
+      glassMagnifier: false,
       workspaceBackground: 'aurora',
       workspaceLightRays: { ...DEFAULT_LIGHT_RAYS },
       workspaceAuroraPalette: 'gemini',
@@ -796,6 +816,9 @@ export const useAppStore = create<AppState>()(
       setAppZoom: (zoom) => set({ appZoom: Math.min(140, Math.max(80, Math.round(zoom / 10) * 10)) }),
       setAnimationsEnabled: (enabled) => set({ animationsEnabled: enabled }),
       setLiquidGlass: (enabled) => set({ liquidGlass: enabled }),
+      setGlassProfile: (profile) => set({ glassProfile: profile }),
+      setGlassStrength: (strength) => set({ glassStrength: strength }),
+      setGlassMagnifier: (enabled) => set({ glassMagnifier: enabled }),
       setWorkspaceBackground: (background) => set({ workspaceBackground: background }),
       setWorkspaceLightRays: (settings) => set((state) => ({
         workspaceLightRays: normalizeLightRays({ ...state.workspaceLightRays, ...settings }),
@@ -2033,6 +2056,9 @@ export const useAppStore = create<AppState>()(
           appZoom: state.appZoom,
           animationsEnabled: state.animationsEnabled,
           liquidGlass: state.liquidGlass,
+          glassProfile: state.glassProfile,
+          glassStrength: state.glassStrength,
+          glassMagnifier: state.glassMagnifier,
           workspaceBackground: state.workspaceBackground,
           workspaceLightRays: state.workspaceLightRays,
           workspaceAuroraPalette: state.workspaceAuroraPalette,

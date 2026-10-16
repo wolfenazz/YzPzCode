@@ -4,17 +4,20 @@
  * At rest a switch draws its own white capsule thumb (`liquid-glass.css`).
  * Pressing it hides that thumb (`[data-sw-lifted]`) and puts a real glass lens
  * in its place: a fixed element in <body> (`.lg-lens`), so it is drawn above
- * everything, is never clipped, and its backdrop is the page itself (the
- * track's ends, the row behind). The lens:
+ * everything, is never clipped, and its backdrop is the page itself — the
+ * track's ends, the row behind.
+ *
+ * The lens refracts its backdrop for real: `glass/` builds a displacement-map
+ * SVG filter for the lens's box (a lip bezel, the profile iOS uses here, so
+ * the track opens out at the edges and pinches through the middle) and it
+ * becomes the lens's `backdrop-filter`. An earlier version had to draw a
+ * magnified copy of the track inside the lens instead, because an SVG filter
+ * in `backdrop-filter` was unreliable then; the browser ships it now, and
+ * bending the page needs no copy of it.
+ *
+ * On top of that the lens:
  *   - swells from the thumb's size to GROW times it with a springy overshoot,
  *     fading from white into clear glass;
- *   - refracts the track: it holds its own copy of the track (`.lg-lens__track`,
- *     colour read from the switch every frame), magnified about the lens
- *     centre and bent at the rim with colour dispersion by an SVG
- *     displacement filter (`liquidLens`) applied as an ordinary element
- *     `filter`. Backdrop filters with SVG references proved unreliable in
- *     WebView2 (the lens came out milky white), so nothing here depends on
- *     them. An iridescent rim and highlights are drawn in CSS;
  *   - follows the pointer when dragged, stretching with its speed (jelly) and
  *     wobbling back when it stops; the track changes colour as it passes the
  *     middle (`[data-sw-preview]`);
@@ -24,7 +27,7 @@
  * and clicks the switch only when it ends on the other side.
  */
 
-import { liquidLens } from './liquidLens';
+import { glassFilter, preset, releaseGlassFilter, type GlassFilter } from '../glass/filterRegistry';
 
 const SWITCHES = '.st-switch, .ws-switch, .sx-switch';
 
@@ -40,18 +43,12 @@ const STRETCH: Spring = { k: 460, zeta: 0.34 };
 const MAX_STRETCH = 0.28;
 const STRETCH_SPEED = 1400; // px/s at which the lens is fully stretched
 const TAP_SWELL_MS = 190; // a tap keeps the lens swollen while it travels
-const LENS = { magnify: 0.06, rimPull: 1.1, rimWidth: 1, dispersion: [1, 1.14, 1.28] };
-const MAGNIFY = 1.2; // how much bigger the track looks through the lens
 
 interface Lens {
   sw: HTMLElement;
   el: HTMLElement;
-  zoom: HTMLElement;
-  track: HTMLElement;
-  /** Track's left edge relative to the lens box when the lens is at p = 0. */
-  trackX: number;
-  trackOn: string;
-  trackOff: string;
+  /** The filter the lens is refracting through; `null` if it could not build. */
+  filter: GlassFilter | null;
   on: boolean | null;
   pointerId: number;
   travel: number;
@@ -104,19 +101,19 @@ const paint = (l: Lens) => {
   const st = clamp(l.stretch.x, -0.08, MAX_STRETCH);
   l.el.style.translate = `${(l.p.x * l.travel).toFixed(2)}px 0px`;
   l.el.style.scale = `${(base * (1 + st)).toFixed(4)} ${(base * (1 - st * 0.42)).toFixed(4)}`;
-  l.track.style.translate = `${(l.trackX - l.p.x * l.travel).toFixed(2)}px 0px`;
-  // Colours change only when the lens crosses the middle; nothing is read
-  // back from the page while animating.
+  // The track's colour changes only when the lens crosses the middle; nothing
+  // is read back from the page while animating.
   const on = l.p.x > 0.5;
   if (on !== l.on) {
     l.on = on;
     l.sw.setAttribute('data-sw-preview', on ? 'on' : 'off');
-    l.track.style.backgroundColor = on ? l.trackOn : l.trackOff;
   }
 };
 
 const remove = (l: Lens) => {
   if (l.raf) cancelAnimationFrame(l.raf);
+  releaseGlassFilter(l.filter);
+  l.filter = null;
   l.el.remove();
   l.sw.removeAttribute('data-sw-lifted');
   l.sw.removeAttribute('data-sw-preview');
@@ -163,19 +160,14 @@ const frame = (now: number) => {
 };
 
 /**
- * The opaque colour the switch sits on (the row or panel behind it). The lens
- * paints it under its copy of the track, so it shows a clean magnified view
- * instead of the real track bleeding through and doubling its edges.
+ * The lens, swollen over the thumb that was pressed.
+ *
+ * Its box is the thumb's size times GROW, so the optics are built for exactly
+ * the box the lens reaches at full press — the only moment the refraction is
+ * visible. The lip bezel is what iOS uses here: convex at the rim, concave
+ * through the middle, which opens the track out at the lens's edges and
+ * pinches it across the centre as the thumb travels.
  */
-const surfaceBehind = (el: HTMLElement): string => {
-  for (let node = el.parentElement; node; node = node.parentElement) {
-    const color = getComputedStyle(node).backgroundColor;
-    const alpha = /rgba?\([^)]*?[,/]\s*([\d.]+)\s*\)/.exec(color);
-    if (color && color !== 'transparent' && (!alpha || Number(alpha[1]) > 0.6)) return color;
-  }
-  return getComputedStyle(document.body).backgroundColor || '#fff';
-};
-
 const lift = (sw: HTMLElement, event: PointerEvent): Lens | null => {
   const rect = sw.getBoundingClientRect();
   const thumb = getComputedStyle(sw, '::after');
@@ -192,36 +184,33 @@ const lift = (sw: HTMLElement, event: PointerEvent): Lens | null => {
   el.className = 'lg-lens';
   el.setAttribute('aria-hidden', 'true');
   el.style.cssText = `left:${left}px;top:${topEdge}px;width:${w}px;height:${h}px`;
-  const optics = document.createElement('div');
-  optics.className = 'lg-lens__optics';
-  optics.style.backgroundColor = surfaceBehind(sw);
-  const filter = liquidLens(w, h, LENS);
-  if (filter !== 'none') optics.style.filter = filter;
-  const zoom = document.createElement('div');
-  zoom.className = 'lg-lens__zoom';
-  // Magnified about the lens centre; scales with the lens, so it is exact
-  // when fully swollen (the only time the optics show).
-  zoom.style.scale = String(MAGNIFY);
-  const track = document.createElement('div');
-  track.className = 'lg-lens__track';
-  track.style.cssText = `left:0;top:${rect.top - topEdge}px;width:${rect.width}px;height:${rect.height}px;border-radius:${getComputedStyle(sw).borderRadius}`;
-  zoom.appendChild(track);
-  optics.appendChild(zoom);
-  el.appendChild(optics);
+  const filter = glassFilter({
+    ...preset('thumb'),
+    width: w,
+    height: h,
+    radius: h / 2,
+    shape: 'pill',
+    // Fully swollen is the only state that shows the optics, so bend at the
+    // strength the lens actually reaches.
+    scaleRatio: 1,
+    specularOpacity: 0.6,
+    specularSaturation: 7,
+    blur: 0.3,
+  });
+  if (filter) {
+    el.style.setProperty('backdrop-filter', filter.url);
+    el.style.setProperty('-webkit-backdrop-filter', filter.url);
+    el.setAttribute('data-glass-refracting', '');
+  }
   document.body.appendChild(el);
   sw.setAttribute('data-sw-lifted', '');
   const checked = isOn(sw);
   const p = checked ? 1 : 0;
   const now = performance.now();
-  const look = getComputedStyle(sw);
   return {
     sw,
     el,
-    zoom,
-    track,
-    trackX: rect.left - left,
-    trackOn: look.getPropertyValue('--sw-on').trim() || look.backgroundColor,
-    trackOff: look.getPropertyValue('--sw-off').trim() || look.backgroundColor,
+    filter,
     on: null,
     pointerId: event.pointerId,
     travel: Math.max(rect.width - tw - inset * 2, 1),
@@ -243,12 +232,22 @@ const lift = (sw: HTMLElement, event: PointerEvent): Lens | null => {
   };
 };
 
-/** Builds the lens for the standard switch size ahead of the first press. */
+/** Builds the filter for the standard switch size ahead of the first press. */
 const prebuild = () => {
   const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
   const tw = 1.9375 * rem; // --sw-tw
   const th = 1.375 * rem - 4; // --sw-h minus the insets
-  liquidLens(tw * GROW, th * GROW, LENS);
+  glassFilter({
+    ...preset('thumb'),
+    width: tw * GROW,
+    height: th * GROW,
+    radius: (th * GROW) / 2,
+    shape: 'pill',
+    scaleRatio: 1,
+    specularOpacity: 0.6,
+    specularSaturation: 7,
+    blur: 0.3,
+  });
 };
 
 /** Starts tracking; returns the function that stops it. */
