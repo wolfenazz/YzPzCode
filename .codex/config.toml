@@ -1,0 +1,11 @@
+# Project-scoped MCP configuration for the YzPzCode repository.
+#
+# components.json lives in app/, and the shadcn MCP server resolves its
+# registries (@shadcn, @react-bits, …) from its working directory, so it runs
+# through the monorepo launcher in scripts/shadcn-mcp.js.
+# User-level servers (e.g. the plain `npx shadcn@latest mcp`) stay in
+# ~/.codex/config.toml; entries here override them inside this repository.
+
+[mcp_servers.shadcn]
+command = "node"
+args = ["scripts/shadcn-mcp.js"]

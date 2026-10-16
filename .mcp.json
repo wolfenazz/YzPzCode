@@ -1,10 +1,9 @@
 {
   "mcpServers": {
     "shadcn": {
-      "command": "npx",
+      "command": "node",
       "args": [
-        "shadcn@latest",
-        "mcp"
+        "scripts/shadcn-mcp.js"
       ]
     }
   }
