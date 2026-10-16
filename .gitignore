@@ -12,3 +12,6 @@ target/
 .env.development
 .env.production
 artifacts/
+
+# graphify knowledge graph (local, regenerated on build)
+graphify-out/
