@@ -3,9 +3,7 @@
 <a href="https://github.com/wolfenazz/YzPzCode/releases/latest">
   <img src="docs/readme/hero.svg" width="100%" alt="YzPzCode: the unified workspace for AI coding agents" />
 </a>
-
 <br />
-
 <p align="center">
   <a href="https://github.com/wolfenazz/YzPzCode/releases/latest">
     <img src="https://img.shields.io/github/v/release/wolfenazz/YzPzCode?color=000000&label=Release&logo=github&style=for-the-badge" alt="Latest Release" />

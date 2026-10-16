@@ -285,5 +285,22 @@ Appearance, Terminal, Editor, Agents, Workspace, IDE, Updates, Environment, Data
 - Update channels: stable, beta, nightly
 - Download progress tracking with auto-install and relaunch
 
+<!-- rtk-instructions -->
+## Token optimization (RTK)
+
+`rtk` (Rust Token Killer) is installed on this machine and condenses command
+output before it reaches you — same behavior and exit code, fewer tokens.
+
+- Prefix shell commands with `rtk`: `rtk git status`, `rtk cargo check`,
+  `rtk npm run build`, `rtk ls src/`. Keep the prefix inside chains:
+  `rtk git add . && rtk git commit -m "msg"`. Commands RTK has no filter for
+  run as-is, so the prefix is always safe.
+- Claude Code, Codex, Cursor, OpenCode, Hermes, Pi and Gemini do this
+  automatically (their hooks call `rtk hook <agent>`); Command Code, Kilo,
+  Cline and Antigravity follow this file and their own rule files instead.
+- `rtk gain` — token savings so far · `rtk proxy <cmd>` — run unfiltered,
+  still tracked · `RTK_DISABLED=1 <cmd>` — skip RTK for one command.
+<!-- /rtk-instructions -->
+
 
 
