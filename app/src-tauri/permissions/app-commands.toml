@@ -52,6 +52,7 @@ permissions = [
   "allow-create-file",
   "allow-create-file-backup",
   "allow-create-single-terminal-session",
+  "allow-create-terminal-session-batch",
   "allow-create-terminal-sessions",
   "allow-delete-entry",
   "allow-detect-agent-cli",

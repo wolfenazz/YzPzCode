@@ -42,6 +42,93 @@ pub async fn create_single_terminal_session(
     Ok(session)
 }
 
+/// One terminal in a batch launch. Mirrors the single-session request so the
+/// launcher can mix agents and shells in a single action.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSpec {
+    pub agent: Option<AgentType>,
+    pub shell: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionBatchRequest {
+    pub workspace_id: String,
+    pub workspace_path: String,
+    pub start_index: usize,
+    pub specs: Vec<SessionSpec>,
+}
+
+/// A batch never fails wholesale: sessions that started are returned even when
+/// their siblings could not be created, so the caller can show what worked.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionBatchResult {
+    pub sessions: Vec<TerminalSession>,
+    pub errors: Vec<String>,
+}
+
+/// Upper bound for one launch action; keeps a mistyped count from spawning
+/// dozens of PTY sessions at once. The launcher's own limit
+/// (`MAX_LAUNCH_SESSIONS`, 16) is deliberately lower, so this is a backstop.
+const MAX_BATCH_SESSIONS: usize = 24;
+
+/// Adds `specs` to a workspace as sessions numbered from `start_index`.
+/// Failures are collected per slot instead of aborting the whole batch, so a
+/// single bad spec cannot silently drop the terminals after it.
+fn create_batch(
+    manager: &TerminalManager,
+    workspace_id: &str,
+    workspace_path: &str,
+    start_index: usize,
+    specs: &[SessionSpec],
+) -> CreateSessionBatchResult {
+    let mut sessions = Vec::with_capacity(specs.len());
+    let mut errors = Vec::new();
+
+    for (offset, spec) in specs.iter().enumerate() {
+        let index = start_index + offset;
+        match manager.create_single_session(
+            workspace_id.to_string(),
+            workspace_path.to_string(),
+            index,
+            spec.agent,
+            spec.shell.clone(),
+        ) {
+            Ok(session) => sessions.push(session),
+            Err(error) => errors.push(format!("Terminal {} failed: {}", index + 1, error)),
+        }
+    }
+
+    CreateSessionBatchResult { sessions, errors }
+}
+
+/// Adds terminals to a workspace without touching the sessions already there.
+/// `create_terminal_sessions` replaces a workspace's sessions, which the
+/// launcher must not do when the user is adding to a running grid.
+#[tauri::command]
+pub async fn create_terminal_session_batch(
+    manager: State<'_, TerminalManager>,
+    request: CreateSessionBatchRequest,
+) -> Result<CreateSessionBatchResult, String> {
+    if request.specs.len() > MAX_BATCH_SESSIONS {
+        return Err(format!(
+            "Cannot open {} terminals at once (limit is {})",
+            request.specs.len(),
+            MAX_BATCH_SESSIONS
+        ));
+    }
+
+    Ok(create_batch(
+        manager.inner(),
+        &request.workspace_id,
+        &request.workspace_path,
+        request.start_index,
+        &request.specs,
+    ))
+}
+
 #[tauri::command]
 pub async fn create_terminal_sessions(
     manager: State<'_, TerminalManager>,
@@ -310,4 +397,122 @@ pub async fn get_available_shells() -> Result<Vec<ShellOption>, String> {
     }
 
     Ok(shells)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CreateSessionBatchRequest, SessionSpec};
+    use crate::types::AgentType;
+
+    /// The launcher posts one spec per terminal, so the camelCase contract and
+    /// the mixed agent/shell shape both have to survive deserialization.
+    #[test]
+    fn batch_request_accepts_mixed_agent_and_shell_specs() {
+        let request: CreateSessionBatchRequest = serde_json::from_value(serde_json::json!({
+            "workspaceId": "workspace-test",
+            "workspacePath": "C:/workspace",
+            "startIndex": 2,
+            "specs": [
+                { "agent": "claude", "shell": "C:/Windows/System32/cmd.exe" },
+                { "agent": "claude", "shell": null },
+                { "agent": null, "shell": null }
+            ]
+        }))
+        .expect("batch launch payload must deserialize");
+
+        assert_eq!(request.start_index, 2);
+        assert_eq!(request.specs.len(), 3);
+        assert_eq!(request.specs[0].agent, Some(AgentType::Claude));
+        assert_eq!(request.specs[2].agent, None);
+    }
+
+    /// A spec with no agent is a plain shell; it must not require the field.
+    #[test]
+    fn session_spec_defaults_missing_agent_to_none() {
+        let spec: SessionSpec = serde_json::from_value(serde_json::json!({ "shell": null }))
+            .expect("a spec without an agent is a plain shell");
+
+        assert_eq!(spec.agent, None);
+        assert_eq!(spec.shell, None);
+    }
+}
+
+/// Spawns real PTY sessions, so it follows the platform gate used by the other
+/// terminal integration tests (see `terminal::session`).
+#[cfg(all(test, target_os = "windows"))]
+mod launch_tests {
+    use super::{create_batch, SessionSpec};
+    use crate::terminal::TerminalManager;
+
+    fn plain_shell() -> SessionSpec {
+        SessionSpec {
+            agent: None,
+            shell: None,
+        }
+    }
+
+    /// The launcher's whole point: several terminals in one action, numbered
+    /// from where the grid left off, with running terminals left untouched.
+    #[test]
+    fn batch_adds_terminals_without_touching_running_ones() {
+        let manager = TerminalManager::default();
+        let workspace_path = env!("CARGO_MANIFEST_DIR").to_string();
+
+        let existing = manager
+            .create_single_session(
+                "ws-batch".to_string(),
+                workspace_path.clone(),
+                0,
+                None,
+                None,
+            )
+            .expect("create the terminal that is already open");
+
+        let result = create_batch(
+            &manager,
+            "ws-batch",
+            &workspace_path,
+            1,
+            &[plain_shell(), plain_shell(), plain_shell()],
+        );
+
+        assert!(
+            result.errors.is_empty(),
+            "every spec should have opened, got {:?}",
+            result.errors
+        );
+        assert_eq!(result.sessions.len(), 3);
+
+        let indices: Vec<usize> = result.sessions.iter().map(|s| s.index).collect();
+        assert_eq!(indices, vec![1, 2, 3]);
+
+        let mut ids: Vec<&str> = result.sessions.iter().map(|s| s.id.as_str()).collect();
+        ids.sort_unstable();
+        ids.dedup();
+        assert_eq!(ids.len(), 3, "each terminal needs its own session id");
+
+        let open = manager.get_all_sessions();
+        assert_eq!(open.len(), 4, "the batch must not replace the open grid");
+        assert!(
+            open.iter().any(|s| s.id == existing.id),
+            "the terminal that was already open disappeared"
+        );
+
+        manager
+            .kill_sessions_by_workspace("ws-batch")
+            .expect("clean up the batch workspace");
+        assert!(manager.get_all_sessions().is_empty());
+    }
+
+    /// An empty batch is a no-op rather than an error, so a launch with nothing
+    /// queued cannot leave the caller with a spurious failure.
+    #[test]
+    fn empty_batch_creates_nothing() {
+        let manager = TerminalManager::default();
+        let result = create_batch(&manager, "ws-empty", env!("CARGO_MANIFEST_DIR"), 0, &[]);
+
+        assert!(result.sessions.is_empty());
+        assert!(result.errors.is_empty());
+        assert!(manager.get_all_sessions().is_empty());
+    }
 }

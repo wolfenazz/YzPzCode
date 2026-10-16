@@ -1,8 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { Plus } from '@phosphor-icons/react';
-import type { CliType, TerminalSession } from '../../types';
 import { useAppStore } from '../../stores/appStore';
+import { launchTerminals, type LaunchSpec } from '../../utils/launchTerminals';
 import { NewTerminalDialog } from './NewTerminalDialog';
 
 export const TerminalStatusBar: React.FC = () => {
@@ -12,22 +11,14 @@ export const TerminalStatusBar: React.FC = () => {
   const sessions = useAppStore((s) => s.sessions);
   const addSession = useAppStore((s) => s.addSession);
 
-  const handleAddTerminal = useCallback(async (agent: CliType | null, shell: string | null) => {
+  const handleAddTerminal = useCallback(async (specs: LaunchSpec[]) => {
     if (!currentWorkspace) return;
     setShowNewDialog(false);
     try {
-      const newSession = await invoke<TerminalSession>('create_single_terminal_session', {
-        request: {
-          workspaceId: currentWorkspace.id,
-          workspacePath: currentWorkspace.path,
-          index: sessions.length,
-          agent,
-          shell,
-        },
-      });
-      addSession(newSession);
+      const created = await launchTerminals(currentWorkspace.id, currentWorkspace.path, sessions.length, specs);
+      created.forEach((session) => addSession(session));
     } catch (err) {
-      console.error('Failed to create terminal:', err);
+      console.error('Failed to create terminals:', err);
     }
   }, [currentWorkspace, sessions.length, addSession]);
 
@@ -50,7 +41,7 @@ export const TerminalStatusBar: React.FC = () => {
       {showNewDialog && (
         <NewTerminalDialog
           onClose={() => setShowNewDialog(false)}
-          onSelect={handleAddTerminal}
+          onLaunch={handleAddTerminal}
         />
       )}
     </>

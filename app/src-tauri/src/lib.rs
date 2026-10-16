@@ -311,6 +311,7 @@ pub fn run() {
                 commands::update_skills,
                 commands::create_terminal_sessions,
                 commands::create_single_terminal_session,
+                commands::create_terminal_session_batch,
                 commands::write_to_terminal,
                 commands::resize_terminal,
                 commands::kill_session,

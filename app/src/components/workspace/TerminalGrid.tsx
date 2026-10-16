@@ -15,7 +15,7 @@ import {
   rectSortingStrategy,
 } from '@dnd-kit/sortable';
 import { getEventCoordinates } from '@dnd-kit/utilities';
-import { TerminalSession, CliType } from '../../types';
+import { TerminalSession } from '../../types';
 import { SortableTerminalPane } from './SortableTerminalPane';
 import { ExtensionPane } from './ExtensionPane';
 import { NewTerminalDialog } from './NewTerminalDialog';
@@ -28,6 +28,7 @@ import { Plus, PuzzlePiece, TerminalWindow } from '@phosphor-icons/react';
 import { TerminalLayoutContext } from './TerminalLayoutContext';
 import { DEFAULT_TERMINAL_ARRANGEMENT, useTerminalLayoutStore } from '../../stores/terminalLayoutStore';
 import { getTerminalLayoutRects } from '../../utils/terminalLayouts';
+import { launchTerminals, type LaunchSpec } from '../../utils/launchTerminals';
 import type { TerminalLayoutPreset, TerminalLayoutRect } from '../../utils/terminalLayouts';
 import './terminal-grid.css';
 import type { WorkspaceConfig, WorkspaceExtensionPanel } from '../../types';
@@ -291,25 +292,17 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
     return Array.from({ length: cols }, () => activeRowSizes);
   }, [independentGridResize, activeColRowSizes, activeRowSizes, cols]);
 
-  const handleAddTerminal = useCallback(async (agent: CliType | null, shell: string | null) => {
+  const handleAddTerminal = useCallback(async (specs: LaunchSpec[]) => {
     setShowNewDialog(false);
     try {
-      const newSession = await invoke<TerminalSession>('create_single_terminal_session', {
-        request: {
-          workspaceId: workspace.id,
-          workspacePath: workspace.path,
-          index: sessions.length,
-          agent,
-          shell,
-        },
-      });
-      addSession(newSession);
+      const created = await launchTerminals(workspace.id, workspace.path, sessions.length, specs);
+      created.forEach((session) => addSession(session));
       setRowColSizes(null);
       setColRowSizes(null);
       setColSizes(null);
       setRowSizes(null);
     } catch (err) {
-      console.error('Failed to create terminal:', err);
+      console.error('Failed to create terminals:', err);
     }
   }, [workspace.id, workspace.path, sessions.length, addSession]);
 
@@ -523,7 +516,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
         {showNewDialog && (
           <NewTerminalDialog
             onClose={() => setShowNewDialog(false)}
-            onSelect={handleAddTerminal}
+            onLaunch={handleAddTerminal}
           />
         )}
       </div>
@@ -829,7 +822,7 @@ export const TerminalGrid: React.FC<TerminalGridProps> = ({ workspace, sessions,
       {showNewDialog && (
         <NewTerminalDialog
           onClose={() => setShowNewDialog(false)}
-          onSelect={handleAddTerminal}
+          onLaunch={handleAddTerminal}
         />
       )}
     </div>
