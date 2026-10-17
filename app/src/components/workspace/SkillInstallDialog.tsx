@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { CheckCircle, DownloadSimple, Star, WarningCircle, X } from '@phosphor-icons/react';
 import { listen } from '@tauri-apps/api/event';
 import { useAppStore } from '../../stores/appStore';
 import { useSkillStore } from '../../stores/skillStore';
-import { AGENT_TO_SKILLS_SLUG, skillsSlugForAgent } from '../../data/skillsAgents';
+import { skillsAgents, skillsSlugForAgent } from '../../data/skillsAgents';
 import type { AgentType, SkillInstallProgress, SkillSummary } from '../../types';
 import './SkillsMarket.css';
 
@@ -28,23 +28,45 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
   const progress = useSkillStore((state) => state.progress);
   const install = useSkillStore((state) => state.install);
   const setProgress = useSkillStore((state) => state.setProgress);
-  const [error, setError] = useState<string | null>(null);
   const preselected = useRef(false);
 
   const source = skill?.source?.trim() ? skill.source : defaultSource;
   const skillSlug = skill?.slug?.trim() ? skill.slug : undefined;
   const key = skillSlug ?? source;
 
-  const mappedAgents = useMemo((): AgentType[] => (
-    (Object.keys(AGENT_TO_SKILLS_SLUG) as AgentType[]).filter((agent) => agent in cliStatuses)
+  // Agents the skills CLI can install to, the ones on this machine first.
+  const mappedAgents = useMemo((): AgentType[] => {
+    const known = skillsAgents().filter((agent) => agent in cliStatuses);
+    const isInstalled = (agent: AgentType): boolean => cliStatuses[agent]?.status === 'Installed';
+    return [...known.filter(isInstalled), ...known.filter((agent) => !isInstalled(agent))];
+  }, [cliStatuses]);
+
+  // Agents of this app that skills.sh has no slug for yet.
+  const unsupportedAgents = useMemo((): AgentType[] => (
+    (Object.keys(cliStatuses) as AgentType[]).filter((agent) => skillsSlugForAgent(agent) === undefined)
   ), [cliStatuses]);
 
+  const allSlugs = useMemo(
+    () => mappedAgents.flatMap((agent) => skillsSlugForAgent(agent) ?? []),
+    [mappedAgents],
+  );
+
   useEffect(() => {
-    if (preselected.current) return;
+    if (preselected.current || allSlugs.length === 0) return;
     preselected.current = true;
-    const installed = mappedAgents.filter((agent) => cliStatuses[agent]?.status === 'Installed');
-    setSelectedAgents((installed.length > 0 ? installed : mappedAgents).map(skillsSlugForAgent));
-  }, [mappedAgents, cliStatuses, setSelectedAgents]);
+    // Keep last time's choice (minus agents that no longer exist); otherwise
+    // start with the agents installed here, not every agent in the list.
+    const remembered = selectedAgents.filter((slug) => allSlugs.includes(slug));
+    if (remembered.length > 0) {
+      if (remembered.length !== selectedAgents.length) setSelectedAgents(remembered);
+      return;
+    }
+    setSelectedAgents(
+      mappedAgents
+        .filter((agent) => cliStatuses[agent]?.status === 'Installed')
+        .flatMap((agent) => skillsSlugForAgent(agent) ?? []),
+    );
+  }, [allSlugs, mappedAgents, cliStatuses, selectedAgents, setSelectedAgents]);
 
   useEffect(() => {
     let disposed = false;
@@ -70,17 +92,12 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onClose]);
 
-  const allSlugs = mappedAgents.map(skillsSlugForAgent);
+  const chosen = selectedAgents.filter((slug) => allSlugs.includes(slug));
   const allSelected = allSlugs.length > 0 && allSlugs.every((slug) => selectedAgents.includes(slug));
 
   const handleInstall = async (): Promise<void> => {
-    setError(null);
-    const output = await install({ skill: skillSlug, source, workspacePath });
-    if (output === null) {
-      setError(useSkillStore.getState().error ?? 'Install failed.');
-    } else {
-      onInstalled?.();
-    }
+    const output = await install({ skill: skillSlug, source, workspacePath, agents: chosen });
+    if (output !== null) onInstalled?.();
   };
 
   return (
@@ -118,15 +135,16 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
 
           <fieldset className="sk-field">
             <legend>
-              <span>Agents · {selectedAgents.length} selected</span>
+              <span>Agents · {chosen.length} selected</span>
               <button type="button" className="sk-btn sk-btn--ghost" style={{ height: '1.4rem' }} onClick={() => setSelectedAgents(allSelected ? [] : allSlugs)}>{allSelected ? 'Clear' : 'Select all'}</button>
             </legend>
             <div className="sk-agents">
               {mappedAgents.map((agent) => {
                 const slug = skillsSlugForAgent(agent);
+                if (slug === undefined) return null;
                 const info = cliStatuses[agent];
                 return (
-                  <label key={agent} className="sk-agent" title={info?.displayName ?? agent}>
+                  <label key={agent} className="sk-agent" title={info?.status === 'Installed' ? `${info.displayName ?? agent} · installed on this machine` : (info?.displayName ?? agent)}>
                     <input type="checkbox" checked={selectedAgents.includes(slug)} onChange={() => toggleAgent(slug)} />
                     <span>{info?.displayName ?? agent}</span>
                     {info?.status === 'Installed' && <i className="sk-dot" title="Installed on this machine" />}
@@ -134,6 +152,12 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
                 );
               })}
             </div>
+            {chosen.length === 0 && <p className="sk-note sk-note--muted">Pick at least one agent. Green dots mark the ones installed on this machine.</p>}
+            {unsupportedAgents.length > 0 && (
+              <p className="sk-note sk-note--muted">
+                skills.sh cannot install to {unsupportedAgents.map((agent) => cliStatuses[agent]?.displayName ?? agent).join(', ')} yet.
+              </p>
+            )}
           </fieldset>
 
           <label className="sk-linkrow">
@@ -141,20 +165,21 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
             <input type="checkbox" checked={useCopy} onChange={(event) => setUseCopy(event.target.checked)} />
           </label>
 
-          {status && (
+          {status && !failed && (
             <div className="sk-status" role="status">
               <p>
                 {completed && <CheckCircle size={14} weight="fill" style={{ color: '#10b981', flex: 'none' }} aria-hidden="true" />}
-                {failed && <WarningCircle size={14} weight="fill" style={{ color: '#f43f5e', flex: 'none' }} aria-hidden="true" />}
-                <span>{status.message}{status.percent != null ? ` · ${status.percent}%` : ''}</span>
+                <span>{status.message}{status.percent != null && !completed ? ` · ${status.percent}%` : ''}</span>
               </p>
-              {!completed && !failed && (
+              {!completed && (
                 <div className={`sk-bar ${status.percent == null ? 'sk-bar--indeterminate' : ''}`} aria-hidden="true"><i style={status.percent != null ? { width: `${status.percent}%` } : undefined} /></div>
               )}
             </div>
           )}
-          {(error ?? (failed && !busy ? status?.message : null)) && (
-            <p role="alert" className="sk-note sk-note--error" style={{ marginTop: 0 }}>{error ?? status?.message}</p>
+          {failed && !busy && (
+            <div role="alert" className="sk-status sk-status--error">
+              <p><WarningCircle size={14} weight="fill" style={{ color: '#f43f5e', flex: 'none' }} aria-hidden="true" /><span className="sk-status__text">{status.message}</span></p>
+            </div>
           )}
         </div>
 
@@ -164,7 +189,7 @@ export function SkillInstallDialog({ skill, defaultSource, workspacePath, onClos
             type="button"
             className="sk-btn sk-btn--primary"
             style={{ height: '2rem' }}
-            disabled={busy || selectedAgents.length === 0}
+            disabled={busy || chosen.length === 0}
             onClick={() => void handleInstall()}
           >
             {!busy && <DownloadSimple size={13} aria-hidden="true" />}

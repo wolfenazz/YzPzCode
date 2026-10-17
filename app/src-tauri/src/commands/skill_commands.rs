@@ -90,15 +90,22 @@ pub async fn list_installed_skills(
     inventory::list_installed(workspace_path.as_deref()).map_err(|e| format!("{e:#}"))
 }
 
+
+/// Reports a failure on the progress channel and returns the message.
+fn fail(app: &AppHandle, id: &str, source: &str, message: String) -> String {
+    runner::emit_progress(app, &runner::progress(id, source, "failed", &message, None));
+    message
+}
+
 #[tauri::command]
 pub async fn install_skill(
     app: AppHandle,
     request: InstallSkillRequest,
 ) -> Result<String, String> {
+    let mut request = request;
     let cwd = runner::validate_install_request(&request).map_err(|e| format!("{e:#}"))?;
     let skill_id = runner::display_id(&request);
     let source = request.source.clone();
-    let args = runner::build_install_args(&request);
 
     runner::emit_progress(
         &app,
@@ -110,56 +117,101 @@ pub async fn install_skill(
             &skill_id,
             &source,
             "downloading",
-            "Downloading skill via npx skills",
+            "Downloading the skill and linking it to your agents…",
             Some(30),
         ),
     );
 
-    let (stdout, stderr, success) = runner::run_npx(&args, &cwd)
-        .await
-        .map_err(|e| {
+    // Agents the CLI does not know are dropped and the install is retried, so
+    // one unsupported agent never blocks the others.
+    let mut skipped: Vec<String> = Vec::new();
+    loop {
+        let args = runner::build_install_args(&request);
+        let output = runner::run_npx(&args, &cwd)
+            .await
+            .map_err(|e| fail(&app, &skill_id, &source, format!("{e:#}")))?;
+        let summary = runner::extract_json_result(&output.stdout)
+            .map(|items| runner::summarize_install(&items))
+            .unwrap_or_default();
+
+        if output.success && summary.problem.is_none() {
+            runner::emit_progress(
+                &app,
+                &runner::progress(&skill_id, &source, "verifying", "Verifying install", Some(70)),
+            );
+            let mut message = if summary.agents.is_empty() {
+                "Skill installed".to_string()
+            } else {
+                format!("Installed for {}", summary.agents.join(", "))
+            };
+            if !skipped.is_empty() {
+                message.push_str(&format!(
+                    " · skipped (not supported by skills.sh): {}",
+                    skipped.join(", ")
+                ));
+            }
+            runner::emit_progress(
+                &app,
+                &runner::progress(&skill_id, &source, "completed", &message, Some(100)),
+            );
+            return Ok(message);
+        }
+
+        let mut lines = runner::clean_output(&output.stdout);
+        lines.extend(runner::clean_output(&output.stderr));
+        let mut invalid = runner::parse_invalid_agents(&lines);
+        invalid.retain(|bad| request.agents.iter().any(|a| a.eq_ignore_ascii_case(bad)));
+        if !invalid.is_empty() {
+            request
+                .agents
+                .retain(|a| !invalid.iter().any(|bad| bad.eq_ignore_ascii_case(a)));
+            skipped.extend(invalid);
+            if request.agents.is_empty() {
+                return Err(fail(
+                    &app,
+                    &skill_id,
+                    &source,
+                    format!(
+                        "skills.sh does not support {} yet. Pick another agent.",
+                        skipped.join(", ")
+                    ),
+                ));
+            }
             runner::emit_progress(
                 &app,
                 &runner::progress(
                     &skill_id,
                     &source,
-                    "failed",
-                    &format!("{e:#}"),
-                    None,
+                    "downloading",
+                    &format!("Retrying without {}…", skipped.join(", ")),
+                    Some(40),
                 ),
             );
-            format!("{e:#}")
-        })?;
+            continue;
+        }
 
-    if success {
-        runner::emit_progress(
-            &app,
-            &runner::progress(&skill_id, &source, "verifying", "Verifying install", Some(70)),
-        );
-        runner::emit_progress(
-            &app,
-            &runner::progress(
-                &skill_id,
-                &source,
-                "completed",
-                "Skill installed",
-                Some(100),
-            ),
-        );
-        Ok(runner::tail_2000(&stdout))
-    } else {
-        let tail = runner::tail_2000(&stderr);
-        let message = if tail.trim().is_empty() {
-            runner::tail_2000(&stdout)
-        } else {
-            tail
-        };
-        runner::emit_progress(
-            &app,
-            &runner::progress(&skill_id, &source, "failed", &message, None),
-        );
-        Err(message)
+        let message = summary
+            .problem
+            .unwrap_or_else(|| runner::failure_message(&output));
+        return Err(fail(&app, &skill_id, &source, message));
     }
+}
+
+/// Folder a scoped CLI run starts in: the workspace for project scope,
+/// otherwise a neutral temp folder.
+fn scope_dir(global: bool, workspace_path: Option<&str>) -> Result<std::path::PathBuf, String> {
+    if global {
+        return Ok(std::env::temp_dir());
+    }
+    let workspace = workspace_path.unwrap_or("").trim();
+    if workspace.is_empty() {
+        return Err("Project scope needs an open workspace".to_string());
+    }
+    let path = std::path::PathBuf::from(workspace);
+    if !path.is_dir() {
+        return Err("workspace path does not exist or is not a directory".to_string());
+    }
+    Ok(path)
 }
 
 #[tauri::command]
@@ -174,26 +226,17 @@ pub async fn remove_skill(
     if name.is_empty() {
         return Err("Skill name must not be empty".to_string());
     }
-    if name.contains("..") {
+    if name.contains("..") || name.contains('/') || name.contains('\\') {
         return Err("Invalid skill name".to_string());
     }
+    runner::ensure_plain_argument("skill name", &name).map_err(|e| format!("{e:#}"))?;
+    if let Some(agent) = agent.as_deref() {
+        runner::ensure_plain_argument("agent", agent).map_err(|e| format!("{e:#}"))?;
+    }
     let is_global = global.unwrap_or(false);
-    let cwd = if is_global {
-        std::env::temp_dir()
-    } else if let Some(workspace) = workspace_path.as_deref() {
-        if workspace.trim().is_empty() {
-            std::env::temp_dir()
-        } else {
-            let path = std::path::PathBuf::from(workspace);
-            if !path.is_dir() {
-                return Err("workspace path does not exist or is not a directory".to_string());
-            }
-            path
-        }
-    } else {
-        std::env::temp_dir()
-    };
+    let cwd = scope_dir(is_global, workspace_path.as_deref())?;
 
+    // Without `-a` the CLI cleans every agent link, which is what "remove" means.
     let args = runner::build_remove_args(&name, agent.as_deref(), is_global);
     runner::emit_progress(
         &app,
@@ -201,37 +244,22 @@ pub async fn remove_skill(
     );
     runner::emit_progress(
         &app,
-        &runner::progress(&name, &name, "downloading", "Removing skill via npx", Some(30)),
+        &runner::progress(&name, &name, "downloading", "Removing skill…", Some(30)),
     );
 
-    let (stdout, stderr, success) = runner::run_npx(&args, &cwd)
+    let output = runner::run_npx(&args, &cwd)
         .await
-        .map_err(|e| {
-            runner::emit_progress(
-                &app,
-                &runner::progress(&name, &name, "failed", &format!("{e:#}"), None),
-            );
-            format!("{e:#}")
-        })?;
+        .map_err(|e| fail(&app, &name, &name, format!("{e:#}")))?;
 
-    if success {
+    if output.success {
+        let message = format!("Removed {name}");
         runner::emit_progress(
             &app,
-            &runner::progress(&name, &name, "completed", "Skill removed", Some(100)),
+            &runner::progress(&name, &name, "completed", &message, Some(100)),
         );
-        Ok(runner::tail_2000(&stdout))
+        Ok(message)
     } else {
-        let tail = runner::tail_2000(&stderr);
-        let message = if tail.trim().is_empty() {
-            runner::tail_2000(&stdout)
-        } else {
-            tail
-        };
-        runner::emit_progress(
-            &app,
-            &runner::progress(&name, &name, "failed", &message, None),
-        );
-        Err(message)
+        Err(fail(&app, &name, &name, runner::failure_message(&output)))
     }
 }
 
@@ -240,14 +268,23 @@ pub async fn update_skills(
     app: AppHandle,
     skill_names: Option<Vec<String>>,
     global: Option<bool>,
+    workspace_path: Option<String>,
 ) -> Result<String, String> {
     let is_global = global.unwrap_or(false);
+    if let Some(names) = skill_names.as_deref() {
+        for name in names {
+            if name.contains("..") || name.contains('/') || name.contains('\\') {
+                return Err("Invalid skill name".to_string());
+            }
+            runner::ensure_plain_argument("skill name", name).map_err(|e| format!("{e:#}"))?;
+        }
+    }
     let label = skill_names
         .as_ref()
         .and_then(|names| names.first().cloned())
         .unwrap_or_else(|| "all".to_string());
     let args = runner::build_update_args(skill_names.as_deref(), is_global);
-    let cwd = std::env::temp_dir();
+    let cwd = scope_dir(is_global, workspace_path.as_deref())?;
 
     runner::emit_progress(
         &app,
@@ -255,36 +292,21 @@ pub async fn update_skills(
     );
     runner::emit_progress(
         &app,
-        &runner::progress(&label, &label, "downloading", "Updating skills via npx", Some(30)),
+        &runner::progress(&label, &label, "downloading", "Updating skills…", Some(30)),
     );
 
-    let (stdout, stderr, success) = runner::run_npx(&args, &cwd)
+    let output = runner::run_npx(&args, &cwd)
         .await
-        .map_err(|e| {
-            runner::emit_progress(
-                &app,
-                &runner::progress(&label, &label, "failed", &format!("{e:#}"), None),
-            );
-            format!("{e:#}")
-        })?;
+        .map_err(|e| fail(&app, &label, &label, format!("{e:#}")))?;
 
-    if success {
+    if output.success {
+        let message = runner::success_message(&output, "Skills updated");
         runner::emit_progress(
             &app,
-            &runner::progress(&label, &label, "completed", "Skills updated", Some(100)),
+            &runner::progress(&label, &label, "completed", &message, Some(100)),
         );
-        Ok(runner::tail_2000(&stdout))
+        Ok(message)
     } else {
-        let tail = runner::tail_2000(&stderr);
-        let message = if tail.trim().is_empty() {
-            runner::tail_2000(&stdout)
-        } else {
-            tail
-        };
-        runner::emit_progress(
-            &app,
-            &runner::progress(&label, &label, "failed", &message, None),
-        );
-        Err(message)
+        Err(fail(&app, &label, &label, runner::failure_message(&output)))
     }
 }

@@ -20,6 +20,7 @@ import { useAppStore } from '../../stores/appStore';
 import { isSkillsKeyError, stripSkillsKeyPrefix, useSkillStore } from '../../stores/skillStore';
 import type { SkillTrendingView } from '../../stores/skillStore';
 import type { InstalledSkill, SkillSummary } from '../../types';
+import { installLocationLabel } from '../../data/skillsAgents';
 import { SkillInstallDialog } from './SkillInstallDialog';
 import { SkillMarkdownPreview } from './SkillMarkdownPreview';
 import './SkillsMarket.css';
@@ -135,6 +136,9 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
   const refreshInstalled = useSkillStore((state) => state.refreshInstalled);
   const remove = useSkillStore((state) => state.remove);
   const update = useSkillStore((state) => state.update);
+  const updateAll = useSkillStore((state) => state.updateAll);
+  const notice = useSkillStore((state) => state.notice);
+  const setNotice = useSkillStore((state) => state.setNotice);
   const setCustomSource = useSkillStore((state) => state.setCustomSource);
   const hasSkillsKey = useAppStore((state) => state.skillsApiKey.trim() !== '');
 
@@ -167,6 +171,16 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
     const timer = window.setTimeout(() => { void search(query); }, 300);
     return () => window.clearTimeout(timer);
   }, [query, onInstalledTab, search, clearSearch]);
+
+  // A success note fades on its own; an error stays until dismissed.
+  useEffect(() => {
+    if (notice?.tone !== 'ok') return;
+    const timer = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice, setNotice]);
+
+  // A result from another visit must not greet the next one.
+  useEffect(() => () => setNotice(null), [setNotice]);
 
   // A pending "are you sure?" must not outlive a click elsewhere.
   useEffect(() => {
@@ -223,11 +237,10 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
     setDialogTarget({ skill: null, source: trimmed });
   };
 
+  // One call per skill: the CLI cleans every agent link when none is named.
   const handleRemoveGroup = async (group: InstalledGroup): Promise<void> => {
     setConfirmRemove(null);
-    for (const item of group.agents) {
-      await remove(item.name, item.agent, workspacePath, group.global);
-    }
+    await remove(group.name, workspacePath, group.global);
   };
 
   const installedCount = groups.length;
@@ -261,7 +274,7 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
       <>
         <div className="sk-section-label">
           <span>{visibleGroups.length} skill{visibleGroups.length === 1 ? '' : 's'}</span>
-          <button type="button" className="sk-btn sk-btn--ghost" disabled={loading || installedCount === 0} onClick={() => void update(undefined)} title="Update every installed skill">
+          <button type="button" className="sk-btn sk-btn--ghost" disabled={loading || installedCount === 0} onClick={() => void updateAll(workspacePath)} title="Update every installed skill">
             <ArrowClockwise size={12} aria-hidden="true" /> Update all
           </button>
         </div>
@@ -278,7 +291,7 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
                       <span className="sk-badge">{group.global ? 'Global' : 'Project'}</span>
                     </div>
                     <div className="sk-meta" aria-label="Installed for">
-                      {group.agents.map((item) => <span key={item.agent} className="sk-badge" title={item.path}>{item.agent}</span>)}
+                      {group.agents.map((item) => <span key={item.agent} className="sk-badge" title={item.path}>{installLocationLabel(item.agent)}</span>)}
                     </div>
                     <div className="sk-actions">
                       <span className="sk-spacer" />
@@ -289,7 +302,7 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
                         </>
                       ) : (
                         <>
-                          <button type="button" className="sk-btn" disabled={loading} onClick={() => void update([group.name], group.global)} title={`Update ${group.name}`}><ArrowClockwise size={12} aria-hidden="true" /> Update</button>
+                          <button type="button" className="sk-btn" disabled={loading} onClick={() => void update([group.name], group.global, workspacePath)} title={`Update ${group.name}`}><ArrowClockwise size={12} aria-hidden="true" /> Update</button>
                           <button type="button" className="sk-btn sk-btn--ghost sk-btn--icon" disabled={loading} onClick={() => setConfirmRemove(group.key)} title={`Remove ${group.name}`} aria-label={`Remove ${group.name}`}><Trash size={13} /></button>
                         </>
                       )}
@@ -517,6 +530,12 @@ export function SkillsMarketPanel({ workspaceId, workspacePath, onClose }: Skill
       </div>
 
       <div className="sk-scroll" aria-busy={loading}>
+        {notice && (
+          <div role={notice.tone === 'error' ? 'alert' : 'status'} className={`sk-notice sk-notice--${notice.tone}`}>
+            <span>{notice.text}</span>
+            <button type="button" className="sk-clear" onClick={() => setNotice(null)} title="Dismiss" aria-label="Dismiss message"><X size={11} /></button>
+          </div>
+        )}
         {showError && (
           <div role="alert" className="sk-alert">
             <span>{stripSkillsKeyPrefix(error)}</span>

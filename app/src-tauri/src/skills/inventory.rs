@@ -48,7 +48,6 @@ fn project_roots(workspace: &Path) -> Vec<PathBuf> {
         workspace.join(".claude").join("skills"),
         workspace.join(".agents").join("skills"),
         workspace.join(".cursor").join("skills"),
-        workspace.join("skills"),
     ]
 }
 

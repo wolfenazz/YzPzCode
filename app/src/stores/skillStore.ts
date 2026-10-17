@@ -19,6 +19,12 @@ export type SkillScope = 'global' | 'project';
 const PER_PAGE = 20;
 const EMPTY_INSTALLED: InstalledSkillsResponse = { project: [], global: [] };
 
+/** Outcome of a remove or update, shown once at the top of the panel. */
+export interface SkillNotice {
+  tone: 'ok' | 'error';
+  text: string;
+}
+
 export interface InstallSkillOverride {
   skill?: string;
   source?: string;
@@ -42,6 +48,7 @@ interface SkillStore {
   installed: InstalledSkillsResponse;
   installing: string[];
   progress: Record<string, SkillInstallProgress>;
+  notice: SkillNotice | null;
   scope: SkillScope;
   customSource: string;
   useCopy: boolean;
@@ -60,8 +67,12 @@ interface SkillStore {
   loadAudit: (skillId: string) => Promise<void>;
   refreshInstalled: (workspacePath?: string) => Promise<void>;
   install: (override?: InstallSkillOverride) => Promise<string | null>;
-  remove: (skillName: string, agent?: string, workspacePath?: string, global?: boolean) => Promise<void>;
-  update: (skillNames?: string[], global?: boolean) => Promise<void>;
+  remove: (skillName: string, workspacePath: string | undefined, global: boolean) => Promise<void>;
+  /** Updates the named skills (all when omitted) in one scope. */
+  update: (skillNames: string[] | undefined, global: boolean, workspacePath?: string) => Promise<void>;
+  /** Updates every global skill and every skill of the workspace. */
+  updateAll: (workspacePath?: string) => Promise<void>;
+  setNotice: (notice: SkillNotice | null) => void;
   setProgress: (progress: SkillInstallProgress) => void;
 }
 
@@ -103,6 +114,7 @@ export const useSkillStore = create<SkillStore>()(
       installed: EMPTY_INSTALLED,
       installing: [],
       progress: {},
+      notice: null,
       scope: 'global',
       customSource: '',
       useCopy: false,
@@ -205,15 +217,13 @@ export const useSkillStore = create<SkillStore>()(
         const scope = override?.scope ?? state.scope;
         const useCopy = override?.useCopy ?? state.useCopy;
         const workspacePath = override?.workspacePath ?? null;
-        if (!source) {
-          set({ error: 'A skill source is required.' });
-          return null;
-        }
-        if (agents.length === 0) {
-          set({ error: 'Select at least one agent.' });
-          return null;
-        }
         const key = installKey(skill, source);
+        const reject = (message: string): null => {
+          get().setProgress({ skillId: key, source, stage: 'failed', message, percent: null });
+          return null;
+        };
+        if (!source) return reject('A skill source is required.');
+        if (agents.length === 0) return reject('Select at least one agent.');
         if (state.installing.includes(key)) return null;
         const request: InstallSkillRequest = {
           source,
@@ -225,7 +235,6 @@ export const useSkillStore = create<SkillStore>()(
         };
         set((previous) => ({
           installing: [...previous.installing, key],
-          error: null,
           progress: {
             ...previous.progress,
             [key]: { skillId: key, source, stage: 'queued', message: 'Preparing installation…', percent: 5 },
@@ -236,49 +245,77 @@ export const useSkillStore = create<SkillStore>()(
           await get().refreshInstalled(override?.workspacePath);
           return output;
         } catch (error) {
-          const message = String(error);
-          get().setProgress({ skillId: key, source, stage: 'failed', message, percent: null });
-          set({ error: message });
-          return null;
+          return reject(String(error));
         } finally {
           set((previous) => ({ installing: previous.installing.filter((id) => id !== key) }));
         }
       },
-      remove: async (skillName, agent, workspacePath, global) => {
-        const isGlobal = global ?? get().scope === 'global';
-        set({ loading: true, error: null });
+      remove: async (skillName, workspacePath, global) => {
+        set({ loading: true, notice: null });
         try {
-          await invoke<string>('remove_skill', {
+          const message = await invoke<string>('remove_skill', {
             skillName,
-            agent: agent ?? null,
-            global: isGlobal,
+            agent: null,
+            global,
             workspacePath: workspacePath ?? null,
           });
+          set({ notice: { tone: 'ok', text: message } });
           await get().refreshInstalled(workspacePath);
         } catch (error) {
-          set({ error: String(error) });
+          set({ notice: { tone: 'error', text: String(error) } });
         } finally {
           set({ loading: false });
         }
       },
-      update: async (skillNames, global) => {
-        set({ loading: true, error: null });
+      update: async (skillNames, global, workspacePath) => {
+        set({ loading: true, notice: null });
         try {
-          await invoke<string>('update_skills', {
+          const message = await invoke<string>('update_skills', {
             skillNames: skillNames ?? null,
-            global: global ?? get().scope === 'global',
+            global,
+            workspacePath: workspacePath ?? null,
           });
+          set({ notice: { tone: 'ok', text: message } });
+          await get().refreshInstalled(workspacePath);
         } catch (error) {
-          set({ error: String(error) });
+          set({ notice: { tone: 'error', text: String(error) } });
         } finally {
           set({ loading: false });
         }
       },
+      updateAll: async (workspacePath) => {
+        set({ loading: true, notice: null });
+        const problems: string[] = [];
+        const scopes: Array<{ global: boolean; label: string }> = [{ global: true, label: 'Global' }];
+        if (workspacePath) scopes.push({ global: false, label: 'Project' });
+        try {
+          for (const { global, label } of scopes) {
+            try {
+              await invoke<string>('update_skills', { skillNames: null, global, workspacePath: workspacePath ?? null });
+            } catch (error) {
+              problems.push(`${label}: ${String(error)}`);
+            }
+          }
+          set({
+            notice: problems.length === 0
+              ? { tone: 'ok', text: 'Every installed skill is up to date.' }
+              : { tone: 'error', text: problems.join('\n') },
+          });
+          await get().refreshInstalled(workspacePath);
+        } finally {
+          set({ loading: false });
+        }
+      },
+      setNotice: (notice) => set({ notice }),
       setProgress: (progress) => set((state) => ({ progress: { ...state.progress, [progress.skillId]: progress } })),
     }),
     {
       name: 'yzpzcode-skills',
-      partialize: (state) => ({ scope: state.scope }),
+      partialize: (state) => ({
+        scope: state.scope,
+        selectedAgents: state.selectedAgents,
+        useCopy: state.useCopy,
+      }),
     },
   ),
 );
