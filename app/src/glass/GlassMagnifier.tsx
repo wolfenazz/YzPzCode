@@ -9,9 +9,11 @@
  *   - the filter is built for the *element's* box (`glassFilter`), with the
  *     round bezel profile and `maxShift` wide enough that the rim is a wide
  *     band rather than a hairline — that band is where the bend is visible;
- *   - the centre `magnify` pass pulls the middle of the backdrop toward the
- *     centre, on top of the bezel's own pull, which is what an actual lens
- *     does. Without it the middle of a big lens looks like a window.
+ *   - the centre `zoom` pass enlarges the backdrop about the middle, on top of
+ *     the bezel's own pull, which is what an actual lens does. Without it the
+ *     middle of a big lens looks like a window;
+ *   - the rim disperses: blue bends a little further than red, so edges seen
+ *     through the bezel pick up the faint colour fringe of real glass.
  *
  * The lens trails the pointer on a spring rather than snapping to it, so
  * dragging has some weight; releasing lets it settle. It is `position: fixed`
@@ -45,15 +47,15 @@ const clamp = (value: number, min: number, max: number): number =>
 export interface GlassMagnifierProps {
   /** Diameter in CSS px. */
   size?: number;
-  /** How far the centre pass pulls the backdrop inward, in px. */
+  /** Magnification at the centre, as a factor. */
   zoom?: number;
   /** Where it starts, as a fraction of the viewport. */
   initialPosition?: { x: number; y: number };
 }
 
 export const GlassMagnifier = ({
-  size = 168,
-  zoom = 26,
+  size = 176,
+  zoom = 1.6,
   initialPosition = { x: 0.72, y: 0.32 },
 }: GlassMagnifierProps) => {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -84,15 +86,16 @@ export const GlassMagnifier = ({
       height: size,
       radius: size / 2,
       shape: 'pill',
-      magnify: zoom,
+      zoom,
+      // Fringing only at the rim: any more and the text on the face grows colour edges.
+      dispersion: 0.012,
       // A hand lens is thick: a wide, strongly-bending rim is the point.
-      bezelWidth: Math.round(size * 0.16),
-      glassThickness: Math.round(size * 0.42),
-      maxShift: 0.85,
-      scaleRatio: 1,
-      specularOpacity: 0.7,
-      specularSaturation: 8,
-      blur: 0.2,
+      bezelWidth: Math.round(size * 0.15),
+      glassThickness: Math.round(size * 0.38),
+      scaleRatio: 0.4,
+      specularOpacity: 0.9,
+      specularSaturation: 4,
+      specularWidth: Math.max(4, size * 0.04),
     });
     held.current = filter;
     if (previous && previous.id !== filter?.id) releaseGlassFilter(previous);

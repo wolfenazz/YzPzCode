@@ -56,11 +56,38 @@ export interface BezelOptions {
    * than the rim itself — 120px on an 8px bezel. In real glass that ray hits
    * the side wall or goes past the critical angle at the bottom face and never
    * comes out, so the honest answer is "no further than the bezel is wide".
-   * Clamping here also makes `reach` predictable for every size, which the
-   * filter's `scale` depends on.
+   * The ceiling is reached softly (see `saturate`), so a thick slab does not
+   * flatten into a plateau with a cliff at its inner edge.
    */
   maxShift?: number;
+  /**
+   * Steepest the shift may change across the rim, in px of shift per px of
+   * rim (default 0.82).
+   *
+   * Past 1 the map folds: two neighbouring pixels sample the backdrop in the
+   * wrong order and the text under the rim is drawn twice, mirrored. A thick
+   * real lens can do that past its focal point, but a piece of UI glass never
+   * does, and it is what made a held thumb look broken rather than bent.
+   */
+  maxSlope?: number;
+  /**
+   * Multiplier on the traced shift (Settings → Refraction strength), applied
+   * before the ceiling and the fold guard so a strong setting bends more but
+   * can never fold the map.
+   */
+  gain?: number;
 }
+
+/**
+ * Soft ceiling: linear for small shifts, easing into `cap` instead of hitting
+ * it. A hard clamp turns most of a thick rim into one flat band and puts the
+ * whole bend into the last few pixels, which reads as a seam, not glass.
+ */
+const saturate = (value: number, cap: number): number => {
+  if (cap <= 0) return value;
+  const x = value / cap;
+  return (cap * x) / (1 + x ** 4) ** 0.25;
+};
 
 export interface BezelProfile {
   /** Normalised to -1…1, indexed from the outer edge (0) to the flat face. */
@@ -85,6 +112,8 @@ export const bezelProfile = ({
   profile,
   samples = 128,
   maxShift = 1,
+  maxSlope = 0.82,
+  gain = 1,
 }: BezelOptions): BezelProfile => {
   const fn = surfaceFn(profile);
   const eta = 1 / refractiveIndex;
@@ -116,9 +145,20 @@ export const bezelProfile = ({
 
     const remainingHeight = y * bezelWidth + glassThickness;
     const shift = refractedX * (remainingHeight / refractedY);
-    out[i] = cap > 0 ? Math.max(-cap, Math.min(cap, shift)) : shift;
-    peak = Math.max(peak, Math.abs(out[i]));
+    out[i] = saturate(shift * gain, cap);
   }
+
+  // Keep the map from folding. A pixel `u` px in from the edge reads the
+  // backdrop at `u + shift(u)`, which must keep moving inward as `u` does, so
+  // walking out from the flat face the shift may grow by at most `maxSlope`
+  // px per px (shrinking is always safe). An outward (concave) shift may also
+  // never reach past the outer edge, where the backdrop ends.
+  const stepPx = bezelWidth / samples;
+  for (let i = samples - 2; i >= 0; i -= 1) {
+    out[i] = Math.min(out[i], out[i + 1] + maxSlope * stepPx);
+    if (out[i] < 0) out[i] = Math.max(out[i], -0.9 * i * stepPx);
+  }
+  for (let i = 0; i < samples; i += 1) peak = Math.max(peak, Math.abs(out[i]));
 
   if (peak > 0) for (let i = 0; i < samples; i += 1) out[i] /= peak;
   return { samples: out, reach: peak };
@@ -279,8 +319,13 @@ export const displacementMap = ({
       // Outside the outline the map must be neutral, so the ring just past the
       // border fades in rather than stepping.
       const alpha = edge.distance >= 0 ? 1 : (edge.distance + feather) / feather;
-      const t = Math.min(edge.distance / bezelPx, 1);
-      const shift = bezel.samples[Math.min(steps - 1, Math.max(0, Math.round(t * (steps - 1))))];
+      // Read the profile between its samples, not at the nearest one: on a wide
+      // rim the steps would otherwise show as rings in the bend.
+      if (edge.distance >= bezelPx) continue; // the flat face bends nothing
+      const at = (Math.max(edge.distance, 0) / bezelPx) * (steps - 1);
+      const lo = Math.floor(at);
+      const hi = Math.min(lo + 1, steps - 1);
+      const shift = bezel.samples[lo] + (bezel.samples[hi] - bezel.samples[lo]) * (at - lo);
       if (shift === 0) continue;
       // Negative normal: pull the backdrop inwards, as convex glass does.
       const dx = -edge.nx * shift * alpha;
@@ -296,21 +341,35 @@ export const displacementMap = ({
 };
 
 export interface SpecularOptions extends GlassGeometry {
-  /** Direction the light comes from, in radians (0 = from the right). */
+  /**
+   * Direction the light comes from, in radians, measured on screen with y up
+   * (0 = from the right, π/2 = from above). Default: upper left.
+   */
   angle?: number;
-  /** How wide the lit rim reads, in CSS px. */
+  /** How far in from the edge the highlight reaches, in CSS px. */
   bandWidth?: number;
+  /** The rim's cross-section; the highlight follows its slope. */
+  profile?: SurfaceId;
+  /** Strength of the bounce on the far side, 0…1 (default 0.5). */
+  bounce?: number;
   quality?: number;
   maxBuffer?: number;
 }
 
 /**
- * The specular rim: where the bezel's normal lines up with the light, the
- * glass throws a highlight back at the eye. Written as a white RGBA image,
- * brightest where the rim faces the light and fading round the rest of the
- * outline; the filter blends it over the refracted backdrop.
+ * The specular rim: where the bezel tilts towards the light, the glass throws
+ * a highlight back at the eye.
  *
- * Unlike the displacement map this is a hairline, so it is never downscaled.
+ * Per pixel: how steep the rim is there (read from the same cross-section the
+ * refraction traced, so a round bezel glints over a broad band and a squircle
+ * only along its very edge), times how squarely the rim faces the light. The
+ * far side gets a weaker copy — light that entered on the lit side, bounced
+ * off the inside of the glass and leaves through the opposite rim — which is
+ * the pair of highlights, upper left and lower right, that makes Apple's
+ * glass read as a solid thing rather than an outline.
+ *
+ * Written as white with the intensity in alpha; the filter lays it over the
+ * refracted backdrop. A hairline, so it is never downscaled.
  */
 export const specularMap = ({
   width,
@@ -319,8 +378,10 @@ export const specularMap = ({
   bezelWidth,
   shape,
   squircleExponent = 4,
-  angle = Math.PI / 3,
-  bandWidth = 1.6,
+  angle = (3 * Math.PI) / 4,
+  bandWidth = 2,
+  profile = 'convex_squircle',
+  bounce = 0.5,
   quality = 2,
   maxBuffer = 1024,
 }: SpecularOptions): GlassMap | null => {
@@ -330,11 +391,23 @@ export const specularMap = ({
   const h = Math.max(Math.round(height * scale), 4);
   const effectiveRadius =
     shape === 'pill' ? Math.min(w, h) / 2 : Math.min(radius * scale, Math.min(w, h) / 2);
-  // The rim light cannot be wider than the rim it is lighting.
-  const band = Math.max(Math.min(bandWidth, bezelWidth) * scale, 1);
+  const rim = Math.max(bezelWidth * scale, 1);
+  // The light cannot reach further in than the rim it is lighting.
+  const band = Math.max(Math.min(bandWidth, bezelWidth) * scale, 0.75);
+  const fn = surfaceFn(profile);
 
+  // Slope of the rim, 0 (flat) … 1 (vertical), tabulated once.
+  const STEPS = 64;
+  const slope = new Float64Array(STEPS + 1);
+  for (let s = 0; s <= STEPS; s += 1) {
+    const x = Math.min(s / STEPS, 0.9999);
+    const d = (fn(Math.min(x + 0.0005, 1)) - fn(x)) / 0.0005;
+    slope[s] = Math.abs(d) / Math.sqrt(d * d + 1);
+  }
+
+  // Screen space has y pointing down.
   const lightX = Math.cos(angle);
-  const lightY = Math.sin(angle);
+  const lightY = -Math.sin(angle);
   const image = new ImageData(w, h);
   const pixels = image.data;
 
@@ -342,19 +415,23 @@ export const specularMap = ({
     const py = j + 0.5;
     for (let i = 0; i < w; i += 1) {
       const edge = edgeAt(i + 0.5, py, w, h, effectiveRadius, shape, squircleExponent);
-      if (!edge || edge.distance < 0 || edge.distance > band) continue;
-      // How square-on the rim faces the light.
-      const facing = Math.abs(edge.nx * lightX - edge.ny * lightY);
-      // And how steeply the surface is turning, which is what actually glints.
-      const slope = Math.sqrt(Math.max(0, 1 - (1 - edge.distance / band) ** 2));
-      const coefficient = facing * slope;
-      if (coefficient <= 0.001) continue;
+      if (!edge || edge.distance < -0.5 || edge.distance > rim) continue;
+      const u = Math.max(edge.distance, 0);
+      const facing = edge.nx * lightX + edge.ny * lightY;
+      const lit = facing > 0 ? facing ** 1.6 : bounce * (-facing) ** 2.2;
+      if (lit <= 0.002) continue;
+      const tilt = slope[Math.min(STEPS, Math.round((u / rim) * STEPS))];
+      // Sharpest at the very edge, fading in over `band`.
+      const falloff = Math.exp(-u / band);
+      // Anti-alias the outer half pixel.
+      const cover = edge.distance < 0.5 ? edge.distance + 0.5 : 1;
+      const coefficient = Math.min(1, lit * tilt ** 1.5 * falloff * cover);
+      if (coefficient <= 0.004) continue;
       const k = (j * w + i) * 4;
-      const grey = 255 * coefficient;
-      pixels[k] = grey;
-      pixels[k + 1] = grey;
-      pixels[k + 2] = grey;
-      pixels[k + 3] = grey * coefficient;
+      pixels[k] = 255;
+      pixels[k + 1] = 255;
+      pixels[k + 2] = 255;
+      pixels[k + 3] = 255 * coefficient;
     }
   }
 
@@ -362,31 +439,96 @@ export const specularMap = ({
   return url ? { url, reach: 0 } : null;
 };
 
+export interface LensOptions extends GlassGeometry {
+  /** The traced bezel from `bezelProfile`. */
+  bezel: BezelProfile;
+  /** Magnification across the flat face, as a factor (> 1). */
+  zoom: number;
+  quality?: number;
+  maxBuffer?: number;
+}
+
 /**
- * A ring that magnifies about the centre — no bezel, no shape, just a zoom.
- * Used on its own it makes a plain magnifier; layered before a bezel map it
- * gives the swollen thumb that "opens out" look.
+ * The map for a magnifying lens: one field that does the zoom and the rim
+ * together, because a real lens is one piece of glass and they are not
+ * separable.
+ *
+ * Across the flat face every pixel reads the backdrop from nearer the centre,
+ * so it is enlarged by `zoom`. Over the rim the zoom eases off along the same
+ * traced bezel profile, back to 1:1 at the very edge, so whatever the face
+ * enlarged is squeezed back into the rim: the compressed, curved band you see
+ * round the edge of a real lens. The traced inward bend rides on top.
+ *
+ * Stacking a separate zoom pass and the rim map instead stretched the rim:
+ * both pulled inward, so a few pixels of backdrop were smeared across the
+ * whole bezel. Along any line out from the centre the field here only ever
+ * moves outward, so nothing folds or smears.
  */
-export const magnifyingMap = (width: number, height: number, quality = 2, maxBuffer = 512): GlassMap | null => {
-  if (!(width > 0) || !(height > 0)) return null;
+export const lensMap = ({
+  width,
+  height,
+  radius,
+  bezelWidth,
+  shape,
+  squircleExponent = 4,
+  bezel,
+  zoom,
+  quality = 2,
+  maxBuffer = 512,
+}: LensOptions): GlassMap | null => {
+  if (!(width > 0) || !(height > 0) || !(bezelWidth > 0) || !(zoom > 1)) return null;
   const scale = bufferScale(width, height, quality, maxBuffer);
   const w = Math.max(Math.round(width * scale), 4);
   const h = Math.max(Math.round(height * scale), 4);
+  const effectiveRadius =
+    shape === 'pill' ? Math.min(w, h) / 2 : Math.min(radius * scale, Math.min(w, h) / 2);
+  const bezelPx = bezelWidth * scale;
+  const pull = 1 - 1 / zoom;
+  const reachPx = bezel.reach * scale;
+  const steps = bezel.samples.length;
   const cx = w / 2;
   const cy = h / 2;
-  const image = new ImageData(w, h);
-  const pixels = image.data;
+  const feather = Math.max(scale, 0.75);
+  const offsets = new Float32Array(w * h * 2);
+  let peak = 0;
+
   for (let j = 0; j < h; j += 1) {
-    const dy = (j + 0.5 - cy) / cy;
+    const py = j + 0.5;
     for (let i = 0; i < w; i += 1) {
-      const dx = (i + 0.5 - cx) / cx;
-      const k = (j * w + i) * 4;
-      pixels[k] = 128 + Math.max(-127, Math.min(127, dx * 127));
-      pixels[k + 1] = 128 + Math.max(-127, Math.min(127, dy * 127));
-      pixels[k + 2] = 0;
-      pixels[k + 3] = 255;
+      const px = i + 0.5;
+      const edge = edgeAt(px, py, w, h, effectiveRadius, shape, squircleExponent);
+      if (!edge || edge.distance < -feather) continue;
+      const alpha = edge.distance >= 0 ? 1 : (edge.distance + feather) / feather;
+      // How much of the rim this pixel is in: 1 at the edge, 0 on the face.
+      let rim = 0;
+      let shift = 0;
+      if (edge.distance < bezelPx) {
+        const at = (Math.max(edge.distance, 0) / bezelPx) * (steps - 1);
+        const lo = Math.floor(at);
+        const hi = Math.min(lo + 1, steps - 1);
+        shift = bezel.samples[lo] + (bezel.samples[hi] - bezel.samples[lo]) * (at - lo);
+        rim = Math.min(1, Math.abs(shift));
+      }
+      const keep = pull * (1 - rim);
+      const dx = (-(px - cx) * keep - edge.nx * shift * reachPx) * alpha;
+      const dy = (-(py - cy) * keep - edge.ny * shift * reachPx) * alpha;
+      const k = (j * w + i) * 2;
+      offsets[k] = dx;
+      offsets[k + 1] = dy;
+      peak = Math.max(peak, Math.abs(dx), Math.abs(dy));
     }
   }
+  if (peak <= 0) return null;
+
+  const image = new ImageData(w, h);
+  const pixels = image.data;
+  for (let p = 0; p < w * h; p += 1) {
+    pixels[p * 4] = 128 + (offsets[p * 2] / peak) * 127;
+    pixels[p * 4 + 1] = 128 + (offsets[p * 2 + 1] / peak) * 127;
+    pixels[p * 4 + 2] = 0;
+    pixels[p * 4 + 3] = 255;
+  }
   const url = toDataUrl(image);
-  return url ? { url, reach: 0 } : null;
+  // `reach` back in CSS px, for `scaleFor`.
+  return url ? { url, reach: peak / scale } : null;
 };

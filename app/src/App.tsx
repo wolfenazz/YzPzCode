@@ -50,6 +50,7 @@ function App() {
     glassProfile,
     glassStrength,
     glassMagnifier,
+    glassFollowSystemTransparency,
     nodejsCheckPassed,
     pruneMissingWorkspaces,
     openWorkspaces,
@@ -140,6 +141,16 @@ function App() {
   useEffect(() => {
     applyGlassPreferences({ profile: glassProfile, strength: glassStrength });
   }, [glassProfile, glassStrength]);
+
+  // The glass sheets flatten under `prefers-reduced-transparency` only behind
+  // this class. Windows reports that preference whenever its own transparency
+  // effects are off, which silently stripped every refraction while the app's
+  // Liquid glass switch still read "on".
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle('lg-follow-transparency', glassFollowSystemTransparency);
+    return () => root.classList.remove('lg-follow-transparency');
+  }, [glassFollowSystemTransparency]);
 
   useEffect(() => {
     initWindowPlatform().then(setIsWindows).catch((err) => {

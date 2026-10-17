@@ -93,6 +93,17 @@ const SWITCHES = '.st-switch, .ws-switch, .sx-switch';
 /** Capsule buttons across the app. */
 const BUTTONS =
   '.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn';
+/**
+ * Text boxes: bare fields, and the boxes that hold a field with an icon beside
+ * it (search). The glass sheet styles the same list (Text fields).
+ */
+const FIELDS = [
+  '.st-input', '.st-select', '.st-textarea', '.sx-input', '.sx-select select', '.sx-textarea',
+  '.ws-input', '.sh-input:not(.sh-input--color)', '.pr-input', '.pr-select',
+  '.wr-input', '.wr-textarea', '.wr-select', '.wr-control',
+  '.dz-input', '.dz-select', '.pd-control', '[data-slot="input"]',
+  '.explorer-pane__search', '.sk-search', '.wr-search', '.bx-start__search', '.bx-omnibox',
+].join(', ');
 /** Floating menus and popovers. */
 const MENUS =
   '.ctx-menu, .bx-popover, .dz-menu, .pr-popover, .pr-menu, .ws-popover, .sh-menu, .sh-listmenu, .tp-menu, .term-menu, .wr-popover, .premium-menu, .statusbar-popover, .spawn-shell-menu, .lg-menu';
@@ -128,10 +139,6 @@ export const GLASS_TARGETS: GlassTarget[] = [
     part: true,
     look: {
       ...preset('segmented'),
-      // The lip belongs to the switch: the track must open out at the edges and
-      // pinch through the middle as the thumb crosses it.
-      profile: 'lip',
-      pinProfile: true,
       bezelWidth: 7,
       glassThickness: 18,
       scaleRatio: 0.85,
@@ -145,7 +152,12 @@ export const GLASS_TARGETS: GlassTarget[] = [
   // (`.lg-lens` is *not* here: utils/glassSwitch.ts sizes its own filter for
   // the exact box the lens swells to and attaches it before the element is in
   // the document, so there is no frame where it is un-refracted.)
-  { selector: '.glass-thumb', part: true, look: { ...thumbLook, scaleRatio: 1.3, specularOpacity: 0.6, specularSaturation: 7 } },
+  // It is drawn above the labels while lit, so it magnifies the one it is over.
+  {
+    selector: '.glass-thumb',
+    part: true,
+    look: { ...preset('thumb'), zoom: 1.16, scaleRatio: 0.5, specularOpacity: 0.75, specularSaturation: 4, blur: 0.2 },
+  },
 
   // ── Buttons ────────────────────────────────────────────────────────────
   {
@@ -190,8 +202,8 @@ export const GLASS_TARGETS: GlassTarget[] = [
 
   // ── Fields ─────────────────────────────────────────────────────────────
   {
-    selector: '.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input',
-    look: { ...preset('field'), scaleRatio: 0.85, specularOpacity: 0.45, blur: 1.2 },
+    selector: FIELDS,
+    look: { ...preset('field'), scaleRatio: 0.85, specularOpacity: 0.45, blur: 5 },
     maxArea: 140_000,
   },
 ];
@@ -213,7 +225,20 @@ interface Attached {
   filter: GlassFilter | null;
   /** Last measured box, so a resize that does not change the shape is free. */
   key: string;
+  /** When the filter was last cut, for `REBUILD_GAP`. */
+  builtAt: number;
+  /** A trailing re-cut waiting out `REBUILD_GAP`. */
+  timer: number;
 }
+
+/**
+ * Shortest gap between two re-cuts of one element, in ms. A thumb that slides
+ * between items of different widths animates its width every frame; cutting a
+ * new map each frame cost a canvas encode per frame. In between, the filter of
+ * the last cut stretches over the element, which no one can see at that speed,
+ * and a trailing cut lands the exact one when the motion stops.
+ */
+const REBUILD_GAP = 90;
 
 /**
  * How a surface is reading right now:
@@ -272,7 +297,18 @@ const refresh = (el: HTMLElement, entry: Attached): void => {
   // A resize that does not change the shape needs no new map: the filters are
   // keyed on the box, so an element scrolled or nudged by a pixel reuses one.
   if (key === entry.key) return;
+  const now = performance.now();
+  if (entry.filter && now - entry.builtAt < REBUILD_GAP) {
+    if (!entry.timer) {
+      entry.timer = window.setTimeout(() => {
+        entry.timer = 0;
+        if (attached.get(el) === entry) queueRefresh(el);
+      }, REBUILD_GAP);
+    }
+    return;
+  }
   entry.key = key;
+  entry.builtAt = now;
   const next =
     box.width * box.height <= entry.maxArea && isRefractable(box)
       ? glassFilter({ ...entry.look, ...box })
@@ -288,6 +324,7 @@ const refresh = (el: HTMLElement, entry: Attached): void => {
 const detach = (el: HTMLElement): void => {
   const entry = attached.get(el);
   if (!entry) return;
+  if (entry.timer) window.clearTimeout(entry.timer);
   releaseGlassFilter(entry.filter);
   attached.delete(el);
   resize.unobserve(el);
@@ -316,6 +353,8 @@ const attach = (el: HTMLElement, target: GlassTarget): void => {
     },
     filter: null,
     key: '',
+    builtAt: 0,
+    timer: 0,
   };
   attached.set(el, entry);
   refresh(el, entry);

@@ -8,8 +8,8 @@
  * track's ends, the row behind.
  *
  * The lens refracts its backdrop for real: `glass/` builds a displacement-map
- * SVG filter for the lens's box (a lip bezel, the profile iOS uses here, so
- * the track opens out at the edges and pinches through the middle) and it
+ * SVG filter for the lens's box (a thick convex lens: the middle magnifies the
+ * track, the rim pulls it in round the edge with a faint colour fringe) and it
  * becomes the lens's `backdrop-filter`. An earlier version had to draw a
  * magnified copy of the track inside the lens instead, because an SVG filter
  * in `backdrop-filter` was unreliable then; the browser ships it now, and
@@ -43,6 +43,8 @@ const STRETCH: Spring = { k: 460, zeta: 0.34 };
 const MAX_STRETCH = 0.28;
 const STRETCH_SPEED = 1400; // px/s at which the lens is fully stretched
 const TAP_SWELL_MS = 190; // a tap keeps the lens swollen while it travels
+/** What the swollen thumb is made of, shared by the press and the prebuild. */
+const LENS_LOOK = { scaleRatio: 0.5, specularOpacity: 0.75, specularSaturation: 4, blur: 0.2 };
 
 interface Lens {
   sw: HTMLElement;
@@ -164,9 +166,7 @@ const frame = (now: number) => {
  *
  * Its box is the thumb's size times GROW, so the optics are built for exactly
  * the box the lens reaches at full press — the only moment the refraction is
- * visible. The lip bezel is what iOS uses here: convex at the rim, concave
- * through the middle, which opens the track out at the lens's edges and
- * pinches it across the centre as the thumb travels.
+ * visible.
  */
 const lift = (sw: HTMLElement, event: PointerEvent): Lens | null => {
   const rect = sw.getBoundingClientRect();
@@ -192,10 +192,7 @@ const lift = (sw: HTMLElement, event: PointerEvent): Lens | null => {
     shape: 'pill',
     // Fully swollen is the only state that shows the optics, so bend at the
     // strength the lens actually reaches.
-    scaleRatio: 1,
-    specularOpacity: 0.6,
-    specularSaturation: 7,
-    blur: 0.3,
+    ...LENS_LOOK,
   });
   if (filter) {
     el.style.setProperty('backdrop-filter', filter.url);
@@ -243,10 +240,7 @@ const prebuild = () => {
     height: th * GROW,
     radius: (th * GROW) / 2,
     shape: 'pill',
-    scaleRatio: 1,
-    specularOpacity: 0.6,
-    specularSaturation: 7,
-    blur: 0.3,
+    ...LENS_LOOK,
   });
 };
 

@@ -132,3 +132,16 @@ Goal: the adapted React Bits PromptBar becomes the composer of the Writing, Pres
 - [x] S8.2.4: Ctrl+Enter handling removed from the studio wrappers (the bar sends on Enter; no double submit)
 - [x] S8.2.5: `npx tsc --noEmit` clean; `npm run build` passed (2m 15s, `StudioPromptBar` chunk emitted)
 - Note: models without effort control — the effort button is hidden entirely when the chosen model lists no effort levels; picking a model resets the level to the CLI default, and a stored level the chosen model does not accept is cleared (same guard as `EffortSelect`).
+
+## M9: Ship v5.45.0 to users | status: in_progress
+Goal: bump the app version, land the verified glass work on `main`, and drive the GitHub Release workflow so the updater sees 5.45.0.
+Verification: three version files agree, `npx tsc --noEmit` clean, Release run green, GitHub release published (not draft) with `latest.json` for the updater.
+### T9.1: Version + commits | status: completed
+- [x] S9.1.1: `app/package.json`, `app/src-tauri/Cargo.toml`, `app/src-tauri/Cargo.lock`, `app/src-tauri/tauri.conf.json` all on 5.45.0 (`Cargo.lock` bumped by hand so the tag commit does not depend on a local cargo run) | verified by grep for 5.44.0 across the repo (no hits outside node_modules/target/git)
+- [x] S9.1.2: Glass work committed as `ff70ffd feat(glass): ...` with the deviations and harness numbers in the message body; version bump committed separately as `64eb282 chore(release): v5.45.0` | verified `git log`
+- [x] S9.1.3: Rebased the 3 local commits onto `origin/main` (was ahead 1 / behind 1 after the contributors-graphic commit) and pushed | verified `main...origin/main` in sync
+### T9.2: Release | status: in_progress
+- [x] S9.2.1: Annotated tag `v5.45.0` on `64eb282` pushed to origin | verified `git log --oneline -1 v5.45.0`
+- [x] S9.2.2: Release workflow `38978217771` triggered by the tag push and observed in progress | verified `gh run list --workflow=release.yml`
+- [ ] S9.2.3: Workflow green through build -> updater-json -> publish-release
+- [ ] S9.2.4: Release notes written (real changelog in place of the workflow's placeholder body)

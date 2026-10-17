@@ -31,8 +31,11 @@ html.liquid-glass {
   --lg-thumb: color-mix(in srgb, var(--text-primary) 17%, var(--bg-secondary));
   --lg-groove: color-mix(in srgb, var(--text-primary) 7.5%, transparent);
 
-  --lg-spec-top: inset 0 1px 0 rgb(255 255 255 / 0.24);
-  --lg-spec-bottom: inset 0 -1px 0 rgb(0 0 0 / 0.18);
+  /* The rim catches the light where it faces it (upper left) and, weaker, where
+     the light that crossed the glass leaves it (lower right): two offset inset
+     lines rather than a flat top line, so a capsule reads as a lit solid. */
+  --lg-spec-top: inset 1px 1px 0 -0.25px rgb(255 255 255 / 0.26);
+  --lg-spec-bottom: inset -1px -1px 0 -0.25px rgb(255 255 255 / 0.08);
   --lg-rim: inset 0 0 0 1px var(--lg-ring);
   --lg-groove-shadow: inset 0 1px 3px rgb(0 0 0 / 0.3), inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent);
   --lg-drop-sm: 0 1px 2px rgb(0 0 0 / 0.18), 0 4px 10px -4px rgb(0 0 0 / 0.28);
@@ -60,8 +63,8 @@ html.liquid-glass.claude-theme {
   --lg-thumb: color-mix(in srgb, #fff 82%, var(--bg-secondary));
   --lg-groove: color-mix(in srgb, var(--text-primary) 6%, transparent);
 
-  --lg-spec-top: inset 0 1px 0 rgb(255 255 255 / 0.95);
-  --lg-spec-bottom: inset 0 -1px 0 rgb(0 0 0 / 0.05);
+  --lg-spec-top: inset 1px 1px 0 -0.25px rgb(255 255 255 / 0.95);
+  --lg-spec-bottom: inset -1px -1px 0 -0.25px rgb(0 0 0 / 0.05);
   --lg-groove-shadow: inset 0 1px 2px rgb(0 0 0 / 0.12), inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 6%, transparent);
   --lg-drop-sm: 0 1px 2px rgb(32 31 29 / 0.08), 0 4px 10px -4px rgb(32 31 29 / 0.14);
   --lg-drop-lg: 0 20px 48px -16px rgb(32 31 29 / 0.28), 0 6px 16px -8px rgb(32 31 29 / 0.16);
@@ -111,8 +114,12 @@ html.liquid-glass :where(.bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn) {
     opacity 120ms ease;
 }
 
-/* Under the pointer: brighter fill and the light that follows it. */
-html.liquid-glass :where(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .st-btn--ghost, .sx-btn--quiet, .dz-btn--ghost, .pd-btn--ghost, .pr-btn--ghost, .ws-btn--ghost, .st-btn--danger, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):hover:not(:disabled):not(.is-active):not([aria-pressed="true"]):not([aria-selected="true"]) {
+/* Under the pointer: brighter fill and the light that follows it. Capsules that
+   paint a colour of their own — the primary and solid-danger variants — are
+   left out: their label is mixed for that fill, not for neutral glass, and the
+   swap is what left them unreadable. They keep their fill and gather the
+   pointer light on top (the primary group below). */
+html.liquid-glass :where(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .st-btn--ghost, .sx-btn--quiet, .dz-btn--ghost, .pd-btn--ghost, .pr-btn--ghost, .ws-btn--ghost, .st-btn--danger, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):not(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid):hover:not(:disabled):not(.is-active):not([aria-pressed="true"]):not([aria-selected="true"]) {
   border-color: transparent;
   background-color: var(--lg-fill-hover);
   background-image: var(--lg-light), var(--lg-sheen);
@@ -120,8 +127,10 @@ html.liquid-glass :where(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .
 }
 
 /* Pressed: the fill deepens; the lift (grow, lens, drag) comes from
-   utils/glassPress.ts through [data-glass-hold], styled at the end. */
-html.liquid-glass :where(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):active:not(:disabled) {
+   utils/glassPress.ts through [data-glass-hold], styled at the end. A capsule
+   that paints its own colour keeps it here too — the press still reads through
+   the grow and the lit rim, and its label stays legible. */
+html.liquid-glass :where(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):not(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid):active:not(:disabled) {
   background-color: var(--lg-fill-press);
 }
 
@@ -434,22 +443,125 @@ html.liquid-glass :is(.st-switch, .ws-switch, .sx-switch):disabled {
   opacity: 0.45;
 }
 
-/* ── Fields ─────────────────────────────────────────────────────────
-   Recessed glass; the caret image on selects is left alone. */
+/* ── Text fields ─────────────────────────────────────────────────────
+   Every text box is a recessed glass well: a pale groove sunk into the
+   surface, shaded along the upper-left inside (the light comes from there)
+   with a thin catch-light along the lower-right lip. Hover lifts the groove;
+   focus brightens the lip and fills the well a little more. No ring and no
+   outline (see the last rule of this sheet): the caret says where you are.
+   Search boxes are the same well as a capsule, as on iOS.
+     FIELD    a bare <input> / <textarea> / select
+     WRAPPER  a box that holds a bare input, an icon and a clear button
+   A new family is added to both lists below, and to GLASS_TARGETS in
+   glass/glassRefraction.ts so it gets the same rim. */
 
-html.liquid-glass :where(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea) {
+html.liquid-glass {
+  --lg-well:
+    inset 1px 1.5px 3px rgb(0 0 0 / 0.34),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 8%, transparent),
+    inset -1px -1px 0 -0.25px rgb(255 255 255 / 0.09);
+  --lg-well-lit:
+    inset 1px 1.5px 3px rgb(0 0 0 / 0.3),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 42%, transparent),
+    inset -1px -1px 0 -0.25px rgb(255 255 255 / 0.18),
+    0 0 16px -5px color-mix(in srgb, var(--text-primary) 16%, transparent);
+  --lg-well-bad:
+    inset 1px 1.5px 3px rgb(0 0 0 / 0.3),
+    inset 0 0 0 1px color-mix(in srgb, var(--destructive, #d95d58) 65%, transparent);
+}
+
+html.liquid-glass.light-theme,
+html.liquid-glass.claude-theme {
+  --lg-well:
+    inset 1px 1.5px 2px rgb(32 31 29 / 0.13),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 9%, transparent),
+    inset -1px -1px 0 -0.25px rgb(255 255 255 / 0.95);
+  --lg-well-lit:
+    inset 1px 1.5px 2px rgb(32 31 29 / 0.11),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 44%, transparent),
+    inset -1px -1px 0 -0.25px rgb(255 255 255 / 1),
+    0 0 16px -6px color-mix(in srgb, var(--text-primary) 22%, transparent);
+}
+
+html.liquid-glass :is(
+  .st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea,
+  .ws-input, .sh-input:not(.sh-input--color), .pr-input, .pr-select,
+  .wr-input, .wr-textarea, .wr-select, .wr-control,
+  .dz-input, .dz-select, .pd-control, [data-slot="input"],
+  .explorer-pane__search, .sk-search, .wr-search, .bx-start__search, .bx-omnibox
+) {
   border-color: transparent;
   border-radius: 0.75rem;
   background-color: var(--lg-groove);
-  box-shadow: var(--lg-groove-shadow);
+  background-image: none;
+  box-shadow: var(--lg-well);
   transition: box-shadow 200ms var(--lg-ease), background-color 140ms ease;
 }
 
-html.liquid-glass :where(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea):focus {
+/* Taller boxes read better with a slightly softer corner than a pill. */
+html.liquid-glass :is(.st-textarea, .sx-textarea, .wr-textarea, textarea.pr-input, textarea.sh-input) {
+  border-radius: 0.875rem;
+}
+
+/* Search boxes: capsules. */
+html.liquid-glass :is(.explorer-pane__search, .sk-search, .wr-search, .bx-start__search, .bx-omnibox) {
+  border-radius: 999px;
+}
+
+html.liquid-glass :is(
+  .st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea,
+  .ws-input, .sh-input:not(.sh-input--color), .pr-input, .pr-select,
+  .wr-input, .wr-textarea, .wr-select, .wr-control,
+  .dz-input, .dz-select, .pd-control, [data-slot="input"],
+  .explorer-pane__search, .sk-search, .wr-search, .bx-start__search, .bx-omnibox
+):hover:not(:disabled) {
   border-color: transparent;
   background-color: var(--lg-fill-hover);
+}
+
+html.liquid-glass :is(
+  .st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea,
+  .ws-input, .sh-input:not(.sh-input--color), .pr-input, .pr-select,
+  .wr-input, .wr-textarea, .wr-select, .wr-control,
+  .dz-input, .dz-select, .pd-control, [data-slot="input"]
+):focus,
+html.liquid-glass :is(.explorer-pane__search, .sk-search, .wr-search, .bx-start__search):focus-within,
+html.liquid-glass .bx-omnibox.is-focused {
+  border-color: transparent;
+  background-color: var(--lg-fill-hover);
+  box-shadow: var(--lg-well-lit);
+}
+
+html.liquid-glass :is(.st-input, .ws-input, .sh-input, .pr-input, .wr-input, .wr-control, .pd-control, [data-slot="input"])[aria-invalid="true"] {
+  box-shadow: var(--lg-well-bad);
+}
+
+/* Inside a wrapper the real input is flat: the wrapper is the glass. */
+html.liquid-glass :is(.explorer-pane__search, .sk-search, .wr-search, .bx-start__search) input {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* ── Prompt boxes ────────────────────────────────────────────────────
+   The big description boxes (composers) are raised, not sunk: a pane of glass
+   that the typing happens on. Same rim as every other pane. */
+
+html.liquid-glass :is(.dz-composer, .pd-composer, .wr-composer, .pd-compose, .pd-fs__describe) {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--popover, var(--bg-secondary)) 62%, transparent);
+  background-image: var(--lg-sheen-soft);
+  box-shadow: var(--lg-rim), var(--lg-spec-top), var(--lg-spec-bottom), var(--lg-drop-sm);
+  transition: box-shadow 200ms var(--lg-ease), background-color 140ms ease;
+}
+
+html.liquid-glass :is(.dz-composer, .pd-composer, .wr-composer, .pd-compose, .pd-fs__describe):focus-within {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--popover, var(--bg-secondary)) 72%, transparent);
   box-shadow:
-    var(--lg-groove-shadow);
+    inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 22%, transparent),
+    var(--lg-spec-top),
+    var(--lg-spec-bottom),
+    var(--lg-drop-sm);
 }
 
 /* ── Floating surfaces ───────────────────────────────────────────────
@@ -474,6 +586,14 @@ html.liquid-glass .ctx-item {
 }
 
 html.liquid-glass :where(.ctx-item[data-highlighted], .ctx-item[data-state="open"], .ctx-menu--plain .ctx-item:hover:not(:disabled), .ctx-menu--plain .ctx-item:focus-visible) {
+  background-color: var(--lg-fill-hover);
+  background-image: var(--lg-sheen);
+  box-shadow: var(--lg-spec-top);
+}
+
+/* The terminal options menu keeps its own row paint; under glass the row under
+   the pointer (or the open submenu's) is a lit pill like every other menu. */
+html.liquid-glass :where(.term-menu__item[data-highlighted], .term-menu__item[data-state="open"]) {
   background-color: var(--lg-fill-hover);
   background-image: var(--lg-sheen);
   box-shadow: var(--lg-spec-top);
@@ -518,6 +638,141 @@ html.liquid-glass :where(.sh-toast, .dv-toast) {
 html.liquid-glass .wr-toast {
   background-color: color-mix(in srgb, var(--wr-ink) 84%, transparent);
   background-image: linear-gradient(180deg, rgb(255 255 255 / 0.2), rgb(255 255 255 / 0) 60%);
+}
+
+/* ── Update notice ───────────────────────────────────────────────────
+   The card that appears when a release is ready. Glass over the app, but at
+   88% of the panel colour rather than the 74% menus use: it lands over whatever
+   the user was doing, and a notice nobody can read is worse than a plain one.
+   The rim is the same lit hairline as the floating bars. */
+
+html.liquid-glass .upd-toast {
+  border-color: var(--lg-ring);
+  border-radius: 1.375rem;
+  background-color: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  background-image:
+    var(--lg-sheen-soft),
+    radial-gradient(120% 60% at 50% -10%, rgb(255 255 255 / 0.07), rgb(255 255 255 / 0) 70%);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-spec-top), var(--lg-spec-bottom), var(--lg-drop-lg);
+  isolation: isolate;
+}
+
+html.liquid-glass .upd-toast::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    140deg,
+    rgb(255 255 255 / 0.5),
+    rgb(255 255 255 / 0.08) 30%,
+    rgb(255 255 255 / 0) 52%,
+    rgb(255 255 255 / 0.06) 74%,
+    rgb(255 255 255 / 0.26)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  pointer-events: none;
+}
+
+html.liquid-glass.light-theme .upd-toast,
+html.liquid-glass.claude-theme .upd-toast {
+  background-color: color-mix(in srgb, #fff 88%, transparent);
+
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.95),
+    inset 0 -1px 0 rgb(0 0 0 / 0.05),
+    var(--lg-drop-lg);
+}
+
+/* The release the app is on now, recessed; the one it is going to, holding the
+   accent. */
+html.liquid-glass .upd-strip {
+  border-color: transparent;
+  background-color: var(--lg-groove);
+  box-shadow: var(--lg-groove-shadow);
+}
+
+html.liquid-glass .upd-badge {
+  border-color: transparent;
+  background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow:
+    var(--lg-rim),
+    var(--lg-spec-top),
+    inset 0 0 14px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+html.liquid-glass .upd-track {
+  background-color: var(--lg-groove);
+  box-shadow: var(--lg-groove-shadow);
+}
+
+html.liquid-glass .upd-bar {
+  background-color: var(--accent);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.38), rgb(255 255 255 / 0) 60%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.45),
+    0 0 12px -2px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+html.liquid-glass .upd-btn {
+  border-radius: 999px;
+  transition:
+    transform 460ms var(--lg-spring),
+    background-color 140ms ease,
+    box-shadow 220ms var(--lg-ease),
+    color 120ms ease,
+    filter 140ms ease;
+}
+
+html.liquid-glass .upd-btn--go {
+  background-color: color-mix(in srgb, var(--accent) 94%, transparent);
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.34), rgb(255 255 255 / 0.05) 55%, rgb(255 255 255 / 0));
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.5),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 1px 2px rgb(0 0 0 / 0.24),
+    0 10px 22px -10px color-mix(in srgb, var(--accent) 80%, transparent);
+  color: #fff;
+}
+
+html.liquid-glass .upd-btn--go:hover:not(:disabled) {
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.55),
+    inset 0 -1px 0 rgb(0 0 0 / 0.18),
+    0 12px 26px -10px color-mix(in srgb, var(--accent) 90%, transparent);
+}
+
+html.liquid-glass .upd-btn--quiet,
+html.liquid-glass .upd-close {
+  background-color: var(--lg-fill);
+  background-image: var(--lg-sheen);
+  box-shadow: var(--lg-rim), var(--lg-spec-top);
+  color: var(--text-primary);
+}
+
+html.liquid-glass .upd-btn--quiet:hover,
+html.liquid-glass .upd-close:hover {
+  background-color: var(--lg-fill-hover);
+  color: var(--text-primary);
+}
+
+html.liquid-glass .upd-close {
+  border-radius: 999px;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  html.liquid-glass .upd-toast {
+    background-color: var(--bg-secondary);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }
 
 /* ── Bars: title bar, workspace tabs, status bar ──────────────────────
@@ -568,13 +823,13 @@ html.liquid-glass .chrome-divider {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  html.liquid-glass {
+  html.liquid-glass.lg-follow-transparency {
     --lg-surface: var(--popover, var(--bg-secondary));
     --lg-bar: var(--bg-secondary);
     --lg-blur: none;
   }
 
-  html.liquid-glass :where(.dz-modal, .dz-modal-scrim, .pr-modal, .wr-modal, .sh-dialog) {
+  html.liquid-glass.lg-follow-transparency :where(.dz-modal, .dz-modal-scrim, .pr-modal, .wr-modal, .sh-dialog) {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -659,8 +914,12 @@ html.liquid-glass .glass-thumb[data-glass-hold][data-glass-hold] {
   transition: background-color 180ms ease, box-shadow 200ms var(--lg-ease);
 }
 
+/* Lit, it is clear glass over the labels (not under them), so the label it is
+   over is seen through the lens, magnified and bent, as on iOS. */
 html.liquid-glass .glass-thumb[data-glass-hold][data-glass-lit] {
-  background-color: color-mix(in srgb, var(--lg-thumb) 22%, transparent);
+  z-index: 2 !important;
+  background-color: color-mix(in srgb, var(--lg-thumb) 8%, transparent);
+  background-image: none;
   box-shadow:
     var(--lg-rim),
     inset 0 1px 0 rgb(255 255 255 / 0.55),
@@ -719,13 +978,13 @@ html.liquid-glass .view-switch[data-glass-sliding] .view-switch__item[data-glass
 /* ── Glass lens ──────────────────────────────────────────────────────
    utils/glassSwitch.ts swells a held switch thumb into `.lg-lens`, and
    utils/glassPress.ts swells a held navigation thumb into `.glass-thumb`.
-   Both refract their real backdrop now (`glass/`), so what is left in CSS is
-   the body, the iridescent rim and the speculars:
+   Both are real lenses (`glass/`: the face magnifies, the rim compresses and
+   fringes with colour, the rim's glint follows the bezel), so what is left in
+   CSS is what the light does to the body:
       1. body: white while unlit (the switch thumb it replaces), clear once lit;
-      2. edge light: a thin Fresnel glow just inside the rim;
-      3. iridescent rim: a hairline ring whose colour turns round the edge;
-      4. specular: a small arc upper left, a faint glint low on the right;
-      5. a soft, lifted shadow.
+      2. edge: a hairline lit from the upper left, weaker on the lower right;
+      3. thickness: light caught inside the lit edge, shade on the far side;
+      4. a soft, lifted shadow.
    Lighting up and down is a short cross-fade (opacity and colour); the swell
    itself is the compositor-only `scale`. */
 
@@ -764,14 +1023,6 @@ html.liquid-glass:not(.light-theme):not(.claude-theme) .lg-lens[data-glass-lit] 
     0 2px 5px rgb(0 0 0 / 0.24);
 }
 
-/* The refracting edge: real glass bends the light at its curved rim, so the
-   rim reads as a bright, slightly frosted band, thicker than a hairline,
-   with the centre clear. */
-html.liquid-glass .lg-lens[data-glass-lit]::after {
-  box-shadow:
-    inset 0 0 0 1.5px rgb(255 255 255 / 0.4),
-    inset 0 0 5px 1px rgb(255 255 255 / 0.22);
-}
 
 .lg-lens::before,
 .lg-lens::after,
@@ -792,37 +1043,35 @@ html.liquid-glass .lg-lens[data-glass-lit]::after {
   opacity: 1;
 }
 
-/* Iridescent hairline rim. */
+/* The edge of the glass: a hairline, brightest where it faces the light
+   (upper left) and again, weaker, where the bounce leaves (lower right). The
+   colour fringe and the rim's glint are the lens filter's, drawn from what is
+   actually behind it, so nothing here paints a rainbow or a blob. */
 html.liquid-glass :is(.lg-lens, .lg-lens-layers)::before {
-  padding: 1.5px;
-  background: conic-gradient(
-    from 215deg,
-    rgb(255 255 255 / 0.95),
-    rgb(255 160 215 / 0.8) 9%,
-    rgb(150 205 255 / 0.8) 19%,
-    rgb(255 255 255 / 0.35) 30%,
-    rgb(255 255 255 / 0.12) 44%,
-    rgb(255 255 255 / 0.55) 56%,
-    rgb(255 220 150 / 0.75) 64%,
-    rgb(140 255 225 / 0.7) 73%,
-    rgb(190 160 255 / 0.6) 81%,
-    rgb(255 255 255 / 0.3) 90%,
-    rgb(255 255 255 / 0.95)
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.8),
+    rgb(255 255 255 / 0.18) 32%,
+    rgb(255 255 255 / 0.06) 52%,
+    rgb(255 255 255 / 0.16) 72%,
+    rgb(255 255 255 / 0.5)
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 
-/* Specular arc on the upper left and a caustic glint low on the right. */
+/* Thickness: light caught just inside the lit edge, shade gathering on the
+   far side. */
 html.liquid-glass :is(.lg-lens, .lg-lens-layers)::after {
-  background:
-    radial-gradient(40% 20% at 30% 10%, rgb(255 255 255 / 0.9), rgb(255 255 255 / 0) 80%),
-    radial-gradient(28% 14% at 72% 90%, rgb(255 255 255 / 0.5), rgb(255 255 255 / 0) 80%);
+  box-shadow:
+    inset 1px 1.5px 3px -1.5px rgb(255 255 255 / 0.6),
+    inset -1px -2px 4px -2px rgb(0 0 0 / 0.24);
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  html.liquid-glass .lg-lens[data-glass-lit] {
+  html.liquid-glass.lg-follow-transparency .lg-lens[data-glass-lit] {
     background-color: rgb(255 255 255 / 0.92);
   }
 }
@@ -957,7 +1206,7 @@ html.liquid-glass .workspace-dev-server button:last-of-type:hover {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  html.liquid-glass :is(.lg-float, .dz-topbar, .workspace-dev-server) {
+  html.liquid-glass.lg-follow-transparency :is(.lg-float, .dz-topbar, .workspace-dev-server) {
     --lg-float-bg: var(--bg-secondary);
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
@@ -1139,7 +1388,7 @@ html.animations-disabled .lg-menu.is-closing {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .lg-menu {
+  html.lg-follow-transparency .lg-menu {
     --lg-menu-bg: var(--popover, var(--bg-secondary));
     -webkit-backdrop-filter: none;
     backdrop-filter: none;

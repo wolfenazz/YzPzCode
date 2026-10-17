@@ -80,25 +80,24 @@
   transition: box-shadow 160ms ease;
 }
 
-/* The pressed thumb: clear glass that bends what lies under it. */
+/* The pressed thumb: clear glass that bends what lies under it. No painted
+   sheen: the rim light comes from the lens filter and follows its bezel. What
+   is left here is the glass's thickness (light caught inside the upper-left
+   edge, a little shade low on the right) and the lifted shadow. */
 .lq-slider__glass {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background:
-    radial-gradient(120% 90% at 30% 15%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 55%),
-    rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
   box-shadow:
-    inset 0 0 0 0.75px rgba(255, 255, 255, 0.5),
-    inset 1.5px 2px 1px -1px rgba(255, 255, 255, 0.95),
-    inset -1.5px -2px 1.5px -1.5px rgba(255, 255, 255, 0.6),
-    inset 0 0 10px rgba(255, 255, 255, 0.16),
-    0 0 0 0.5px rgba(0, 0, 0, 0.05),
-    0 4px 16px rgba(0, 0, 0, 0.16),
-    0 1px 4px rgba(0, 0, 0, 0.08);
+    inset 1px 1.5px 3px -1.5px rgba(255, 255, 255, 0.55),
+    inset -1px -2px 4px -2px rgba(0, 0, 0, 0.22),
+    0 0 0 0.5px rgba(0, 0, 0, 0.1),
+    0 6px 18px -4px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.12);
   opacity: var(--lq-glass);
-  -webkit-backdrop-filter: var(--lq-lens) saturate(1.6) brightness(1.06);
-  backdrop-filter: var(--lq-lens) saturate(1.6) brightness(1.06);
+  -webkit-backdrop-filter: var(--lq-lens) saturate(1.25) brightness(1.04);
+  backdrop-filter: var(--lq-lens) saturate(1.25) brightness(1.04);
 }
 
 /* The real input: invisible, on top, its thumb as wide as the visible one so

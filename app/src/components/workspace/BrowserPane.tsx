@@ -190,6 +190,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const setBrowserApplyModeState = useAppStore((state) => state.setBrowserApplyMode);
   const addAppliedStyle = useAppStore((state) => state.addAppliedStyle);
   const undoBrowserStyleStore = useAppStore((state) => state.undoBrowserStyle);
+  // The in-page quick prompt is painted by the bridge, so it cannot see
+  // `html.liquid-glass`: the setting travels with the widget config instead.
+  const liquidGlass = useAppStore((state) => state.liquidGlass);
 
   const [message, setMessage] = useState<BrowserStatusMessage | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1008,8 +1011,10 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       targetId: targetSessionId,
       draft,
       status: widgetStatus,
+      glass: liquidGlass,
     }).catch(() => undefined);
   }, [
+    liquidGlass,
     setBrowserInspectorWidget,
     targetSessionId,
     widgetActive,

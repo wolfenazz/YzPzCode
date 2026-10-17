@@ -172,19 +172,21 @@ export const LiquidSlider = ({ size = 'md', className, style, ref, ...input }: L
     const root = rootRef.current;
     if (!el || !root) return undefined;
     // A real lens for the thumb: a displacement-map filter for exactly the box
-    // the glass layer swells to, so the track bends through it. `--lq-lens` is
-    // the first entry of the layer's backdrop-filter; the sheet appends its
-    // saturation and brightness after it.
+    // the glass layer swells to. The track seen through it is magnified (it
+    // reads thicker inside the lens than outside, as on iOS) and curls in at
+    // the rim. `--lq-lens` is the first entry of the layer's backdrop-filter;
+    // the sheet appends its saturation and brightness after it.
     const lens = glassFilter({
       ...preset('thumb'),
       width: dims.pw,
       height: dims.ph,
       radius: dims.ph / 2,
       shape: 'pill',
-      scaleRatio: 1.25,
-      specularOpacity: 0.6,
-      specularSaturation: 6,
-      blur: 0.3,
+      zoom: 1.32,
+      scaleRatio: 0.5,
+      specularOpacity: 0.75,
+      specularSaturation: 4,
+      blur: 0.2,
     });
     if (lens) root.style.setProperty('--lq-lens', lens.url);
 

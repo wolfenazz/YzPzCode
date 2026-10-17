@@ -388,6 +388,8 @@ export interface BrowserInspectorWidgetConfig {
   /** Replaces the text box content once, e.g. when returning from the side panel. */
   draft?: string | null;
   status?: BrowserInspectorWidgetStatus | null;
+  /** The app's Liquid glass setting; the card falls back to a flat paint without it. */
+  glass: boolean;
 }
 
 export interface BrowserTab {

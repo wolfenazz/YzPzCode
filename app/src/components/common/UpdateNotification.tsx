@@ -28,12 +28,12 @@ export const UpdateNotification: React.FC = () => {
   return (
     <section
       aria-label="Application update"
-      className="fixed bottom-12 right-3 z-50 w-[min(368px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[0_24px_64px_rgba(0,0,0,0.35)] sm:right-4"
+      className="upd-toast fixed bottom-12 right-3 z-50 w-[min(368px,calc(100vw-24px))] overflow-hidden rounded-2xl border border-[var(--border-primary)] bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-[0_24px_64px_rgba(0,0,0,0.35)] sm:right-4"
     >
       <div className="px-5 pb-5 pt-5">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)]">
+            <span className="upd-badge grid size-10 shrink-0 place-items-center rounded-xl border border-[var(--accent-border)] bg-[var(--accent-light)] text-[var(--accent)]">
               <DownloadSimple size={21} weight="duotone" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -50,14 +50,14 @@ export const UpdateNotification: React.FC = () => {
               type="button"
               onClick={dismissUpdate}
               aria-label="Dismiss update"
-              className="-mr-1 -mt-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+              className="upd-close -mr-1 -mt-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
             >
               <X size={16} aria-hidden="true" />
             </button>
           )}
         </div>
 
-        <div className="mt-5 flex items-center gap-3 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3.5 py-2.5 text-xs tabular-nums">
+        <div className="upd-strip mt-5 flex items-center gap-3 rounded-xl border border-[var(--border-primary)] bg-[var(--bg-primary)] px-3.5 py-2.5 text-xs tabular-nums">
           <div className="min-w-0">
             <span className="block text-[10px] text-[var(--text-secondary)]">CURRENT</span>
             <span className="block truncate font-semibold">v{updateAvailable.currentVersion}</span>
@@ -93,10 +93,10 @@ export const UpdateNotification: React.FC = () => {
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={progress}
-              className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]"
+              className="upd-track mt-4 h-2 overflow-hidden rounded-full bg-[var(--bg-tertiary)]"
             >
               <div
-                className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-500 ease-out"
+                className="upd-bar h-full rounded-full bg-[var(--accent)] transition-[width] duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -122,7 +122,7 @@ export const UpdateNotification: React.FC = () => {
                 type="button"
                 onClick={() => void downloadAndInstall()}
                 disabled={checking}
-                className="flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 text-sm font-semibold text-white transition-[filter,transform] hover:brightness-110 active:translate-y-px disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                className="upd-btn upd-btn--go flex h-10 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-[var(--accent)] px-3 text-sm font-semibold text-white transition-[filter,transform] hover:brightness-110 active:translate-y-px disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
               >
                 <DownloadSimple size={16} weight="bold" aria-hidden="true" />
                 {checking ? 'Checking…' : 'Download & install'}
@@ -130,7 +130,7 @@ export const UpdateNotification: React.FC = () => {
               <button
                 type="button"
                 onClick={dismissUpdate}
-                className="h-10 cursor-pointer rounded-lg px-2 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
+                className="upd-btn upd-btn--quiet h-10 cursor-pointer rounded-lg px-4 text-xs font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent)]"
               >
                 Later
               </button>

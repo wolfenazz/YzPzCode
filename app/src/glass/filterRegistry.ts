@@ -17,8 +17,9 @@
  *     because each one costs a full-size intermediate buffer.
  *
  * The graph, back to front:
- *   blur → magnify (optional) → displace → saturate → clip to the specular rim
- *   → blend over the displaced backdrop → blend the faded rim on top.
+ *   blur → displace through the rim map, or the lens map when the glass
+ *   magnifies (once, or once per colour channel when it disperses) → saturate → clip to the specular rim → blend over
+ *   the displaced backdrop → blend the faded rim on top.
  *
  * Filters are reference counted: two switches the same size share one, and the
  * filter is removed only once nothing uses it. A hard cap bounds the set, so a
@@ -28,7 +29,7 @@
 import {
   bezelProfile,
   displacementMap,
-  magnifyingMap,
+  lensMap,
   scaleFor,
   specularMap,
   type GlassShape,
@@ -66,18 +67,24 @@ export interface GlassOptics {
   specularOpacity?: number;
   /** Blown-out colour travelling with the rim light. */
   specularSaturation?: number;
-  /** Direction the light comes from, in radians. */
+  /** Direction the light comes from, in radians (y up; default upper left). */
   specularAngle?: number;
-  /** How wide the lit rim reads, in CSS px. */
+  /** How far in from the edge the rim light reaches, in CSS px. */
   specularWidth?: number;
-  /** Centre zoom, in px of pull. 0 turns it off. */
-  magnify?: number;
+  /** Centre magnification, as a factor. 1 turns it off. */
+  zoom?: number;
+  /**
+   * Chromatic dispersion: how much further blue bends than red, as a fraction
+   * of the shift (0 turns it off; UI glass reads well at 0.05–0.12). The rim
+   * then fringes colour the way a real lens does. Costs two more displacement
+   * stages, so it is for small lenses.
+   */
+  dispersion?: number;
   /**
    * Keep this look's own profile even when Settings picks another one.
    *
-   * The switch and the lens set this: their lip bezel is not a taste, it is
-   * what makes a switch read as a switch — the track has to open out at the
-   * edges and pinch through the middle as the thumb crosses it.
+   * The held thumbs and the magnifier set this: they are lenses, and a lens
+   * with a concave rim would push its backdrop out past its own edge.
    */
   pinProfile?: boolean;
   /** Buffer px per CSS px for the displacement map. */
@@ -100,9 +107,10 @@ const DEFAULTS = {
   scaleRatio: 1,
   specularOpacity: 0.4,
   specularSaturation: 4,
-  specularAngle: Math.PI / 3,
-  specularWidth: 1.6,
-  magnify: 0,
+  specularAngle: (3 * Math.PI) / 4,
+  specularWidth: 2,
+  zoom: 1,
+  dispersion: 0,
   pinProfile: false,
   quality: 2,
   maxBuffer: 512,
@@ -148,7 +156,8 @@ const keyOf = (o: Resolved): string =>
     o.specularSaturation,
     o.specularAngle.toFixed(3),
     o.specularWidth,
-    o.magnify,
+    o.zoom,
+    o.dispersion,
     o.quality,
     o.maxBuffer,
     o.maxSpecularBuffer,
@@ -218,13 +227,27 @@ const build = (o: Resolved, key: string): string | null => {
     refractiveIndex: o.refractiveIndex,
     profile: o.profile,
     maxShift: o.maxShift,
+    // Strength goes into the trace, not the filter scale, so the fold guard
+    // sees it: a strong setting bends further but never mirrors the backdrop.
+    gain: o.scaleRatio,
   });
-  const displacement = displacementMap({
-    ...geometry,
-    bezel,
-    quality: o.quality,
-    maxBuffer: o.maxBuffer,
-  });
+  // A magnifying lens is one field (zoom eased into the rim); anything else
+  // is the plain rim bend. Both are applied at 1:1: their peak is the scale.
+  const displacement =
+    o.zoom > 1
+      ? lensMap({
+          ...geometry,
+          bezel,
+          zoom: o.zoom,
+          quality: o.quality,
+          maxBuffer: o.maxBuffer,
+        })
+      : displacementMap({
+          ...geometry,
+          bezel,
+          quality: o.quality,
+          maxBuffer: o.maxBuffer,
+        });
   if (!displacement) return null;
 
   const id = `yz-glass-${(seq += 1).toString(36)}-${Math.abs(
@@ -256,42 +279,60 @@ const build = (o: Resolved, key: string): string | null => {
 
   let source = 'SourceGraphic';
 
-  if (o.magnify > 0) {
-    const zoom = magnifyingMap(o.width, o.height, o.quality, o.maxBuffer);
-    if (zoom) {
-      image(zoom.url, 'magnifying_map');
-      add(filter, 'feDisplacementMap', {
-        in: source,
-        in2: 'magnifying_map',
-        scale: o.magnify,
-        xChannelSelector: 'R',
-        yChannelSelector: 'G',
-        result: 'magnified_source',
-      });
-      source = 'magnified_source';
-    }
-  }
-
   if (o.blur > 0) {
-    add(filter, 'feGaussianBlur', { in: source, stdDeviation: o.blur, result: 'blurred_source' });
+    // `duplicate`: the backdrop stops at the element's edge, and blurring in
+    // the transparent past it would draw a dark seam round the rim.
+    add(filter, 'feGaussianBlur', {
+      in: source,
+      stdDeviation: o.blur,
+      edgeMode: 'duplicate',
+      result: 'blurred_source',
+    });
     source = 'blurred_source';
   }
 
   image(displacement.url, 'displacement_map');
-  add(filter, 'feDisplacementMap', {
-    in: source,
-    in2: 'displacement_map',
-    scale: scaleFor(displacement.reach, o.scaleRatio),
-    xChannelSelector: 'R',
-    yChannelSelector: 'G',
-    result: 'displaced',
-  });
+  const bend = scaleFor(displacement.reach);
+  const displace = (scale: number, result: string): void =>
+    add(filter, 'feDisplacementMap', {
+      in: source,
+      in2: 'displacement_map',
+      scale,
+      xChannelSelector: 'R',
+      yChannelSelector: 'G',
+      result,
+    });
+
+  if (o.dispersion > 0) {
+    // One bend per channel, blue bent furthest, then the three put back
+    // together. Each pass keeps only its own channel (and full alpha), so a
+    // `screen` of the three is exactly (R, G, B): nothing is brightened.
+    const channels: Array<[string, number, string]> = [
+      ['r', 1 - o.dispersion, '1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0'],
+      ['g', 1, '0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0'],
+      ['b', 1 + o.dispersion, '0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0'],
+    ];
+    for (const [name, factor, matrix] of channels) {
+      displace(bend * factor, `displaced_${name}_all`);
+      add(filter, 'feColorMatrix', {
+        in: `displaced_${name}_all`,
+        type: 'matrix',
+        values: matrix,
+        result: `displaced_${name}`,
+      });
+    }
+    add(filter, 'feBlend', { in: 'displaced_r', in2: 'displaced_g', mode: 'screen', result: 'displaced_rg' });
+    add(filter, 'feBlend', { in: 'displaced_rg', in2: 'displaced_b', mode: 'screen', result: 'displaced' });
+  } else {
+    displace(bend, 'displaced');
+  }
 
   if (o.specularOpacity > 0) {
     const specular = specularMap({
       ...geometry,
       angle: o.specularAngle,
       bandWidth: o.specularWidth,
+      profile: o.profile,
       quality: o.quality,
       maxBuffer: o.maxSpecularBuffer,
     });
@@ -391,16 +432,21 @@ export const resetGlassFilters = (): void => {
 /** Presets for the app's glass, so every call site agrees on the look. */
 export const GLASS_PRESETS = {
   /**
-   * Switch thumb and held lens: the lip, so the track opens out at the edges
-   * and pinches through the middle as the thumb crosses it. Pinned, because
-   * that is what makes a switch read as a switch — it is not a preference.
+   * A held thumb (switch, slider, tab row): a small, thick convex lens. The
+   * middle magnifies what it is over, the rim pulls the backdrop in around the
+   * edge and fringes it with colour. Pinned, because a lens that stopped
+   * magnifying when someone picked "Concave" for the panels would just be a
+   * hole in the control.
    */
   thumb: {
-    profile: 'lip',
-    bezelWidth: 10,
-    glassThickness: 22,
+    profile: 'convex_squircle',
+    bezelWidth: 9,
+    glassThickness: 26,
     refractiveIndex: 1.5,
-    maxShift: 0.7,
+    maxShift: 0.9,
+    zoom: 1.22,
+    dispersion: 0.09,
+    specularWidth: 2.4,
     pinProfile: true,
   },
   /** Small capsule button. */
@@ -415,13 +461,16 @@ export const GLASS_PRESETS = {
   menu: { profile: 'convex_squircle', bezelWidth: 12, glassThickness: 26, refractiveIndex: 1.4, maxShift: 1 },
   /** Text field. */
   field: { profile: 'convex_squircle', bezelWidth: 10, glassThickness: 30, refractiveIndex: 1.4, maxShift: 1 },
-  /** A hand-held lens: a round bezel and a centre zoom. */
+  /** A hand-held lens: a round bezel, a real centre zoom, visible dispersion. */
   lens: {
     profile: 'convex_circle',
-    bezelWidth: 16,
-    glassThickness: 60,
-    refractiveIndex: 1.5,
-    maxShift: 1,
+    bezelWidth: 26,
+    glassThickness: 64,
+    refractiveIndex: 1.52,
+    maxShift: 0.9,
+    zoom: 1.6,
+    dispersion: 0.025,
+    specularWidth: 7,
     pinProfile: true,
   },
 } satisfies Record<string, Partial<GlassOptics>>;

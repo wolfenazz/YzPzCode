@@ -142,8 +142,8 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     overlay.style.pointerEvents = 'none';
     overlay.style.zIndex = '2147483646';
     overlay.style.border = '2px solid rgba(16, 185, 129, 0.95)';
-    overlay.style.borderRadius = '12px';
-    overlay.style.boxShadow = '0 0 0 1px rgba(5, 7, 10, 0.95), 0 0 0 9999px rgba(5, 7, 10, 0.18)';
+    overlay.style.borderRadius = '10px';
+    overlay.style.boxShadow = '0 0 0 1px rgba(5, 7, 10, 0.95), 0 0 0 4px rgba(16, 185, 129, 0.14), 0 0 0 9999px rgba(5, 7, 10, 0.18)';
     overlay.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(34, 197, 94, 0.08))';
     overlay.style.backdropFilter = 'blur(0.5px)';
     overlay.style.display = 'none';
@@ -153,11 +153,14 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     badge.style.left = '0';
     badge.style.top = '0';
     badge.style.transform = 'translateY(calc(-100% - 10px))';
-    badge.style.padding = '6px 10px';
+    badge.style.padding = '5px 11px';
     badge.style.borderRadius = '999px';
-    badge.style.border = '1px solid rgba(16, 185, 129, 0.4)';
-    badge.style.background = 'rgba(9, 9, 11, 0.92)';
-    badge.style.color = '#d4d4d8';
+    // Same liquid glass as the quick prompt card: a frosted chip with a lit rim.
+    badge.style.border = '1px solid rgba(255, 255, 255, 0.14)';
+    badge.style.background = 'rgba(15, 17, 22, 0.86)';
+    badge.style.backdropFilter = 'blur(20px) saturate(1.7) brightness(1.06)';
+    badge.style.webkitBackdropFilter = 'blur(20px) saturate(1.7) brightness(1.06)';
+    badge.style.color = '#e8eaf0';
     badge.style.fontFamily = '"Cascadia Mono", "JetBrains Mono", monospace';
     badge.style.fontSize = '11px';
     badge.style.fontWeight = '700';
@@ -167,7 +170,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     badge.style.maxWidth = 'min(60vw, 520px)';
     badge.style.overflow = 'hidden';
     badge.style.textOverflow = 'ellipsis';
-    badge.style.boxShadow = '0 18px 50px rgba(0, 0, 0, 0.45)';
+    badge.style.boxShadow = 'inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.3), inset 0 0 14px rgba(16, 185, 129, 0.12), 0 14px 34px -14px rgba(0, 0, 0, 0.6)';
 
     overlay.appendChild(badge);
   };
@@ -1402,69 +1405,202 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   const WIDGET_MARGIN = 8;
   const WIDGET_GAP = 10;
   const WIDGET_MAX_TEXT = 4000;
+  // Liquid glass, written out here on purpose: the card lives in a closed shadow
+  // root on a page the app does not own, so it can neither read the app's tokens
+  // nor load `src/liquid-glass.css`. It follows that theme's grammar instead — a
+  // tint over a real backdrop blur, a sheen from the top, a hairline rim that
+  // catches the light, a lit top edge and a lifted shadow. The tint stays at
+  // ~88% of the panel colour: this floats over arbitrary pages, so legibility
+  // beats transparency. `:host([data-glass='off'])` (Settings → Appearance →
+  // Liquid glass off) drops the blur and the speculars, exactly as the app's own
+  // controls fall back to their flat paint.
   const WIDGET_CSS = `
     :host { all: initial; }
     * { box-sizing: border-box; }
+
+    /* The highlight around the element being described is the inspect
+       language, not the card: it keeps the emerald frame. */
     .frame {
       position: fixed; display: none; pointer-events: none;
-      border: 2px solid rgba(16, 185, 129, 0.95); border-radius: 8px;
-      background: rgba(16, 185, 129, 0.07); box-shadow: 0 0 0 1px rgba(5, 7, 10, 0.8);
+      border: 2px solid rgba(16, 185, 129, 0.95); border-radius: 10px;
+      background: rgba(16, 185, 129, 0.06);
+      box-shadow:
+        0 0 0 1px rgba(5, 7, 10, 0.85),
+        0 0 0 4px rgba(16, 185, 129, 0.14),
+        0 14px 34px -14px rgba(0, 0, 0, 0.6);
     }
+
     .card {
       position: fixed; left: 0; top: 0; pointer-events: auto;
-      display: flex; flex-direction: column; gap: 8px; padding: 10px;
-      background: rgba(14, 16, 20, 0.97); color: #e8e8ec;
-      border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 14px;
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.4);
-      font: 12px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      isolation: isolate;
+      display: flex; flex-direction: column; gap: 9px; padding: 11px;
+      border: 0; border-radius: 18px;
+      color: #eef0f4;
+      background-color: rgba(19, 21, 26, 0.88);
+      background-image:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 44%, rgba(255, 255, 255, 0) 76%),
+        radial-gradient(120% 70% at 50% -20%, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 72%);
+      -webkit-backdrop-filter: blur(26px) saturate(1.8) brightness(1.06);
+      backdrop-filter: blur(26px) saturate(1.8) brightness(1.06);
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.24),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.3),
+        inset 0 0 22px rgba(255, 255, 255, 0.05),
+        0 22px 54px -14px rgba(0, 0, 0, 0.6),
+        0 6px 18px -6px rgba(0, 0, 0, 0.36);
+      font: 12px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
       letter-spacing: normal; text-transform: none; color-scheme: dark;
-      opacity: 0; transform: translateY(4px);
-      transition: opacity 0.14s ease, transform 0.14s ease;
+      opacity: 0; transform: translateY(5px) scale(0.985);
+      transition: opacity 0.16s ease, transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .card.on { opacity: 1; transform: none; }
+
+    /* The rim catching the light. */
+    .card::before {
+      content: ""; position: absolute; inset: 0; z-index: -1;
+      padding: 1px; border-radius: inherit; pointer-events: none;
+      background: linear-gradient(140deg,
+        rgba(255, 255, 255, 0.55),
+        rgba(255, 255, 255, 0.08) 28%,
+        rgba(255, 255, 255, 0) 50%,
+        rgba(255, 255, 255, 0.05) 72%,
+        rgba(255, 255, 255, 0.28));
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    }
+
     .head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-    .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: #10b981; }
+    .dot {
+      flex: none; width: 7px; height: 7px; border-radius: 50%; background: #34d399;
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.16), 0 0 10px rgba(52, 211, 153, 0.55);
+    }
     .label {
       flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-      font: 600 11px 'Cascadia Mono', 'JetBrains Mono', ui-monospace, monospace; color: #c7c7cf;
+      padding: 3px 8px; border-radius: 8px;
+      background-color: rgba(255, 255, 255, 0.07);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+      font: 600 11px 'Cascadia Mono', 'JetBrains Mono', ui-monospace, monospace; color: #e8eaf0;
     }
+
     button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; padding: 0; }
     .icon {
       display: inline-flex; align-items: center; justify-content: center;
-      width: 24px; height: 24px; border-radius: 7px; color: #9a9aa5;
+      width: 26px; height: 26px; border-radius: 9px; color: #b9bcc6;
+      background-color: rgba(255, 255, 255, 0.05);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+      transition: background-color 0.14s ease, color 0.14s ease;
     }
-    .icon:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-    .composer { display: flex; gap: 6px; align-items: flex-end; }
+    .icon:hover { background-color: rgba(255, 255, 255, 0.13); color: #fff; }
+
+    .composer { display: flex; gap: 7px; align-items: flex-end; }
     textarea {
-      flex: 1; min-width: 0; resize: none; height: 36px; max-height: 96px; padding: 8px 10px;
-      border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.05); color: #f4f4f5; font: inherit; outline: none;
+      flex: 1; min-width: 0; resize: none; height: 38px; max-height: 100px; padding: 9px 11px;
+      border: 0; border-radius: 12px;
+      background-color: rgba(8, 10, 13, 0.5);
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+      color: #f6f7fa; font: inherit; outline: none;
+      transition: background-color 0.16s ease, box-shadow 0.16s ease;
     }
-    textarea::placeholder { color: #7d7d88; }
-    textarea:focus { border-color: rgba(16, 185, 129, 0.7); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18); }
-    textarea.nudge { border-color: rgba(251, 113, 133, 0.8); }
+    textarea::placeholder { color: rgba(214, 219, 229, 0.62); }
+    textarea:focus {
+      background-color: rgba(8, 10, 13, 0.64);
+      box-shadow:
+        inset 0 1px 3px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(52, 211, 153, 0.6),
+        0 0 0 3px rgba(16, 185, 129, 0.22);
+    }
+    textarea.nudge {
+      box-shadow:
+        inset 0 1px 3px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(251, 113, 133, 0.8),
+        0 0 0 3px rgba(251, 113, 133, 0.2);
+    }
+
     .send {
-      flex: none; width: 36px; height: 36px; border-radius: 10px; background: #10b981; color: #04130d;
+      flex: none; width: 38px; height: 38px; border-radius: 12px;
       display: inline-flex; align-items: center; justify-content: center;
+      color: #04140d; background-color: #10b981;
+      background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.06) 58%, rgba(255, 255, 255, 0));
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.58),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+        0 1px 2px rgba(0, 0, 0, 0.3),
+        0 10px 20px -8px rgba(16, 185, 129, 0.65);
+      transition: filter 0.14s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
-    .send:hover { filter: brightness(1.08); }
-    .send:disabled { opacity: 0.4; cursor: default; filter: none; }
-    .foot { display: flex; align-items: center; gap: 8px; }
+    .send:hover:not(:disabled) { filter: brightness(1.07); }
+    .send:active:not(:disabled) { transform: scale(0.96); }
+    .send:disabled {
+      opacity: 0.42; cursor: default; filter: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .foot { display: flex; align-items: center; gap: 7px; }
     select {
-      flex: 1; min-width: 0; height: 26px; padding: 0 6px; border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.05);
-      color: #e8e8ec; font: inherit; font-size: 11px; outline: none; cursor: pointer;
+      flex: 1; min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 10px;
+      background-color: rgba(8, 10, 13, 0.42);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 0 0 1px rgba(255, 255, 255, 0.09);
+      color: #e9ebf0; font: inherit; font-size: 11px; outline: none; cursor: pointer;
     }
-    select:focus-visible, button:focus-visible { outline: 2px solid rgba(16, 185, 129, 0.8); outline-offset: 1px; }
+    select:disabled { opacity: 0.55; cursor: default; }
+    select option { background-color: #14161b; color: #e9ebf0; }
+
+    /* Instead of an empty dropdown: one line that says what is missing. */
+    .target {
+      flex: 1; min-width: 0; display: flex; align-items: center;
+      height: 28px; padding: 0 10px; border-radius: 10px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      color: #cfd3dc; font-size: 11px;
+      background-color: rgba(255, 255, 255, 0.04);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    }
+    .target[hidden] { display: none; }
+
     .more {
-      flex: none; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px;
-      border-radius: 8px; color: #a1a1ab; font-size: 11px; font-weight: 500;
+      flex: none; display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+      border-radius: 10px; color: #cfd3dc; font-size: 11px; font-weight: 500;
+      background-color: rgba(255, 255, 255, 0.06);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      transition: background-color 0.14s ease, color 0.14s ease;
     }
-    .more:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
-    .status { font-size: 11px; color: #9a9aa5; }
+    .more:hover { background-color: rgba(255, 255, 255, 0.13); color: #fff; }
+
+    select:focus-visible, button:focus-visible {
+      outline: 2px solid rgba(52, 211, 153, 0.85); outline-offset: 2px;
+    }
+
+    .status { padding: 0 2px; font-size: 11px; color: #b9bcc6; }
     .status:empty { display: none; }
-    .status[data-kind='error'] { color: #fb7185; }
-    .status[data-kind='sent'] { color: #34d399; }
+    .status[data-kind='hint'] { color: #d7dae2; }
+    .status[data-kind='error'] { color: #fda4af; }
+    .status[data-kind='sent'] { color: #6ee7b7; }
+
+    /* Liquid glass off: no blur, no speculars, a flatter card. */
+    :host([data-glass='off']) .card {
+      border-radius: 14px;
+      background-color: rgba(19, 21, 26, 0.99);
+      background-image: none;
+      -webkit-backdrop-filter: none; backdrop-filter: none;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), 0 8px 22px -8px rgba(0, 0, 0, 0.55);
+    }
+    :host([data-glass='off']) .card::before { background: none; }
+    :host([data-glass='off']) .label,
+    :host([data-glass='off']) :is(textarea, select, .more, .icon) {
+      background-image: none;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+    }
+    :host([data-glass='off']) .send {
+      background-image: none;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14);
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      .card {
+        background-color: rgba(19, 21, 26, 0.98);
+        -webkit-backdrop-filter: none; backdrop-filter: none;
+      }
+    }
     @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
   `;
   let ipcInvoke = null;
@@ -1626,8 +1762,13 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     widget = null;
   };
 
-  const buildWidget = (token) => {
-    const host = widgetEl('div', '', { 'data-yzpz-browser-overlay': 'true' });
+  const buildWidget = (config) => {
+    const host = widgetEl('div', '', {
+      'data-yzpz-browser-overlay': 'true',
+      // The card paints liquid glass (`html.liquid-glass` on the app side) unless
+      // the setting is off, in which case it takes the flat fallback in WIDGET_CSS.
+      'data-glass': config.glass === false ? 'off' : 'on',
+    });
     host.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;pointer-events:none;z-index:2147483647;';
     const root = host.attachShadow({ mode: 'closed' });
     try {
@@ -1662,12 +1803,16 @@ const BROWSER_INIT_SCRIPT: &str = r#"
 
     const foot = widgetEl('div', 'foot');
     const select = widgetEl('select', '', { 'aria-label': 'Send to' });
+    // No dropdown to offer yet: an empty control is a dead end, so the row says
+    // why instead (shown whenever there is nothing to send to).
+    const target = widgetEl('span', 'target');
+    target.textContent = 'No agent terminal or panel open';
     const more = widgetEl('button', 'more', { type: 'button', title: 'Open the full style controls' });
     more.append(
       widgetIcon(['M2 4.5h6.5', 'M12.5 4.5H14', 'M10.5 3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z', 'M2 11.5h2', 'M7.5 11.5H14', 'M5.5 10a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z']),
       document.createTextNode('More controls'),
     );
-    foot.append(select, more);
+    foot.append(select, target, more);
 
     const status = widgetEl('div', 'status', { role: 'status', 'aria-live': 'polite' });
     card.append(head, composer, foot, status);
@@ -1699,7 +1844,7 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     }));
 
     const next = {
-      token, host, frame, card, label, area, send, select, more, status,
+      token: config.token, host, frame, card, label, area, send, select, target, more, status,
       targetKey: '', targetCount: 0, appliedTargetId: null, statusSeq: -1, statusTimer: 0, sending: false,
       timer: window.setInterval(() => {
         if (!widget) return;
@@ -1737,12 +1882,21 @@ const BROWSER_INIT_SCRIPT: &str = r#"
       widget.appliedTargetId = wanted;
       if (wanted && targets.some((target) => target.id === wanted)) select.value = wanted;
     }
-    select.disabled = targets.length === 0;
-    widget.send.disabled = widget.sending || targets.length === 0;
-    if (targets.length === 0) {
-      widget.area.placeholder = 'Open an agent terminal or extension to send requests';
+    const hasTargets = targets.length > 0;
+    select.disabled = !hasTargets;
+    select.hidden = !hasTargets;
+    widget.target.hidden = hasTargets;
+    widget.send.disabled = widget.sending || !hasTargets;
+    if (!hasTargets) {
+      // A long placeholder inside a one-row box just clips, so the hint gets its
+      // own line under the composer and the box keeps a short, readable prompt.
+      widget.area.placeholder = 'Describe the change for this element';
+      setWidgetStatus('hint', 'Open an agent terminal or extension panel to send this request.');
     } else {
       widget.area.placeholder = 'What should change? e.g. make this card bolder';
+      // A terminal was opened (or the panel came back): the hint has served its
+      // purpose and would now be untrue.
+      if (widget.status.getAttribute('data-kind') === 'hint') setWidgetStatus('', '');
     }
   };
 
@@ -1757,9 +1911,11 @@ const BROWSER_INIT_SCRIPT: &str = r#"
     let created = false;
     if (!widget || widget.token !== config.token) {
       destroyWidget();
-      widget = buildWidget(config.token);
+      widget = buildWidget(config);
       created = true;
     }
+    // The setting can be flipped while the card is up; the paint follows it.
+    widget.host.setAttribute('data-glass', config.glass === false ? 'off' : 'on');
     widget.label.textContent = config.label || element.tagName.toLowerCase();
     widget.label.title = widget.label.textContent;
     syncWidgetTargets(config);
@@ -2147,6 +2303,15 @@ pub struct InspectorWidgetConfig {
     pub draft: Option<String>,
     #[serde(default)]
     pub status: Option<InspectorWidgetStatus>,
+    /// `Settings → Appearance → Liquid glass`. The card paints glass by default;
+    /// with the setting off it drops the blur and the speculars, the way the
+    /// app's own controls fall back to their flat paint.
+    #[serde(default = "widget_glass_default")]
+    pub glass: bool,
+}
+
+fn widget_glass_default() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

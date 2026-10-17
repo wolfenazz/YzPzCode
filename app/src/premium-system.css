@@ -1720,18 +1720,23 @@ body {
 
 .explorer-pane__search {
   height: 2rem !important;
+  transition: box-shadow 180ms ease, background-color 180ms ease;
+}
+
+/* Under Liquid glass the field is a glass well (liquid-glass.css, Text fields),
+   so the flat paint and its !important stay out of its way. */
+html:not(.liquid-glass) .explorer-pane__search {
   border-color: transparent !important;
   border-radius: 0.625rem !important;
   background: color-mix(in srgb, var(--bg-primary) 80%, transparent) !important;
   box-shadow: inset 0 0 0 1px var(--border-primary);
-  transition: box-shadow 180ms ease, background-color 180ms ease;
 }
 
-.explorer-pane__search:hover {
+html:not(.liquid-glass) .explorer-pane__search:hover {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-secondary) 28%, transparent);
 }
 
-.explorer-pane__search:focus-within {
+html:not(.liquid-glass) .explorer-pane__search:focus-within {
   background: var(--bg-primary) !important;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-secondary) 55%, transparent), 0 0 0 3px color-mix(in srgb, var(--ring) 9%, transparent);
 }

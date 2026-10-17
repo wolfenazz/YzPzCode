@@ -17,7 +17,16 @@ export interface GlassBox {
 
 /** Reads the geometry an element renders with. */
 export const measureGlassBox = (el: Element): GlassBox => {
-  const rect = el.getBoundingClientRect();
+  // The layout box, not the bounding rect: a filter works in the element's own
+  // coordinates, before any `transform` / `scale`. Measured with the rect, a
+  // held control (scaled up by the press) or a dialog mid-way through its
+  // open animation got a map for the wrong size, and the scale springing on
+  // every frame rebuilt the map on every frame.
+  const box = el as HTMLElement;
+  const rect =
+    typeof box.offsetWidth === 'number'
+      ? { width: box.offsetWidth, height: box.offsetHeight }
+      : el.getBoundingClientRect();
   const style = getComputedStyle(el);
   const radius = Math.max(
     parseFloat(style.borderTopLeftRadius) || 0,

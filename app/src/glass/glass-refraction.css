@@ -23,11 +23,14 @@
    with a bright inner edge where the bezel catches light. */
 
 html.liquid-glass [data-glass-refracting] {
-  --lg-refract-rim: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 10%, transparent);
+  /* The filter draws the rim's glint from the bezel it traced; this is only
+     the edge itself and the light caught just inside it, lit from the upper
+     left with a weaker bounce on the lower right. */
+  --lg-refract-rim: inset 0 0 0 1px color-mix(in srgb, var(--text-primary) 7%, transparent);
   --lg-refract-spec:
-    inset 0 1px 0 rgb(255 255 255 / 0.42),
-    inset 0 -1px 0 rgb(0 0 0 / 0.14),
-    inset 0 0 6px -2px rgb(255 255 255 / 0.22);
+    inset 1px 1px 0 -0.25px rgb(255 255 255 / 0.36),
+    inset -1px -1px 0 -0.25px rgb(255 255 255 / 0.1),
+    inset 0 0 6px -2px rgb(255 255 255 / 0.16);
   /* A translucent pale fill for the parts that sit *on* the glass: a tint, not
      a coat of paint, so what the rim is bending is still what you see. */
   --lg-thumb-glass: color-mix(in srgb, var(--text-primary) 13%, transparent);
@@ -38,20 +41,24 @@ html.liquid-glass.light-theme [data-glass-refracting],
 html.liquid-glass.claude-theme [data-glass-refracting] {
   --lg-refract-rim: inset 0 0 0 1px rgb(0 0 0 / 0.07);
   --lg-refract-spec:
-    inset 0 1px 0 rgb(255 255 255 / 0.95),
-    inset 0 -1px 0 rgb(0 0 0 / 0.05),
+    inset 1px 1px 0 -0.25px rgb(255 255 255 / 0.95),
+    inset -1px -1px 0 -0.25px rgb(0 0 0 / 0.05),
     inset 0 0 6px -2px rgb(255 255 255 / 0.7);
   --lg-thumb-glass: rgb(255 255 255 / 0.72);
 }
 
 /* Buttons and other filled capsules: half the painted fill, because the
-   backdrop is now visible through them. */
-html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn) {
+   backdrop is now visible through them. A capsule that paints a colour of its
+   own — the primary and solid-danger variants — is left out: its label is
+   mixed for that fill, so the neutral wash would leave it unreadable (white
+   text on a white-looking capsule under the light themes). Those keep the
+   fill `liquid-glass.css` gives them; the bend still shows at their rim. */
+html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):not(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid) {
   background-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
   background-image: var(--lg-sheen-soft);
 }
 
-html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):hover:not(:disabled) {
+html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):not(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid):hover:not(:disabled) {
   background-color: color-mix(in srgb, var(--text-primary) 9%, transparent);
   background-image: var(--lg-light), var(--lg-sheen-soft);
 }
@@ -94,19 +101,41 @@ html.liquid-glass [data-glass-refracting]:is(.dz-modal__panel, .pr-modal__panel,
 }
 
 /* Fields are recessed, not raised: no drop shadow, and the bend reads as a
-   thick glass lip around the well. */
-html.liquid-glass [data-glass-refracting]:is(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input) {
-  background-color: color-mix(in srgb, var(--text-primary) 4%, transparent);
-  box-shadow:
-    var(--lg-refract-rim),
-    inset 0 1px 2px rgb(0 0 0 / 0.22);
+   thick glass lip around the well. The well itself (groove, shading, lit lip
+   on focus) is the Text fields section of liquid-glass.css; a refracting field
+   only has to keep it, because the generic rule above would add a drop shadow. */
+html.liquid-glass [data-glass-refracting]:is(
+  .st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea,
+  .ws-input, .sh-input, .pr-input, .pr-select, .wr-input, .wr-textarea, .wr-select, .wr-control,
+  .dz-input, .dz-select, .pd-control, [data-slot="input"],
+  .explorer-pane__search, .sk-search, .wr-search, .bx-start__search, .bx-omnibox
+) {
+  background-color: var(--lg-groove);
+  box-shadow: var(--lg-well);
 }
 
-html.liquid-glass.light-theme [data-glass-refracting]:is(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input),
-html.liquid-glass.claude-theme [data-glass-refracting]:is(.st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea, .ws-input) {
-  box-shadow:
-    var(--lg-refract-rim),
-    inset 0 1px 2px rgb(0 0 0 / 0.09);
+html.liquid-glass [data-glass-refracting]:is(
+  .st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea,
+  .ws-input, .sh-input, .pr-input, .pr-select, .wr-input, .wr-textarea, .wr-select, .wr-control,
+  .dz-input, .dz-select, .pd-control, [data-slot="input"],
+  .explorer-pane__search, .sk-search, .wr-search, .bx-start__search, .bx-omnibox
+):hover:not(:disabled) {
+  background-color: var(--lg-fill-hover);
+}
+
+html.liquid-glass [data-glass-refracting]:is(
+  .st-input, .st-select, .st-textarea, .sx-input, .sx-select select, .sx-textarea,
+  .ws-input, .sh-input, .pr-input, .pr-select, .wr-input, .wr-textarea, .wr-select, .wr-control,
+  .dz-input, .dz-select, .pd-control, [data-slot="input"]
+):focus,
+html.liquid-glass [data-glass-refracting]:is(.explorer-pane__search, .sk-search, .wr-search, .bx-start__search):focus-within,
+html.liquid-glass [data-glass-refracting].bx-omnibox.is-focused {
+  background-color: var(--lg-fill-hover);
+  box-shadow: var(--lg-well-lit);
+}
+
+html.liquid-glass [data-glass-refracting]:is(.st-input, .ws-input, .sh-input, .pr-input, .wr-input, .wr-control, .pd-control, [data-slot="input"])[aria-invalid="true"] {
+  box-shadow: var(--lg-well-bad);
 }
 
 /* ── The held lens ────────────────────────────────────────────────────
@@ -206,8 +235,8 @@ html.liquid-glass [data-glass-edge] > * {
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  html.liquid-glass [data-glass-edge]::before,
-  html.liquid-glass [data-glass-edge]::after {
+  html.liquid-glass.lg-follow-transparency [data-glass-edge]::before,
+  html.liquid-glass.lg-follow-transparency [data-glass-edge]::after {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     -webkit-mask-image: none;
@@ -225,15 +254,17 @@ html.liquid-glass [data-no-glass-refraction] {
 
 /* ── Motion and transparency ─────────────────────────────────────────── */
 
+/* The magnifier is left out on purpose: its whole job is to enlarge what is
+   under it, which is not transparency. Flattened, it was a blank white disc. */
 @media (prefers-reduced-transparency: reduce) {
-  html.liquid-glass [data-glass-refracting] {
+  html.liquid-glass.lg-follow-transparency [data-glass-refracting]:not(.lg-magnifier) {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     --lg-refract-rim: inset 0 0 0 1px var(--lg-ring);
     --lg-refract-spec: inset 0 1px 0 rgb(255 255 255 / 0.2);
   }
 
-  html.liquid-glass [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn) {
+  html.liquid-glass.lg-follow-transparency [data-glass-refracting]:is(.st-btn, .sx-btn, .dz-btn, .pr-btn, .pd-btn, .ws-btn, .dv-btn, .bx-btn, .pf-btn, .pr-icon-btn, .chrome-btn):not(.sx-btn--primary, .dz-btn--primary, .pr-btn--primary, .pd-btn--primary, .ws-btn--primary, .bx-btn--primary, .st-btn--primary, .st-btn--danger-solid) {
     background-color: var(--lg-fill);
   }
 }

@@ -223,14 +223,21 @@ interface AppState {
   liquidGlass: boolean;
   /**
    * Which cross-section the glass bezel is cut to. `null` keeps the profile
-   * each surface was designed with; the switch and the held lens pin theirs
-   * either way, because their lip is what makes them read as controls.
+   * each surface was designed with; the held lenses (switch, slider, tab
+   * thumb) and the magnifier pin their convex rim either way.
    */
   glassProfile: GlassProfile | null;
   /** Master gain on every traced refraction shift. 1 = physically traced. */
   glassStrength: number;
   /** A draggable refracting lens over the whole window, for inspecting UI. */
   glassMagnifier: boolean;
+  /**
+   * Flatten the glass when the OS asks for less transparency (Windows:
+   * Personalisation → Colours → Transparency effects off). Off by default:
+   * turning Liquid glass on is itself the choice, and many people switch the
+   * Windows effect off for the taskbar alone without wanting it here.
+   */
+  glassFollowSystemTransparency: boolean;
   workspaceBackground: WorkspaceBackground;
   workspaceLightRays: WorkspaceLightRaysSettings;
   workspaceAuroraPalette: WorkspaceAuroraPalette;
@@ -320,6 +327,7 @@ interface AppState {
   setGlassProfile: (profile: GlassProfile | null) => void;
   setGlassStrength: (strength: number) => void;
   setGlassMagnifier: (enabled: boolean) => void;
+  setGlassFollowSystemTransparency: (enabled: boolean) => void;
   setWorkspaceBackground: (background: WorkspaceBackground) => void;
   setWorkspaceLightRays: (settings: Partial<WorkspaceLightRaysSettings>) => void;
   setWorkspaceAuroraPalette: (palette: WorkspaceAuroraPalette) => void;
@@ -578,6 +586,7 @@ export const useAppStore = create<AppState>()(
       glassProfile: null,
       glassStrength: 1,
       glassMagnifier: false,
+      glassFollowSystemTransparency: false,
       workspaceBackground: 'aurora',
       workspaceLightRays: { ...DEFAULT_LIGHT_RAYS },
       workspaceAuroraPalette: 'gemini',
@@ -819,6 +828,7 @@ export const useAppStore = create<AppState>()(
       setGlassProfile: (profile) => set({ glassProfile: profile }),
       setGlassStrength: (strength) => set({ glassStrength: strength }),
       setGlassMagnifier: (enabled) => set({ glassMagnifier: enabled }),
+      setGlassFollowSystemTransparency: (enabled) => set({ glassFollowSystemTransparency: enabled }),
       setWorkspaceBackground: (background) => set({ workspaceBackground: background }),
       setWorkspaceLightRays: (settings) => set((state) => ({
         workspaceLightRays: normalizeLightRays({ ...state.workspaceLightRays, ...settings }),
@@ -2059,6 +2069,7 @@ export const useAppStore = create<AppState>()(
           glassProfile: state.glassProfile,
           glassStrength: state.glassStrength,
           glassMagnifier: state.glassMagnifier,
+          glassFollowSystemTransparency: state.glassFollowSystemTransparency,
           workspaceBackground: state.workspaceBackground,
           workspaceLightRays: state.workspaceLightRays,
           workspaceAuroraPalette: state.workspaceAuroraPalette,

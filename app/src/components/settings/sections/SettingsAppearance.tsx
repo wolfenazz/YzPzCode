@@ -9,6 +9,7 @@ import {
   CursorClick,
   Desktop,
   DiscordLogo,
+  Eye,
   ImageSquare,
   MagnifyingGlassMinus,
   MagnifyingGlassPlus,
@@ -182,6 +183,8 @@ export const SettingsAppearance: React.FC = () => {
     setGlassStrength,
     glassMagnifier,
     setGlassMagnifier,
+    glassFollowSystemTransparency,
+    setGlassFollowSystemTransparency,
     themeMode,
     setThemeMode,
     customThemes,
@@ -206,6 +209,9 @@ export const SettingsAppearance: React.FC = () => {
     requiresRestart: false,
   });
   const [accelerationBusy, setAccelerationBusy] = useState(false);
+  const [reducedTransparency] = useState(
+    () => window.matchMedia?.('(prefers-reduced-transparency: reduce)').matches === true,
+  );
 
   const changeAppZoom = (delta: number): void => {
     setAppZoom(Math.min(APP_ZOOM_MAX, Math.max(APP_ZOOM_MIN, appZoom + delta)));
@@ -454,7 +460,7 @@ export const SettingsAppearance: React.FC = () => {
               title="Glass optics"
             >
               <SettingsRow
-                description="The shape of the glass rim. The switch and the held lens keep their own lip, which is what makes them read as controls."
+                description="The shape of the glass rim. Held controls and the magnifier stay convex lenses, so they keep magnifying what they are over."
                 icon={<Drop size={16} aria-hidden="true" />}
                 label="Bezel profile"
                 top
@@ -483,6 +489,17 @@ export const SettingsAppearance: React.FC = () => {
                 icon={<MagnifyingGlassPlus size={16} aria-hidden="true" />}
                 label="Magnifier"
                 onChange={setGlassMagnifier}
+              />
+              <ToggleRow
+                checked={glassFollowSystemTransparency}
+                description={
+                  reducedTransparency
+                    ? 'Your system asks for less transparency. While this is on the glass goes flat and stops refracting (the magnifier keeps magnifying); off, the glass keeps bending.'
+                    : 'Flatten the glass whenever the system asks for less transparency (Windows: Transparency effects off).'
+                }
+                icon={<Eye size={16} aria-hidden="true" />}
+                label="Follow system transparency setting"
+                onChange={setGlassFollowSystemTransparency}
               />
             </SettingsGroup>
           )}
