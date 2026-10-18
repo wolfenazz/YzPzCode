@@ -18,6 +18,7 @@
     "test:explorer": "node --test scripts/explorer-clipboard.test.mjs",
     "test:editor": "node --test scripts/test-editor-workbench.mjs",
     "test:browser": "node --test scripts/browser.test.mjs",
+    "test:html-preview": "node --test scripts/html-preview.test.mjs",
     "test:device": "node --test scripts/device.test.mjs",
     "test:writing": "node --test scripts/writing.test.mjs",
     "test:presentation": "node --test scripts/presentation.test.mjs",

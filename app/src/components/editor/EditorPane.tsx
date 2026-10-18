@@ -16,11 +16,13 @@ import monaco from '../../lib/monaco';
 import { useActiveTheme } from '../../hooks/useCustomTheme';
 import { buildThemeTokens, withAlpha } from '../../utils/customTheme';
 import { saveEditorFile } from '../../utils/editorSave';
+import { isHtmlExtension } from '../../utils/htmlPreview';
 import { EditorActionButton } from './EditorActionButton';
 import { EditorProblems } from './EditorProblems';
 import { TabContextMenu } from './TabContextMenu';
 import { EditorTabs } from './EditorTabs';
 import { MarkdownPreview } from './MarkdownPreview';
+import { HtmlPreview } from './HtmlPreview';
 import { ImagePreview, isImageFile } from './ImagePreview';
 import { PdfPreview } from './PdfPreview';
 import { DocxPreview } from './DocxPreview';
@@ -133,6 +135,9 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
   const activeFile = openFiles.find((f) => f.path === activeFilePath);
   const fileExt = activeFile ? getExtension(activeFile.name) : null;
   const isMarkdown = activeFile?.language === "markdown" || fileExt === "md" || fileExt === "markdown";
+  const isHtml = isHtmlExtension(fileExt);
+  // Markdown and HTML share the Source / Preview / Live switch.
+  const hasViewModes = isMarkdown || isHtml;
   const isImage = isImageFile(fileExt);
   const isPdf = fileExt === "pdf";
   const isDocx = fileExt === "docx" || fileExt === "doc";
@@ -142,7 +147,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
   const mediaKind = getMediaKind(fileExt);
   const isBinary = Boolean(activeFile?.binary) && !mediaKind;
   const isPreviewable = isImage || isPdf || isDocx || isSpreadsheet || isPptx || isDrawio || mediaKind !== null || isBinary;
-  const showEditor = Boolean(activeFile && !isPreviewable && !(isMarkdown && mdPreview));
+  const showEditor = Boolean(activeFile && !isPreviewable && !(hasViewModes && mdPreview));
   const mountContextRef = useRef({ focused, showEditor });
   mountContextRef.current = { focused, showEditor };
   currentFileRef.current = activeFile && !isPreviewable ? activeFilePath : null;
@@ -436,8 +441,8 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
 
   // Reveal a specific line (search results / quick navigation).
   useEffect(() => {
-    if (focused && isMarkdown && mdPreview && editorRevealLine?.path === activeFilePath) setMarkdownMode('source');
-  }, [focused, isMarkdown, mdPreview, editorRevealLine?.path, activeFilePath]);
+    if (focused && hasViewModes && mdPreview && editorRevealLine?.path === activeFilePath) setMarkdownMode('source');
+  }, [focused, hasViewModes, mdPreview, editorRevealLine?.path, activeFilePath]);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -462,7 +467,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
   };
 
   const revealPosition = (line: number, column: number): void => {
-    if (isMarkdown && mdPreview) setMarkdownMode('source');
+    if (hasViewModes && mdPreview) setMarkdownMode('source');
     editorRef.current?.setPosition({ lineNumber: line, column });
     editorRef.current?.revealLineInCenter(line);
     editorRef.current?.focus();
@@ -508,10 +513,10 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
       </div>
       <div className="flex min-h-9 shrink-0 flex-wrap items-center justify-between gap-1 border-b border-[var(--border-primary)] px-2 py-1">
         <div className="flex items-center gap-0.5">
-          {isMarkdown ? <div role="group" aria-label="Markdown view" className="flex items-center rounded bg-[var(--bg-secondary)] p-0.5">
-            <EditorActionButton label="Markdown source" active={markdownMode === 'source'} onClick={() => setMarkdownMode('source')}><Code size={14} /><span>Source</span></EditorActionButton>
-            <EditorActionButton label="Markdown preview" active={markdownMode === 'preview'} onClick={() => setMarkdownMode('preview')}><Eye size={14} /><span>Read</span></EditorActionButton>
-            <EditorActionButton label="Markdown source with live preview" active={markdownMode === 'live'} onClick={() => setMarkdownMode('live')}><BracketsCurly size={14} /><span>Live</span></EditorActionButton>
+          {hasViewModes ? <div role="group" aria-label={isHtml ? 'HTML view' : 'Markdown view'} className="flex items-center rounded bg-[var(--bg-secondary)] p-0.5">
+            <EditorActionButton label={isHtml ? 'HTML source' : 'Markdown source'} active={markdownMode === 'source'} onClick={() => setMarkdownMode('source')}><Code size={14} /><span>Source</span></EditorActionButton>
+            <EditorActionButton label={isHtml ? 'Rendered page' : 'Markdown preview'} active={markdownMode === 'preview'} onClick={() => setMarkdownMode('preview')}><Eye size={14} /><span>{isHtml ? 'Preview' : 'Read'}</span></EditorActionButton>
+            <EditorActionButton label={isHtml ? 'HTML source with live preview' : 'Markdown source with live preview'} active={markdownMode === 'live'} onClick={() => setMarkdownMode('live')}><BracketsCurly size={14} /><span>Live</span></EditorActionButton>
           </div> : <span className="px-1 text-[11px] text-[var(--text-secondary)]">{mediaKind === 'audio' ? 'Audio' : mediaKind === 'video' ? 'Video' : isBinary ? 'Binary' : isPreviewable ? 'File preview' : toMonacoLanguage(activeFile.language)}</span>}
         </div>
         <div className="flex items-center gap-0.5">
@@ -560,15 +565,17 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
     </div>}
 
     <div className="relative min-h-0 flex-1 overflow-hidden">
-      {activeFile && !isPreviewable && <div className={`absolute inset-0 ${isMarkdown && markdownMode === 'live' ? 'grid grid-cols-2' : ''}`}>
+      {activeFile && !isPreviewable && <div className={`absolute inset-0 ${hasViewModes && markdownMode === 'live' ? 'grid grid-cols-2' : ''}`}>
         <div className={`relative h-full min-h-0 min-w-0 ${showEditor ? '' : 'hidden'}`}>
           <Editor height="100%" path={monacoPath} defaultLanguage={toMonacoLanguage(activeFile.language)} value={activeFile.content}
             theme={monacoThemeName} onChange={handleMonacoChange} onMount={handleMonacoMount} beforeMount={defineMonacoGlobals}
             keepCurrentModel saveViewState={false} options={monacoOptions}
             loading={<div className="flex h-full items-center justify-center text-xs text-[var(--text-secondary)]">Opening editor…</div>} />
         </div>
-        {isMarkdown && markdownMode !== 'source' && <div className={`relative min-h-0 min-w-0 ${markdownMode === 'live' ? 'border-l border-[var(--border-primary)]' : 'h-full'}`}>
-          <MarkdownPreview content={activeFile.content} filePath={activeFile.path} workspacePath={workspacePath} />
+        {hasViewModes && markdownMode !== 'source' && <div className={`relative min-h-0 min-w-0 ${markdownMode === 'live' ? 'border-l border-[var(--border-primary)]' : 'h-full'}`}>
+          {isHtml
+            ? <HtmlPreview key={activeFile.path} content={activeFile.content} filePath={activeFile.path} />
+            : <MarkdownPreview content={activeFile.content} filePath={activeFile.path} workspacePath={workspacePath} />}
         </div>}
       </div>}
       {activeFile && isImage && <ImagePreview filePath={activeFile.path} fileName={activeFile.name} />}
