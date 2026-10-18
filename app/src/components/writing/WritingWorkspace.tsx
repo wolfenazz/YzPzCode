@@ -276,9 +276,9 @@ export const WritingWorkspace: React.FC<WritingWorkspaceProps> = ({ workspace, v
   }, [busy, documents, generator]);
 
   const importWord = useCallback(async (fromPath?: string): Promise<void> => {
-    const picked = fromPath ?? await open({ multiple: false, defaultPath: workspace.path, filters: [{ name: 'Word document', extensions: ['docx'] }] });
+    const picked = fromPath ?? await open({ multiple: false, defaultPath: workspace.path, filters: [{ name: 'Word document', extensions: ['docx', 'doc'] }] });
     if (typeof picked !== 'string') return;
-    const title = fileName(picked).replace(/\.docx$/i, '');
+    const title = fileName(picked).replace(/\.docx?$/i, '');
     const brief = createBrief('custom', null, useWritingStore.getState().defaultEngine);
     brief.details.title = title;
     brief.style.cover = 'none';

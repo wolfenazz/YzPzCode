@@ -47,6 +47,7 @@ permissions = [
   "allow-close-extension-panel",
   "allow-close-window",
   "allow-close-workspace-extension-panels",
+  "allow-convert-legacy-office",
   "allow-copy-entry",
   "allow-create-directory",
   "allow-create-file",

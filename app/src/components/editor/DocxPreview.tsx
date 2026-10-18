@@ -4,6 +4,7 @@ import { renderAsync } from 'docx-preview';
 import { OpenInOfficeButton } from './OpenInOfficeButton';
 import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
 import { OpenInWritingButton } from '../writing/OpenInWritingButton';
+import { modernOfficePath } from '../../utils/officeConvert';
 
 interface DocxPreviewProps {
   filePath: string;
@@ -14,16 +15,17 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
   const bodyRef = useRef<HTMLDivElement>(null);
   const styleRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [wordCount, setWordCount] = useState(0);
   const { refreshKey, refresh } = usePreviewRefresh(filePath);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(false);
+    setError(null);
 
-    invoke<string>('read_file_as_base64', { path: filePath })
+    modernOfficePath(filePath)
+      .then((readable) => invoke<string>('read_file_as_base64', { path: readable }))
       .then(async (dataUrl) => {
         if (cancelled) return;
         const rawBase64 = dataUrl.split(',')[1];
@@ -59,9 +61,9 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
         setWordCount(text ? text.trim().split(/\s+/).length : 0);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((reason: unknown) => {
         if (!cancelled) {
-          setError(true);
+          setError(reason instanceof Error ? reason.message : 'The file could not be read.');
           setLoading(false);
         }
       });
@@ -71,12 +73,14 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
 
   if (error) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
-        <div className="flex flex-col items-center gap-3 text-zinc-500">
+      <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 px-6">
+        <div className="flex max-w-md flex-col items-center gap-3 text-center text-zinc-500">
           <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           <div className="text-[10px] uppercase tracking-widest opacity-50">Failed to load document</div>
+          <p className="text-xs leading-relaxed text-zinc-500">{error}</p>
+          <OpenInOfficeButton filePath={filePath} appName="Word" />
         </div>
       </div>
     );
@@ -113,7 +117,7 @@ const DocxPreviewInner: React.FC<DocxPreviewProps> = ({ filePath, fileName }) =>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.58 9a8 8 0 0114.42 1M19.42 15a8 8 0 01-14.42-1" />
             </svg>
           </button>
-          {!loading && /\.docx$/i.test(filePath) && <OpenInWritingButton path={filePath} kind="import" />}
+          {!loading && <OpenInWritingButton path={filePath} kind="import" />}
           {!loading && (
             <OpenInOfficeButton filePath={filePath} appName="Word" />
           )}

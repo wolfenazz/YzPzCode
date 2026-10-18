@@ -455,6 +455,7 @@ pub fn run() {
                 commands::start_writing_ai_run,
                 commands::cancel_writing_ai_run,
                 commands::export_writing_pdf,
+                commands::convert_legacy_office,
                 commands::stock_image_search,
                 commands::stock_image_download,
                 commands::tts_status,

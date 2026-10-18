@@ -2,34 +2,7 @@ import React from 'react';
 import { Table } from '@phosphor-icons/react';
 import { useAppStore } from '../../stores/appStore';
 import { useSheetsSessionStore } from '../../stores/sheetsSessionStore';
-import type { AgentFleet, WorkspaceConfig } from '../../types';
-import { getStudioRoot } from '../../utils/studioRoot';
-
-/** A studio workspace starts without terminals; the studio runs the AI CLIs headlessly. */
-const zeroFleet = (template: AgentFleet): AgentFleet => ({
-  totalSlots: 0,
-  allocation: Object.fromEntries(Object.keys(template.allocation).map((key) => [key, 0])) as AgentFleet['allocation'],
-});
-
-/** Finds a sheets workspace to open the file in, creating one at the studio root when needed. */
-async function sheetsWorkspaceFor(template: WorkspaceConfig): Promise<WorkspaceConfig> {
-  const app = useAppStore.getState();
-  const open = app.openWorkspaces.find((candidate) => candidate.kind === 'sheets');
-  if (open) return open;
-  const known = [...app.openWorkspaces, ...app.workspaceList].find((candidate) => candidate.kind === 'sheets');
-  if (known) return known;
-  const workspace: WorkspaceConfig = {
-    id: crypto.randomUUID(),
-    name: 'Sheets studio',
-    path: await getStudioRoot(),
-    layout: { type: 'grid', sessions: 0 },
-    agentFleet: zeroFleet(template.agentFleet),
-    createdAt: Date.now(),
-    kind: 'sheets',
-  };
-  app.addToWorkspaceList(workspace);
-  return workspace;
-}
+import { focusStudio } from '../../utils/studioWorkspace';
 
 /**
  * Hands a spreadsheet file from the Files view to the Sheets studio. Outside
@@ -40,19 +13,9 @@ export const OpenInSheetsButton: React.FC<{ path: string; className?: string; re
   const workspace = useAppStore((state) => state.currentWorkspace);
   if (!workspace || readOnly) return null;
   const open = async (): Promise<void> => {
-    const app = useAppStore.getState();
-    const sheets = useSheetsSessionStore.getState();
-    if (workspace.kind === 'sheets') {
-      sheets.request(workspace.id, path);
-      app.setActiveView('sheets');
-      return;
-    }
-    const target = await sheetsWorkspaceFor(workspace);
-    if (app.openWorkspaces.some((candidate) => candidate.id === target.id)) app.switchWorkspace(target.id);
-    else app.openWorkspace(target);
-    app.setView('workspace');
-    sheets.request(target.id, path);
-    app.setActiveView('sheets');
+    const id = await focusStudio('sheets', workspace);
+    useSheetsSessionStore.getState().request(id, path);
+    useAppStore.getState().setActiveView('sheets');
   };
   return (
     <button

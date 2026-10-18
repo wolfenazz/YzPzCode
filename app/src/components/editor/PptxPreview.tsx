@@ -4,6 +4,7 @@ import { PPTXViewer } from 'pptx-viewer';
 import { OpenInOfficeButton } from './OpenInOfficeButton';
 import { OpenInPresentationButton } from '../presentation/OpenInPresentationButton';
 import { usePreviewRefresh } from '../../hooks/usePreviewRefresh';
+import { modernOfficePath } from '../../utils/officeConvert';
 
 interface PptxPreviewProps {
   filePath: string;
@@ -14,7 +15,7 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<PPTXViewer | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [slideCount, setSlideCount] = useState(0);
   const [currentSlide, setCurrentSlide] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -23,11 +24,11 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setError(false);
+    setError(null);
 
     const init = async () => {
       try {
-        const dataUrl = await invoke<string>('read_file_as_base64', { path: filePath });
+        const dataUrl = await invoke<string>('read_file_as_base64', { path: await modernOfficePath(filePath) });
         if (cancelled) return;
         const rawBase64 = dataUrl.split(',')[1];
         const binaryString = atob(rawBase64);
@@ -52,7 +53,7 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
           },
           onError: () => {
             if (!cancelled) {
-              setError(true);
+              setError('The slides could not be drawn.');
               setLoading(false);
             }
           },
@@ -63,9 +64,9 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
         const arrayBuffer = bytes.slice().buffer;
         viewerRef.current = viewer;
         await viewer.load(arrayBuffer);
-      } catch {
+      } catch (reason) {
         if (!cancelled) {
-          setError(true);
+          setError(reason instanceof Error ? reason.message : 'The file could not be read.');
           setLoading(false);
         }
       }
@@ -90,12 +91,14 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
 
   if (error) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-zinc-950">
-        <div className="flex flex-col items-center gap-3 text-zinc-500">
+      <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 px-6">
+        <div className="flex max-w-md flex-col items-center gap-3 text-center text-zinc-500">
           <svg className="w-10 h-10 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
           <div className="text-[10px] uppercase tracking-widest opacity-50">Failed to load presentation</div>
+          <p className="text-xs leading-relaxed text-zinc-500">{error}</p>
+          <OpenInOfficeButton filePath={filePath} appName="PowerPoint" />
         </div>
       </div>
     );
@@ -174,7 +177,7 @@ const PptxPreviewInner: React.FC<PptxPreviewProps> = ({ filePath, fileName }) =>
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4.58 9a8 8 0 0114.42 1M19.42 15a8 8 0 01-14.42-1" />
             </svg>
           </button>
-          {!loading && /\.pptx$/i.test(filePath) && <OpenInPresentationButton path={filePath} kind="import" />}
+          {!loading && <OpenInPresentationButton path={filePath} kind="import" />}
           {!loading && (
             <OpenInOfficeButton filePath={filePath} appName="PowerPoint" />
           )}

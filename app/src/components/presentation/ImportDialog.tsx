@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { open } from '@tauri-apps/plugin-dialog';
 import { ArrowRight, FileArrowUp, Warning, X } from '@phosphor-icons/react';
 import { readFileBytes } from '../../utils/presentation/assets';
+import { modernOfficePath } from '../../utils/officeConvert';
 import { fileName } from '../../utils/writing/document';
 import { ensureFonts, measureSlideText, pptxFontFamilies } from './deckFonts';
 import { SvgSlide } from './SvgSlide';
@@ -34,7 +35,7 @@ const PREVIEW_COUNT = 6;
 
 /** Reads the first slides for the preview (pictures as blob URLs, nothing written to disk). */
 async function readPreview(path: string): Promise<Preview> {
-  const bytes = await readFileBytes(path);
+  const bytes = await readFileBytes(await modernOfficePath(path));
   const { openPptx } = await import('../../utils/presentation/pptxPackage');
   const { importPptx } = await import('../../utils/presentation/pptxRender');
   const pkg = await openPptx(bytes);
@@ -93,7 +94,7 @@ export const ImportDialog: React.FC<ImportDialogProps> = ({ workspacePath, initi
   useEffect(() => () => { if (preview) Object.values(preview.urls).forEach(URL.revokeObjectURL); }, [preview]);
 
   const pick = async (): Promise<void> => {
-    const picked = await open({ multiple: false, defaultPath: workspacePath, filters: [{ name: 'PowerPoint', extensions: ['pptx'] }] });
+    const picked = await open({ multiple: false, defaultPath: workspacePath, filters: [{ name: 'PowerPoint', extensions: ['pptx', 'ppt'] }] });
     if (typeof picked === 'string') setPath(picked);
   };
 
@@ -117,7 +118,7 @@ export const ImportDialog: React.FC<ImportDialogProps> = ({ workspacePath, initi
           {path ? (
             <span className="pi-file__text"><strong>{fileName(path)}</strong><span>{path}</span></span>
           ) : (
-            <span className="pi-file__text"><strong>Choose a .pptx file…</strong><span>Old .ppt files must be saved as .pptx in PowerPoint first.</span></span>
+            <span className="pi-file__text"><strong>Choose a .pptx or .ppt file…</strong><span>Older .ppt files are converted with PowerPoint or LibreOffice first.</span></span>
           )}
           <span className="pi-file__change">{path ? 'Change' : 'Browse'}</span>
         </button>
