@@ -11,6 +11,7 @@ import { downloadStockImage, stockCredit, type StockImage } from '../../utils/pr
 import { templateFromDeck } from '../../utils/presentation/templates';
 import { notesBudget, slideSeconds } from '../../utils/presentation/timing';
 import { isAbsolutePath, readFileBytes, writeFileBytes } from '../../utils/presentation/assets';
+import { modernOfficePath } from '../../utils/officeConvert';
 import { animationsOn, ASSETS_FOLDER, createBrief, createDeck, duplicateSlide } from '../../utils/presentation/deck';
 import { slidePlan } from '../../utils/presentation/slideAnimation';
 import { getLayout, PX_PER_IN, SLIDE_HEIGHT, slideWidth } from '../../utils/presentation/layouts';
@@ -330,7 +331,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
     const pkg = await openPptx(bytes);
     await ensureFonts(await pptxFontFamilies(pkg.zip));
     const { importPptx } = await import('../../utils/presentation/pptxRender');
-    const fileTitle = fileName(sourcePath).replace(/\.pptx$/i, '');
+    const fileTitle = fileName(sourcePath).replace(/\.pptx?$/i, '');
     const imported = await importPptx(bytes, { fileTitle, measure: measureSlideText, onProgress });
     const system = importedSystem(imported.theme, fileTitle);
     const slides: DesignedSlide[] = imported.slides.map((slide, index) => ({
@@ -361,7 +362,7 @@ export const PresentationWorkspace: React.FC<PresentationWorkspaceProps> = ({ wo
   const importPowerPoint = useCallback(async (path: string): Promise<void> => {
     setImportState({ path, busy: true, error: null, progress: null });
     try {
-      const bytes = await readFileBytes(path);
+      const bytes = await readFileBytes(await modernOfficePath(path));
       await openPowerPoint(bytes, path, (done, total) => setImportState((current) => current && { ...current, progress: { done, total } }));
       setImportState(null);
     } catch (error) {

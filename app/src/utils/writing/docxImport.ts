@@ -5,6 +5,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { joinPath } from './document';
 import { readBytes } from './sources';
+import { modernOfficePath } from '../officeConvert';
 
 const STYLE_MAP = [
   "p[style-name='Title'] => h1.doc-title:fresh",
@@ -110,7 +111,7 @@ export function normalizeImportedHtml(raw: string): { html: string; title: strin
 
 export async function importDocx(path: string, docDir: string): Promise<ImportedDocx> {
   const mammoth = await import('mammoth');
-  const bytes = await readBytes(path);
+  const bytes = await readBytes(await modernOfficePath(path));
   let imageCount = 0;
   const result = await mammoth.convertToHtml(
     { arrayBuffer: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer },

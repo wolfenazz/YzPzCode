@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-convert-legacy-office"
+description = "Enables the convert_legacy_office command without any pre-configured scope."
+commands.allow = ["convert_legacy_office"]
+
+[[permission]]
+identifier = "deny-convert-legacy-office"
+description = "Denies the convert_legacy_office command without any pre-configured scope."
+commands.deny = ["convert_legacy_office"]
