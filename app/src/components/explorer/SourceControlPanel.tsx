@@ -207,6 +207,42 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
     [workspacePath, setGitDiffFile, refreshAll]
   );
 
+  const handleDiscardAll = useCallback(async () => {
+    if (operationRef.current || gitStatuses.length === 0) return;
+    const count = gitStatuses.length;
+    const confirmed = window.confirm(
+      `Discard all changes in ${count} file${count !== 1 ? 's' : ''}?\n\nThis restores every changed file to its last committed version and deletes untracked files. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    operationRef.current = true;
+    setCheckingOut(true);
+    setCommitError(null);
+    setCommitNotice(null);
+    setSyncError(null);
+    setSyncNotice(null);
+    const failures: string[] = [];
+    try {
+      for (const file of gitStatuses) {
+        try {
+          await invoke('git_discard_file', { workspacePath, filePath: file.path });
+        } catch (err) {
+          failures.push(`${file.path.split(/[/\\]/).pop() || file.path}: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+      setGitDiffFile(null);
+      setSelectedFile(null);
+      if (failures.length > 0) {
+        setCommitError(`Could not discard ${failures.length} of ${count} files.\n${failures.slice(0, 3).join('\n')}`);
+      } else {
+        setCommitNotice(`Discarded changes in ${count} file${count !== 1 ? 's' : ''}.`);
+      }
+    } finally {
+      await refreshAll();
+      operationRef.current = false;
+      setCheckingOut(false);
+    }
+  }, [gitStatuses, workspacePath, setGitDiffFile, refreshAll]);
+
   const handleCommit = useCallback(async () => {
     const summary = commitMessage.trim();
     if (!summary || operationRef.current || !canCommit || !branches || commitFiles.length === 0) return;
@@ -439,6 +475,17 @@ export const SourceControlPanel: React.FC<SourceControlPanelProps> = ({
               <span className="min-w-0 flex-1 font-mono text-[10px] font-bold text-[var(--text-primary)]">
                 {changedFiles.length} changed file{changedFiles.length !== 1 ? 's' : ''}
               </span>
+              <button
+                type="button"
+                onClick={() => void handleDiscardAll()}
+                disabled={busy || gitStatuses.length === 0}
+                title="Discard all changes"
+                aria-label="Discard all changes"
+                className="flex h-5 shrink-0 cursor-pointer items-center gap-1 rounded px-1 font-mono text-[9px] font-bold uppercase tracking-wide text-[var(--text-secondary)] transition-colors hover:bg-rose-500/15 hover:text-rose-400 disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-[var(--text-secondary)]"
+              >
+                <ArrowBendUpLeft size={12} aria-hidden="true" />
+                Discard all
+              </button>
               <button
                 type="button"
                 onClick={() => void refreshAll()}
