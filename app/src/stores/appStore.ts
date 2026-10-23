@@ -624,7 +624,9 @@ export const useAppStore = create<AppState>()(
       editorLineNumbers: "on",
       editorBracketColorization: true,
       editorFormatOnSave: false,
-      editorTrimWhitespace: true,
+      // Off by default: trimming during auto-save rewrites the open buffer and
+      // can move the caret to the end of the file while the user is typing.
+      editorTrimWhitespace: false,
       confirmBeforeClose: true,
       saveWorkspaceState: true,
       defaultLayoutTemplate: "custom",
