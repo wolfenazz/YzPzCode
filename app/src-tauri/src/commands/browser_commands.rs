@@ -210,6 +210,37 @@ pub async fn browser_go_forward(
 }
 
 #[tauri::command]
+pub async fn browser_go_to_history_entry(
+    manager: State<'_, BrowserManager>,
+    workspace_id: String,
+    entry_id: i64,
+) -> Result<(), String> {
+    manager
+        .go_to_history_entry(&workspace_id, entry_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn browser_refresh_history(
+    manager: State<'_, BrowserManager>,
+    request: BrowserWorkspaceRequest,
+) -> Result<(), String> {
+    manager
+        .refresh_history(&request.workspace_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn browser_pause_media(
+    manager: State<'_, BrowserManager>,
+    request: BrowserWorkspaceRequest,
+) -> Result<(), String> {
+    manager
+        .pause_media(&request.workspace_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub async fn request_browser_snapshot(
     manager: State<'_, BrowserManager>,
     request: BrowserWorkspaceRequest,

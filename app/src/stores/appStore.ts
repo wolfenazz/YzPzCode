@@ -493,7 +493,6 @@ interface AppState {
   setGitDiffStats: (stats: GitDiffStat[]) => void;
   setGitDiffFile: (file: { path: string; name: string } | null) => void;
   addDevServerUrl: (workspaceId: string, url: string) => void;
-  clearDevServerUrls: (workspaceId: string) => void;
   setEditorRevealLine: (req: { path: string; line: number } | null) => void;
   closeAllFiles: () => void;
   closeOtherFiles: (exceptPath: string) => void;
@@ -1871,12 +1870,6 @@ export const useAppStore = create<AppState>()(
           };
         });
       },
-      clearDevServerUrls: (workspaceId) =>
-        set((state) => {
-          const devServerUrlsByWorkspace = { ...state.devServerUrlsByWorkspace };
-          delete devServerUrlsByWorkspace[workspaceId];
-          return { devServerUrlsByWorkspace };
-        }),
       setEditorRevealLine: (req) => set({ editorRevealLine: req }),
 
       closeAllFiles: () =>

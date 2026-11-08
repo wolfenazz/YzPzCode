@@ -188,7 +188,7 @@ export const GLASS_TARGETS: GlassTarget[] = [
 
   // ── Floating toolbars: over canvas, terminal and list content ───────────
   {
-    selector: '.lg-float, .dz-topbar, .workspace-dev-server',
+    selector: '.lg-float, .dz-topbar',
     look: { ...preset('bar'), scaleRatio: 1, specularOpacity: 0.55, specularSaturation: 6, blur: 2 },
     maxArea: 260_000,
     frost: BAR_FROST,

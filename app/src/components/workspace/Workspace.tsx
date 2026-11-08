@@ -43,9 +43,6 @@ interface WorkspaceProps {
 }
 
 import { motion, AnimatePresence } from 'framer-motion';
-import logo from '../../assets/YzPzCodeLogo.png';
-
-const EMPTY_DEV_SERVER_URLS: string[] = [];
 
 // The writing studio pulls in the rich-text editor and export libraries; load it on first use.
 const WritingWorkspace = lazy(() => import('../writing/WritingWorkspace'));
@@ -79,10 +76,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
     restoredFilePathsByWorkspace,
     clearRestoredFilePaths,
   } = useAppStore();
-  const devServerUrls = useAppStore((s) => (currentWorkspace ? s.devServerUrlsByWorkspace[currentWorkspace.id] ?? EMPTY_DEV_SERVER_URLS : EMPTY_DEV_SERVER_URLS));
-  const devServerUrl = devServerUrls[0];
-  const openBrowserTab = useAppStore((s) => s.openBrowserTab);
-  const clearDevServerUrls = useAppStore((s) => s.clearDevServerUrls);
   const gitStatuses = useAppStore((s) => s.gitStatuses);
   const gitDiffStats = useAppStore((s) => s.gitDiffStats);
   const setGitDiffFile = useAppStore((s) => s.setGitDiffFile);
@@ -227,17 +220,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       markWorkspaceOpened(currentWorkspace.id);
     }
   }, [view, currentWorkspace?.id, sessionsByWorkspace, isLoading, error, detectAllClis, checkAllAuth, createSessions, markWorkspaceOpened]);
-
-  // ── Dev-server preview ─────────────────────────────────────────────
-  // Opening the preview is always an explicit user action (the chip's "Open"
-  // button, or clicking a localhost link in the terminal). It never happens
-  // automatically — dev servers re-print their URL constantly, which used to
-  // spawn a fresh browser tab per occurrence.
-  const openPreview = useCallback(() => {
-    if (!currentWorkspace || !devServerUrl) return;
-    setActiveView('browser');
-    openBrowserTab(currentWorkspace.id, devServerUrl);
-  }, [currentWorkspace, devServerUrl, setActiveView, openBrowserTab]);
 
   const restoredFilesRef = useRef<Record<string, boolean>>({});
 
@@ -544,45 +526,6 @@ export const Workspace: React.FC<WorkspaceProps> = ({ isWindows, onDocsClick, on
       />
 
       <main className="workspace-main relative flex-1 overflow-hidden bg-[var(--bg-primary)]">
-        {/* Dev-server preview chip — appears when a terminal prints a local URL. */}
-        <AnimatePresence>
-          {currentWorkspace && devServerUrls.length > 0 && (
-            <motion.div
-              key="dev-server-chip"
-              initial={{ opacity: 0, y: -12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-              className="workspace-dev-server absolute left-1/2 top-2 z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-emerald-500/30 bg-[#1c2b22]/95 px-2.5 py-1.5 shadow-lg backdrop-blur-md"
-            >
-              <img src={logo} alt="" className="h-4 w-auto opacity-90" draggable={false} />
-              <span className="font-mono text-[9px] font-bold text-emerald-300/90">
-                {devServerUrls.length === 1
-                  ? `App running at ${devServerUrl?.replace(/^https?:\/\//, '') ?? ''}`
-                  : `${devServerUrls.length} local dev servers detected`}
-              </span>
-              <button
-                type="button"
-                onClick={openPreview}
-                className="rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-widest text-emerald-300 transition-colors hover:bg-emerald-500/20 cursor-pointer"
-                title="Open in embedded browser"
-              >
-                Open
-              </button>
-              <button
-                type="button"
-                onClick={() => currentWorkspace && clearDevServerUrls(currentWorkspace.id)}
-                className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-emerald-300/40 transition-colors hover:bg-emerald-500/10 hover:text-emerald-200"
-                title="Dismiss"
-                aria-label="Dismiss dev-server chip"
-              >
-                <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
         {currentWorkspace ? (
           <div className="workspace-stage h-full flex items-stretch">
             <AnimatePresence initial={false}>

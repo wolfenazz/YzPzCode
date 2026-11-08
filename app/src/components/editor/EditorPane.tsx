@@ -583,7 +583,7 @@ export const EditorPane: React.FC<EditorPaneProps> = ({ activeFilePath, focused,
       {activeFile && isDocx && <DocxPreview filePath={activeFile.path} fileName={activeFile.name} />}
       {activeFile && isSpreadsheet && <SpreadsheetEditor filePath={activeFile.path} fileName={activeFile.name} />}
       {activeFile && isPptx && <PptxPreview filePath={activeFile.path} fileName={activeFile.name} />}
-      {activeFile && isDrawio && <DrawioPreview filePath={activeFile.path} content={activeFile.content} />}
+      {activeFile && isDrawio && <DrawioPreview key={activeFile.path} filePath={activeFile.path} content={activeFile.content} />}
       {activeFile && mediaKind && <MediaPreview key={activeFile.path} filePath={activeFile.path} fileName={activeFile.name} kind={mediaKind} />}
       {activeFile && isBinary && <BinaryPreview key={activeFile.path} filePath={activeFile.path} fileName={activeFile.name} />}
       {!activeFile && <div className="flex h-full items-center justify-center px-6">

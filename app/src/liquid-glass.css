@@ -1084,20 +1084,20 @@ html.liquid-glass :is(.lg-lens, .lg-lens-layers)::after {
    inside are quiet: glass only under the pointer; the selected tool is a lit
    glass pill. Add a floating widget to these lists, or give it .lg-float. */
 
-html.liquid-glass :where(.lg-float, .dz-topbar, .workspace-dev-server) {
+html.liquid-glass :where(.lg-float, .dz-topbar) {
   --lg-float-bg: color-mix(in srgb, var(--bg-secondary) 52%, transparent);
   --lg-float-edge: rgb(255 255 255 / 0.5);
   --lg-float-shadow: 0 12px 32px -10px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.22);
 }
 
-html.liquid-glass.light-theme :where(.lg-float, .dz-topbar, .workspace-dev-server),
-html.liquid-glass.claude-theme :where(.lg-float, .dz-topbar, .workspace-dev-server) {
+html.liquid-glass.light-theme :where(.lg-float, .dz-topbar),
+html.liquid-glass.claude-theme :where(.lg-float, .dz-topbar) {
   --lg-float-bg: color-mix(in srgb, #fff 58%, transparent);
   --lg-float-edge: rgb(255 255 255 / 0.95);
   --lg-float-shadow: 0 12px 32px -12px rgb(32 31 29 / 0.28), 0 2px 8px rgb(32 31 29 / 0.1);
 }
 
-html.liquid-glass :is(.lg-float, .dz-topbar, .workspace-dev-server) {
+html.liquid-glass :is(.lg-float, .dz-topbar) {
   border: 0 !important;
   border-radius: 999px !important;
   background-color: var(--lg-float-bg) !important;
@@ -1114,7 +1114,7 @@ html.liquid-glass :is(.lg-float, .dz-topbar, .workspace-dev-server) {
 }
 
 /* The rim catching the light. */
-html.liquid-glass :is(.lg-float, .dz-topbar, .workspace-dev-server)::before {
+html.liquid-glass :is(.lg-float, .dz-topbar)::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -1173,40 +1173,8 @@ html.liquid-glass .dz-topbar .dz-btn--icon[aria-pressed="true"] {
   box-shadow: var(--lg-rim), inset 0 1px 0 rgb(255 255 255 / 0.4), var(--lg-drop-sm);
 }
 
-/* "App running at …" notice. */
-html.liquid-glass .workspace-dev-server {
-  gap: 0.625rem;
-  padding: 0.3125rem 0.375rem 0.3125rem 0.875rem;
-}
-
-html.liquid-glass .workspace-dev-server span {
-  color: var(--text-primary) !important;
-}
-
-html.liquid-glass .workspace-dev-server button:first-of-type {
-  border: 0 !important;
-  border-radius: 999px !important;
-  padding: 0.3125rem 0.75rem;
-  background-color: color-mix(in srgb, var(--text-primary) 14%, transparent) !important;
-  background-image: var(--lg-sheen) !important;
-  box-shadow: var(--lg-rim), var(--lg-spec-top) !important;
-  color: var(--text-primary) !important;
-}
-
-html.liquid-glass .workspace-dev-server button:last-of-type {
-  border-radius: 999px !important;
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-html.liquid-glass .workspace-dev-server button:first-of-type:hover,
-html.liquid-glass .workspace-dev-server button:last-of-type:hover {
-  background-color: var(--lg-fill-hover) !important;
-  background-image: var(--lg-light), var(--lg-sheen) !important;
-}
-
 @media (prefers-reduced-transparency: reduce) {
-  html.liquid-glass.lg-follow-transparency :is(.lg-float, .dz-topbar, .workspace-dev-server) {
+  html.liquid-glass.lg-follow-transparency :is(.lg-float, .dz-topbar) {
     --lg-float-bg: var(--bg-secondary);
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;

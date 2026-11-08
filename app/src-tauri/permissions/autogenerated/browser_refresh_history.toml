@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-refresh-history"
+description = "Enables the browser_refresh_history command without any pre-configured scope."
+commands.allow = ["browser_refresh_history"]
+
+[[permission]]
+identifier = "deny-browser-refresh-history"
+description = "Denies the browser_refresh_history command without any pre-configured scope."
+commands.deny = ["browser_refresh_history"]

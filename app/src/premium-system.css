@@ -1611,29 +1611,6 @@ body {
   background: color-mix(in srgb, var(--text-secondary) 45%, transparent) !important;
 }
 
-.workspace-dev-server {
-  border-color: var(--border-primary) !important;
-  border-radius: 0.625rem !important;
-  color: var(--text-secondary);
-  background: var(--popover) !important;
-  box-shadow: var(--shadow-float) !important;
-}
-
-.workspace-dev-server :is(span, button) {
-  color: var(--text-secondary) !important;
-}
-
-.workspace-dev-server button:first-of-type {
-  border-color: var(--border-primary) !important;
-  color: var(--text-primary) !important;
-  background: var(--bg-tertiary) !important;
-}
-
-.workspace-dev-server button:first-of-type:hover,
-.workspace-dev-server button:last-of-type:hover {
-  background: var(--bg-secondary) !important;
-}
-
 .workspace-empty__content {
   max-width: 22rem;
   padding: 2.5rem;

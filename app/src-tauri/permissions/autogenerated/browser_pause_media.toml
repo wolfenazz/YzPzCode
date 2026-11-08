@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-browser-pause-media"
+description = "Enables the browser_pause_media command without any pre-configured scope."
+commands.allow = ["browser_pause_media"]
+
+[[permission]]
+identifier = "deny-browser-pause-media"
+description = "Denies the browser_pause_media command without any pre-configured scope."
+commands.deny = ["browser_pause_media"]

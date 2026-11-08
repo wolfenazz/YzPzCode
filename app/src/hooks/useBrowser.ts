@@ -128,6 +128,18 @@ export const useBrowser = () => {
     });
   }, []);
 
+  const goToBrowserHistoryEntry = useCallback(async (workspaceId: string, entryId: number) => {
+    await invoke('browser_go_to_history_entry', { workspaceId, entryId });
+  }, []);
+
+  const refreshBrowserHistory = useCallback(async (workspaceId: string) => {
+    await invoke('browser_refresh_history', { request: { workspaceId } });
+  }, []);
+
+  const pauseBrowserMedia = useCallback(async (workspaceId: string) => {
+    await invoke('browser_pause_media', { request: { workspaceId } });
+  }, []);
+
   const exportBrowserSnapshot = useCallback(async (workspaceId: string) => {
     await invoke('request_browser_snapshot', {
       request: {
@@ -215,6 +227,9 @@ export const useBrowser = () => {
     setBrowserPreviewChrome,
     goBackBrowserView,
     goForwardBrowserView,
+    goToBrowserHistoryEntry,
+    refreshBrowserHistory,
+    pauseBrowserMedia,
     exportBrowserSnapshot,
     setBrowserPickStyleMode,
     setBrowserPickUiElementMode,

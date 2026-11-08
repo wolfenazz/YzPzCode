@@ -90,10 +90,10 @@ export const BrowserToolbar = forwardRef<BrowserOmniboxHandle, BrowserToolbarPro
   return (
     <div className="bx-toolbar">
       <div className="bx-group" role="group" aria-label="Navigation">
-        <button type="button" className="bx-btn" onClick={props.onBack} disabled={pageless || !canGoBack} aria-label="Back" title="Back (Alt+←)">
+        <button type="button" className="bx-btn" onClick={props.onBack} disabled={!canGoBack} aria-label="Back" title="Back (Alt+←)">
           <CaretLeft size={15} aria-hidden="true" />
         </button>
-        <button type="button" className="bx-btn" onClick={props.onForward} disabled={pageless || !canGoForward} aria-label="Forward" title="Forward (Alt+→)">
+        <button type="button" className="bx-btn" onClick={props.onForward} disabled={!canGoForward} aria-label="Forward" title="Forward (Alt+→)">
           <CaretRight size={15} aria-hidden="true" />
         </button>
         {isLoading && !pageless ? (

@@ -27,6 +27,17 @@ import type {
   WorkspaceScoped,
 } from '../../types';
 import { useAppStore } from '../../stores/appStore';
+import { useBrowserHistoryStore } from '../../stores/browserHistoryStore';
+import {
+  applySnapshot,
+  EMPTY_WORKSPACE_HISTORY,
+  enterFromStartPage,
+  historySteps,
+  leaveToStartPage,
+  returnFromStartPage,
+  type BrowserHistoryPayload,
+  type BrowserHistoryStep,
+} from './browser/browserHistory';
 import { EMPTY_EXTENSION_PANELS, useExtensionStore } from '../../stores/extensionStore';
 import { getExtensionIcon } from '../../data/extensionIcons';
 import { extensionPanelIdFromTarget, extensionTargetId, sendPromptToExtensionPanel } from '../../utils/extensionPrompt';
@@ -233,6 +244,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     dockBrowserView,
     goBackBrowserView,
     goForwardBrowserView,
+    goToBrowserHistoryEntry,
+    refreshBrowserHistory,
+    pauseBrowserMedia,
     exportBrowserSnapshot,
     setBrowserPickStyleMode,
     setBrowserPickUiElementMode,
@@ -280,6 +294,15 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
   const autoReload = state.autoReload ?? true;
 
   useBrowserAutoReload(workspaceId, autoReload && !isStartPage);
+
+  const workspaceHistory = useBrowserHistoryStore((store) => store.byWorkspace[workspaceId]) ?? EMPTY_WORKSPACE_HISTORY;
+  const updateHistory = useBrowserHistoryStore((store) => store.updateHistory);
+  const historyStepsNow = useMemo(
+    () => historySteps(workspaceHistory, activeTab?.id ?? '', isStartPage, !isPoppedOut),
+    [activeTab?.id, isPoppedOut, isStartPage, workspaceHistory],
+  );
+  const canGoBack = historyStepsNow.known ? !!historyStepsNow.back : navState.canGoBack;
+  const canGoForward = historyStepsNow.known ? !!historyStepsNow.forward : navState.canGoForward;
 
   // ── Messages ─────────────────────────────────────────────────────────
   const showMessage = useCallback((tone: BrowserStatusMessage['tone'], text: string) => {
@@ -549,6 +572,9 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     const url = resolveOmniboxInput(input);
     if (!url) return;
     const tabId = useAppStore.getState().browserStateByWorkspace[workspaceId]?.activeTabId;
+    if (tabId && isNewTabUrl(activeUrl) && !isNewTabUrl(url)) {
+      updateHistory(workspaceId, (history) => enterFromStartPage(history, tabId));
+    }
     if (tabId) updateBrowserTab(workspaceId, tabId, { url, title: getUrlTabLabel(url), favicon: null });
     setBrowserCurrentUrl(workspaceId, url);
     if (isNewTabUrl(url)) return;
@@ -575,7 +601,7 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
       setBrowserLoading(workspaceId, false);
       reportError(err);
     }
-  }, [activeUrl, enqueue, nativeBrowserReady, navigateBrowserView, reportError, setBrowserCurrentUrl, setBrowserLoading, syncBrowserBounds, updateBrowserTab, workspaceId]);
+  }, [activeUrl, enqueue, nativeBrowserReady, navigateBrowserView, reportError, setBrowserCurrentUrl, setBrowserLoading, syncBrowserBounds, updateBrowserTab, updateHistory, workspaceId]);
 
   const handleReload = useCallback(async () => {
     if (isStartPage) return;
@@ -599,15 +625,50 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
     }
   }, [reportError, setBrowserLoading, stopBrowserView, workspaceId]);
 
+  const takeHistoryStep = useCallback((step: BrowserHistoryStep) => {
+    const tabId = activeTab?.id;
+    if (!tabId) return;
+    if (step.kind === 'entry') {
+      void enqueue(() => goToBrowserHistoryEntry(workspaceId, step.entryId)).catch(reportError);
+      return;
+    }
+    if (step.kind === 'start-page') {
+      // The webview only hides, so Forward can show the page again as it was.
+      const returnTo = { url: activeUrl, title: activeTab.title, favicon: activeTab.favicon ?? null };
+      updateHistory(workspaceId, (history) => leaveToStartPage(history, tabId, returnTo));
+      void pauseBrowserMedia(workspaceId).catch(() => undefined);
+      updateBrowserTab(workspaceId, tabId, { url: BROWSER_NEW_TAB_URL, title: 'New Tab', favicon: null });
+      setBrowserCurrentUrl(workspaceId, BROWSER_NEW_TAB_URL);
+      setBrowserLoading(workspaceId, false);
+      setPageTitle('');
+      return;
+    }
+    updateHistory(workspaceId, (history) => returnFromStartPage(history, tabId));
+    updateBrowserTab(workspaceId, tabId, { url: step.url, title: step.title, favicon: step.favicon });
+    setBrowserCurrentUrl(workspaceId, step.url);
+    setPageTitle(step.title);
+  }, [activeTab, activeUrl, enqueue, goToBrowserHistoryEntry, pauseBrowserMedia, reportError, setBrowserCurrentUrl, setBrowserLoading, updateBrowserTab, updateHistory, workspaceId]);
+
   const handleGoBack = useCallback(() => {
-    if (isStartPage) return;
+    if (historyStepsNow.known) {
+      if (historyStepsNow.back) takeHistoryStep(historyStepsNow.back);
+      return;
+    }
     void goBackBrowserView(workspaceId).catch(reportError);
-  }, [goBackBrowserView, isStartPage, reportError, workspaceId]);
+  }, [goBackBrowserView, historyStepsNow, reportError, takeHistoryStep, workspaceId]);
 
   const handleGoForward = useCallback(() => {
-    if (isStartPage) return;
+    if (historyStepsNow.known) {
+      if (historyStepsNow.forward) takeHistoryStep(historyStepsNow.forward);
+      return;
+    }
     void goForwardBrowserView(workspaceId).catch(reportError);
-  }, [goForwardBrowserView, isStartPage, reportError, workspaceId]);
+  }, [goForwardBrowserView, historyStepsNow, reportError, takeHistoryStep, workspaceId]);
+
+  // The pane unmounts with its view while the webview lives on.
+  useEffect(() => {
+    if (nativeBrowserReady) void refreshBrowserHistory(workspaceId).catch(() => undefined);
+  }, [nativeBrowserReady, refreshBrowserHistory, workspaceId]);
 
   const handleCopyUrl = useCallback(() => {
     if (isStartPage) return;
@@ -1271,6 +1332,14 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
           });
         }
       }),
+      listen<BrowserHistoryPayload>('browser-history', (event) => {
+        if (event.payload.workspaceId !== workspaceId) return;
+        const context = eventContextRef.current;
+        const { currentIndex, entries } = event.payload;
+        useBrowserHistoryStore.getState().updateHistory(workspaceId, (history) => (
+          applySnapshot(history, { currentIndex, entries }, context.isStartPage ? null : context.activeTabId)
+        ));
+      }),
       listen<BrowserInspectModePayload>('browser-inspect-mode-changed', (event) => {
         if (event.payload.workspaceId !== workspaceId) return;
         setBrowserInspectModeState(workspaceId, event.payload.enabled);
@@ -1459,8 +1528,8 @@ export const BrowserPane: React.FC<BrowserPaneProps> = ({ workspaceId, sessions 
               url={activeUrl}
               isStartPage={isStartPage}
               isLoading={state.isLoading}
-              canGoBack={navState.canGoBack}
-              canGoForward={navState.canGoForward}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
               inspectMode={state.inspectMode}
               pickStyleMode={state.pickStyleMode}
               pickUiElementMode={state.pickUiElementMode}

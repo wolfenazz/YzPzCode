@@ -128,3 +128,104 @@ test('snapshot paths use the workspace separator', () => {
   const posix = buildSnapshotPaths('/home/me/site', '');
   assert.match(posix.jsonPath, /^\/home\/me\/site\/\.yzpzcode\/browser-exports\/\d{8}-\d{6}-snapshot\.json$/);
 });
+
+const history = await load('../src/components/workspace/browser/browserHistory.ts');
+
+const snap = (currentIndex, ...pages) => ({
+  currentIndex,
+  entries: pages.map(([id, url]) => ({ id, url })),
+});
+const steps = (state, tab, onStart = false, startAvailable = true) => history.historySteps(state, tab, onStart, startAvailable);
+const G = [1, 'https://www.google.com/'];
+const SITE = [2, 'https://example.com/a'];
+const SITE2 = [3, 'https://example.com/b'];
+
+test('a link to another site can be walked back and forward', () => {
+  let state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(0, G), 'a');
+  assert.equal(steps(state, 'a').back, null);
+  state = history.applySnapshot(state, snap(1, G, SITE), 'a');
+  assert.deepEqual(steps(state, 'a').back, { kind: 'entry', entryId: 1 });
+  assert.equal(steps(state, 'a').forward, null);
+  state = history.applySnapshot(state, snap(0, G, SITE), 'a');
+  assert.equal(steps(state, 'a').back, null);
+  assert.deepEqual(steps(state, 'a').forward, { kind: 'entry', entryId: 2 });
+});
+
+test('without an engine history the page decides', () => {
+  assert.equal(steps(history.EMPTY_WORKSPACE_HISTORY, 'a').known, false);
+});
+
+test('pages that arrive between two reports stay in the trail', () => {
+  let state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(0, G), 'a');
+  state = history.applySnapshot(state, snap(2, G, SITE, SITE2), 'a');
+  assert.deepEqual(steps(state, 'a').back, { kind: 'entry', entryId: 2 });
+});
+
+test('the blank first entry is never a page to return to', () => {
+  const state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(1, [9, 'about:blank'], G), 'a');
+  assert.equal(steps(state, 'a').back, null);
+});
+
+test('tabs share the webview but not their history', () => {
+  let state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(0, G), 'a');
+  state = history.applySnapshot(state, snap(1, G, SITE), 'a');
+  const other = [4, 'https://other.dev/'];
+  state = history.applySnapshot(state, snap(2, G, SITE, other), 'b');
+  assert.equal(steps(state, 'b').back, null);
+
+  // Back on tab A loads its page again as a new entry; Back skips the old copy.
+  const again = [5, 'https://example.com/a'];
+  state = history.applySnapshot(state, snap(3, G, SITE, other, again), 'a');
+  assert.deepEqual(steps(state, 'a').back, { kind: 'entry', entryId: 1 });
+
+  // And returning to tab B does the same: nothing of tab A's is behind it.
+  const otherAgain = [6, 'https://other.dev/'];
+  state = history.applySnapshot(state, snap(4, G, SITE, other, again, otherAgain), 'b');
+  assert.equal(steps(state, 'b').back, null);
+});
+
+test('a late report after a tab switch does not hand the page to the new tab', () => {
+  let state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(0, G), 'a');
+  state = history.applySnapshot(state, snap(1, G, SITE), 'a');
+  state = history.applySnapshot(state, snap(1, G, SITE), 'b');
+  assert.deepEqual(steps(state, 'a').back, { kind: 'entry', entryId: 1 });
+  assert.equal(steps(state, 'b').back, null);
+});
+
+test('entries the engine dropped are forgotten', () => {
+  let state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(0, G), 'a');
+  state = history.applySnapshot(state, snap(1, G, SITE), 'a');
+  state = history.applySnapshot(state, snap(1, G, SITE2), 'a');
+  assert.equal(state.owners[2], undefined);
+  assert.equal(state.owners[3], 'a');
+});
+
+test('Back leads to the start page a tab came from, and Forward returns', () => {
+  const page = { url: G[1], title: 'Google', favicon: null };
+  let state = history.enterFromStartPage(history.EMPTY_WORKSPACE_HISTORY, 'a');
+  state = history.applySnapshot(state, snap(0, G), 'a');
+  assert.deepEqual(steps(state, 'a').back, { kind: 'start-page' });
+  assert.equal(steps(state, 'a', false, false).back, null);
+
+  state = history.leaveToStartPage(state, 'a', page);
+  assert.equal(steps(state, 'a', true).back, null);
+  assert.deepEqual(steps(state, 'a', true).forward, { kind: 'page', ...page });
+
+  state = history.returnFromStartPage(state, 'a');
+  assert.equal(steps(state, 'a', true).forward, null);
+  assert.deepEqual(steps(state, 'a').back, { kind: 'start-page' });
+});
+
+test('a new page from the start page drops the old trail', () => {
+  let state = history.enterFromStartPage(history.EMPTY_WORKSPACE_HISTORY, 'a');
+  state = history.applySnapshot(state, snap(0, G), 'a');
+  state = history.applySnapshot(state, snap(1, G, SITE), 'a');
+  state = history.enterFromStartPage(state, 'a');
+  state = history.applySnapshot(state, snap(2, G, SITE, SITE2), 'a');
+  assert.deepEqual(steps(state, 'a').back, { kind: 'start-page' });
+});
+
+test('a tab opened by a link has no start page behind it', () => {
+  const state = history.applySnapshot(history.EMPTY_WORKSPACE_HISTORY, snap(0, G), 'a');
+  assert.equal(steps(state, 'a').back, null);
+});

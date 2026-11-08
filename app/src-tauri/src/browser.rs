@@ -13,6 +13,7 @@ const BROWSER_ELEMENT_SELECTED_EVENT: &str = "browser-element-selected";
 const BROWSER_PAGE_LOAD_EVENT: &str = "browser-page-load";
 const BROWSER_INSPECT_MODE_EVENT: &str = "browser-inspect-mode-changed";
 const BROWSER_PAGE_STATE_EVENT: &str = "browser-page-state";
+const BROWSER_HISTORY_EVENT: &str = "browser-history";
 const BROWSER_SNAPSHOT_READY_EVENT: &str = "browser-snapshot-ready";
 const BROWSER_STYLE_CAPTURED_EVENT: &str = "browser-style-captured";
 const BROWSER_UI_ELEMENT_CAPTURED_EVENT: &str = "browser-ui-element-captured";
@@ -840,15 +841,16 @@ const BROWSER_INIT_SCRIPT: &str = r#"
   };
 
   const emitPageState = () => {
-    // The Navigation API (Chromium/WebView2) knows the real back/forward
-    // state; other engines report null and the toolbar keeps both enabled.
+    // navigation.canGoBack only counts same-origin entries, so `false` says
+    // nothing after a link to another site: only `true` is reported, anything
+    // else is unknown. On Windows the toolbar uses WebView2's real history.
     const nav = window.navigation;
     const payload = {
       title: document.title || '',
       url: window.location.href,
       historyLength: window.history.length,
-      canGoBack: nav && typeof nav.canGoBack === 'boolean' ? nav.canGoBack : null,
-      canGoForward: nav && typeof nav.canGoForward === 'boolean' ? nav.canGoForward : null,
+      canGoBack: nav && nav.canGoBack === true ? true : null,
+      canGoForward: nav && nav.canGoForward === true ? true : null,
       favicon: resolveFavicon()
     };
     const payloadKey = JSON.stringify(payload);
@@ -2157,6 +2159,28 @@ pub struct BrowserInspectModePayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowserHistoryEntry {
+    pub id: i64,
+    pub url: String,
+}
+
+/// The webview's session history, as DevTools `Page.getNavigationHistory` gives it.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserHistorySnapshot {
+    pub current_index: usize,
+    pub entries: Vec<BrowserHistoryEntry>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserHistoryPayload {
+    pub workspace_id: String,
+    #[serde(flatten)]
+    pub snapshot: BrowserHistorySnapshot,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BrowserPageStatePayload {
     pub workspace_id: String,
@@ -2662,6 +2686,7 @@ impl BrowserManager {
             )?;
             webview.set_auto_resize(false)?;
             webview.set_zoom(existing_zoom)?;
+            self.watch_history(&webview, workspace_id);
         }
 
         let current_url = if url.is_empty() {
@@ -2764,6 +2789,127 @@ impl BrowserManager {
             "window.__YZPZ_BROWSER_BRIDGE__ && window.__YZPZ_BROWSER_BRIDGE__.goForward();",
         )?;
         Ok(())
+    }
+
+    /// Traverses to one entry of the session history, which keeps it (and the
+    /// page's scroll position) instead of loading its URL as a new entry.
+    #[cfg(windows)]
+    pub fn go_to_history_entry(&self, workspace_id: &str, entry_id: i64) -> Result<()> {
+        use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
+        use windows_core::HSTRING;
+
+        let manager = self.clone();
+        let workspace = workspace_id.to_string();
+        self.webview_for_workspace(workspace_id)?
+            .with_webview(move |platform| {
+                let Ok(core) = (unsafe { platform.controller().CoreWebView2() }) else {
+                    return;
+                };
+                let method = HSTRING::from("Page.navigateToHistoryEntry");
+                let params = HSTRING::from(serde_json::json!({ "entryId": entry_id }).to_string());
+                let sender = core.clone();
+                let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(
+                    move |result, _| {
+                        // The entry was gone: tell the toolbar what is left.
+                        if result.is_err() {
+                            manager.report_history(&sender, &workspace);
+                        }
+                        Ok(())
+                    },
+                ));
+                let _ = unsafe { core.CallDevToolsProtocolMethod(&method, &params, &handler) };
+            })?;
+        Ok(())
+    }
+
+    #[cfg(not(windows))]
+    pub fn go_to_history_entry(&self, _workspace_id: &str, _entry_id: i64) -> Result<()> {
+        anyhow::bail!("Native browser history is only available on Windows")
+    }
+
+    pub fn refresh_history(&self, workspace_id: &str) -> Result<()> {
+        let webview = self.webview_for_workspace(workspace_id)?;
+        self.request_history(&webview, workspace_id);
+        Ok(())
+    }
+
+    /// A page hidden behind the start page should not keep playing.
+    pub fn pause_media(&self, workspace_id: &str) -> Result<()> {
+        self.webview_for_workspace(workspace_id)?.eval(
+            "document.querySelectorAll('video,audio').forEach(function (media) { media.pause(); });",
+        )?;
+        Ok(())
+    }
+
+    /// Reports the session history to the toolbar whenever it changes. Called
+    /// once per webview, right after it is created.
+    #[cfg(windows)]
+    fn watch_history(&self, webview: &Webview, workspace_id: &str) {
+        use webview2_com::HistoryChangedEventHandler;
+
+        let manager = self.clone();
+        let workspace = workspace_id.to_string();
+        let _ = webview.with_webview(move |platform| {
+            let Ok(core) = (unsafe { platform.controller().CoreWebView2() }) else {
+                return;
+            };
+            let handler = HistoryChangedEventHandler::create(Box::new(move |sender, _| {
+                if let Some(sender) = sender {
+                    manager.report_history(&sender, &workspace);
+                }
+                Ok(())
+            }));
+            let mut token = 0i64;
+            let _ = unsafe { core.add_HistoryChanged(&handler, &mut token) };
+        });
+    }
+
+    #[cfg(not(windows))]
+    fn watch_history(&self, _webview: &Webview, _workspace_id: &str) {}
+
+    #[cfg(windows)]
+    fn request_history(&self, webview: &Webview, workspace_id: &str) {
+        let manager = self.clone();
+        let workspace = workspace_id.to_string();
+        let _ = webview.with_webview(move |platform| {
+            if let Ok(core) = unsafe { platform.controller().CoreWebView2() } {
+                manager.report_history(&core, &workspace);
+            }
+        });
+    }
+
+    #[cfg(not(windows))]
+    fn request_history(&self, _webview: &Webview, _workspace_id: &str) {}
+
+    #[cfg(windows)]
+    fn report_history(
+        &self,
+        core: &webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2,
+        workspace_id: &str,
+    ) {
+        use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
+        use windows_core::HSTRING;
+
+        let manager = self.clone();
+        let workspace = workspace_id.to_string();
+        let handler =
+            CallDevToolsProtocolMethodCompletedHandler::create(Box::new(move |result, json| {
+                if result.is_ok() {
+                    if let Ok(snapshot) = serde_json::from_str::<BrowserHistorySnapshot>(&json) {
+                        let _ = manager.emit_event(
+                            BROWSER_HISTORY_EVENT,
+                            &BrowserHistoryPayload {
+                                workspace_id: workspace.clone(),
+                                snapshot,
+                            },
+                        );
+                    }
+                }
+                Ok(())
+            }));
+        let method = HSTRING::from("Page.getNavigationHistory");
+        let params = HSTRING::from("{}");
+        let _ = unsafe { core.CallDevToolsProtocolMethod(&method, &params, &handler) };
     }
 
     pub fn request_snapshot(&self, workspace_id: &str) -> Result<()> {
@@ -2870,6 +3016,7 @@ impl BrowserManager {
                 .build()?;
 
             window.set_zoom(zoom_factor)?;
+            self.watch_history(window.as_ref(), workspace_id);
             window.on_window_event(move |event| {
                 if matches!(event, WindowEvent::Destroyed) {
                     let _ = manager_for_close
@@ -3323,6 +3470,7 @@ impl BrowserManager {
         )?;
 
         if matches!(event, PageLoadEvent::Finished) {
+            self.request_history(&webview, &workspace_id);
             let (inspect_mode, preview_chrome) = self
                 .instances
                 .lock()
@@ -3596,6 +3744,21 @@ mod tests {
         browser_urls_match, canonicalize_browser_url, resolve_browser_url, BROWSER_INIT_SCRIPT,
         DEFAULT_BROWSER_URL,
     };
+
+    #[test]
+    fn devtools_history_reply_is_read() {
+        let reply = r#"{"currentIndex":1,"entries":[
+            {"id":2,"url":"https://www.google.com/","userTypedURL":"","title":"Google","transitionType":"typed"},
+            {"id":16,"url":"https://unsplash.com/s/photos/user","userTypedURL":"","title":"User","transitionType":"link"}
+        ]}"#;
+        let snapshot: super::BrowserHistorySnapshot = serde_json::from_str(reply).unwrap();
+        assert_eq!(snapshot.current_index, 1);
+        assert_eq!(snapshot.entries[0].id, 2);
+        assert_eq!(
+            snapshot.entries[1].url,
+            "https://unsplash.com/s/photos/user"
+        );
+    }
 
     #[test]
     fn init_script_skips_iframes() {
